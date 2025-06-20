@@ -1,0 +1,106 @@
+{
+  "analyzed_gdu": "GDU_Reflection_Metacognition",
+  "generic_synchronic_structure": {
+    "representation_type": "Semantic Network",
+    "description": "Generic Synchronic Structure for GDU 'GDU_Reflection_Metacognition', representing different facets of participants' reflections and metacognitive comments.",
+    "generic_nodes_categories": [
+      {
+        "id": "gss_cat_ReflectionProcessStrategy",
+        "label": "Reflection on Process/Strategy"
+      },
+      {
+        "id": "gss_cat_ReflectionNatureExperience",
+        "label": "Reflection on Nature of Experience"
+      },
+      {
+        "id": "gss_cat_ReflectionConclusionsOutcomes",
+        "label": "Reflection on Conclusions/Outcomes"
+      }
+    ],
+    "generic_network_links": [
+      {
+        "from": "gss_cat_ReflectionProcessStrategy",
+        "to": "gss_cat_ReflectionNatureExperience",
+        "type": "is_related_to"
+      },
+      {
+        "from": "gss_cat_ReflectionProcessStrategy",
+        "to": "gss_cat_ReflectionConclusionsOutcomes",
+        "type": "leads_to"
+      },
+      {
+        "from": "gss_cat_ReflectionNatureExperience",
+        "to": "gss_cat_ReflectionConclusionsOutcomes",
+        "type": "informs"
+      }
+    ],
+    "instantiation_notes": [
+      {
+        "generic_category_id": "gss_cat_ReflectionProcessStrategy",
+        "textual_description": "This category captures reflections or comments participants made about the process they used, their strategies, or how the experience unfolded. It is instantiated by SSS nodes grouped under 'gss_node_group_reflection_process_strategy'.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "sss_node_id": "sss_node_0_reflection_process",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1700000000_1",
+            "sss_node_id": "sss_node_1_strategy_comment",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1700000000_2",
+            "sss_node_id": "sss_node_2_how_it_happened",
+            "phase_name": "Core Event"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_ReflectionNatureExperience",
+        "textual_description": "This category represents comments on the inherent nature or quality of the experience itself, such as its automaticity, reality, or perceived effort. It is instantiated by SSS nodes grouped under 'gss_node_group_reflection_nature_experience'.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "sss_node_id": "sss_node_0_automaticity_comment",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1700000000_1",
+            "sss_node_id": "sss_node_1_reality_perception",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1700000000_2",
+            "sss_node_id": "sss_node_2_effort_comment",
+            "phase_name": "Core Event"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_ReflectionConclusionsOutcomes",
+        "textual_description": "This category includes instances where participants drew conclusions or summarized the effect or outcome of the suggestion or experience. It is instantiated by SSS nodes grouped under 'gss_node_group_reflection_conclusions'.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "sss_node_id": "sss_node_0_conclusion_effect",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1700000000_1",
+            "sss_node_id": "sss_node_1_summary_outcome",
+            "phase_name": "Core Event"
+          }
+        ]
+      }
+    ]
+  },
+  "variations_notes": "Based on the provided SSS node group definitions and rationales, no specific patterns or variations linked to different Independent Variables were observed or described.",
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ]
+}

@@ -977,56 +977,93 @@ Do NOT include a "mermaid_syntax_generic_diachronic" field; this will be generat
     part: "PartIV_GenSync",
     isJsonOutput: true,
     getInput: (_, allProcessedData, genericState, apiKeyPresent, userDvFocus) => {
-        console.log("[P4S.1.A getInput] Starting...");
         if (!apiKeyPresent) return { data: null, error: "API Key not set." };
         if (!allProcessedData || allProcessedData.size === 0) return { data: null, error: "No processed transcript data available." };
         if (!genericState?.p3_2_output?.identified_gdus || genericState.p3_2_output.identified_gdus.length === 0) { return { data: null, error: "No GDUs identified from P3.2 to analyze." }; }
 
         const currentGDUToAnalyze = genericState.current_gdu_for_p4s_processing;
-        console.log(`[P4S.1.A getInput] Current GDU to analyze: ${currentGDUToAnalyze}`);
         if (!currentGDUToAnalyze) { return { data: null, error: "Current GDU for P4S analysis not set in generic state." }; }
-
-        const relevant_specific_synchronic_structures: Array<{
-            transcript_id: string;
-            filename: string;
-            diachronic_phase_analyzed: string;
-            independent_variable_details: string;
-            specific_synchronic_structure: P2S_3_Output['specific_synchronic_structure'];
-        }> = [];
 
         const gduDef = genericState.p3_2_output.identified_gdus.find(g => g.gdu_id === currentGDUToAnalyze);
         const contributingRefinedDuInfo = gduDef?.contributing_refined_du_ids || [];
-        console.log(`[P4S.1.A getInput] GDU: ${currentGDUToAnalyze}, Definition: "${gduDef?.definition}", Contributing RDUs count: ${contributingRefinedDuInfo.length}`);
+        
+        // Debug logging: Check transcript diversity in contributing refined DUs
+        const uniqueContributingTranscripts = new Set(contributingRefinedDuInfo.map(info => info.transcript_id));
+        console.log(`[P4S.1.A getInput] GDU ${currentGDUToAnalyze} has contributing refined DUs from ${uniqueContributingTranscripts.size} transcripts:`, Array.from(uniqueContributingTranscripts));
+        
+        const groundedSssNodesForGrouping: Array<{
+            transcript_id: string;
+            phase_name: string;
+            sss_node_id: string;
+            sss_node_label: string;
+            independent_variable_details: string;
+        }> = [];
+
+        const isNodeGrounded = (isuName: string, hierarchy: { unit_name: string; level: number; utterances?: any[]; constituent_lower_units?: string[] }[], memo: Map<string, boolean>): boolean => {
+            if (memo.has(isuName)) return memo.get(isuName)!;
+            const isu = hierarchy.find(u => u.unit_name === isuName);
+            if (!isu) { memo.set(isuName, false); return false; }
+            if (isu.utterances && isu.utterances.length > 0) { memo.set(isuName, true); return true; }
+            if (!isu.constituent_lower_units || isu.constituent_lower_units.length === 0) { memo.set(isuName, false); return false; }
+            for (const lowerUnit of isu.constituent_lower_units) {
+                if (isNodeGrounded(lowerUnit, hierarchy, memo)) { memo.set(isuName, true); return true; }
+            }
+            memo.set(isuName, false);
+            return false;
+        };
 
         allProcessedData.forEach(tData => {
-            const relevantRefinedDuIdsFromThisTranscript = contributingRefinedDuInfo
-                .filter(info => info.transcript_id === tData.id)
-                .map(info => info.refined_du_id);
-            if (relevantRefinedDuIdsFromThisTranscript.length === 0) return;
-
-            if (!tData.p1_4_output?.specific_diachronic_structure.phases || !tData.p2s_outputs_by_phase) return;
+            const relevantRefinedDuIdsFromThisTranscript = contributingRefinedDuInfo.filter(info => info.transcript_id === tData.id).map(info => info.refined_du_id);
+            if (relevantRefinedDuIdsFromThisTranscript.length === 0) {
+                console.log(`[P4S.1.A getInput] Skipping transcript ${tData.id}: No contributing refined DUs for this GDU`);
+                return;
+            }
+            if (!tData.p1_4_output?.specific_diachronic_structure.phases || !tData.p2s_outputs_by_phase) {
+                console.log(`[P4S.1.A getInput] Skipping transcript ${tData.id}: Missing required phase data`);
+                return;
+            }
+            console.log(`[P4S.1.A getInput] Processing transcript ${tData.id} with ${relevantRefinedDuIdsFromThisTranscript.length} relevant refined DUs`);
 
             tData.p1_4_output.specific_diachronic_structure.phases.forEach(phase => {
                 const phaseUsesRelevantRefinedDU = phase.units_involved.some(unitId => relevantRefinedDuIdsFromThisTranscript.includes(unitId));
                 if (phaseUsesRelevantRefinedDU) {
                     const sssDataForPhase = tData.p2s_outputs_by_phase?.[phase.phase_name];
-                    if (sssDataForPhase?.p2s_3_output?.specific_synchronic_structure) {
-                        relevant_specific_synchronic_structures.push({
-                            transcript_id: tData.id,
-                            filename: tData.filename,
-                            diachronic_phase_analyzed: phase.phase_name,
-                            independent_variable_details: sssDataForPhase.p2s_3_output.independent_variable_details,
-                            specific_synchronic_structure: sssDataForPhase.p2s_3_output.specific_synchronic_structure
+                    if (sssDataForPhase?.p2s_3_output?.specific_synchronic_structure && sssDataForPhase.p2s_2_output?.specific_synchronic_units_hierarchy) {
+                        const isuHierarchy = sssDataForPhase.p2s_2_output.specific_synchronic_units_hierarchy;
+                        const groundingMemo = new Map<string, boolean>();
+                        sssDataForPhase.p2s_3_output.specific_synchronic_structure.network_nodes.forEach(node => {
+                            if (isNodeGrounded(node.source_isu_id, isuHierarchy, groundingMemo)) {
+                                groundedSssNodesForGrouping.push({
+                                    transcript_id: tData.id,
+                                    phase_name: phase.phase_name,
+                                    sss_node_id: node.id,
+                                    sss_node_label: node.label,
+                                    independent_variable_details: sssDataForPhase.p2s_3_output!.independent_variable_details,
+                                });
+                            } else {
+                                console.log(`[P4S.1.A getInput] Node ${node.id} from ${tData.id}/${phase.phase_name} filtered: Failed grounding check`);
+                            }
                         });
                     }
                 }
             });
         });
 
-        console.log(`[P4S.1.A getInput] Total relevant SSS structures collected for GDU ${currentGDUToAnalyze}: ${relevant_specific_synchronic_structures.length}`);
         const MINIMUM_SSS_COUNT = 1;
-        if (relevant_specific_synchronic_structures.length < MINIMUM_SSS_COUNT) {
-            const errorMsg = `Insufficient SSS data for GDU ${currentGDUToAnalyze}: found ${relevant_specific_synchronic_structures.length}, require at least ${MINIMUM_SSS_COUNT}. Cannot proceed with GSS node grouping.`;
+        const MINIMUM_TRANSCRIPT_DIVERSITY = 2; // Configurable: Require nodes from at least N transcripts for "Generic" structure
+        
+        if (groundedSssNodesForGrouping.length < MINIMUM_SSS_COUNT) {
+            const errorMsg = `Insufficient **utterance-grounded** SSS nodes for GDU ${currentGDUToAnalyze}: found ${groundedSssNodesForGrouping.length}, require at least ${MINIMUM_SSS_COUNT}. Cannot proceed with GSS node grouping.`;
+            console.error(`[P4S.1.A getInput] ${errorMsg}`);
+            return { data: null, error: errorMsg };
+        }
+        
+        // Diversity validation: Check transcript representation
+        const uniqueTranscriptsInGroundedNodes = new Set(groundedSssNodesForGrouping.map(node => node.transcript_id));
+        console.log(`[P4S.1.A getInput] Found grounded nodes from ${uniqueTranscriptsInGroundedNodes.size} transcripts:`, Array.from(uniqueTranscriptsInGroundedNodes));
+        
+        if (uniqueTranscriptsInGroundedNodes.size < MINIMUM_TRANSCRIPT_DIVERSITY) {
+            const errorMsg = `Insufficient transcript diversity for GDU ${currentGDUToAnalyze}: found nodes from ${uniqueTranscriptsInGroundedNodes.size} transcripts (${Array.from(uniqueTranscriptsInGroundedNodes)}), require at least ${MINIMUM_TRANSCRIPT_DIVERSITY} for Generic Synchronic Structure. This may indicate upstream data issues in P3.2 GDU identification.`;
             console.error(`[P4S.1.A getInput] ${errorMsg}`);
             return { data: null, error: errorMsg };
         }
@@ -1034,55 +1071,44 @@ Do NOT include a "mermaid_syntax_generic_diachronic" field; this will be generat
             data: {
                 gdu_to_analyze_id: currentGDUToAnalyze,
                 gdu_definition: gduDef?.definition || "Definition not found",
-                all_relevant_specific_synchronic_structures: relevant_specific_synchronic_structures,
+                grounded_sss_nodes: groundedSssNodesForGrouping,
                 global_dv_focus: userDvFocus?.dv_focus
             }
         };
     },
-    generatePrompt: (input: { gdu_to_analyze_id: string, gdu_definition: string, all_relevant_specific_synchronic_structures: any[], global_dv_focus: string[] }) => `You are a Generic Synchronic Analysis assistant. Task: For a given Generic Diachronic Unit (GDU), identify and group similar Specific Synchronic Structure (SSS) nodes from various transcripts and phases. This is the first step (P4S.1.A) towards building a Generic Synchronic Structure (GSS).
+    generatePrompt: (input: { gdu_to_analyze_id: string, gdu_definition: string, grounded_sss_nodes: any[], global_dv_focus: string[] }) => `You are a Generic Synchronic Analysis assistant. Your task is to perform thematic grouping on a **pre-verified list of utterance-grounded Specific Synchronic Structure (SSS) nodes**.
 Input:
 - GDU to Analyze (ID): "${input.gdu_to_analyze_id}"
 - GDU Definition: "${input.gdu_definition}"
-- Array of SSSs (\`all_relevant_specific_synchronic_structures\`). Each SSS includes its \`transcript_id\`, \`filename\`, \`diachronic_phase_analyzed\`, \`independent_variable_details\`, and \`specific_synchronic_structure\` (which contains \`network_nodes\` each with an \`id\` and \`label\`, and \`network_links\`).
+- A list of \`grounded_sss_nodes\`. Each node in this list has ALREADY been verified to be traceable to specific participant utterances. Each object contains \`transcript_id\`, \`phase_name\`, \`sss_node_id\`, \`sss_node_label\`, and \`independent_variable_details\`.
 - Global DV Focus: ${JSON.stringify(input.global_dv_focus)}
-Sample of SSS structure (full list provided to LLM): ${JSON.stringify({all_relevant_specific_synchronic_structures_sample: input.all_relevant_specific_synchronic_structures.slice(0,1)}, null, 2)}
+${JSON.stringify({grounded_sss_nodes_sample: input.grounded_sss_nodes.slice(0,5)}, null, 2)}
+(A sample of the pre-verified input nodes is provided above for context; the full list is available to you).
 
 Instructions:
-1.  **Examine SSS Nodes:** Systematically review all SSS nodes within the provided \`all_relevant_specific_synchronic_structures\` that are relevant to the GDU: \`${input.gdu_to_analyze_id}\`.
-2.  **Identify Groups of Similar SSS Nodes:**
-    *   Look for SSS nodes (potentially from different transcripts and/or different phases within those transcripts) that appear to represent similar underlying concepts or experiential elements.
-    *   **Grouping Criteria:**
-        *   Similarity in SSS node \`label\`s.
-        *   SSS nodes playing analogous roles within their respective SSS networks (e.g., similar types of incoming/outgoing links, connections to similar kinds of other nodes).
-        *   Consider the \`dependent_variable_focus\` to guide thematic similarity.
-3.  **MANDATORY: Define SSS Node Groups from Real Input Data Only:** For each identified group of SSS nodes:
-    *   \`group_id\`: Assign a unique identifier for this group (e.g., "sss_group_1_MeaningMaking").
-    *   \`group_rationale\`: Provide a clear justification for why these specific SSS nodes are grouped together. Explain the shared concept they represent.
-    *   \`contributing_sss_nodes\`: This array MUST NOT BE EMPTY and **MUST contain ONLY real SSS nodes from the actual input data**. Each reference MUST be copied **directly and exactly** from the provided \`all_relevant_specific_synchronic_structures\` input. **DO NOT invent, hallucinate, or create placeholder nodes.** Each reference MUST include:
-        *   \`transcript_id\`: The exact \`transcript_id\` from the SSS input (copy exactly from input).
-        *   \`phase_name\`: The exact \`diachronic_phase_analyzed\` string from the SSS input (copy exactly from input).
-        *   \`sss_node_id\`: The exact \`id\` string of an actual node within that SSS's \`network_nodes\` (copy exactly from input).
-        *   \`sss_node_label\`: The exact \`label\` of the actual SSS node from the input (copy exactly from input).
-4.  **Prioritize Cross-Transcript Grouping:** The goal is to find patterns that generalize. Favor groups that include SSS nodes from multiple different \`transcript_id\`s.
-5.  **Notes:** Optionally include \`grouping_process_notes\` for any challenges or important observations during this grouping process.
+1.  **Group by Theme:** Your sole task is to group the provided \`grounded_sss_nodes\` into thematically coherent clusters based on their labels and relevance to the GDU definition.
+2.  **Create Output:** For each group you identify, create an object with:
+    *   \`group_id\`: A unique identifier for the group (e.g., "gss_node_group_1_MeaningMaking").
+    *   \`group_rationale\`: A clear justification for the grouping.
+    *   \`contributing_sss_nodes\`: An array listing the nodes that belong to this group. You MUST copy the \`transcript_id\`, \`phase_name\`, \`sss_node_id\`, and \`sss_node_label\` for each node directly and exactly from the input list.
+3.  **Crucial Guardrail:** DO NOT invent, hallucinate, or include any SSS node that was not explicitly provided in the \`grounded_sss_nodes\` input list.
 
 Output:
-A JSON object adhering EXACTLY to the following structure. The \`contributing_sss_nodes\` array within each \`sss_node_groups\` object MUST NOT be empty and MUST contain ONLY real data copied exactly from the input.
+A JSON object adhering EXACTLY to the following structure.
 {
   "analyzed_gdu": "${input.gdu_to_analyze_id}",
   "sss_node_groups": [
     {
-      "group_id": "sss_group_1_Example",
-      "group_rationale": "These SSS nodes all describe participants' active engagement with the stimulus.",
+      "group_id": "gss_node_group_1_ExampleTheme",
+      "group_rationale": "These nodes from the pre-verified list all describe X.",
       "contributing_sss_nodes": [
-        { "transcript_id": "transcript_1700000000_0", "phase_name": "Core Event", "sss_node_id": "sss_node_actual_id_from_tx_A_phase_Core", "sss_node_label": "Active Engagement" },
-        { "transcript_id": "transcript_1700000000_1", "phase_name": "Beginning", "sss_node_id": "another_sss_node_id_from_tx_B_phase_Beginning", "sss_node_label": "Focused Attention" }
+        { "transcript_id": "(from input list)", "phase_name": "(from input list)", "sss_node_id": "(from input list)", "sss_node_label": "(from input list)" }
       ]
     }
     // ... more groups
   ],
   "dependent_variable_focus": ${JSON.stringify(input.global_dv_focus)},
-  "grouping_process_notes": "Optional notes on the grouping process."
+  "grouping_process_notes": "Optional notes on the thematic grouping process."
 }`,
   },
   [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: {
@@ -1161,6 +1187,7 @@ Do NOT include a "mermaid_syntax_generic_synchronic" field; this will be generat
     isJsonOutput: true,
     getInput: (_, allProcessedData, genericState, apiKeyPresent) => {
         if (!apiKeyPresent) return { data: null, error: "API Key not set." };
+        if (!allProcessedData || allProcessedData.size === 0) return { data: null, error: "No processed transcript data available." };
         if (!genericState?.p3_3_output || !genericState?.p4s_outputs_by_gdu) { return { data: null, error: "Generic Diachronic (P3.3) or Generic Synchronic (P4S.1.B outputs by GDU) data not found." }; }
         
         const all_sds_outputs: any[] = [];

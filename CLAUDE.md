@@ -77,3 +77,12 @@ The analysis pipeline follows a strict 9-part sequence detailed in `pipeline.md`
 - **Mermaid Generation**: Structured outputs automatically generate diagrams via `utils/visualizationHelper.ts`
 
 When modifying analysis steps, ensure outputs match the expected TypeScript interfaces in `types.ts` and update corresponding transformation utilities in `utils/`.
+
+## Claude Code Tooling Guidelines
+
+**Use Advanced MCP Tools When Appropriate**:
+- **Serena**: Use for complex codebase analysis, symbol navigation, code refactoring, and multi-file operations. Particularly valuable for understanding the pipeline architecture and component relationships.
+- **Zen**: Use for deep analysis, code review, debugging complex issues, test generation, and architectural planning. Excellent for validating pipeline implementations and analyzing data flow patterns.
+- **Context7**: Use for accessing up-to-date documentation and best practices for React, TypeScript, Vite, and other frameworks used in this project.
+
+These tools provide enhanced capabilities beyond standard file operations and should be leveraged for non-trivial development tasks, especially when working with the complex pipeline architecture or debugging cross-component data flow issues.

@@ -1,0 +1,106 @@
+{
+  "analyzed_gdu": "GDU_Suggested_Phenomenon_Absence",
+  "generic_synchronic_structure": {
+    "representation_type": "Semantic Network",
+    "description": "Generic Synchronic Structure for the absence of a suggested phenomenon, characterized by the lack of specific internal experiences, a general sense of blankness or not noticing, and the process of attempting to find something and finding nothing.",
+    "generic_nodes_categories": [
+      {
+        "id": "gss_cat_absence_specific_internal",
+        "label": "Absence of Specific Internal Experience Types"
+      },
+      {
+        "id": "gss_cat_general_absence_noticing",
+        "label": "General Absence or Lack of Noticing"
+      },
+      {
+        "id": "gss_cat_attempt_outcome_absence",
+        "label": "Attempt to Find and Outcome of Absence"
+      }
+    ],
+    "generic_network_links": [
+      {
+        "from": "gss_cat_attempt_outcome_absence",
+        "to": "gss_cat_general_absence_noticing",
+        "type": "leads_to_noticing"
+      },
+      {
+        "from": "gss_cat_attempt_outcome_absence",
+        "to": "gss_cat_absence_specific_internal",
+        "type": "leads_to_noticing"
+      },
+      {
+        "from": "gss_cat_general_absence_noticing",
+        "to": "gss_cat_absence_specific_internal",
+        "type": "characterized_by"
+      }
+    ],
+    "instantiation_notes": [
+      {
+        "generic_category_id": "gss_cat_absence_specific_internal",
+        "textual_description": "This category represents the specific lack of expected internal experiences such as thoughts, feelings, sensations, or images, as identified in SSS Group 'gss_node_group_absence_specific_internal_types'.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "sss_node_id": "sss_node_1",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "sss_node_id": "sss_node_2",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "sss_node_id": "sss_node_3",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "sss_node_id": "sss_node_4",
+            "phase_name": "Core Event"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_general_absence_noticing",
+        "textual_description": "This category captures the overall sense of a 'blank' state or a failure to perceive or notice any internal content, as identified in SSS Group 'gss_node_group_general_absence_noticing'.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "sss_node_id": "sss_node_8",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "sss_node_id": "sss_node_9",
+            "phase_name": "Core Event"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_attempt_outcome_absence",
+        "textual_description": "This category describes the active process of searching for the suggested phenomenon and the resulting finding that nothing was present, as identified in SSS Group 'gss_node_group_attempt_and_outcome_absence'.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "sss_node_id": "sss_node_5",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "sss_node_id": "sss_node_6",
+            "phase_name": "Core Event"
+          }
+        ]
+      }
+    ]
+  },
+  "variations_notes": "Based on the provided SSS node groups from a single transcript, no variations in the GSS structure or its instantiation were observed in relation to Independent Variables.",
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ]
+}

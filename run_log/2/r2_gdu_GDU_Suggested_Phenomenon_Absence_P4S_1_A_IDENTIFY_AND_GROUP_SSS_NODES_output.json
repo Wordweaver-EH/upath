@@ -1,0 +1,79 @@
+{
+  "analyzed_gdu": "GDU_Suggested_Phenomenon_Absence",
+  "sss_node_groups": [
+    {
+      "group_id": "gss_node_group_absence_specific_internal_types",
+      "group_rationale": "These SSS nodes describe the absence of specific types of internal experiences (thoughts, feelings, sensations, images) relevant to the DV focus, and have been verified as grounded in utterances.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_1",
+          "sss_node_label": "No specific thoughts"
+        },
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_2",
+          "sss_node_label": "No specific feelings"
+        },
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_3",
+          "sss_node_label": "No specific sensations"
+        },
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_4",
+          "sss_node_label": "No specific images"
+        }
+      ]
+    },
+    {
+      "group_id": "gss_node_group_general_absence_noticing",
+      "group_rationale": "These SSS nodes describe a general lack of internal experience, a 'blank' state, or a failure to notice anything, relevant to the GDU and DV focus, and have been verified as grounded in utterances.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_8",
+          "sss_node_label": "Mind was blank"
+        },
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_9",
+          "sss_node_label": "Didn't notice anything"
+        }
+      ]
+    },
+    {
+      "group_id": "gss_node_group_attempt_and_outcome_absence",
+      "group_rationale": "These SSS nodes describe the process of attempting to find the suggested phenomenon and the outcome of finding nothing, relevant to the GDU, and have been verified as grounded in utterances.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_5",
+          "sss_node_label": "Attempted to find something"
+        },
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_6",
+          "sss_node_label": "Nothing found"
+        }
+      ]
+    }
+  ],
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ],
+  "grouping_process_notes": "All SSS nodes considered were verified for grounding by tracing their source_isu_id back to Level 0 ISUs with non-empty utterance arrays in the provided hierarchy. Nodes related to the presence of external stimuli (like 'Just the sound') were excluded as not relevant to the GDU's focus on the absence of the *suggested phenomenon* (internal experiences). Remaining grounded nodes relevant to absence were grouped by thematic similarity."
+}

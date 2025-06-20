@@ -1,0 +1,97 @@
+{
+  "analyzed_gdu": "GDU_Orientation_Preparation",
+  "sss_node_groups": [
+    {
+      "group_id": "gss_node_group_1_CognitiveOrientation",
+      "group_rationale": "These SSS nodes describe cognitive processes related to orienting attention, understanding instructions, setting intentions, or recalling relevant past experiences before the core activity, verified as grounded in utterances.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_A",
+          "phase_name": "Preparation",
+          "sss_node_id": "sss_node_A1",
+          "sss_node_label": "Setting Intention"
+        },
+        {
+          "transcript_id": "transcript_A",
+          "phase_name": "Preparation",
+          "sss_node_id": "sss_node_A3",
+          "sss_node_label": "Anticipating Outcome"
+        },
+        {
+          "transcript_id": "transcript_C",
+          "phase_name": "Orientation",
+          "sss_node_id": "sss_node_C1",
+          "sss_node_label": "Understanding Instructions"
+        },
+        {
+          "transcript_id": "transcript_C",
+          "phase_name": "Orientation",
+          "sss_node_id": "sss_node_C3",
+          "sss_node_label": "Recalling Past Experience"
+        }
+      ]
+    },
+    {
+      "group_id": "gss_node_group_2_PhysicalPreparationAwareness",
+      "group_rationale": "These SSS nodes describe physical adjustments or awareness of bodily sensations as part of the preparation or initial state, verified as grounded in utterances.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_A",
+          "phase_name": "Preparation",
+          "sss_node_id": "sss_node_A2",
+          "sss_node_label": "Physical Posture Adjustment"
+        },
+        {
+          "transcript_id": "transcript_C",
+          "phase_name": "Orientation",
+          "sss_node_id": "sss_node_C2",
+          "sss_node_label": "Sensing Body Weight"
+        }
+      ]
+    },
+    {
+      "group_id": "gss_node_group_3_InitialInternalStateAssessment",
+      "group_rationale": "This SSS node describes the act of checking in on one's current internal state (cognitive or emotional) as part of the initial orientation, verified as grounded in utterances.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_B",
+          "phase_name": "Initial State",
+          "sss_node_id": "sss_node_B1",
+          "sss_node_label": "Checking Inwardly"
+        }
+      ]
+    },
+    {
+      "group_id": "gss_node_group_4_InitialEmotionalState",
+      "group_rationale": "This SSS node describes an initial emotional state experienced during the orientation or preparation phase, verified as grounded in utterances.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_B",
+          "phase_name": "Initial State",
+          "sss_node_id": "sss_node_B2",
+          "sss_node_label": "Feeling Restless"
+        }
+      ]
+    },
+    {
+      "group_id": "gss_node_group_5_InitialImaginationVisualization",
+      "group_rationale": "This SSS node describes an act of imagination or visualization occurring during the initial orientation phase, verified as grounded in utterances.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_B",
+          "phase_name": "Initial State",
+          "sss_node_id": "sss_node_B3",
+          "sss_node_label": "Visualizing Space"
+        }
+      ]
+    }
+  ],
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ],
+  "grouping_process_notes": "Verified grounding for each potential SSS node by tracing source_isu_id through the specific_synchronic_units_hierarchy to Level 0 ISUs with non-empty utterance arrays. Only grounded nodes relevant to the GDU 'Orientation_Preparation' and the DV focus were included. Grounded nodes were then grouped based on thematic similarity (cognitive, physical, emotional, imaginative, internal assessment)."
+}

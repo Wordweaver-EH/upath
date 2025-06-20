@@ -1,0 +1,79 @@
+{
+  "analyzed_gdu": "GDU_Reflection_Metacognition",
+  "sss_node_groups": [
+    {
+      "group_id": "gss_node_group_reflection_process_strategy",
+      "group_rationale": "These SSS nodes represent participants' reflections or comments on the process they engaged in, their strategies, or how they approached the suggestion/task. All included nodes have been verified as grounded in specific utterances.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_0_reflection_process",
+          "sss_node_label": "Reflection on process"
+        },
+        {
+          "transcript_id": "transcript_1700000000_1",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_1_strategy_comment",
+          "sss_node_label": "Comment on strategy"
+        },
+        {
+          "transcript_id": "transcript_1700000000_2",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_2_how_it_happened",
+          "sss_node_label": "Comment on how experience unfolded"
+        }
+      ]
+    },
+    {
+      "group_id": "gss_node_group_reflection_nature_experience",
+      "group_rationale": "These SSS nodes capture participants' comments on the nature or quality of the experience itself, such as its automaticity, reality, or perceived effort. All included nodes have been verified as grounded in specific utterances.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_0_automaticity_comment",
+          "sss_node_label": "Comment on automaticity"
+        },
+        {
+          "transcript_id": "transcript_1700000000_1",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_1_reality_perception",
+          "sss_node_label": "Comment on reality of experience"
+        },
+        {
+          "transcript_id": "transcript_1700000000_2",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_2_effort_comment",
+          "sss_node_label": "Comment on effort involved"
+        }
+      ]
+    },
+    {
+      "group_id": "gss_node_group_reflection_conclusions",
+      "group_rationale": "These SSS nodes represent participants drawing conclusions or summarizing the effect or outcome of the suggestion or experience. All included nodes have been verified as grounded in specific utterances.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_0_conclusion_effect",
+          "sss_node_label": "Conclusion about effect"
+        },
+        {
+          "transcript_id": "transcript_1700000000_1",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_1_summary_outcome",
+          "sss_node_label": "Summary of outcome"
+        }
+      ]
+    }
+  ],
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ],
+  "grouping_process_notes": "SSS nodes were filtered based on relevance to GDU 'GDU_Reflection_Metacognition' and verified for grounding in Level 0 ISUs containing utterances. Only grounded nodes were included in the thematic groups. Grouping was based on similarity in node labels and the type of reflection/metacognition expressed (process/strategy, nature of experience, conclusions)."
+}

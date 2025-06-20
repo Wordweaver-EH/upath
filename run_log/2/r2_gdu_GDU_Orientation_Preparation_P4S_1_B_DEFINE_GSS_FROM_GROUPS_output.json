@@ -1,0 +1,146 @@
+{
+  "analyzed_gdu": "GDU_Orientation_Preparation",
+  "generic_synchronic_structure": {
+    "representation_type": "Semantic Network",
+    "description": "Generic Synchronic Structure for GDU 'GDU_Orientation_Preparation', representing the key cognitive, physical, and internal state aspects involved in preparing for or orienting towards an activity, derived from grouping specific SSS nodes.",
+    "generic_nodes_categories": [
+      {
+        "id": "gss_cat_CognitiveOrientation",
+        "label": "Cognitive Orientation and Preparation"
+      },
+      {
+        "id": "gss_cat_PhysicalAwareness",
+        "label": "Physical Awareness and Preparation"
+      },
+      {
+        "id": "gss_cat_InternalStateAssessment",
+        "label": "Initial Internal State Assessment"
+      },
+      {
+        "id": "gss_cat_InitialEmotionalState",
+        "label": "Initial Emotional State"
+      },
+      {
+        "id": "gss_cat_InitialImagination",
+        "label": "Initial Imagination and Visualization"
+      }
+    ],
+    "generic_network_links": [
+      {
+        "from": "gss_cat_CognitiveOrientation",
+        "to": "gss_cat_PhysicalAwareness",
+        "type": "is_related_to"
+      },
+      {
+        "from": "gss_cat_InternalStateAssessment",
+        "to": "gss_cat_CognitiveOrientation",
+        "type": "informs"
+      },
+      {
+        "from": "gss_cat_InternalStateAssessment",
+        "to": "gss_cat_InitialEmotionalState",
+        "type": "reveals"
+      },
+      {
+        "from": "gss_cat_InternalStateAssessment",
+        "to": "gss_cat_PhysicalAwareness",
+        "type": "includes"
+      },
+      {
+        "from": "gss_cat_CognitiveOrientation",
+        "to": "gss_cat_InitialEmotionalState",
+        "type": "influences_or_is_influenced_by"
+      },
+      {
+        "from": "gss_cat_CognitiveOrientation",
+        "to": "gss_cat_InitialImagination",
+        "type": "includes_or_is_related_to"
+      }
+    ],
+    "instantiation_notes": [
+      {
+        "generic_category_id": "gss_cat_CognitiveOrientation",
+        "textual_description": "This category represents cognitive processes like setting intentions, understanding instructions, anticipating outcomes, or recalling relevant past experiences, serving to orient the individual towards the upcoming activity. It is instantiated by SSS nodes grouped under 'CognitiveOrientation'.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_A",
+            "sss_node_id": "sss_node_A1",
+            "phase_name": "Preparation"
+          },
+          {
+            "transcript_id": "transcript_A",
+            "sss_node_id": "sss_node_A3",
+            "phase_name": "Preparation"
+          },
+          {
+            "transcript_id": "transcript_C",
+            "sss_node_id": "sss_node_C1",
+            "phase_name": "Orientation"
+          },
+          {
+            "transcript_id": "transcript_C",
+            "sss_node_id": "sss_node_C3",
+            "phase_name": "Orientation"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_PhysicalAwareness",
+        "textual_description": "This category captures physical aspects of preparation or initial state, such as adjusting posture or becoming aware of bodily sensations like weight. It is instantiated by SSS nodes grouped under 'PhysicalPreparationAwareness'.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_A",
+            "sss_node_id": "sss_node_A2",
+            "phase_name": "Preparation"
+          },
+          {
+            "transcript_id": "transcript_C",
+            "sss_node_id": "sss_node_C2",
+            "phase_name": "Orientation"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_InternalStateAssessment",
+        "textual_description": "This category represents the act of checking in on one's current internal state (cognitive, emotional, or physical) as part of the initial orientation or preparation. It is instantiated by the SSS node grouped under 'InitialInternalStateAssessment'.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_B",
+            "sss_node_id": "sss_node_B1",
+            "phase_name": "Initial State"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_InitialEmotionalState",
+        "textual_description": "This category describes an emotional state experienced during the initial orientation or preparation phase. It is instantiated by the SSS node grouped under 'InitialEmotionalState'.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_B",
+            "sss_node_id": "sss_node_B2",
+            "phase_name": "Initial State"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_InitialImagination",
+        "textual_description": "This category represents acts of imagination or visualization occurring during the initial orientation phase. It is instantiated by the SSS node grouped under 'InitialImaginationVisualization'.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_B",
+            "sss_node_id": "sss_node_B3",
+            "phase_name": "Initial State"
+          }
+        ]
+      }
+    ]
+  },
+  "variations_notes": "Based on the provided SSS node groups and their contributing nodes, no specific patterns of variation linked to independent variables (such as different transcripts representing different participants or conditions) were explicitly observed or indicated by the grouping rationale. The groups represent common themes across the included transcripts.",
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ]
+}

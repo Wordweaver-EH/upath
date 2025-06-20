@@ -1,0 +1,186 @@
+{
+  "analyzed_gdu": "GDU_Suggested_Phenomenon_Success",
+  "generic_synchronic_structure": {
+    "representation_type": "Semantic Network",
+    "description": "Generic Synchronic Structure for the successful manifestation of a suggested phenomenon, derived from grouped SSS nodes. It captures the core physical sensation, its qualities, associated imagery, and the participant's cognitive and emotional responses.",
+    "generic_nodes_categories": [
+      {
+        "id": "gss_cat_CoreSensationState",
+        "label": "Core Physical Sensation/State"
+      },
+      {
+        "id": "gss_cat_SensationQualities",
+        "label": "Qualities and Progression of Sensation"
+      },
+      {
+        "id": "gss_cat_ImageryAnalogies",
+        "label": "Mental Imagery and Analogies"
+      },
+      {
+        "id": "gss_cat_CognitiveEmotionalResponse",
+        "label": "Cognitive and Emotional Response"
+      }
+    ],
+    "generic_network_links": [
+      {
+        "from": "gss_cat_SensationQualities",
+        "to": "gss_cat_CoreSensationState",
+        "type": "describes"
+      },
+      {
+        "from": "gss_cat_ImageryAnalogies",
+        "to": "gss_cat_CoreSensationState",
+        "type": "analogizes"
+      },
+      {
+        "from": "gss_cat_CognitiveEmotionalResponse",
+        "to": "gss_cat_CoreSensationState",
+        "type": "response_to"
+      },
+      {
+        "from": "gss_cat_CognitiveEmotionalResponse",
+        "to": "gss_cat_SensationQualities",
+        "type": "response_to"
+      },
+      {
+        "from": "gss_cat_CognitiveEmotionalResponse",
+        "to": "gss_cat_ImageryAnalogies",
+        "type": "response_to"
+      }
+    ],
+    "instantiation_notes": [
+      {
+        "generic_category_id": "gss_cat_CoreSensationState",
+        "textual_description": "This category represents the fundamental physical feeling or state experienced by the participant as the suggestion takes effect, including direct actions related to this state (e.g., trying to move). It is instantiated by SSS nodes describing the core sensation like sticking, lightness, heaviness, or inability to separate.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_1"
+          },
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_5"
+          },
+          {
+            "transcript_id": "transcript_1700000000_1",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_10"
+          },
+          {
+            "transcript_id": "transcript_1700000000_1",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_11"
+          },
+          {
+            "transcript_id": "transcript_1700000000_2",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_20"
+          },
+          {
+            "transcript_id": "transcript_1700000000_2",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_21"
+          },
+          {
+            "transcript_id": "transcript_1700000000_3",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_30"
+          },
+          {
+            "transcript_id": "transcript_1700000000_3",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_31"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_SensationQualities",
+        "textual_description": "This category captures the attributes of the core physical sensation, such as its intensity, how it changes over time, or specific qualities like a 'magnetic pull'. It is instantiated by SSS nodes detailing these aspects.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_2"
+          },
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_3"
+          },
+          {
+            "transcript_id": "transcript_1700000000_2",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_22"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_ImageryAnalogies",
+        "textual_description": "This category includes the mental images or explicit comparisons participants use to understand or describe the physical sensation, such as visualizing glue, balloons, or weights. It is instantiated by SSS nodes related to these analogies.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_4"
+          },
+          {
+            "transcript_id": "transcript_1700000000_1",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_12"
+          },
+          {
+            "transcript_id": "transcript_1700000000_3",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_32"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_CognitiveEmotionalResponse",
+        "textual_description": "This category covers the participant's thoughts, feelings, and cognitive processing related to experiencing the suggested phenomenon, such as surprise, questioning, amazement, acceptance, or attempts to understand the process. It is instantiated by SSS nodes describing these internal responses.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_6"
+          },
+          {
+            "transcript_id": "transcript_1700000000_0",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_7"
+          },
+          {
+            "transcript_id": "transcript_1700000000_1",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_13"
+          },
+          {
+            "transcript_id": "transcript_1700000000_2",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_23"
+          },
+          {
+            "transcript_id": "transcript_1700000000_3",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_33"
+          },
+          {
+            "transcript_id": "transcript_1700000000_4",
+            "phase_name": "Core Event",
+            "sss_node_id": "sss_node_41"
+          }
+        ]
+      }
+    ]
+  },
+  "variations_notes": "The SSS node groups reveal variations in the specific type of core sensation experienced (sticking vs. lightness/floating vs. heaviness/sinking) and the corresponding imagery/analogies used (glue vs. balloons vs. weights). These variations likely correspond to different types of suggestions given (e.g., 'hands sticking together', 'hands feeling light', 'hands feeling heavy') which would be captured as Independent Variables in the study design. The cognitive and emotional responses also show some variation (surprise, questioning, amazement, acceptance) which might correlate with the specific sensation or suggestion type.",
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ]
+}

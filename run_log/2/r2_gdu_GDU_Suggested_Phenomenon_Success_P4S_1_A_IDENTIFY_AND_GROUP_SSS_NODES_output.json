@@ -1,0 +1,157 @@
+{
+  "analyzed_gdu": "GDU_Suggested_Phenomenon_Success",
+  "sss_node_groups": [
+    {
+      "group_id": "gss_node_group_1_CoreSensationState",
+      "group_rationale": "These grounded SSS nodes describe the primary physical sensation or state experienced by the participant as the suggested phenomenon manifests (e.g., hands sticking, feeling light/heavy, inability to separate), or actions directly related to this state.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_1",
+          "sss_node_label": "Feeling of hands sticking"
+        },
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_5",
+          "sss_node_label": "Effort to separate hands"
+        },
+        {
+          "transcript_id": "transcript_1700000000_1",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_10",
+          "sss_node_label": "Hands feel light"
+        },
+        {
+          "transcript_id": "transcript_1700000000_1",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_11",
+          "sss_node_label": "Floating sensation"
+        },
+        {
+          "transcript_id": "transcript_1700000000_2",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_20",
+          "sss_node_label": "Hands stuck fast"
+        },
+        {
+          "transcript_id": "transcript_1700000000_2",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_21",
+          "sss_node_label": "Cannot separate hands"
+        },
+        {
+          "transcript_id": "transcript_1700000000_3",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_30",
+          "sss_node_label": "Hands feel heavy"
+        },
+        {
+          "transcript_id": "transcript_1700000000_3",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_31",
+          "sss_node_label": "Sinking sensation"
+        }
+      ]
+    },
+    {
+      "group_id": "gss_node_group_2_SensationQualities",
+      "group_rationale": "These grounded SSS nodes describe the qualities, intensity, progression, or provide analogies for the physical sensation experienced.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_2",
+          "sss_node_label": "Intensity of sticking"
+        },
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_3",
+          "sss_node_label": "Progression of sticking"
+        },
+        {
+          "transcript_id": "transcript_1700000000_2",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_22",
+          "sss_node_label": "Feeling of magnetic pull"
+        }
+      ]
+    },
+    {
+      "group_id": "gss_node_group_3_ImageryAnalogies",
+      "group_rationale": "These grounded SSS nodes capture the participant's use of mental imagery or explicit analogies to describe the phenomenon.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_4",
+          "sss_node_label": "Imagery of glue"
+        },
+        {
+          "transcript_id": "transcript_1700000000_1",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_12",
+          "sss_node_label": "Visualizing balloons"
+        },
+        {
+          "transcript_id": "transcript_1700000000_3",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_32",
+          "sss_node_label": "Imagining weights"
+        }
+      ]
+    },
+    {
+      "group_id": "gss_node_group_4_CognitiveEmotionalResponse",
+      "group_rationale": "These grounded SSS nodes represent the participant's cognitive processing, emotional reactions, or explicit thoughts about the phenomenon.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_6",
+          "sss_node_label": "Surprise at the feeling"
+        },
+        {
+          "transcript_id": "transcript_1700000000_0",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_7",
+          "sss_node_label": "Cognition about the process"
+        },
+        {
+          "transcript_id": "transcript_1700000000_1",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_13",
+          "sss_node_label": "Questioning the feeling"
+        },
+        {
+          "transcript_id": "transcript_1700000000_2",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_23",
+          "sss_node_label": "Amazed by the effect"
+        },
+        {
+          "transcript_id": "transcript_1700000000_3",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_33",
+          "sss_node_label": "Acceptance of the feeling"
+        },
+        {
+          "transcript_id": "transcript_1700000000_4",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_41",
+          "sss_node_label": "Cognitive understanding"
+        }
+      ]
+    }
+  ],
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ],
+  "grouping_process_notes": "Identified and grouped SSS nodes relevant to GDU_Suggested_Phenomenon_Success and the DV focus, ensuring each included node was verified as grounded in Level 0 ISUs containing utterances. Ungrounded nodes ('Lack of expected sticking', 'No physical sensation') were excluded."
+}
