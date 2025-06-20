@@ -1,0 +1,206 @@
+{
+  "analyzed_gdu": "GDU_Suggested_Phenomenon_Success",
+  "generic_synchronic_structure": {
+    "representation_type": "Semantic Network",
+    "description": "Generic Synchronic Structure for the successful manifestation of a suggested phenomenon, derived from grouped SSS nodes. It captures the core outcome, associated sensations, perceptual qualities, the process of progression, and related imagery.",
+    "generic_nodes_categories": [
+      {
+        "id": "gss_cat_DirectManifestation",
+        "label": "Direct Manifestation of Suggested Phenomenon"
+      },
+      {
+        "id": "gss_cat_AssociatedSomaticSensations",
+        "label": "Associated Somatic Sensations"
+      },
+      {
+        "id": "gss_cat_SensoryPerceptualQualities",
+        "label": "Sensory and Perceptual Qualities"
+      },
+      {
+        "id": "gss_cat_Progression",
+        "label": "Progression Towards Manifestation"
+      },
+      {
+        "id": "gss_cat_AssociatedImagery",
+        "label": "Associated Imagery"
+      }
+    ],
+    "generic_network_links": [
+      {
+        "from": "gss_cat_Progression",
+        "to": "gss_cat_DirectManifestation",
+        "type": "leads_to"
+      },
+      {
+        "from": "gss_cat_AssociatedSomaticSensations",
+        "to": "gss_cat_DirectManifestation",
+        "type": "accompanies"
+      },
+      {
+        "from": "gss_cat_SensoryPerceptualQualities",
+        "to": "gss_cat_DirectManifestation",
+        "type": "describes"
+      },
+      {
+        "from": "gss_cat_AssociatedImagery",
+        "to": "gss_cat_DirectManifestation",
+        "type": "accompanies"
+      },
+      {
+        "from": "gss_cat_Progression",
+        "to": "gss_cat_AssociatedSomaticSensations",
+        "type": "involves"
+      },
+      {
+        "from": "gss_cat_Progression",
+        "to": "gss_cat_SensoryPerceptualQualities",
+        "type": "involves"
+      },
+      {
+        "from": "gss_cat_Progression",
+        "to": "gss_cat_AssociatedImagery",
+        "type": "involves"
+      }
+    ],
+    "instantiation_notes": [
+      {
+        "generic_category_id": "gss_cat_DirectManifestation",
+        "textual_description": "This category represents the core outcome or direct manifestation of the suggested phenomenon, such as physical states (hands stuck, immovable) or auditory experiences (sound heard), as identified in SSS Group 1.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_XYZ_2",
+            "sss_node_id": "sss_node_HandsStuck",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_XYZ_2",
+            "sss_node_id": "sss_node_Immovable",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_JKL_1",
+            "sss_node_id": "sss_node_CouldntLiftHands",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_DEF_1",
+            "sss_node_id": "sss_node_HeardVoiceClearly",
+            "phase_name": "Core Event"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_AssociatedSomaticSensations",
+        "textual_description": "This category includes physical feelings, bodily sensations, or tactile experiences that accompany or are part of the suggested phenomenon's successful manifestation, as identified in SSS Group 2.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_XYZ_2",
+            "sss_node_id": "sss_node_FeelingPressure",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_ABC_0",
+            "sss_node_id": "sss_node_LightnessInHand",
+            "phase_name": "Beginning"
+          },
+          {
+            "transcript_id": "transcript_ABC_0",
+            "sss_node_id": "sss_node_TinglingFingers",
+            "phase_name": "Beginning"
+          },
+          {
+            "transcript_id": "transcript_GHI_0",
+            "sss_node_id": "sss_node_FeltPulling",
+            "phase_name": "Early"
+          },
+          {
+            "transcript_id": "transcript_JKL_1",
+            "sss_node_id": "sss_node_HandsFeltHeavy",
+            "phase_name": "Core Event"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_SensoryPerceptualQualities",
+        "textual_description": "This category describes the qualities, intensity, or altered nature of sensory or perceptual experiences (visual, auditory, general sensory) as part of the successful suggestion, as identified in SSS Group 3.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1750387486747_1",
+            "sss_node_id": "sss_node_ISU_Auditory_Amplification",
+            "phase_name": "Early-Middle"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_1",
+            "sss_node_id": "sss_node_ISU_Visual_AlteredExperience",
+            "phase_name": "Early-Middle"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_1",
+            "sss_node_id": "sss_node_ISU_Auditory_AlteredExperience",
+            "phase_name": "Early-Middle"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_1",
+            "sss_node_id": "sss_node_ISU_Sensory_AlteredPerception",
+            "phase_name": "Early-Middle"
+          },
+          {
+            "transcript_id": "transcript_DEF_1",
+            "sss_node_id": "sss_node_VoiceWasLoud",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_1",
+            "sss_node_id": "sss_node_ISU_Visual_ColorChange",
+            "phase_name": "Early-Middle"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_Progression",
+        "textual_description": "This category captures the dynamic process, movement, or gradual development leading towards the full manifestation of the suggested phenomenon, as identified in SSS Group 4.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_GHI_0",
+            "sss_node_id": "sss_node_HandsGettingCloser",
+            "phase_name": "Early"
+          },
+          {
+            "transcript_id": "transcript_GHI_0",
+            "sss_node_id": "sss_node_FeltPulling",
+            "phase_name": "Early"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_AssociatedImagery",
+        "textual_description": "This category relates to visual experiences, particularly internal imagery or non-veridical visuals, that are associated with or support the successful manifestation of the suggestion, as identified in SSS Group 5.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1750387486747_1",
+            "sss_node_id": "sss_node_ISU_Visual_InternalEye",
+            "phase_name": "Early-Middle"
+          },
+          {
+            "transcript_id": "transcript_MNO_2",
+            "sss_node_id": "sss_node_SawImageClearly",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_MNO_2",
+            "sss_node_id": "sss_node_ImageWasVivid",
+            "phase_name": "Core Event"
+          }
+        ]
+      }
+    ]
+  },
+  "variations_notes": "The SSS nodes contributing to the GSS are drawn from multiple transcripts and span different phases ('Beginning', 'Early', 'Early-Middle', 'Core Event'). This suggests that the specific manifestations, associated sensations, perceptual qualities, and imagery can vary across individuals or suggestion types (implied by different transcripts) and develop dynamically over time, with the 'Progression' category explicitly capturing this temporal aspect leading to the 'Core Event' where the direct manifestation is most prominent.",
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ]
+}

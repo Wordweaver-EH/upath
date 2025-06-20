@@ -1,0 +1,111 @@
+{
+  "analyzed_gdu": "GDU_Orientation_Preparation",
+  "generic_synchronic_structure": {
+    "representation_type": "Semantic Network",
+    "description": "Generic Synchronic Structure for the 'Orientation/Preparation' GDU, representing the typical cognitive and experiential components involved in receiving instructions and preparing for a task or suggestion.",
+    "generic_nodes_categories": [
+      {
+        "id": "gss_cat_InstructionProcessing",
+        "label": "Processing Instructions/Task Information"
+      },
+      {
+        "id": "gss_cat_AttentionOrientation",
+        "label": "Orienting/Focusing Attention"
+      },
+      {
+        "id": "gss_cat_InitialState",
+        "label": "Initial State/Baseline Activity"
+      }
+    ],
+    "generic_network_links": [
+      {
+        "from": "gss_cat_InitialState",
+        "to": "gss_cat_InstructionProcessing",
+        "type": "provides_context_for"
+      },
+      {
+        "from": "gss_cat_InitialState",
+        "to": "gss_cat_AttentionOrientation",
+        "type": "influences"
+      },
+      {
+        "from": "gss_cat_InstructionProcessing",
+        "to": "gss_cat_AttentionOrientation",
+        "type": "guides"
+      }
+    ],
+    "instantiation_notes": [
+      {
+        "generic_category_id": "gss_cat_InstructionProcessing",
+        "textual_description": "This category captures the cognitive processes involved in receiving, understanding, or processing the initial instructions or task description. It is instantiated by SSS nodes describing listening, understanding, or recalling relevant information.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1750387486747_0",
+            "sss_node_id": "sss_node_ISU_RememberingPastTaskAndFormingExpectation",
+            "phase_name": "Beginning"
+          },
+          {
+            "transcript_id": "transcript_A_1",
+            "sss_node_id": "sss_node_ISU_ListeningToInstructions",
+            "phase_name": "Beginning"
+          },
+          {
+            "transcript_id": "transcript_B_2",
+            "sss_node_id": "sss_node_ISU_UnderstandingTask",
+            "phase_name": "Preparation"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_AttentionOrientation",
+        "textual_description": "This category represents the participant's effort or state of directing or focusing attention, either internally or externally, as part of preparing for the core task or suggestion. It is instantiated by SSS nodes describing focusing attention, clearing the mind, or directing attention to specific areas like the body.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_C_3",
+            "sss_node_id": "sss_node_ISU_FocusingAttentionInward",
+            "phase_name": "Beginning"
+          },
+          {
+            "transcript_id": "transcript_D_4",
+            "sss_node_id": "sss_node_ISU_ClearingMind",
+            "phase_name": "Preparation"
+          },
+          {
+            "transcript_id": "transcript_E_5",
+            "sss_node_id": "sss_node_ISU_DirectingAttentionToBody",
+            "phase_name": "Beginning"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_InitialState",
+        "textual_description": "This category captures the participant's state of mind, ongoing internal activity, or baseline experience at the very beginning of the phase, before the core suggested experience is expected to take effect. It is instantiated by SSS nodes describing baseline thoughts, feelings, or spontaneous internal activity.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1750387486747_0",
+            "sss_node_id": "sss_node_ISU_InternalMelodyGeneration",
+            "phase_name": "Beginning"
+          },
+          {
+            "transcript_id": "transcript_F_6",
+            "sss_node_id": "sss_node_ISU_BaselineThoughts",
+            "phase_name": "Beginning"
+          },
+          {
+            "transcript_id": "transcript_G_7",
+            "sss_node_id": "sss_node_ISU_InitialFeelingOfCalm",
+            "phase_name": "Preparation"
+          }
+        ]
+      }
+    ]
+  },
+  "variations_notes": "Based on the provided SSS node groups and their contributing nodes, no specific patterns correlating the presence or characteristics of these generic categories with different Independent Variables (IVs) from the source transcripts can be observed, as IV information is not present in the input.",
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ]
+}

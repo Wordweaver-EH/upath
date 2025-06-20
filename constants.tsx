@@ -1055,19 +1055,19 @@ Instructions:
         *   Similarity in SSS node \`label\`s.
         *   SSS nodes playing analogous roles within their respective SSS networks (e.g., similar types of incoming/outgoing links, connections to similar kinds of other nodes).
         *   Consider the \`dependent_variable_focus\` to guide thematic similarity.
-3.  **Define SSS Node Groups:** For each identified group of SSS nodes:
+3.  **MANDATORY: Define SSS Node Groups from Real Input Data Only:** For each identified group of SSS nodes:
     *   \`group_id\`: Assign a unique identifier for this group (e.g., "sss_group_1_MeaningMaking").
     *   \`group_rationale\`: Provide a clear justification for why these specific SSS nodes are grouped together. Explain the shared concept they represent.
-    *   \`contributing_sss_nodes\`: This array MUST NOT BE EMPTY. It lists references to the specific SSS nodes that form this group. Each reference MUST include:
-        *   \`transcript_id\`: The exact \`transcript_id\` from the SSS input.
-        *   \`phase_name\`: The exact \`diachronic_phase_analyzed\` string from the SSS input for context.
-        *   \`sss_node_id\`: The exact \`id\` string of the node within that SSS's \`network_nodes\`.
-        *   \`sss_node_label\` (Optional but Recommended): The \`label\` of the SSS node for easier review.
+    *   \`contributing_sss_nodes\`: This array MUST NOT BE EMPTY and **MUST contain ONLY real SSS nodes from the actual input data**. Each reference MUST be copied **directly and exactly** from the provided \`all_relevant_specific_synchronic_structures\` input. **DO NOT invent, hallucinate, or create placeholder nodes.** Each reference MUST include:
+        *   \`transcript_id\`: The exact \`transcript_id\` from the SSS input (copy exactly from input).
+        *   \`phase_name\`: The exact \`diachronic_phase_analyzed\` string from the SSS input (copy exactly from input).
+        *   \`sss_node_id\`: The exact \`id\` string of an actual node within that SSS's \`network_nodes\` (copy exactly from input).
+        *   \`sss_node_label\`: The exact \`label\` of the actual SSS node from the input (copy exactly from input).
 4.  **Prioritize Cross-Transcript Grouping:** The goal is to find patterns that generalize. Favor groups that include SSS nodes from multiple different \`transcript_id\`s.
 5.  **Notes:** Optionally include \`grouping_process_notes\` for any challenges or important observations during this grouping process.
 
 Output:
-A JSON object adhering EXACTLY to the following structure. The \`contributing_sss_nodes\` array within each \`sss_node_groups\` object MUST NOT be empty.
+A JSON object adhering EXACTLY to the following structure. The \`contributing_sss_nodes\` array within each \`sss_node_groups\` object MUST NOT be empty and MUST contain ONLY real data copied exactly from the input.
 {
   "analyzed_gdu": "${input.gdu_to_analyze_id}",
   "sss_node_groups": [
@@ -1106,33 +1106,28 @@ A JSON object adhering EXACTLY to the following structure. The \`contributing_ss
             }
         };
     },
-    generatePrompt: (input: { p4s_1_a_data: P4S_1_A_Output, global_dv_focus: string[] }) => `You are a Generic Synchronic Analysis assistant. Task: Define a Generic Synchronic Structure (GSS) for a given GDU, based on pre-identified groups of SSS nodes. This is P4S.1.B.
+    generatePrompt: (input: { p4s_1_a_data: P4S_1_A_Output, global_dv_focus: string[] }) => `You are a Generic Synchronic Analysis assistant. Your task is to define a Generic Synchronic Structure (GSS) for a specific GDU by abstracting from the provided groups of SSS nodes. This is step P4S.1.B.
 Input:
 - Data from P4S.1.A for GDU "${input.p4s_1_a_data.analyzed_gdu}":
   - Analyzed GDU ID: "${input.p4s_1_a_data.analyzed_gdu}"
-  - SSS Node Groups (\`sss_node_groups\`): ${JSON.stringify(input.p4s_1_a_data.sss_node_groups, null, 2)}
+  - SSS Node Groups (\`sss_node_groups\`). Each group has a rationale and a list of \`contributing_sss_nodes\` from various transcripts:
+    \`\`\`json
+    ${JSON.stringify(input.p4s_1_a_data.sss_node_groups, null, 2)}
+    \`\`\`
   - Dependent Variable Focus from P4S.1.A: ${JSON.stringify(input.p4s_1_a_data.dependent_variable_focus)}
 - Global DV Focus (for consistency check): ${JSON.stringify(input.global_dv_focus)}
 
 Instructions:
-1.  **Define Generic Categories from SSS Node Groups:**
-    *   For each \`SSSNodeGroup\` provided in \`input.p4s_1_a_data.sss_node_groups\`, define a corresponding generic category in the GSS's \`generic_nodes_categories\`.
-    *   The generic category's \`label\` should capture the essence of the SSS node group (refer to \`group_rationale\`).
-    *   Assign a unique \`id\` for each generic category (e.g., "gss_cat_PerceivedEffort").
-2.  **Populate Instantiation Notes (MANDATORY & NON-EMPTY for examples):**
-    *   For EACH generic category defined, you MUST provide an \`instantiation_notes\` entry.
-    *   \`generic_category_id\`: Must match the GSS category \`id\`.
-    *   \`textual_description\`: Summarize how the specific SSS nodes from the group instantiate this generic category. Use the \`group_rationale\` and \`contributing_sss_nodes\` from the input \`SSSNodeGroup\`.
-    *   \`example_specific_nodes\`: This array MUST NOT BE EMPTY. Populate it using the \`contributing_sss_nodes\` from the corresponding input \`SSSNodeGroup\`. Each entry MUST include \`transcript_id\`, \`sss_node_id\`, and \`phase_name\`, copied precisely from the P4S.1.A input.
-    *   **CRUCIAL DIVERSITY REQUIREMENT:** Ensure examples are drawn from multiple \`transcript_id\`s if the input SSS node group reflects this diversity.
-3.  **Define Generic Links:**
-    *   Based on relationships observed *between the SSS node groups* (which now correspond to your generic categories), define \`generic_network_links\` between your GSS category \`id\`s. Consider the \`group_rationale\` and types of SSS nodes within groups to infer relationships.
-4.  **Note IV Influence:**
-    *   Briefly describe in \`variations_notes\` how the GSS for this GDU might vary based on the IVs of source transcripts, if patterns are discernible from the SSS node groupings and their SSS IV details (implicitly via transcript_id lookup if needed, but primarily from the rationale provided with SSS groups if it mentions IV variance).
-5.  **Use Dependent Variable Focus:** Ensure the \`dependent_variable_focus\` from the P4S.1.A input (\`input.p4s_1_a_data.dependent_variable_focus\`) is carried into the output.
+1.  **Define Generic Categories from SSS Node Groups:** For each \`SSSNodeGroup\` in the input, define a corresponding generic category in the output's \`generic_nodes_categories\`. The category's \`label\` should be an abstraction of the \`group_rationale\`. Assign a unique \`id\` (e.g., "gss_cat_CognitiveProcessing").
+2.  **Define Generic Links:** Infer relationships **between the SSS node groups** to create \`generic_network_links\` between your new generic categories.
+3.  **MANDATORY: Populate Instantiation Notes with Traceability:** This is the most critical step. For EACH generic category you create, you MUST create a corresponding \`instantiation_notes\` object.
+    *   The \`generic_category_id\` MUST match the ID of the generic category it describes.
+    *   The \`example_specific_nodes\` array in your output **MUST** be populated **directly and exactly** from the \`contributing_sss_nodes\` array of the corresponding \`SSSNodeGroup\` from the input. Copy the \`transcript_id\`, \`sss_node_id\`, and \`phase_name\` for each contributing node. **DO NOT invent, summarize, or omit these examples.** This provides a verifiable audit trail.
+4.  **Summarize IV Variations:** In \`variations_notes\`, describe any patterns observed in the SSS node groups that correlate with different Independent Variables from the source transcripts.
+5.  **Final JSON:** Ensure the final output is a single, valid JSON object adhering to the specified structure. Do not add any text or markdown outside the JSON.
 
 Output:
-A JSON object adhering EXACTLY to the P4S_1_Output structure. The \`example_specific_nodes\` array within each \`instantiation_notes\` object MUST NOT be empty.
+A JSON object adhering EXACTLY to the following structure. The \`example_specific_nodes\` array within each \`instantiation_notes\` object MUST NOT be empty and must be populated from the input.
 {
   "analyzed_gdu": "${input.p4s_1_a_data.analyzed_gdu}",
   "generic_synchronic_structure": {
@@ -1148,8 +1143,8 @@ A JSON object adhering EXACTLY to the P4S_1_Output structure. The \`example_spec
       {
         "generic_category_id": "gss_cat_FromGroup1",
         "textual_description": "This category is instantiated by specific SSS nodes related to X, as identified in SSS Group Y.",
-        "example_specific_nodes": [ /* Populate from input.p4s_1_a_data.sss_node_groups[...].contributing_sss_nodes */
-          { "transcript_id": "transcript_1700000000_0", "sss_node_id": "sss_node_actual_id_from_tx_A", "phase_name": "Core Event" }
+        "example_specific_nodes": [ 
+          { "transcript_id": "(from input SSSNodeGroup)", "sss_node_id": "(from input SSSNodeGroup)", "phase_name": "(from input SSSNodeGroup)" }
         ]
       }
     ]

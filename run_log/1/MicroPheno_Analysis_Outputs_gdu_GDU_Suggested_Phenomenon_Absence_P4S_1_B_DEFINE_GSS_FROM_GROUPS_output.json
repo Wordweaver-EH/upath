@@ -1,0 +1,156 @@
+{
+  "analyzed_gdu": "GDU_Suggested_Phenomenon_Absence",
+  "generic_synchronic_structure": {
+    "representation_type": "Semantic Network",
+    "description": "Generic Synchronic Structure for the GDU 'GDU_Suggested_Phenomenon_Absence', representing the different facets and experiences associated with the non-occurrence of a suggested phenomenon, derived from grouped SSS nodes.",
+    "generic_nodes_categories": [
+      {
+        "id": "gss_cat_AbsenceDirectStatement",
+        "label": "Direct Statement of Absence"
+      },
+      {
+        "id": "gss_cat_AbsenceRealizationCognition",
+        "label": "Cognitive Processing of Absence"
+      },
+      {
+        "id": "gss_cat_AbsenceFailedAttempts",
+        "label": "Failed Attempts Related to Suggestion"
+      },
+      {
+        "id": "gss_cat_AbsenceContextualized",
+        "label": "Contextualized Absence"
+      }
+    ],
+    "generic_network_links": [
+      {
+        "from": "gss_cat_AbsenceDirectStatement",
+        "to": "gss_cat_AbsenceRealizationCognition",
+        "type": "is_related_to"
+      },
+      {
+        "from": "gss_cat_AbsenceDirectStatement",
+        "to": "gss_cat_AbsenceFailedAttempts",
+        "type": "is_related_to"
+      },
+      {
+        "from": "gss_cat_AbsenceDirectStatement",
+        "to": "gss_cat_AbsenceContextualized",
+        "type": "is_related_to"
+      },
+      {
+        "from": "gss_cat_AbsenceRealizationCognition",
+        "to": "gss_cat_AbsenceFailedAttempts",
+        "type": "is_related_to"
+      },
+      {
+        "from": "gss_cat_AbsenceRealizationCognition",
+        "to": "gss_cat_AbsenceContextualized",
+        "type": "is_related_to"
+      },
+      {
+        "from": "gss_cat_AbsenceFailedAttempts",
+        "to": "gss_cat_AbsenceContextualized",
+        "type": "is_related_to"
+      }
+    ],
+    "instantiation_notes": [
+      {
+        "generic_category_id": "gss_cat_AbsenceDirectStatement",
+        "textual_description": "This category represents SSS nodes that are direct statements by the participant indicating the absence or non-occurrence of the suggested phenomenon.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1750387486747_6",
+            "sss_node_id": "sss_node_ISU_AbsenceOfAuditoryPerception",
+            "phase_name": "Late-Middle"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_7",
+            "sss_node_id": "sss_node_ISU_NoTactileSensation",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_8",
+            "sss_node_id": "sss_node_ISU_DidNotSeeAnything",
+            "phase_name": "Beginning"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_AbsenceRealizationCognition",
+        "textual_description": "This category represents SSS nodes describing the participant's cognitive processes, such as realizing, noticing, or processing the fact that the suggested phenomenon is absent.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1750387486747_6",
+            "sss_node_id": "sss_node_ISU_ExperienceAndCognitionRegardingAuditoryAbsence",
+            "phase_name": "Late-Middle"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_6",
+            "sss_node_id": "sss_node_ISU_ExternalInfoNegatingExpectation",
+            "phase_name": "Late-Middle"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_7",
+            "sss_node_id": "sss_node_ISU_NoticingLackOfFeeling",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_8",
+            "sss_node_id": "sss_node_ISU_RealizingVisualSuggestionFailed",
+            "phase_name": "Beginning"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_AbsenceFailedAttempts",
+        "textual_description": "This category represents SSS nodes describing the participant's actions, efforts, or attempts related to the suggestion that did not result in the suggested experience.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1750387486747_6",
+            "sss_node_id": "sss_node_ISU_VisualImaginationAsPreparation",
+            "phase_name": "Late-Middle"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_7",
+            "sss_node_id": "sss_node_ISU_AttemptingToFeelButNothing",
+            "phase_name": "Core Event"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_8",
+            "sss_node_id": "sss_node_ISU_LookingForImageButNoneAppeared",
+            "phase_name": "Beginning"
+          }
+        ]
+      },
+      {
+        "generic_category_id": "gss_cat_AbsenceContextualized",
+        "textual_description": "This category represents SSS nodes that describe the absence of the suggested phenomenon in relation to other experiences, expectations, or the broader context.",
+        "example_specific_nodes": [
+          {
+            "transcript_id": "transcript_1750387486747_6",
+            "sss_node_id": "sss_node_ISU_OverallExperientialLandscape_VisualAuditoryContrast",
+            "phase_name": "Late-Middle"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_6",
+            "sss_node_id": "sss_node_ISU_ExpectationOfHearingEventually",
+            "phase_name": "Late-Middle"
+          },
+          {
+            "transcript_id": "transcript_1750387486747_8",
+            "sss_node_id": "sss_node_ISU_AbsenceContrastedWithMentalActivity",
+            "phase_name": "Beginning"
+          }
+        ]
+      }
+    ]
+  },
+  "variations_notes": "The SSS nodes contributing to the GSS categories for 'Suggested Phenomenon Absence' are distributed across different phases of the hypnotic process (Beginning, Core Event, Late-Middle), suggesting that the experience of absence, its cognitive processing, related attempts, and contextualization can occur at various points.",
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ]
+}

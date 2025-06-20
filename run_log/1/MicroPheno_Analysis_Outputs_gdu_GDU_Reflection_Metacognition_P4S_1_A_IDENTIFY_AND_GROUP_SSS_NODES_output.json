@@ -1,0 +1,121 @@
+{
+  "analyzed_gdu": "GDU_Reflection_Metacognition",
+  "sss_node_groups": [
+    {
+      "group_id": "sss_group_Reflection_ExperientialContent",
+      "group_rationale": "These SSS nodes represent the specific experiential content (sensations, lack thereof, qualities) that the participant is reflecting upon or describing during the reflection phase.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_LackOfStickyFeeling",
+          "sss_node_label": "Lack of Sticky Feeling"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_FeelingOfBeingStuckExtent",
+          "sss_node_label": "Feeling of Being Stuck to an Extent"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_FeelingOfSolidCement",
+          "sss_node_label": "Feeling of Solid/Cement-like"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_ExperiencedQualityDescription",
+          "sss_node_label": "Experienced Quality Description"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_ExperientialContentDescription",
+          "sss_node_label": "Experiential Content Description"
+        }
+      ]
+    },
+    {
+      "group_id": "sss_group_Reflection_CognitiveProcesses",
+      "group_rationale": "These SSS nodes represent the cognitive operations (comparison, judgment, processing) the participant engages in while reflecting on their experience or the suggestion.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_CognitiveComparisonPromptExperience",
+          "sss_node_label": "Cognitive Comparison of Prompt vs. Experience"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_CognitiveJudgmentExperienceQuality",
+          "sss_node_label": "Cognitive Judgment on Experience Quality"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_CognitiveProcessingOfMismatch",
+          "sss_node_label": "Cognitive Processing of Mismatch"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_CognitiveAspectsOfReflection",
+          "sss_node_label": "Cognitive Aspects of Reflection"
+        }
+      ]
+    },
+    {
+      "group_id": "sss_group_Reflection_CognitiveContext",
+      "group_rationale": "These SSS nodes represent the background cognitive context or general awareness that influences the participant's specific reflection.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_AwarenessOfStickyHandsGeneral",
+          "sss_node_label": "General Awareness of Sticky Hands Sensitivity"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_CognitiveContextAwareness",
+          "sss_node_label": "Cognitive Context/Awareness"
+        }
+      ]
+    },
+    {
+      "group_id": "sss_group_Reflection_CognitionExperienceInteraction",
+      "group_rationale": "These SSS nodes represent the participant's commentary on how their cognitive processes or context interacted with or impacted their experience during the suggestion or reflection.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_ImpactOfMismatchOnExperienceQuality",
+          "sss_node_label": "Impact of Mismatch on Experience Quality"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_EffectOfCognitionOnExperience",
+          "sss_node_label": "Effect of Cognition on Experience"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "phase_name": "Reflection",
+          "sss_node_id": "sss_node_InteractionCognitionExperience",
+          "sss_node_label": "Interaction between Cognition and Experience"
+        }
+      ]
+    }
+  ],
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ],
+  "grouping_process_notes": "Grouping was performed based on the single provided SSS structure. Nodes were grouped based on their labels and apparent roles within the network, aligning with the GDU definition of reflection and metacognition. Groups represent distinct aspects of the reflection process: the content being reflected upon, the cognitive processes involved, the cognitive context, and the perceived interaction between cognition and experience."
+}

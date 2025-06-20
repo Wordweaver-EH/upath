@@ -1,0 +1,146 @@
+{
+  "analyzed_gdu": "GDU_Reflection_Metacognition",
+  "generic_synchronic_structure": {
+    "representation_type": "Semantic Network",
+    "description": "Generic Synchronic Structure for GDU 'GDU_Reflection_Metacognition', representing the interplay between experiential content, cognitive processes, cognitive context, and the description of their interaction during reflection.",
+    "generic_nodes_categories": [
+      {
+        "id": "gss_cat_ExperientialContent",
+        "label": "Experiential Content Reflected Upon"
+      },
+      {
+        "id": "gss_cat_CognitiveProcesses",
+        "label": "Cognitive Processes of Reflection"
+      },
+      {
+        "id": "gss_cat_CognitiveContext",
+        "label": "Background Cognitive Context"
+      },
+      {
+        "id": "gss_cat_CognitionExperienceInteraction",
+        "label": "Description of Cognition-Experience Interaction"
+      }
+    ],
+    "generic_network_links": [
+      {
+        "from": "gss_cat_CognitiveProcesses",
+        "to": "gss_cat_ExperientialContent",
+        "type": "reflects_on"
+      },
+      {
+        "from": "gss_cat_CognitiveContext",
+        "to": "gss_cat_CognitiveProcesses",
+        "type": "informs"
+      },
+      {
+        "from": "gss_cat_CognitiveProcesses",
+        "to": "gss_cat_CognitionExperienceInteraction",
+        "type": "reports_on"
+      }
+    ]
+  },
+  "instantiation_notes": [
+    {
+      "generic_category_id": "gss_cat_ExperientialContent",
+      "textual_description": "This category represents the specific sensory or qualitative content of the experience that is the subject of reflection.",
+      "example_specific_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_LackOfStickyFeeling",
+          "phase_name": "Reflection"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_FeelingOfBeingStuckExtent",
+          "phase_name": "Reflection"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_FeelingOfSolidCement",
+          "phase_name": "Reflection"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_ExperiencedQualityDescription",
+          "phase_name": "Reflection"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_ExperientialContentDescription",
+          "phase_name": "Reflection"
+        }
+      ]
+    },
+    {
+      "generic_category_id": "gss_cat_CognitiveProcesses",
+      "textual_description": "This category represents the mental operations performed during reflection, such as comparison, judgment, or processing of information.",
+      "example_specific_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_CognitiveComparisonPromptExperience",
+          "phase_name": "Reflection"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_CognitiveJudgmentExperienceQuality",
+          "phase_name": "Reflection"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_CognitiveProcessingOfMismatch",
+          "phase_name": "Reflection"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_CognitiveAspectsOfReflection",
+          "phase_name": "Reflection"
+        }
+      ]
+    },
+    {
+      "generic_category_id": "gss_cat_CognitiveContext",
+      "textual_description": "This category represents the background cognitive state or general awareness that provides context for the specific reflection.",
+      "example_specific_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_AwarenessOfStickyHandsGeneral",
+          "phase_name": "Reflection"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_CognitiveContextAwareness",
+          "phase_name": "Reflection"
+        }
+      ]
+    },
+    {
+      "generic_category_id": "gss_cat_CognitionExperienceInteraction",
+      "textual_description": "This category represents the participant's description or commentary on how their cognitive state or processes influenced or related to their experience.",
+      "example_specific_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_ImpactOfMismatchOnExperienceQuality",
+          "phase_name": "Reflection"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_EffectOfCognitionOnExperience",
+          "phase_name": "Reflection"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_5",
+          "sss_node_id": "sss_node_InteractionCognitionExperience",
+          "phase_name": "Reflection"
+        }
+      ]
+    }
+  ],
+  "variations_notes": "Based on the provided SSS node groups from a single transcript, no specific variations linked to different Independent Variables were observed.",
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ]
+}

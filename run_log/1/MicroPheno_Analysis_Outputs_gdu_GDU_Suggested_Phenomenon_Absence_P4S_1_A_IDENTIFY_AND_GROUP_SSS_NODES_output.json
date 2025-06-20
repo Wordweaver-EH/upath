@@ -1,0 +1,115 @@
+{
+  "analyzed_gdu": "GDU_Suggested_Phenomenon_Absence",
+  "sss_node_groups": [
+    {
+      "group_id": "sss_group_Absence_DirectStatement",
+      "group_rationale": "These SSS nodes directly describe the lack or non-occurrence of the suggested phenomenon, often as a simple statement of fact.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_6",
+          "phase_name": "Late-Middle",
+          "sss_node_id": "sss_node_ISU_AbsenceOfAuditoryPerception",
+          "sss_node_label": "ISU_AbsenceOfAuditoryPerception"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_7",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_ISU_NoTactileSensation",
+          "sss_node_label": "ISU_NoTactileSensation"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_8",
+          "phase_name": "Beginning",
+          "sss_node_id": "sss_node_ISU_DidNotSeeAnything",
+          "sss_node_label": "ISU_DidNotSeeAnything"
+        }
+      ]
+    },
+    {
+      "group_id": "sss_group_Absence_RealizationCognition",
+      "group_rationale": "These SSS nodes describe the participant's cognitive process of realizing, concluding, or processing the fact that the suggested phenomenon is not occurring.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_6",
+          "phase_name": "Late-Middle",
+          "sss_node_id": "sss_node_ISU_ExperienceAndCognitionRegardingAuditoryAbsence",
+          "sss_node_label": "ISU_ExperienceAndCognitionRegardingAuditoryAbsence"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_6",
+          "phase_name": "Late-Middle",
+          "sss_node_id": "sss_node_ISU_ExternalInfoNegatingExpectation",
+          "sss_node_label": "ISU_ExternalInfoNegatingExpectation"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_7",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_ISU_NoticingLackOfFeeling",
+          "sss_node_label": "ISU_NoticingLackOfFeeling"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_8",
+          "phase_name": "Beginning",
+          "sss_node_id": "sss_node_ISU_RealizingVisualSuggestionFailed",
+          "sss_node_label": "ISU_RealizingVisualSuggestionFailed"
+        }
+      ]
+    },
+    {
+      "group_id": "sss_group_Absence_FailedAttempts",
+      "group_rationale": "These SSS nodes describe actions, mental efforts, or attempts made by the participant in relation to the suggestion that ultimately did not result in the suggested experience.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_6",
+          "phase_name": "Late-Middle",
+          "sss_node_id": "sss_node_ISU_VisualImaginationAsPreparation",
+          "sss_node_label": "ISU_VisualImaginationAsPreparation"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_7",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_ISU_AttemptingToFeelButNothing",
+          "sss_node_label": "ISU_AttemptingToFeelButNothing"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_8",
+          "phase_name": "Beginning",
+          "sss_node_id": "sss_node_ISU_LookingForImageButNoneAppeared",
+          "sss_node_label": "ISU_LookingForImageButNoneAppeared"
+        }
+      ]
+    },
+    {
+      "group_id": "sss_group_Absence_Contextualized",
+      "group_rationale": "These SSS nodes describe the absence of the suggested phenomenon in contrast with or in relation to other experiences or expectations that were present.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_6",
+          "phase_name": "Late-Middle",
+          "sss_node_id": "sss_node_ISU_OverallExperientialLandscape_VisualAuditoryContrast",
+          "sss_node_label": "ISU_OverallExperientialLandscape_VisualAuditoryContrast"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_6",
+          "phase_name": "Late-Middle",
+          "sss_node_id": "sss_node_ISU_ExpectationOfHearingEventually",
+          "sss_node_label": "ISU_ExpectationOfHearingEventually"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_8",
+          "phase_name": "Beginning",
+          "sss_node_id": "sss_node_ISU_AbsenceContrastedWithMentalActivity",
+          "sss_node_label": "ISU_AbsenceContrastedWithMentalActivity"
+        }
+      ]
+    }
+  ],
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ],
+  "grouping_process_notes": "Grouped SSS nodes based on whether they described the direct lack of the phenomenon, the cognitive process of realizing the absence, the outcome of failed attempts, or the absence in contrast to other experiences/expectations. Prioritized grouping nodes from different transcripts where similar concepts were identified."
+}

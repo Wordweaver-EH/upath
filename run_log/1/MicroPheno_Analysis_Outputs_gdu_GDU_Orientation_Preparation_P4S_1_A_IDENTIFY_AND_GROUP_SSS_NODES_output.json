@@ -1,0 +1,85 @@
+{
+  "analyzed_gdu": "GDU_Orientation_Preparation",
+  "sss_node_groups": [
+    {
+      "group_id": "sss_group_1_InstructionProcessing",
+      "group_rationale": "These SSS nodes describe the participant's cognitive activity related to receiving, understanding, or processing the initial instructions or the task description provided at the beginning of the phase.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_0",
+          "phase_name": "Beginning",
+          "sss_node_id": "sss_node_ISU_RememberingPastTaskAndFormingExpectation",
+          "sss_node_label": "Remembering Past Task and Forming Expectation"
+        },
+        {
+          "transcript_id": "transcript_A_1",
+          "phase_name": "Beginning",
+          "sss_node_id": "sss_node_ISU_ListeningToInstructions",
+          "sss_node_label": "Listening to Instructions"
+        },
+        {
+          "transcript_id": "transcript_B_2",
+          "phase_name": "Preparation",
+          "sss_node_id": "sss_node_ISU_UnderstandingTask",
+          "sss_node_label": "Understanding the Task"
+        }
+      ]
+    },
+    {
+      "group_id": "sss_group_2_AttentionOrientation",
+      "group_rationale": "This group includes SSS nodes representing the participant's effort or state of directing or focusing attention, either internally or externally, as part of preparing for the core task or suggestion.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_C_3",
+          "phase_name": "Beginning",
+          "sss_node_id": "sss_node_ISU_FocusingAttentionInward",
+          "sss_node_label": "Focusing Attention Inward"
+        },
+        {
+          "transcript_id": "transcript_D_4",
+          "phase_name": "Preparation",
+          "sss_node_id": "sss_node_ISU_ClearingMind",
+          "sss_node_label": "Clearing Mind"
+        },
+        {
+          "transcript_id": "transcript_E_5",
+          "phase_name": "Beginning",
+          "sss_node_id": "sss_node_ISU_DirectingAttentionToBody",
+          "sss_node_label": "Directing Attention to Body"
+        }
+      ]
+    },
+    {
+      "group_id": "sss_group_3_InitialState",
+      "group_rationale": "These SSS nodes capture the participant's state of mind, ongoing internal activity, or baseline experience at the very beginning of the phase, before the core suggested experience is expected to take effect.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_0",
+          "phase_name": "Beginning",
+          "sss_node_id": "sss_node_ISU_InternalMelodyGeneration",
+          "sss_node_label": "Internal Melody Generation"
+        },
+        {
+          "transcript_id": "transcript_F_6",
+          "phase_name": "Beginning",
+          "sss_node_id": "sss_node_ISU_BaselineThoughts",
+          "sss_node_label": "Baseline Thoughts"
+        },
+        {
+          "transcript_id": "transcript_G_7",
+          "phase_name": "Preparation",
+          "sss_node_id": "sss_node_ISU_InitialFeelingOfCalm",
+          "sss_node_label": "Initial Feeling of Calm"
+        }
+      ]
+    }
+  ],
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ],
+  "grouping_process_notes": "SSS nodes were grouped based on conceptual similarity related to processing instructions, orienting attention, and describing the initial state or baseline activity at the start of the phase, aligning with the GDU definition for Orientation/Preparation. Prioritized grouping nodes observed across different transcripts and phases where possible."
+}

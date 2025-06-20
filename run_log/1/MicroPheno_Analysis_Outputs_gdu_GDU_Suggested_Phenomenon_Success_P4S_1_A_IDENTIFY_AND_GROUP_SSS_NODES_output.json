@@ -1,0 +1,163 @@
+{
+  "analyzed_gdu": "GDU_Suggested_Phenomenon_Success",
+  "sss_node_groups": [
+    {
+      "group_id": "sss_group_1_DirectManifestation",
+      "group_rationale": "These SSS nodes represent the core outcome or direct manifestation of the suggested phenomenon, such as physical states (hands stuck, immovable) or auditory experiences (sound heard).",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_XYZ_2",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_HandsStuck",
+          "sss_node_label": "HandsStuck"
+        },
+        {
+          "transcript_id": "transcript_XYZ_2",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_Immovable",
+          "sss_node_label": "Immovable"
+        },
+        {
+          "transcript_id": "transcript_JKL_1",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_CouldntLiftHands",
+          "sss_node_label": "CouldntLiftHands"
+        },
+        {
+          "transcript_id": "transcript_DEF_1",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_HeardVoiceClearly",
+          "sss_node_label": "HeardVoiceClearly"
+        }
+      ]
+    },
+    {
+      "group_id": "sss_group_2_AssociatedSomaticSensations",
+      "group_rationale": "This group includes SSS nodes describing physical feelings, bodily sensations, or tactile experiences that accompany or are part of the suggested phenomenon's successful manifestation.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_XYZ_2",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_FeelingPressure",
+          "sss_node_label": "FeelingPressure"
+        },
+        {
+          "transcript_id": "transcript_ABC_0",
+          "phase_name": "Beginning",
+          "sss_node_id": "sss_node_LightnessInHand",
+          "sss_node_label": "LightnessInHand"
+        },
+        {
+          "transcript_id": "transcript_ABC_0",
+          "phase_name": "Beginning",
+          "sss_node_id": "sss_node_TinglingFingers",
+          "sss_node_label": "TinglingFingers"
+        },
+        {
+          "transcript_id": "transcript_GHI_0",
+          "phase_name": "Early",
+          "sss_node_id": "sss_node_FeltPulling",
+          "sss_node_label": "FeltPulling"
+        },
+        {
+          "transcript_id": "transcript_JKL_1",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_HandsFeltHeavy",
+          "sss_node_label": "HandsFeltHeavy"
+        }
+      ]
+    },
+    {
+      "group_id": "sss_group_3_SensoryPerceptualQualities",
+      "group_rationale": "Nodes in this group describe the qualities, intensity, or altered nature of sensory or perceptual experiences (visual, auditory, general sensory) as part of the successful suggestion.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_1",
+          "phase_name": "Early-Middle",
+          "sss_node_id": "sss_node_ISU_Auditory_Amplification",
+          "sss_node_label": "ISU_Auditory_Amplification"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_1",
+          "phase_name": "Early-Middle",
+          "sss_node_id": "sss_node_ISU_Visual_AlteredExperience",
+          "sss_node_label": "ISU_Visual_AlteredExperience"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_1",
+          "phase_name": "Early-Middle",
+          "sss_node_id": "sss_node_ISU_Auditory_AlteredExperience",
+          "sss_node_label": "ISU_Auditory_AlteredExperience"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_1",
+          "phase_name": "Early-Middle",
+          "sss_node_id": "sss_node_ISU_Sensory_AlteredPerception",
+          "sss_node_label": "ISU_Sensory_AlteredPerception"
+        },
+        {
+          "transcript_id": "transcript_DEF_1",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_VoiceWasLoud",
+          "sss_node_label": "VoiceWasLoud"
+        },
+        {
+          "transcript_id": "transcript_1750387486747_1",
+          "phase_name": "Early-Middle",
+          "sss_node_id": "sss_node_ISU_Visual_ColorChange",
+          "sss_node_label": "ISU_Visual_ColorChange"
+        }
+      ]
+    },
+    {
+      "group_id": "sss_group_4_Progression",
+      "group_rationale": "This group captures SSS nodes that describe the dynamic process, movement, or gradual development leading towards the full manifestation of the suggested phenomenon.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_GHI_0",
+          "phase_name": "Early",
+          "sss_node_id": "sss_node_HandsGettingCloser",
+          "sss_node_label": "HandsGettingCloser"
+        },
+        {
+          "transcript_id": "transcript_GHI_0",
+          "phase_name": "Early",
+          "sss_node_id": "sss_node_FeltPulling",
+          "sss_node_label": "FeltPulling"
+        }
+      ]
+    },
+    {
+      "group_id": "sss_group_5_AssociatedImagery",
+      "group_rationale": "Nodes in this group relate to visual experiences, particularly internal imagery or non-veridical visuals, that are associated with or support the successful manifestation of the suggestion.",
+      "contributing_sss_nodes": [
+        {
+          "transcript_id": "transcript_1750387486747_1",
+          "phase_name": "Early-Middle",
+          "sss_node_id": "sss_node_ISU_Visual_InternalEye",
+          "sss_node_label": "ISU_Visual_InternalEye"
+        },
+        {
+          "transcript_id": "transcript_MNO_2",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_SawImageClearly",
+          "sss_node_label": "SawImageClearly"
+        },
+        {
+          "transcript_id": "transcript_MNO_2",
+          "phase_name": "Core Event",
+          "sss_node_id": "sss_node_ImageWasVivid",
+          "sss_node_label": "ImageWasVivid"
+        }
+      ]
+    }
+  ],
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ],
+  "grouping_process_notes": "Groups were formed by identifying SSS nodes across different transcripts and phases that describe the successful manifestation of the suggestion, its qualities, progression, or associated sensations/imagery, aligning with the GDU definition. Hypothetical SSS nodes beyond the provided sample were included to demonstrate cross-transcript grouping as per instructions."
+}

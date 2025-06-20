@@ -1,0 +1,34 @@
+{
+  "generic_diachronic_structure_definition": {
+    "name": "Suggestion Experience Diachronic Structure",
+    "description": "This Generic Diachronic Structure describes the typical progression of a participant's reported experience during a suggestion, from initial orientation through the core event (or lack thereof) and subsequent reflection. The specific content and presence of certain phases are strongly modulated by the success of the suggestion.",
+    "core_gdus": [
+      "GDU_Orientation_Preparation",
+      "GDU_Suggested_Phenomenon_Success",
+      "GDU_Suggested_Phenomenon_Absence",
+      "GDU_Reflection_Metacognition"
+    ],
+    "optional_gdus": [
+      "GDU_Attempt_Strategy",
+      "GDU_Transition_Shift",
+      "GDU_Unrelated_Cognitive_Activity"
+    ],
+    "typical_sequence": [
+      "GDU_Orientation_Preparation",
+      "GDU_Attempt_Strategy",
+      "GDU_Suggested_Phenomenon_Success",
+      "GDU_Suggested_Phenomenon_Absence",
+      "GDU_Transition_Shift",
+      "GDU_Reflection_Metacognition"
+    ]
+  },
+  "variants_summary": "The structure of the suggestion experience is strongly influenced by the suggestion score (effectiveness). High-scoring suggestions (4-5/5) typically feature a structure centered around 'GDU_Suggested_Phenomenon_Success', describing the unfolding experience, its qualities, and progression. Reflection ('GDU_Reflection_Metacognition') in these cases focuses on the nature of the successful experience (e.g., automaticity, reality). Low-scoring suggestions (0-1/5) are characterized by the prominence of 'GDU_Attempt_Strategy' and 'GDU_Suggested_Phenomenon_Absence', detailing the process of trying, the lack of the expected outcome, or unrelated internal events ('GDU_Unrelated_Cognitive_Activity'). Reflection ('GDU_Reflection_Metacognition') in low-score cases focuses on the absence, difficulty, or strategies used. 'GDU_Orientation_Preparation' is common across all scores as a starting point. 'GDU_Transition_Shift' can appear in various contexts.",
+  "confidence_level": "High",
+  "dependent_variable_focus": [
+    "cognitions",
+    "emotions",
+    "sensations",
+    "imagination",
+    "internal_experiences"
+  ]
+}
