@@ -836,7 +836,118 @@ const App: React.FC = () => {
     } else if (stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES && output) {
         const gduProc = currentGDU; 
         if (gduProc) {
-            const p4s1a_out = (output as P4S_1_A_Output);
+            // Phase 3: Programmatic output reconstruction from LLM's grouped_data
+            const llmResponse = output as { analyzed_gdu: string; grouped_data: Array<{ sss_node_id: string; transcript_id: string; phase_name: string; sss_node_label: string; group_id: string; group_rationale: string; }>; classification_notes?: string; };
+            
+            console.log(`[P4S.1.A Processing] Reconstructing output for GDU ${gduProc} from ${llmResponse.grouped_data?.length || 0} classified nodes`);
+            
+            // Verify data integrity: every node should be from the original TSV
+            if (!llmResponse.grouped_data || !Array.isArray(llmResponse.grouped_data)) {
+                const reconstructionError = "LLM response missing or invalid grouped_data array";
+                console.error(`[P4S.1.A Processing] ${reconstructionError}`);
+                setCurrentStepInfo(prev => ({ ...prev, status: StepStatus.Error, error: reconstructionError }));
+                setGenericAnalysisState(prev => ({ ...prev, p4s_1_a_error: reconstructionError }));
+                setIsAutorunning(false);
+                return;
+            }
+            
+            // Validate that all referenced SSS nodes actually exist in P2S_3 data
+            const validatedNodes: typeof llmResponse.grouped_data = [];
+            const invalidNodes: Array<{ nodeId: string; transcriptId: string; phase: string; reason: string }> = [];
+            
+            llmResponse.grouped_data.forEach(nodeData => {
+                const txData = processedDataMap.get(nodeData.transcript_id);
+                if (!txData) {
+                    invalidNodes.push({ nodeId: nodeData.sss_node_id, transcriptId: nodeData.transcript_id, phase: nodeData.phase_name, reason: "transcript not found" });
+                    return;
+                }
+                
+                const phaseData = txData.p2s_outputs_by_phase?.[nodeData.phase_name];
+                if (!phaseData?.p2s_3_output?.specific_synchronic_structure) {
+                    invalidNodes.push({ nodeId: nodeData.sss_node_id, transcriptId: nodeData.transcript_id, phase: nodeData.phase_name, reason: "phase data not found" });
+                    return;
+                }
+                
+                const sssNodeExists = phaseData.p2s_3_output.specific_synchronic_structure.network_nodes.some(n => n.id === nodeData.sss_node_id);
+                if (!sssNodeExists) {
+                    invalidNodes.push({ nodeId: nodeData.sss_node_id, transcriptId: nodeData.transcript_id, phase: nodeData.phase_name, reason: "SSS node not found in P2S_3 data" });
+                    return;
+                }
+                
+                validatedNodes.push(nodeData);
+            });
+            
+            if (invalidNodes.length > 0) {
+                console.warn(`[P4S.1.A Processing] Found ${invalidNodes.length} invalid node references from LLM:`, invalidNodes);
+                console.log(`[P4S.1.A Processing] Proceeding with ${validatedNodes.length} valid nodes, excluding invalid ones`);
+            }
+            
+            // Use validated nodes instead of all LLM nodes
+            const processedGroupedData = validatedNodes;
+            
+            // Group nodes by group_id (excluding "N/A")
+            const groupsMap = new Map<string, Array<{ transcript_id: string; phase_name: string; sss_node_id: string; sss_node_label: string; group_rationale: string; }>>();
+            
+            processedGroupedData.forEach(nodeData => {
+                if (nodeData.group_id !== "N/A") {
+                    if (!groupsMap.has(nodeData.group_id)) {
+                        groupsMap.set(nodeData.group_id, []);
+                    }
+                    groupsMap.get(nodeData.group_id)!.push({
+                        transcript_id: nodeData.transcript_id,
+                        phase_name: nodeData.phase_name,
+                        sss_node_id: nodeData.sss_node_id,
+                        sss_node_label: nodeData.sss_node_label,
+                        group_rationale: nodeData.group_rationale
+                    });
+                }
+            });
+            
+            // Validate cross-transcript requirement for each group
+            const validatedGroups: P4S_1_A_Output['sss_node_groups'] = [];
+            let groupCounter = 1;
+            
+            groupsMap.forEach((nodes, groupId) => {
+                const transcriptIds = new Set(nodes.map(n => n.transcript_id));
+                if (transcriptIds.size >= 2) {
+                    // Valid cross-transcript group
+                    const groupRationale = nodes[0]?.group_rationale || `Generic group for concept: ${groupId}`;
+                    validatedGroups.push({
+                        group_id: `gss_node_group_${groupCounter}_${groupId}`,
+                        group_rationale: groupRationale,
+                        contributing_sss_nodes: nodes.map(n => ({
+                            transcript_id: n.transcript_id,
+                            phase_name: n.phase_name,
+                            sss_node_id: n.sss_node_id,
+                            sss_node_label: n.sss_node_label
+                        }))
+                    });
+                    groupCounter++;
+                    console.log(`[P4S.1.A Processing] Created valid group ${groupId} with ${nodes.length} nodes from ${transcriptIds.size} transcripts`);
+                } else {
+                    console.log(`[P4S.1.A Processing] Rejected group ${groupId}: only ${transcriptIds.size} transcript(s), requires 2+`);
+                }
+            });
+            
+            if (validatedGroups.length === 0) {
+                const noValidGroupsError = `No valid cross-transcript groups created for GDU ${gduProc}. All groups failed the minimum 2-transcript requirement.`;
+                console.error(`[P4S.1.A Processing] ${noValidGroupsError}`);
+                setCurrentStepInfo(prev => ({ ...prev, status: StepStatus.Error, error: noValidGroupsError }));
+                setGenericAnalysisState(prev => ({ ...prev, p4s_1_a_error: noValidGroupsError }));
+                setIsAutorunning(false);
+                return;
+            }
+            
+            // Reconstruct final P4S_1_A_Output
+            const p4s1a_out: P4S_1_A_Output = {
+                analyzed_gdu: gduProc,
+                sss_node_groups: validatedGroups,
+                dependent_variable_focus: userDvFocus?.dv_focus || [],
+                grouping_process_notes: `Reconstructed from LLM classification. Original nodes: ${llmResponse.grouped_data.length}, Valid groups: ${validatedGroups.length}. ${llmResponse.classification_notes || ''}`
+            };
+            
+            console.log(`[P4S.1.A Processing] Successfully reconstructed P4S_1_A output with ${validatedGroups.length} valid groups`);
+            
             setGenericAnalysisState(prev => ({
                 ...prev,
                 p4s_1_a_outputs_by_gdu: { ...(prev.p4s_1_a_outputs_by_gdu || {}), [gduProc]: p4s1a_out },

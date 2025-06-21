@@ -168,6 +168,247 @@ export const calculateGduUtteranceCounts = ( // Make exportable
   } return allGdusData;
 };
 
+// New detailed traceability function
+export const generateGssTraceabilityBreakdown = (
+  processedData: Map<string, TranscriptProcessedData>,
+  gssOutputsByGdu: Record<string, P4S_1_Output | undefined> | undefined
+): string => {
+  if (!gssOutputsByGdu) return "<p>No GSS outputs available for traceability analysis.</p>";
+  
+  let html = `
+    <div class="gss-traceability-section" style="color: var(--app-text);">
+      <h3 style="color: var(--app-accent-red);">GSS → SSS → ISU → Utterances Traceability</h3>
+      <p style="color: var(--app-text);"><em>This section provides a complete audit trail from Generic Synchronic Structure categories down to specific utterances.</em></p>
+  `;
+  
+  for (const [gduId, p4sOut] of Object.entries(gssOutputsByGdu)) {
+    if (!p4sOut?.generic_synchronic_structure?.generic_nodes_categories) continue;
+    
+    html += `
+      <div class="gdu-section" style="color: var(--app-text);">
+        <h4 style="color: var(--app-accent-red);">GDU: ${escapeHtml(gduId)}</h4>
+    `;
+    
+    for (const gssCat of p4sOut.generic_synchronic_structure.generic_nodes_categories) {
+      const notesForCat = p4sOut.generic_synchronic_structure.instantiation_notes?.filter(n=>n.generic_category_id===gssCat.id&&n.example_specific_nodes)||[];
+      
+      html += `
+        <div class="gss-category" style="color: var(--app-text);">
+          <h5 style="color: var(--app-accent-red);">GSS Category: ${escapeHtml(gssCat.label)} (${escapeHtml(gssCat.id)})</h5>
+          <div style="margin-left: 20px; color: var(--app-text);">
+      `;
+      
+      if (notesForCat.length === 0) {
+        html += `<p style="color: var(--app-accent-red);"><em>No instantiation notes found for this category</em></p>`;
+      }
+      
+      let categoryTotalUtterances = 0;
+      const categoryTranscriptCounts = new Map<string, number>();
+      
+      for (const note of notesForCat) {
+        html += `<div class="instantiation-note" style="margin-bottom: 15px; padding: 10px; background: var(--app-subtle-bg); border-left: 3px solid var(--app-border); color: var(--app-text);">`;
+        html += `<p style="color: var(--app-text);"><strong>Description:</strong> ${escapeHtml(note.textual_description)}</p>`;
+        
+        if (!note.example_specific_nodes || note.example_specific_nodes.length === 0) {
+          html += `<p style="color: var(--app-accent-red);"><em>No example SSS nodes provided</em></p>`;
+        } else {
+          html += `<p style="color: var(--app-text);"><strong>Example SSS Nodes (${note.example_specific_nodes.length}):</strong></p>`;
+          html += `<div style="margin-left: 15px;">`;
+          
+          for (const specNodeRef of note.example_specific_nodes) {
+            const txData = processedData.get(specNodeRef.transcript_id);
+            const phaseData = txData?.p2s_outputs_by_phase?.[specNodeRef.phase_name || ''];
+            
+            html += `
+              <div class="sss-node" style="margin: 10px 0; padding: 8px; background: var(--app-bg); border: 1px solid var(--app-border); border-radius: 4px; color: var(--app-text);">
+                <div style="font-weight: bold; color: var(--app-accent-red);">
+                  📍 SSS Node: ${escapeHtml(specNodeRef.sss_node_id)}
+                </div>
+                <div style="margin-left: 15px; font-size: 0.9em; color: var(--app-text);">
+                  <div><strong>Transcript:</strong> ${escapeHtml(specNodeRef.transcript_id)} (${escapeHtml(txData?.filename || 'Unknown')})</div>
+                  <div><strong>Phase:</strong> ${escapeHtml(specNodeRef.phase_name || 'Unknown')}</div>
+            `;
+            
+            // Check if SSS node exists
+            const sssNode = phaseData?.p2s_3_output?.specific_synchronic_structure.network_nodes.find(n => n.id === specNodeRef.sss_node_id);
+            if (!sssNode) {
+              html += `<div style="color: var(--app-accent-red);"><strong>❌ ORPHANED NODE:</strong> SSS node not found in P2S_3 network structure</div>`;
+              
+              // For orphaned nodes, try to show what we can from the P4S_1_A data
+              html += `<div style="margin-left: 15px; padding: 8px; background: var(--app-subtle-bg); border: 1px solid var(--app-accent-red); border-radius: 4px;">`;
+              html += `<div style="color: var(--app-text);"><strong>Available Information:</strong></div>`;
+              html += `<div style="margin-left: 10px; color: var(--app-text);">`;
+              html += `<div><strong>Referenced in P4S_1_A:</strong> Yes (this node was included in the TSV input)</div>`;
+              
+              // Try to find the ISU in P2S_2 data even if SSS node is missing
+              if (phaseData?.p2s_2_output?.specific_synchronic_units_hierarchy) {
+                // Try multiple strategies to match the ISU
+                let matchingIsu = null;
+                
+                // Strategy 1: Direct match with "ISU_" prefix
+                const potentialIsuName1 = specNodeRef.sss_node_id.replace(/^sss_node_/, 'ISU_');
+                matchingIsu = phaseData.p2s_2_output.specific_synchronic_units_hierarchy.find(isu => isu.unit_name === potentialIsuName1);
+                
+                // Strategy 2: Direct match without prefix change
+                if (!matchingIsu) {
+                  const potentialIsuName2 = specNodeRef.sss_node_id.replace(/^sss_node_/, '');
+                  matchingIsu = phaseData.p2s_2_output.specific_synchronic_units_hierarchy.find(isu => isu.unit_name === potentialIsuName2);
+                }
+                
+                // Strategy 3: Substring matching (SSS node ID contains ISU name)
+                if (!matchingIsu) {
+                  matchingIsu = phaseData.p2s_2_output.specific_synchronic_units_hierarchy.find(isu => 
+                    specNodeRef.sss_node_id.includes(isu.unit_name) || isu.unit_name.includes(specNodeRef.sss_node_id.replace(/^sss_node_/, ''))
+                  );
+                }
+                
+                console.log(`[Traceability] Orphaned node ${specNodeRef.sss_node_id} - trying to find ISU. Strategies: 1="${potentialIsuName1}", found=${!!matchingIsu}`);
+                if (matchingIsu) {
+                  console.log(`[Traceability] Found matching ISU: ${matchingIsu.unit_name}`);
+                }
+                
+                if (matchingIsu) {
+                  html += `<div><strong>Likely Source ISU:</strong> ${escapeHtml(matchingIsu.unit_name)}</div>`;
+                  html += `<div><strong>ISU Definition:</strong> ${escapeHtml(matchingIsu.intensional_definition)}</div>`;
+                  
+                  // Try to get utterances from the ISU
+                  const collectBaseUtterances = (isuName: string, hierarchy: typeof phaseData.p2s_2_output.specific_synchronic_units_hierarchy): Array<{original_line_num: string, utterance_text: string}> => {
+                    const currentIsu = hierarchy.find(u => u.unit_name === isuName);
+                    if (!currentIsu) return [];
+                    if (currentIsu.utterances && currentIsu.utterances.length > 0) {
+                      return currentIsu.utterances;
+                    }
+                    let collected: Array<{original_line_num: string, utterance_text: string}> = [];
+                    if (currentIsu.constituent_lower_units) {
+                      for (const lowerUnit of currentIsu.constituent_lower_units) {
+                        collected = collected.concat(collectBaseUtterances(lowerUnit, hierarchy));
+                      }
+                    }
+                    return collected;
+                  };
+                  
+                  const utterances = collectBaseUtterances(matchingIsu.unit_name, phaseData.p2s_2_output.specific_synchronic_units_hierarchy);
+                  if (utterances.length > 0) {
+                    html += `<div><strong>Potential Grounded Utterances (${utterances.length}):</strong></div>`;
+                    html += `<div style="margin-left: 10px;">`;
+                    utterances.forEach(utt => {
+                      html += `
+                        <div style="margin: 3px 0; padding: 4px; background: var(--app-highlight-bg); border-left: 2px solid var(--app-accent-red); font-size: 0.8em; color: var(--app-text);">
+                          <strong>Line ${escapeHtml(utt.original_line_num)}:</strong> ${escapeHtml(utt.utterance_text)}
+                        </div>
+                      `;
+                    });
+                    html += `</div>`;
+                    
+                    // Count utterances for orphaned nodes too
+                    const txId = specNodeRef.transcript_id;
+                    categoryTranscriptCounts.set(txId, (categoryTranscriptCounts.get(txId) || 0) + utterances.length);
+                    categoryTotalUtterances += utterances.length;
+                  } else {
+                    html += `<div style="color: var(--app-accent-red);"><strong>⚠️ No utterances found for potential ISU</strong></div>`;
+                  }
+                } else {
+                  html += `<div style="color: var(--app-accent-red);"><strong>⚠️ Cannot identify corresponding ISU</strong></div>`;
+                }
+              }
+              
+              html += `<div style="color: var(--app-accent-red); font-weight: bold; margin-top: 8px;"><strong>Issue:</strong> Node exists in P4S_1_A but missing from P2S_3 network_links (orphaned)</div>`;
+              html += `</div></div>`;
+            } else {
+              html += `<div style="color: var(--app-text);"><strong>SSS Label:</strong> ${escapeHtml(sssNode.label)}</div>`;
+              html += `<div style="color: var(--app-text);"><strong>Source ISU:</strong> ${escapeHtml(sssNode.source_isu_id)}</div>`;
+              
+              // Find and trace the ISU
+              const sourceIsu = phaseData?.p2s_2_output?.specific_synchronic_units_hierarchy.find(isu => isu.unit_name === sssNode.source_isu_id);
+              if (!sourceIsu) {
+                html += `<div style="color: var(--app-accent-red);"><strong>❌ ERROR:</strong> Source ISU not found in P2S_2 data</div>`;
+              } else {
+                html += `
+                  <div class="isu-details" style="margin: 8px 0; padding: 6px; background: var(--app-highlight-bg); border-radius: 3px; color: var(--app-text);">
+                    <div style="font-weight: bold; color: var(--app-accent-red);">🔍 ISU: ${escapeHtml(sourceIsu.unit_name)}</div>
+                    <div style="margin-left: 10px; font-size: 0.85em; color: var(--app-text);">
+                      <div><strong>Level:</strong> ${sourceIsu.level}</div>
+                      <div><strong>Definition:</strong> ${escapeHtml(sourceIsu.intensional_definition)}</div>
+                `;
+                
+                // Collect utterances through ISU hierarchy traversal
+                const collectBaseUtterances = (isuName: string, hierarchy: typeof phaseData.p2s_2_output.specific_synchronic_units_hierarchy): Array<{original_line_num: string, utterance_text: string}> => {
+                  const currentIsu = hierarchy.find(u => u.unit_name === isuName);
+                  if (!currentIsu) return [];
+                  if (currentIsu.utterances && currentIsu.utterances.length > 0) {
+                    return currentIsu.utterances;
+                  }
+                  let collected: Array<{original_line_num: string, utterance_text: string}> = [];
+                  if (currentIsu.constituent_lower_units) {
+                    for (const lowerUnit of currentIsu.constituent_lower_units) {
+                      collected = collected.concat(collectBaseUtterances(lowerUnit, hierarchy));
+                    }
+                  }
+                  return collected;
+                };
+                
+                const utterances = collectBaseUtterances(sourceIsu.unit_name, phaseData.p2s_2_output.specific_synchronic_units_hierarchy);
+                
+                if (utterances.length === 0) {
+                  html += `<div style="color: var(--app-accent-red);"><strong>⚠️ WARNING:</strong> No utterances found for this ISU</div>`;
+                } else {
+                  html += `<div style="color: var(--app-text);"><strong>Grounded Utterances (${utterances.length}):</strong></div>`;
+                  html += `<div style="margin-left: 10px;">`;
+                  
+                  utterances.forEach(utt => {
+                    html += `
+                      <div style="margin: 3px 0; padding: 4px; background: var(--app-subtle-bg); border-left: 2px solid var(--app-accent-red); font-size: 0.8em; color: var(--app-text);">
+                        <strong>Line ${escapeHtml(utt.original_line_num)}:</strong> ${escapeHtml(utt.utterance_text)}
+                      </div>
+                    `;
+                  });
+                  
+                  html += `</div>`;
+                  
+                  // Count utterances for this transcript
+                  const txId = specNodeRef.transcript_id;
+                  categoryTranscriptCounts.set(txId, (categoryTranscriptCounts.get(txId) || 0) + utterances.length);
+                  categoryTotalUtterances += utterances.length;
+                }
+                
+                html += `</div></div>`;
+              }
+            }
+            
+            html += `</div></div>`;
+          }
+          
+          html += `</div>`;
+        }
+        
+        html += `</div>`;
+      }
+      
+      // Summary for this category
+      html += `
+        <div style="margin-top: 15px; padding: 10px; background: var(--app-highlight-bg); border-radius: 4px; color: var(--app-text);">
+          <strong>Category Summary:</strong>
+          <div style="margin-left: 15px; color: var(--app-text);">
+            <div><strong>Total Utterances:</strong> ${categoryTotalUtterances}</div>
+            <div><strong>Transcript Distribution:</strong></div>
+            <div style="margin-left: 15px;">
+      `;
+      
+      for (const [txId, count] of categoryTranscriptCounts.entries()) {
+        const filename = processedData.get(txId)?.filename || 'Unknown';
+        html += `<div>• ${escapeHtml(txId)} (${escapeHtml(filename)}): ${count} utterances</div>`;
+      }
+      
+      html += `</div></div></div></div></div>`;
+    }
+    
+    html += `</div>`;
+  }
+  
+  html += `</div>`;
+  return html;
+};
+
 export const calculateGssCategoryUtteranceCounts = ( // Make exportable
   processedData: Map<string, TranscriptProcessedData>,
   gssOutputsByGdu: Record<string, P4S_1_Output | undefined> | undefined
@@ -181,7 +422,9 @@ export const calculateGssCategoryUtteranceCounts = ( // Make exportable
       const notesForCat = p4sOut.generic_synchronic_structure.instantiation_notes?.filter(n=>n.generic_category_id===gssCat.id&&n.example_specific_nodes)||[];
       const uniqueP0_3LinesByTx = new Map<string,Set<string>>();
       for (const note of notesForCat) {
+        console.log(`[GSS Counting] Processing note for category ${gssCat.id}, found ${note.example_specific_nodes?.length || 0} example nodes`);
         for (const specNodeRef of note.example_specific_nodes!) {
+          console.log(`[GSS Counting] Processing node: txId=${specNodeRef.transcript_id}, phase=${specNodeRef.phase_name}, nodeId=${specNodeRef.sss_node_id}`);
           const txId = specNodeRef.transcript_id; const txData = processedData.get(txId);
           // Original P4S.1 prompt uses example "Phase2_Context" for phase_name. 
           // Actual P1.4 phase names are like "Beginning", "Core Event".
@@ -190,8 +433,11 @@ export const calculateGssCategoryUtteranceCounts = ( // Make exportable
           const phaseNameForLookup = specNodeRef.phase_name; 
           const phaseDataForSSS = txData?.p2s_outputs_by_phase?.[phaseNameForLookup||''];
 
-          if(!txData||!phaseDataForSSS?.p2s_2_output||!phaseDataForSSS?.p2s_3_output)continue;
-          const sssNode = phaseDataForSSS.p2s_3_output.specific_synchronic_structure.network_nodes.find(n=>n.id===specNodeRef.sss_node_id); if(!sssNode)continue;
+          if(!txData||!phaseDataForSSS?.p2s_2_output||!phaseDataForSSS?.p2s_3_output){
+            console.log(`[GSS Counting] Missing data: txData=${!!txData}, phaseData=${!!phaseDataForSSS}, p2s_2=${!!phaseDataForSSS?.p2s_2_output}, p2s_3=${!!phaseDataForSSS?.p2s_3_output}`);
+            continue;
+          }
+          const sssNode = phaseDataForSSS.p2s_3_output.specific_synchronic_structure.network_nodes.find(n=>n.id===specNodeRef.sss_node_id); 
           
           const collectBaseUtterances = (isuName: string, hierarchy: P2S_2_SynchronicUnit[]): SelectedUtterance[] => {
               const currentIsu = hierarchy.find(u => u.unit_name === isuName);
@@ -207,7 +453,45 @@ export const calculateGssCategoryUtteranceCounts = ( // Make exportable
               }
               return collected;
           };
-          const utterances = collectBaseUtterances(sssNode.source_isu_id, phaseDataForSSS.p2s_2_output.specific_synchronic_units_hierarchy);
+
+          let utterances: SelectedUtterance[] = [];
+          
+          if(!sssNode){
+            // Handle orphaned node - try to recover from P2S_2 data using same strategy as traceability
+            console.log(`[GSS Table Counting] Orphaned node detected: ${specNodeRef.sss_node_id}`);
+            
+            // Try multiple strategies to match the ISU (same as traceability)
+            let matchingIsu = null;
+            
+            // Strategy 1: Direct match with "ISU_" prefix
+            const potentialIsuName1 = specNodeRef.sss_node_id.replace(/^sss_node_/, 'ISU_');
+            matchingIsu = phaseDataForSSS.p2s_2_output.specific_synchronic_units_hierarchy.find(isu => isu.unit_name === potentialIsuName1);
+            
+            // Strategy 2: Direct match without prefix change
+            if (!matchingIsu) {
+              const potentialIsuName2 = specNodeRef.sss_node_id.replace(/^sss_node_/, '');
+              matchingIsu = phaseDataForSSS.p2s_2_output.specific_synchronic_units_hierarchy.find(isu => isu.unit_name === potentialIsuName2);
+            }
+            
+            // Strategy 3: Substring matching
+            if (!matchingIsu) {
+              matchingIsu = phaseDataForSSS.p2s_2_output.specific_synchronic_units_hierarchy.find(isu => 
+                specNodeRef.sss_node_id.includes(isu.unit_name) || isu.unit_name.includes(specNodeRef.sss_node_id.replace(/^sss_node_/, ''))
+              );
+            }
+            
+            if (matchingIsu) {
+              console.log(`[GSS Table Counting] Recovered orphaned node via ISU: ${matchingIsu.unit_name}`);
+              utterances = collectBaseUtterances(matchingIsu.unit_name, phaseDataForSSS.p2s_2_output.specific_synchronic_units_hierarchy);
+            } else {
+              console.log(`[GSS Table Counting] Could not recover orphaned node: ${specNodeRef.sss_node_id}`);
+              const availableNodeIds = phaseDataForSSS.p2s_3_output.specific_synchronic_structure.network_nodes.map(n => n.id);
+              console.log(`[GSS Table Counting] Available SSS nodes in this phase:`, availableNodeIds);
+            }
+          } else {
+            // Valid SSS node - normal processing
+            utterances = collectBaseUtterances(sssNode.source_isu_id, phaseDataForSSS.p2s_2_output.specific_synchronic_units_hierarchy);
+          }
 
           if(!uniqueP0_3LinesByTx.has(txId))uniqueP0_3LinesByTx.set(txId,new Set<string>());
           utterances.forEach(utt=>uniqueP0_3LinesByTx.get(txId)!.add(`${utt.original_line_num}|${utt.utterance_text}`)); // Key by line_num & text to ensure uniqueness
@@ -366,48 +650,9 @@ table{border-collapse:collapse;width:100%;margin-bottom:20px;font-size:.9em;}th,
     if(allMermaidSyntaxes['gds_main'])html+=renderMermaidDiagramHTML(allMermaidSyntaxes['gds_main'].title,allMermaidSyntaxes['gds_main'].syntax,'mermaid_gds_main');else html+=`<p><em>GDS diagram not available.</em></p>`;
     if(genericState.p3_3_output?.generic_diachronic_structure_definition.core_gdus)genericState.p3_3_output.generic_diachronic_structure_definition.core_gdus.forEach(gduId=>{const gssKey=`gss_${gduId.replace(/[^a-zA-Z0-9_]/g,'_')}`;if(allMermaidSyntaxes[gssKey])html+=renderMermaidDiagramHTML(allMermaidSyntaxes[gssKey].title,allMermaidSyntaxes[gssKey].syntax,`mermaid_${gssKey}`);});
     
-    // GSS Grounding Trace Section
-    html += `</section><section class="gss-grounding-trace-section"><h2>GSS Category Grounding Trace</h2>`;
-    if (genericState.p4s_outputs_by_gdu && Object.keys(genericState.p4s_outputs_by_gdu).length > 0) {
-        Object.entries(genericState.p4s_outputs_by_gdu).forEach(([gduId, p4sOutput]) => {
-            if (p4sOutput?.generic_synchronic_structure?.generic_nodes_categories) {
-                html += `<h3>GDU: ${escapeHtml(gduId)}</h3>`;
-                p4sOutput.generic_synchronic_structure.generic_nodes_categories.forEach(gssCategory => {
-                    html += `<div class="gss-grounding-block"><h4>Category: ${escapeHtml(gssCategory.label)} (ID: ${escapeHtml(gssCategory.id)})</h4>`;
-                    const instNote = p4sOutput.generic_synchronic_structure.instantiation_notes?.find(n => n.generic_category_id === gssCategory.id);
-                    if (instNote) {
-                        html += `<p><strong>Instantiation Rationale:</strong> ${escapeHtml(instNote.textual_description)}</p>`;
-                        if (instNote.example_specific_nodes && instNote.example_specific_nodes.length > 0) {
-                            html += `<h5>Grounding SSS Nodes &amp; Utterances:</h5><ul>`;
-                            instNote.example_specific_nodes.forEach(exNode => {
-                                const transcriptFilename = rawTranscripts.find(rt => rt.id === exNode.transcript_id)?.filename || exNode.transcript_id;
-                                const groundingInfo = getGroundingUtterancesForSSSNode(exNode.sss_node_id, exNode.phase_name, exNode.transcript_id, processedDataMap);
-                                html += `<li><strong>SSS Node:</strong> ${escapeHtml(exNode.sss_node_id)} (Transcript: ${escapeHtml(transcriptFilename)}, Phase: ${escapeHtml(exNode.phase_name)})`;
-                                if (groundingInfo.sssNodeLabel) html += ` (Label: ${escapeHtml(groundingInfo.sssNodeLabel)})`;
-                                if (groundingInfo.isuName) {
-                                    html += `<br/>&nbsp;&nbsp;&nbsp;&hookrightarrow; <strong>Source ISU:</strong> ${escapeHtml(groundingInfo.isuName)}`
-                                    if (groundingInfo.isuDefinition) html += ` (Def: ${escapeHtml(groundingInfo.isuDefinition.substring(0,70))}...)`
-                                }
-
-                                if (groundingInfo.utterances.length > 0) {
-                                    html += `<ul>`;
-                                    groundingInfo.utterances.forEach(utt => {
-                                        html += `<li><em>(L${escapeHtml(utt.original_line_num)})</em> ${escapeHtml(utt.utterance_text)}</li>`;
-                                    });
-                                    html += `</ul>`;
-                                } else {
-                                    html += `<p><em>&nbsp;&nbsp;&nbsp;&nbsp;No direct grounding P0.3 utterances found for this SSS node via ISUs.</em></p>`;
-                                }
-                                html += `</li>`;
-                            });
-                            html += `</ul>`;
-                        } else { html += `<p><em>No example SSS nodes provided.</em></p>`; }
-                    } else { html += `<p><em>No instantiation notes for this category.</em></p>`; }
-                    html += `</div>`;
-                });
-            }
-        });
-    } else { html += `<p><em>No GSS data available for grounding trace.</em></p>`; }
+    // Enhanced GSS Traceability Section
+    html += `</section><section class="gss-grounding-trace-section">`;
+    html += generateGssTraceabilityBreakdown(processedDataMap, genericState.p4s_outputs_by_gdu);
     html += `</section>`;
 
 

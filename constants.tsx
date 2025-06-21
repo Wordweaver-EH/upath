@@ -985,21 +985,13 @@ Do NOT include a "mermaid_syntax_generic_diachronic" field; this will be generat
         if (!currentGDUToAnalyze) { return { data: null, error: "Current GDU for P4S analysis not set in generic state." }; }
 
         const gduDef = genericState.p3_2_output.identified_gdus.find(g => g.gdu_id === currentGDUToAnalyze);
-        const contributingRefinedDuInfo = gduDef?.contributing_refined_du_ids || [];
-        
-        // Debug logging: Check transcript diversity in contributing refined DUs
-        const uniqueContributingTranscripts = new Set(contributingRefinedDuInfo.map(info => info.transcript_id));
-        console.log(`[P4S.1.A getInput] GDU ${currentGDUToAnalyze} has contributing refined DUs from ${uniqueContributingTranscripts.size} transcripts:`, Array.from(uniqueContributingTranscripts));
-        
-        const groundedSssNodesForGrouping: Array<{
-            transcript_id: string;
-            phase_name: string;
-            sss_node_id: string;
-            sss_node_label: string;
-            independent_variable_details: string;
-        }> = [];
+        if (!gduDef) return { data: null, error: `Definition for GDU '${currentGDUToAnalyze}' not found.` };
+        const contributingRefinedDuInfo = gduDef.contributing_refined_du_ids;
 
-        const isNodeGrounded = (isuName: string, hierarchy: { unit_name: string; level: number; utterances?: any[]; constituent_lower_units?: string[] }[], memo: Map<string, boolean>): boolean => {
+        console.log(`[P4S.1.A getInput] Building TSV + Mermaid input for GDU ${currentGDUToAnalyze}`);
+
+        // Helper function to check if an ISU is grounded in utterances
+        const isNodeGrounded = (isuName: string, hierarchy: P2S_2_Output['specific_synchronic_units_hierarchy'], memo: Map<string, boolean>): boolean => {
             if (memo.has(isuName)) return memo.get(isuName)!;
             const isu = hierarchy.find(u => u.unit_name === isuName);
             if (!isu) { memo.set(isuName, false); return false; }
@@ -1012,104 +1004,163 @@ Do NOT include a "mermaid_syntax_generic_diachronic" field; this will be generat
             return false;
         };
 
+        // Phase 1: Build TSV "Parts List" and collect Mermaid data
+        const tsvRows: string[] = ["transcript_id\tphase_name\tsss_node_id\tsss_node_label\tisu_definition"]; // TSV header
+        const mermaidSections: string[] = [];
+        const validatedTranscriptIds = new Set<string>();
+
         allProcessedData.forEach(tData => {
             const relevantRefinedDuIdsFromThisTranscript = contributingRefinedDuInfo.filter(info => info.transcript_id === tData.id).map(info => info.refined_du_id);
-            if (relevantRefinedDuIdsFromThisTranscript.length === 0) {
-                console.log(`[P4S.1.A getInput] Skipping transcript ${tData.id}: No contributing refined DUs for this GDU`);
-                return;
-            }
-            if (!tData.p1_4_output?.specific_diachronic_structure.phases || !tData.p2s_outputs_by_phase) {
-                console.log(`[P4S.1.A getInput] Skipping transcript ${tData.id}: Missing required phase data`);
-                return;
-            }
-            console.log(`[P4S.1.A getInput] Processing transcript ${tData.id} with ${relevantRefinedDuIdsFromThisTranscript.length} relevant refined DUs`);
+            if (relevantRefinedDuIdsFromThisTranscript.length === 0) return;
+            if (!tData.p1_4_output?.specific_diachronic_structure.phases || !tData.p2s_outputs_by_phase) return;
 
             tData.p1_4_output.specific_diachronic_structure.phases.forEach(phase => {
                 const phaseUsesRelevantRefinedDU = phase.units_involved.some(unitId => relevantRefinedDuIdsFromThisTranscript.includes(unitId));
-                if (phaseUsesRelevantRefinedDU) {
-                    const sssDataForPhase = tData.p2s_outputs_by_phase?.[phase.phase_name];
-                    if (sssDataForPhase?.p2s_3_output?.specific_synchronic_structure && sssDataForPhase.p2s_2_output?.specific_synchronic_units_hierarchy) {
-                        const isuHierarchy = sssDataForPhase.p2s_2_output.specific_synchronic_units_hierarchy;
-                        const groundingMemo = new Map<string, boolean>();
-                        sssDataForPhase.p2s_3_output.specific_synchronic_structure.network_nodes.forEach(node => {
-                            if (isNodeGrounded(node.source_isu_id, isuHierarchy, groundingMemo)) {
-                                groundedSssNodesForGrouping.push({
-                                    transcript_id: tData.id,
-                                    phase_name: phase.phase_name,
-                                    sss_node_id: node.id,
-                                    sss_node_label: node.label,
-                                    independent_variable_details: sssDataForPhase.p2s_3_output!.independent_variable_details,
-                                });
-                            } else {
-                                console.log(`[P4S.1.A getInput] Node ${node.id} from ${tData.id}/${phase.phase_name} filtered: Failed grounding check`);
-                            }
-                        });
+                if (!phaseUsesRelevantRefinedDU) return;
+
+                const phaseData = tData.p2s_outputs_by_phase?.[phase.phase_name];
+                if (!phaseData?.p2s_3_output?.specific_synchronic_structure || !phaseData.p2s_2_output?.specific_synchronic_units_hierarchy) return;
+
+                const sss = phaseData.p2s_3_output.specific_synchronic_structure;
+                const isuHierarchy = phaseData.p2s_2_output.specific_synchronic_units_hierarchy;
+                const groundingMemo = new Map<string, boolean>();
+
+                // Build Mermaid section for this transcript-phase
+                const mermaidPhaseId = `${tData.id}_${phase.phase_name}`.replace(/[^a-zA-Z0-9_]/g, '_');
+                const mermaidLines = [`    subgraph ${mermaidPhaseId} ["${tData.id} - ${phase.phase_name}"]`];
+                
+                // Process each SSS node
+                sss.network_nodes.forEach(node => {
+                    const isGrounded = isNodeGrounded(node.source_isu_id, isuHierarchy, groundingMemo);
+                    console.log(`[P4S.1.A getInput] SSS node ${node.id} (${node.source_isu_id}) in ${tData.id}/${phase.phase_name}: grounded=${isGrounded}`);
+                    
+                    if (isGrounded) {
+                        // Find the ISU definition for this node
+                        const sourceIsu = isuHierarchy.find(isu => isu.unit_name === node.source_isu_id);
+                        const isuDefinition = sourceIsu?.intensional_definition || "No definition available";
+
+                        // Add to TSV
+                        const tsvRow = [
+                            tData.id,
+                            phase.phase_name,
+                            node.id,
+                            node.label,
+                            isuDefinition.replace(/\t/g, ' ').replace(/\n/g, ' ') // Clean for TSV
+                        ].join('\t');
+                        tsvRows.push(tsvRow);
+
+                        // Add to Mermaid
+                        mermaidLines.push(`        ${node.id}["${node.label}"]`);
+                        
+                        validatedTranscriptIds.add(tData.id);
+                    } else {
+                        console.log(`[P4S.1.A getInput] EXCLUDED ungrounded SSS node ${node.id} from TSV`);
                     }
-                }
+                });
+
+                // Add SSS links to Mermaid
+                sss.network_links.forEach(link => {
+                    // Only include links where both nodes are grounded
+                    const fromNodeGrounded = sss.network_nodes.some(n => n.id === link.from && isNodeGrounded(n.source_isu_id, isuHierarchy, groundingMemo));
+                    const toNodeGrounded = sss.network_nodes.some(n => n.id === link.to && isNodeGrounded(n.source_isu_id, isuHierarchy, groundingMemo));
+                    if (fromNodeGrounded && toNodeGrounded) {
+                        mermaidLines.push(`        ${link.from} --> ${link.to}`);
+                    }
+                });
+
+                mermaidLines.push(`    end`);
+                mermaidSections.push(mermaidLines.join('\n'));
             });
         });
 
-        const MINIMUM_SSS_COUNT = 1;
-        const MINIMUM_TRANSCRIPT_DIVERSITY = 2; // Configurable: Require nodes from at least N transcripts for "Generic" structure
-        
-        if (groundedSssNodesForGrouping.length < MINIMUM_SSS_COUNT) {
-            const errorMsg = `Insufficient **utterance-grounded** SSS nodes for GDU ${currentGDUToAnalyze}: found ${groundedSssNodesForGrouping.length}, require at least ${MINIMUM_SSS_COUNT}. Cannot proceed with GSS node grouping.`;
+        // Validation checks
+        if (tsvRows.length <= 1) { // Only header row
+            const errorMsg = `No utterance-grounded SSS nodes found for GDU ${currentGDUToAnalyze}. Cannot proceed with generic synchronic analysis.`;
             console.error(`[P4S.1.A getInput] ${errorMsg}`);
             return { data: null, error: errorMsg };
         }
-        
-        // Diversity validation: Check transcript representation
-        const uniqueTranscriptsInGroundedNodes = new Set(groundedSssNodesForGrouping.map(node => node.transcript_id));
-        console.log(`[P4S.1.A getInput] Found grounded nodes from ${uniqueTranscriptsInGroundedNodes.size} transcripts:`, Array.from(uniqueTranscriptsInGroundedNodes));
-        
-        if (uniqueTranscriptsInGroundedNodes.size < MINIMUM_TRANSCRIPT_DIVERSITY) {
-            const errorMsg = `Insufficient transcript diversity for GDU ${currentGDUToAnalyze}: found nodes from ${uniqueTranscriptsInGroundedNodes.size} transcripts (${Array.from(uniqueTranscriptsInGroundedNodes)}), require at least ${MINIMUM_TRANSCRIPT_DIVERSITY} for Generic Synchronic Structure. This may indicate upstream data issues in P3.2 GDU identification.`;
+
+        const MINIMUM_TRANSCRIPT_DIVERSITY = 2;
+        if (validatedTranscriptIds.size < MINIMUM_TRANSCRIPT_DIVERSITY) {
+            const errorMsg = `Insufficient transcript diversity for GDU ${currentGDUToAnalyze}: found grounded nodes from ${validatedTranscriptIds.size} transcripts (${Array.from(validatedTranscriptIds)}), require at least ${MINIMUM_TRANSCRIPT_DIVERSITY} for Generic Synchronic Structure.`;
             console.error(`[P4S.1.A getInput] ${errorMsg}`);
             return { data: null, error: errorMsg };
         }
+
+        // Build final TSV and Mermaid strings
+        const nodesTsv = tsvRows.join('\n');
+        const structuresMermaid = `graph TD\n${mermaidSections.join('\n')}`;
+
+        console.log(`[P4S.1.A getInput] Generated TSV with ${tsvRows.length - 1} nodes from ${validatedTranscriptIds.size} transcripts`);
+        console.log(`[P4S.1.A getInput] Generated Mermaid with ${mermaidSections.length} phase diagrams`);
+
         return {
             data: {
                 gdu_to_analyze_id: currentGDUToAnalyze,
-                gdu_definition: gduDef?.definition || "Definition not found",
-                grounded_sss_nodes: groundedSssNodesForGrouping,
+                gdu_definition: gduDef.definition,
+                nodes_tsv: nodesTsv,
+                structures_mermaid: structuresMermaid,
                 global_dv_focus: userDvFocus?.dv_focus
             }
         };
     },
-    generatePrompt: (input: { gdu_to_analyze_id: string, gdu_definition: string, grounded_sss_nodes: any[], global_dv_focus: string[] }) => `You are a Generic Synchronic Analysis assistant. Your task is to perform thematic grouping on a **pre-verified list of utterance-grounded Specific Synchronic Structure (SSS) nodes**.
-Input:
-- GDU to Analyze (ID): "${input.gdu_to_analyze_id}"
-- GDU Definition: "${input.gdu_definition}"
-- A list of \`grounded_sss_nodes\`. Each node in this list has ALREADY been verified to be traceable to specific participant utterances. Each object contains \`transcript_id\`, \`phase_name\`, \`sss_node_id\`, \`sss_node_label\`, and \`independent_variable_details\`.
-- Global DV Focus: ${JSON.stringify(input.global_dv_focus)}
-${JSON.stringify({grounded_sss_nodes_sample: input.grounded_sss_nodes.slice(0,5)}, null, 2)}
-(A sample of the pre-verified input nodes is provided above for context; the full list is available to you).
+    generatePrompt: (input: { gdu_to_analyze_id: string, gdu_definition: string, nodes_tsv: string, structures_mermaid: string, global_dv_focus: string[] }) => `You are a Generic Synchronic Classification assistant. Your task is to analyze a list of Specific Synchronic Structure (SSS) nodes and classify them into cross-transcript semantic groups for Generic Synchronic Structure (GSS) formation.
 
-Instructions:
-1.  **Group by Theme:** Your sole task is to group the provided \`grounded_sss_nodes\` into thematically coherent clusters based on their labels and relevance to the GDU definition.
-2.  **Create Output:** For each group you identify, create an object with:
-    *   \`group_id\`: A unique identifier for the group (e.g., "gss_node_group_1_MeaningMaking").
-    *   \`group_rationale\`: A clear justification for the grouping.
-    *   \`contributing_sss_nodes\`: An array listing the nodes that belong to this group. You MUST copy the \`transcript_id\`, \`phase_name\`, \`sss_node_id\`, and \`sss_node_label\` for each node directly and exactly from the input list.
-3.  **Crucial Guardrail:** DO NOT invent, hallucinate, or include any SSS node that was not explicitly provided in the \`grounded_sss_nodes\` input list.
+**CRITICAL INSTRUCTION: You MUST NOT invent, create, or hallucinate any sss_node_id that is not explicitly present in the input TSV. Every single sss_node_id in your output must be exactly copied from the input.**
 
-Output:
-A JSON object adhering EXACTLY to the following structure.
+## Input Data
+
+**GDU to Analyze:** ${input.gdu_to_analyze_id}
+**GDU Definition:** ${input.gdu_definition}
+**Global DV Focus:** ${JSON.stringify(input.global_dv_focus)}
+
+### Nodes TSV (Parts List)
+Each row represents a validated, utterance-grounded SSS node with its semantic definition:
+
+\`\`\`
+${input.nodes_tsv}
+\`\`\`
+
+### Structures Mermaid (Assembly Diagram)
+Visual context showing how these nodes relate within their original transcript-phase structures:
+
+\`\`\`mermaid
+${input.structures_mermaid}
+\`\`\`
+
+## Your Task: Node Classification
+
+Your task is to analyze each node in the TSV and determine which cross-transcript semantic group it belongs to, if any.
+
+**Classification Rules:**
+1. **Semantic Analysis:** Use both the \`sss_node_label\` and \`isu_definition\` to understand what each node represents
+2. **Cross-Transcript Requirement:** Only create groups that contain nodes from **at least 2 different transcript_ids**
+3. **Semantic Similarity:** Group nodes that represent the same generic concept, even if their labels differ
+4. **Exclusion Option:** If a node doesn't fit with any cross-transcript group, assign it \`group_id: "N/A"\`
+
+## Required Output Format
+
+You MUST return a JSON object with this exact structure:
+
+\`\`\`json
 {
   "analyzed_gdu": "${input.gdu_to_analyze_id}",
-  "sss_node_groups": [
+  "grouped_data": [
     {
-      "group_id": "gss_node_group_1_ExampleTheme",
-      "group_rationale": "These nodes from the pre-verified list all describe X.",
-      "contributing_sss_nodes": [
-        { "transcript_id": "(from input list)", "phase_name": "(from input list)", "sss_node_id": "(from input list)", "sss_node_label": "(from input list)" }
-      ]
+      "sss_node_id": "(exactly copied from TSV)",
+      "transcript_id": "(exactly copied from TSV)",
+      "phase_name": "(exactly copied from TSV)",
+      "sss_node_label": "(exactly copied from TSV)",
+      "group_id": "generic_concept_name_or_N/A",
+      "group_rationale": "Brief explanation of why this node belongs to this group"
     }
-    // ... more groups
+    // ... one object for EVERY sss_node_id from the input TSV
   ],
-  "dependent_variable_focus": ${JSON.stringify(input.global_dv_focus)},
-  "grouping_process_notes": "Optional notes on the thematic grouping process."
-}`,
+  "classification_notes": "Optional notes about your classification decisions"
+}
+\`\`\`
+
+**VERIFICATION REQUIREMENT:** Your \`grouped_data\` array must contain exactly one object for every single \`sss_node_id\` that appears in the input TSV. Do not skip any nodes, and do not invent any new ones.`,
   },
   [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: {
     id: StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS,
