@@ -12,8 +12,7 @@ export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash-preview-04-17';
 export const P3_2_APPROACH = process.env.REACT_APP_P3_2_APPROACH || 'original';
 // Values: 'original' | 'minified' | 'minimal_context_tsv' | 'full_context_tsv' | 'zero_context_tsv'
 
-// Legacy feature flag (for backwards compatibility)
-export const USE_TWO_PHASE_P3_2 = process.env.REACT_APP_TWO_PHASE_P3_2 === 'true';
+// Legacy feature flag removed - use P3_2_APPROACH instead
 
 // Two-phase P3_2 implementation functions
 const getTwoPhaseP3_2_Input = (_: any, allProcessedData: any, genericState: any, apiKeyPresent: any, userDvFocus: any) => {

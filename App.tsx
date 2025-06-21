@@ -17,7 +17,7 @@ import {
   STEP_ORDER_PART_7_CAUSAL_MODELING, STEP_ORDER_PART_6_REPORT,
   PlayIcon, PauseIcon, DownloadIcon, NextIcon, PreviousIcon, RetryIcon,
   SaveIcon, LoadIcon, LightbulbIcon, CheckCircleIcon, UploadIcon, FileTextIcon, InfoIcon, AppendixIcon, ChevronDownIcon, ChevronUpIcon,
-  USE_TWO_PHASE_P3_2
+  P3_2_APPROACH
 } from './constants';
 import { callGeminiAPI, isApiKeySet } from './services/geminiService';
 import { downloadFile, generateTsvForPromptHistory, genericJsonToTsv, generateTsvForP0_1, generateTsvForP0_2, generateTsvForP0_3, generateTsvForTranscriptDiachronic, generateTsvForTranscriptSynchronic } from './utils/tsvHelper';
@@ -981,9 +981,9 @@ const App: React.FC = () => {
                 };
             });
         }
-    } else if (stepId === StepId.P3_2_IDENTIFY_GDUS && output && USE_TWO_PHASE_P3_2) {
-        // Phase 2: Programmatic Aggregation and Validation for Two-Phase P3_2
-        console.log('[P3.2 Two-Phase] Starting aggregation phase...');
+    } else if (stepId === StepId.P3_2_IDENTIFY_GDUS && output && ['minimal_context_tsv', 'full_context_tsv', 'zero_context_tsv', 'minified'].includes(P3_2_APPROACH)) {
+        // Phase 2: Programmatic Aggregation and Validation for non-original P3_2 approaches
+        console.log(`[P3.2 ${P3_2_APPROACH}] Starting aggregation phase...`);
         const classifications = output as P3_2_Classification[]; // The LLM's raw classification output
         
         // 1. Get all valid RDU IDs from the source data for validation
@@ -1032,7 +1032,7 @@ const App: React.FC = () => {
                 const mostCommonRationale = [...rationaleCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "A recurring diachronic unit.";
 
                 // Synthesize IV variation notes from LLM classifications
-                let synthesizedIvNotes = "To be analyzed."; // Fallback
+                let synthesizedIvNotes = "No IV variation analysis provided in LLM classifications."; // Descriptive fallback
                 if (groupData.iv_variation_notes.length > 0) {
                     // Combine unique IV observations, removing duplicates
                     const uniqueIvNotes = [...new Set(groupData.iv_variation_notes)];
@@ -1058,7 +1058,7 @@ const App: React.FC = () => {
             dependent_variable_focus: userDvFocus?.dv_focus || [],
         };
         
-        console.log(`[P3.2 Two-Phase] Generated ${finalGdus.length} validated GDUs from ${gduGroups.size} initial groups`);
+        console.log(`[P3.2 ${P3_2_APPROACH}] Generated ${finalGdus.length} validated GDUs from ${gduGroups.size} initial groups`);
         
         // Save the programmatically generated, validated output
         setGenericAnalysisState(prev => ({

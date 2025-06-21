@@ -32,10 +32,10 @@ Set in `.env` file: `REACT_APP_P3_2_APPROACH=full_context_tsv`
 - Programmatic aggregation synthesizes IV variation notes from individual RDU classifications
 - Enables comprehensive A/B testing with full feature parity across all approaches
 
-**Legacy Two-Phase P3_2 Implementation**: Set `REACT_APP_TWO_PHASE_P3_2=true` for backwards compatibility (equivalent to `minimal_context_tsv`). This approach uses:
-- **Phase 1**: LLM classifies RDUs into semantic groups using TSV format for token efficiency
-- **Phase 2**: Programmatic aggregation with validation to prevent hallucinated DU IDs
-- **Benefits**: Reduced token usage (~70% reduction), hallucination prevention, improved maintainability
+**Implementation Notes**:
+- All non-original approaches use two-phase architecture: LLM classification + programmatic aggregation
+- Validation prevents hallucinated RDU IDs by checking against source data
+- IV analysis synthesis combines observations from multiple RDUs per GDU group
 
 ## Core Architecture
 
