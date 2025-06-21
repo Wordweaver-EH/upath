@@ -408,6 +408,170 @@ export const generateGssTraceabilityBreakdown = (
   html += `</div>`;
   return html;
 };
+             
+             // Generate GDU -> RDU -> DU -> Utterances traceability breakdown
+             export const generateGduTraceabilityBreakdown = (
+               processedData: Map<string, TranscriptProcessedData>,
+               genericState: GenericAnalysisState | undefined
+             ): string => {
+               if (!genericState?.p3_2_output?.identified_gdus) {
+                 return "<p>No GDU outputs available for diachronic traceability analysis.</p>";
+               }
+               
+               let html = `
+                 <div class="gdu-traceability-section" style="color: var(--app-text);">
+                   <h3 style="color: var(--app-accent-red);">GDU → RDU → DU → Utterances Traceability</h3>
+                   <p style="color: var(--app-text);"><em>This section provides a complete audit trail from Generic Diachronic Units down to specific utterances.</em></p>
+               `;
+               
+               for (const gdu of genericState.p3_2_output.identified_gdus) {
+                 html += `
+                   <div class="gdu-section" style="color: var(--app-text);">
+                     <h4 style="color: var(--app-accent-red);">GDU: ${escapeHtml(gdu.gdu_id)}</h4>
+                     <div style="margin-left: 15px; color: var(--app-text);">
+                       <div><strong>Definition:</strong> ${escapeHtml(gdu.definition)}</div>
+                       <div><strong>Supporting Transcripts:</strong> ${gdu.supporting_transcripts_count}</div>
+                       ${gdu.iv_variation_notes ? `<div><strong>IV Variation Notes:</strong> ${escapeHtml(gdu.iv_variation_notes)}</div>` : ''}
+                     </div>
+                 `;
+                 
+                 if (!gdu.contributing_refined_du_ids || gdu.contributing_refined_du_ids.length === 0) {
+                   html += `<p style="color: var(--app-accent-red);"><em>No contributing RDU references found for this GDU</em></p>`;
+                 } else {
+                   html += `<div style="margin-left: 15px;"><strong>Contributing RDUs (${gdu.contributing_refined_du_ids.length}):</strong></div>`;
+                   
+                   let gduTotalUtterances = 0;
+                   const gduTranscriptCounts = new Map<string, number>();
+                   
+                   for (const rduRef of gdu.contributing_refined_du_ids) {
+                     const txData = processedData.get(rduRef.transcript_id);
+                     const rdu = txData?.p1_3_output?.refined_diachronic_units.find(r => r.unit_id === rduRef.refined_du_id);
+                     
+                     html += `
+                       <div class="rdu-node" style="margin: 10px 0; padding: 8px; background: var(--app-bg); border: 1px solid var(--app-border); border-radius: 4px; color: var(--app-text);">
+                         <div style="font-weight: bold; color: var(--app-accent-red);">
+                           📋 RDU: ${escapeHtml(rduRef.refined_du_id)}
+                         </div>
+                         <div style="margin-left: 15px; font-size: 0.9em; color: var(--app-text);">
+                           <div><strong>Transcript:</strong> ${escapeHtml(rduRef.transcript_id)} (${escapeHtml(txData?.filename || 'Unknown')})</div>
+                     `;
+                     
+                     if (!rdu) {
+                       html += `<div style="color: var(--app-accent-red);"><strong>❌ MISSING RDU:</strong> RDU not found in P1_3 output</div>`;
+                     } else {
+                       html += `
+                         <div><strong>Description:</strong> ${escapeHtml(rdu.description)}</div>
+                         <div><strong>Confidence:</strong> ${rdu.confidence}</div>
+                         <div><strong>Temporal Phase:</strong> ${escapeHtml(rdu.temporal_phase)}</div>
+                       `;
+                       
+                       if (!rdu.source_p1_2_du_ids || rdu.source_p1_2_du_ids.length === 0) {
+                         html += `<div style="color: var(--app-accent-red);"><strong>⚠️ WARNING:</strong> No source P1_2 DU IDs found</div>`;
+                       } else {
+                         html += `<div><strong>Source P1_2 DUs (${rdu.source_p1_2_du_ids.length}):</strong></div>`;
+                         
+                         for (const duId of rdu.source_p1_2_du_ids) {
+                           const du = txData?.p1_2_output?.diachronic_units.find(d => d.unit_id === duId);
+                           
+                           html += `
+                             <div class="du-details" style="margin: 8px 0; padding: 6px; background: var(--app-highlight-bg); border-radius: 3px; color: var(--app-text);">
+                               <div style="font-weight: bold; color: var(--app-accent-red);">🔍 DU: ${escapeHtml(duId)}</div>
+                               <div style="margin-left: 10px; font-size: 0.85em; color: var(--app-text);">
+                           `;
+                           
+                           if (!du) {
+                             html += `<div style="color: var(--app-accent-red);"><strong>❌ MISSING DU:</strong> DU not found in P1_2 output</div>`;
+                           } else {
+                             html += `
+                               <div><strong>Description:</strong> ${escapeHtml(du.description)}</div>
+                               <div><strong>Source Segments (${du.source_segment_ids.length}):</strong></div>
+                             `;
+                             
+                             // Collect utterances from segments
+                             const utterances: Array<{original_line_num: string, utterance_text: string}> = [];
+                             
+                             for (const segmentId of du.source_segment_ids) {
+                               // Find the segment in P1_1 output
+                               const segmentContainer = txData?.p1_1_output?.segmented_utterances.find(su => 
+                                 su.segments.some(seg => seg.segment_id === segmentId)
+                               );
+                               
+                               if (segmentContainer) {
+                                 const segment = segmentContainer.segments.find(seg => seg.segment_id === segmentId);
+                                 const originalUtterance = segmentContainer.original_utterance;
+                                 
+                                 if (segment && originalUtterance) {
+                                   // Add the original utterance (deduplicated later)
+                                   utterances.push({
+                                     original_line_num: originalUtterance.original_line_num,
+                                     utterance_text: originalUtterance.utterance_text
+                                   });
+                                 }
+                               }
+                             }
+                             
+                             // Deduplicate utterances by line_num|text key
+                             const uniqueUtterances = Array.from(
+                               new Map(utterances.map(utt => [`${utt.original_line_num}|${utt.utterance_text}`, utt])).values()
+                             );
+                             
+                             if (uniqueUtterances.length === 0) {
+                               html += `<div style="color: var(--app-accent-red);"><strong>⚠️ WARNING:</strong> No utterances found for this DU</div>`;
+                             } else {
+                               html += `<div style="color: var(--app-text);"><strong>Grounded Utterances (${uniqueUtterances.length}):</strong></div>`;
+                               html += `<div style="margin-left: 10px;">`;
+                               
+                               uniqueUtterances.forEach(utt => {
+                                 html += `
+                                   <div style="margin: 3px 0; padding: 4px; background: var(--app-subtle-bg); border-left: 2px solid var(--app-accent-red); font-size: 0.8em; color: var(--app-text);">
+                                     <strong>Line ${escapeHtml(utt.original_line_num)}:</strong> ${escapeHtml(utt.utterance_text)}
+                                   </div>
+                                 `;
+                               });
+                               
+                               html += `</div>`;
+                               
+                               // Count utterances for this transcript
+                               const txId = rduRef.transcript_id;
+                               gduTranscriptCounts.set(txId, (gduTranscriptCounts.get(txId) || 0) + uniqueUtterances.length);
+                               gduTotalUtterances += uniqueUtterances.length;
+                             }
+                           }
+                           
+                           html += `</div></div>`;
+                         }
+                       }
+                     }
+                     
+                     html += `</div></div>`;
+                   }
+                   
+                   // Summary for this GDU
+                   html += `
+                     <div style="margin-top: 15px; padding: 10px; background: var(--app-highlight-bg); border-radius: 4px; color: var(--app-text);">
+                       <strong>GDU Summary:</strong>
+                       <div style="margin-left: 15px; color: var(--app-text);">
+                         <div><strong>Total Utterances:</strong> ${gduTotalUtterances}</div>
+                         <div><strong>Transcript Distribution:</strong></div>
+                         <div style="margin-left: 15px;">
+                   `;
+                   
+                   for (const [txId, count] of gduTranscriptCounts.entries()) {
+                     const filename = processedData.get(txId)?.filename || 'Unknown';
+                     html += `<div>• ${escapeHtml(txId)} (${escapeHtml(filename)}): ${count} utterances</div>`;
+                   }
+                   
+                   html += `</div></div></div>`;
+                 }
+                 
+                 html += `</div>`;
+               }
+               
+               html += `</div>`;
+               return html;
+             };
+                          
+
 
 export const calculateGssCategoryUtteranceCounts = ( // Make exportable
   processedData: Map<string, TranscriptProcessedData>,
@@ -653,6 +817,11 @@ table{border-collapse:collapse;width:100%;margin-bottom:20px;font-size:.9em;}th,
     // Enhanced GSS Traceability Section
     html += `</section><section class="gss-grounding-trace-section">`;
     html += generateGssTraceabilityBreakdown(processedDataMap, genericState.p4s_outputs_by_gdu);
+    html += `</section>`;
+    
+    // Enhanced GDU Traceability Section  
+    html += `<section class="gss-grounding-trace-section">`;
+    html += generateGduTraceabilityBreakdown(processedDataMap, genericState);
     html += `</section>`;
 
 

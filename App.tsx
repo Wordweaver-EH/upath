@@ -856,7 +856,7 @@ const App: React.FC = () => {
             const invalidNodes: Array<{ nodeId: string; transcriptId: string; phase: string; reason: string }> = [];
             
             llmResponse.grouped_data.forEach(nodeData => {
-                const txData = processedDataMap.get(nodeData.transcript_id);
+                const txData = processedData.get(nodeData.transcript_id);
                 if (!txData) {
                     invalidNodes.push({ nodeId: nodeData.sss_node_id, transcriptId: nodeData.transcript_id, phase: nodeData.phase_name, reason: "transcript not found" });
                     return;
