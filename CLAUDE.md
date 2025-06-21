@@ -14,6 +14,29 @@ This application requires a Google Gemini API key configured as `process.env.API
 
 **Model Configuration**: Uses `gemini-2.5-flash-preview-04-17` (defined in `constants.tsx` as `GEMINI_MODEL_TEXT`).
 
+### Feature Flags
+
+**P3_2 Implementation Approaches**: The application supports multiple P3_2 implementation approaches via the `REACT_APP_P3_2_APPROACH` environment variable:
+
+- **original**: Legacy JSON approach with full IV analysis (~15k tokens)
+- **minified**: Compressed JSON approach with IV analysis (~10k tokens)  
+- **minimal_context_tsv**: Two-phase TSV with minimal P3.1 context + IV analysis (~5k tokens)
+- **full_context_tsv**: Two-phase TSV with full P3.1 context + IV analysis (~7k tokens)
+- **zero_context_tsv**: Two-phase TSV with no P3.1 context + IV analysis (~4k tokens)
+
+Set in `.env` file: `REACT_APP_P3_2_APPROACH=full_context_tsv`
+
+**IV Analysis Implementation**: All approaches now include Independent Variable (IV) analysis:
+- LLM analyzes how IV conditions influence RDU manifestations
+- TSV approaches include `iv_details` column with IV information
+- Programmatic aggregation synthesizes IV variation notes from individual RDU classifications
+- Enables comprehensive A/B testing with full feature parity across all approaches
+
+**Legacy Two-Phase P3_2 Implementation**: Set `REACT_APP_TWO_PHASE_P3_2=true` for backwards compatibility (equivalent to `minimal_context_tsv`). This approach uses:
+- **Phase 1**: LLM classifies RDUs into semantic groups using TSV format for token efficiency
+- **Phase 2**: Programmatic aggregation with validation to prevent hallucinated DU IDs
+- **Benefits**: Reduced token usage (~70% reduction), hallucination prevention, improved maintainability
+
 ## Core Architecture
 
 µ-PATH is a React-based web application for automated micro-phenomenological interview analysis. The architecture centers around:

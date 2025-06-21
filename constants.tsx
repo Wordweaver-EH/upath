@@ -2,11 +2,401 @@
 
 
 import React from 'react';
-import { StepId, UserDVFocus, SelectedUtterance, P2SPhaseData, RawTranscript, TranscriptProcessedData, GenericAnalysisState, P_neg1_1_Output, P0_1_Output, P0_2_Output, P0_3_Output, P1_1_Output, P1_2_Output, P1_3_Output, P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_1_Output, P3_2_Output, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P5_1_Output, P7_1_Output, P7_2_Output, P7_3_Output, P7_3b_Output, P7_4_Output, P7_5_Output, GenericDiachronicStructureDefinition, P4S_1_GenericNode, P4S_1_GenericLink, SegmentedUtteranceSegment, P7_2_ProposedLink, RefinedLine, P7_1_CandidateVariable } from './types';
+import { StepId, UserDVFocus, SelectedUtterance, P2SPhaseData, RawTranscript, TranscriptProcessedData, GenericAnalysisState, P_neg1_1_Output, P0_1_Output, P0_2_Output, P0_3_Output, P1_1_Output, P1_2_Output, P1_3_Output, P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_1_Output, P3_2_Output, P3_2_Classification, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P5_1_Output, P7_1_Output, P7_2_Output, P7_3_Output, P7_3b_Output, P7_4_Output, P7_5_Output, GenericDiachronicStructureDefinition, P4S_1_GenericNode, P4S_1_GenericLink, SegmentedUtteranceSegment, P7_2_ProposedLink, RefinedLine, P7_1_CandidateVariable } from './types';
 import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './utils/htmlHelper'; // For P6.1 input
 import { ReportData } from './utils/reportHelper'; // Ensure this matches the actual path if different
 
 export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash-preview-04-17';
+
+// Feature flag for P3_2 implementation approach
+export const P3_2_APPROACH = process.env.REACT_APP_P3_2_APPROACH || 'original';
+// Values: 'original' | 'minified' | 'minimal_context_tsv' | 'full_context_tsv' | 'zero_context_tsv'
+
+// Legacy feature flag (for backwards compatibility)
+export const USE_TWO_PHASE_P3_2 = process.env.REACT_APP_TWO_PHASE_P3_2 === 'true';
+
+// Two-phase P3_2 implementation functions
+const getTwoPhaseP3_2_Input = (_: any, allProcessedData: any, genericState: any, apiKeyPresent: any, userDvFocus: any) => {
+    if (!apiKeyPresent) return { data: null, error: "API Key not set." };
+    if (!allProcessedData || allProcessedData.size === 0) return { data: null, error: "No processed transcript data available for P3.2." };
+    if (!genericState?.p3_1_output) return { data: null, error: "P3.1 output (for guidance) not found for P3.2." };
+
+    const rdu_rows: string[] = ["transcript_id\trefined_du_id\tdescription\ttemporal_phase\tiv_details"];
+    
+    allProcessedData.forEach((tData: any, tId: any) => {
+        if (tData.p1_3_output?.refined_diachronic_units) {
+            const ivDetails = tData.p_neg1_1_output?.independent_variable_details || 
+                             tData.p1_4_output?.independent_variable_details || 
+                             "IV Not Available";
+            
+            tData.p1_3_output.refined_diachronic_units.forEach((rdu: any) => {
+                const row = [
+                    tId,
+                    rdu.unit_id,
+                    rdu.description.replace(/\s+/g, ' '), // Clean description for TSV
+                    rdu.temporal_phase,
+                    ivDetails.replace(/\t/g, ' ').replace(/\n/g, ' ') // Clean IV details for TSV
+                ].join('\t');
+                rdu_rows.push(row);
+            });
+        }
+    });
+
+    if (rdu_rows.length <= 1) { // Only header row
+        return { data: null, error: "No Refined Diachronic Units (P1.3 outputs) found across all transcripts." };
+    }
+
+    return {
+        data: {
+            // Minimal guidance from P3.1
+            high_level_context: {
+                common_patterns_summary: genericState.p3_1_output.common_patterns_summary,
+                key_differences: genericState.p3_1_output.key_differences,
+            },
+            // Token-efficient RDU data
+            rdu_list_tsv: rdu_rows.join('\n'),
+            global_dv_focus: userDvFocus?.dv_focus || []
+        }
+    };
+};
+
+const generateTwoPhaseP3_2_Prompt = (input: any) => `You are a micro-phenomenological analyst tasked with classifying specific experiential moments (Refined Diachronic Units - RDUs) into generic groups that will become Generic Diachronic Units (GDUs).
+
+## High-Level Context (from P3.1)
+
+First, review this high-level summary of patterns and differences observed across all transcripts. Use this as guiding context to understand the overall landscape, but your primary task is to classify the specific RDUs based on their descriptions.
+
+- **Common Patterns:** ${input.high_level_context.common_patterns_summary}
+- **Key Differences:** ${input.high_level_context.key_differences.join(', ')}
+
+## Core Task: Classify RDUs
+
+Now, analyze the following list of RDUs, provided in TSV format. Your task is to assign each RDU to a semantic group.
+
+**Guidelines:**
+1.  **Focus on Generality:** Look for patterns that represent recurring, cross-transcript experiences. Your \`gdu_group_id\` should be abstract and generalizable (e.g., "Initial_Sensory_Noticing", "Problem_Engagement", "Resolution_Feeling"). Avoid creating groups that are specific to a single transcript.
+2.  **Semantic Similarity:** Group RDUs based on the semantic meaning of their \`description\`.
+3.  **Consistency:** Use the same \`gdu_group_id\` for all RDUs that belong to the same generic theme.
+4.  **IV Analysis:** Note how the \`iv_details\` column influences manifestation of each RDU.
+
+**Input RDU Data (TSV Format):**
+\`\`\`tsv
+${input.rdu_list_tsv}
+\`\`\`
+
+## Required Output Format
+
+Your output MUST be a single, valid JSON array. Each object in the array must correspond to exactly one RDU from the input TSV and have the following structure:
+
+\`\`\`json
+[
+  {
+    "refined_du_id": "(The exact refined_du_id from the TSV)",
+    "gdu_group_id": "Your_Chosen_Generic_Group_Name",
+    "rationale": "A brief justification for why this RDU belongs to this group.",
+    "iv_variation_note": "Brief observation on how the IV context influences this RDU's manifestation."
+  }
+]
+\`\`\`
+
+Ensure your response contains one object for EVERY RDU provided in the input TSV. Do not add any text or markdown outside of the main JSON array.`;
+
+// Minified JSON implementation functions
+const getMinifiedP3_2_Input = (_: any, allProcessedData: any, genericState: any, apiKeyPresent: any, userDvFocus: any) => {
+    if (!apiKeyPresent) return { data: null, error: "API Key not set." };
+    if (!allProcessedData || allProcessedData.size === 0) return { data: null, error: "No processed transcript data available for P3.2." };
+    if (!genericState?.p3_1_output) return { data: null, error: "P3.1 output (for guidance) not found for P3.2." };
+
+    // Create minified RDU data with IV information
+    const allRefinedDus = [];
+    allProcessedData.forEach((tData: any, tId: any) => {
+        if (tData.p1_3_output?.refined_diachronic_units) {
+            const ivDetails = tData.p_neg1_1_output?.independent_variable_details || 
+                             tData.p1_4_output?.independent_variable_details || 
+                             "IV Not Available";
+            
+            tData.p1_3_output.refined_diachronic_units.forEach((rdu: any) => {
+                allRefinedDus.push({
+                    tid: tId, // Shortened field names
+                    id: rdu.unit_id,
+                    desc: rdu.description,
+                    phase: rdu.temporal_phase,
+                    iv: ivDetails // Add IV details
+                });
+            });
+        }
+    });
+
+    if (allRefinedDus.length === 0) {
+        return { data: null, error: "No Refined Diachronic Units (P1.3 outputs) found across all transcripts." };
+    }
+
+    return {
+        data: {
+            // Minimal P3.1 context
+            patterns: genericState.p3_1_output.common_patterns_summary,
+            diffs: genericState.p3_1_output.key_differences,
+            // Minified RDU list
+            rdus: allRefinedDus,
+            dv: userDvFocus?.dv_focus || []
+        }
+    };
+};
+
+const generateMinifiedP3_2_Prompt = (input: any) => `Micro-phenomenological analyst: classify RDUs into GDU groups with IV analysis.
+
+Context from P3.1:
+- Patterns: ${input.patterns}
+- Differences: ${input.diffs.join(', ')}
+
+RDU Data (minified): ${JSON.stringify(input.rdus)}
+
+Guidelines:
+1. Focus on generality - abstract group names
+2. Semantic similarity based on 'desc' field  
+3. Consistent gdu_group_id usage
+4. Analyze 'iv' field for IV variation patterns
+
+Output: JSON array with objects containing:
+- refined_du_id: exact 'id' from input
+- gdu_group_id: generic group name
+- rationale: brief justification
+- iv_variation_note: how this RDU's manifestation relates to its IV context
+
+Output one object per input RDU. JSON only, no markdown.`;
+
+// Original P3_2 implementation functions
+const getOriginalP3_2_Input = (_: any, allProcessedData: any, genericState: any, apiKeyPresent: any, userDvFocus: any) => {
+    if (!apiKeyPresent) return { data: null, error: "API Key not set." };
+    if (!allProcessedData || allProcessedData.size === 0) return { data: null, error: "No processed transcript data available for P3.2." };
+    if (!genericState?.p3_1_output) return { data: null, error: "P3.1 output not found for P3.2." };
+
+    const all_refined_dus_with_iv_and_ids: Array<{
+        transcript_id: string;
+        filename: string;
+        independent_variable_details: string;
+        refined_diachronic_units: Array<{ unit_id: string; description: string; confidence: number; temporal_phase: string; source_p1_2_du_ids: string[] }>;
+    }> = [];
+
+     allProcessedData.forEach(tData => {
+        if (tData.p1_3_output && tData.p1_3_output.refined_diachronic_units && (tData.p_neg1_1_output || tData.p1_4_output) ) {
+            all_refined_dus_with_iv_and_ids.push({
+                transcript_id: tData.id,
+                filename: tData.filename,
+                independent_variable_details: tData.p_neg1_1_output?.independent_variable_details || tData.p1_4_output?.independent_variable_details || "IV Not Found",
+                refined_diachronic_units: tData.p1_3_output.refined_diachronic_units
+            });
+        }
+    });
+    if (all_refined_dus_with_iv_and_ids.length === 0) return { data: null, error: "No refined diachronic units (P1.3 outputs with IVs and unit_ids) found." };
+
+    return { data: { p3_1_output: genericState.p3_1_output, all_refined_dus_with_iv_and_ids, global_dv_focus: userDvFocus?.dv_focus } };
+};
+
+const generateOriginalP3_2_Prompt = (input: { p3_1_output: P3_1_Output, all_refined_dus_with_iv_and_ids: any[], global_dv_focus: string[] }) => `You are a Generic Diachronic Analysis assistant. Task: Identify Generic Diachronic Units (GDUs) from refined DUs across transcripts, considering IVs and ensuring traceability.
+Input:
+- P3.1 output (\`aligned_structures_report\`, etc.).
+- All P1.3 outputs, provided as \`all_refined_dus_with_iv_and_ids\`. Each element contains \`transcript_id\`, \`filename\`, \`independent_variable_details\`, and \`refined_diachronic_units\` (which is an array of objects, each with \`unit_id\`, \`description\`, etc.).
+- Global DV focus.
+${JSON.stringify(input, null, 2)}
+
+Instructions:
+1.  Abstract from DUs: Review \`refined_diachronic_units\` from \`all_refined_dus_with_iv_and_ids\`. Group similar DUs across transcripts to define GDUs. A GDU is an abstraction representing a common type of diachronic unit.
+2.  Define GDUs: For each GDU, provide:
+    *   \`gdu_id\`: A unique identifier for the GDU (e.g., "GDU_Orientation").
+    *   \`definition\`: A clear definition of what this GDU represents.
+    *   \`supporting_transcripts_count\`: Number of unique transcripts contributing to this GDU.
+    *   \`iv_variation_notes\` (Optional): Observations on how the manifestation of this GDU (e.g., frequency, specific content of its DUs) varies with the \`independent_variable_details\` of the supporting transcripts.
+    *   \`contributing_refined_du_ids\`: An array of objects, where each object specifies a \`transcript_id\` and the \`refined_du_id\` (this is the \`unit_id\` from the P1.3 \`refined_diachronic_units\` object) that contributes to this GDU. This is crucial for traceability.
+3.  Criteria: Briefly state the criteria used for GDU abstraction and identification.
+
+Output:
+A JSON object adhering EXACTLY to the following structure:
+{
+  "identified_gdus": [
+    {
+      "gdu_id": "GDU_Example",
+      "definition": "Definition of the GDU.",
+      "supporting_transcripts_count": 3,
+      "iv_variation_notes": "Observed variations linked to IVs.",
+      "contributing_refined_du_ids": [
+        { "transcript_id": "transcript_A_id", "refined_du_id": "refinedDU-5_from_transcript_A" },
+        { "transcript_id": "transcript_B_id", "refined_du_id": "refinedDU-2_from_transcript_B" }
+      ]
+    }
+    // ... more GDUs
+  ],
+  "criteria_for_gdu_identification": "Criteria used for GDU abstraction (e.g., thematic similarity of DU descriptions, similar temporal phase).",
+  "dependent_variable_focus": ${JSON.stringify(input.global_dv_focus)}
+}`;
+
+// Zero context TSV implementation functions  
+const getZeroContextTsvP3_2_Input = (_: any, allProcessedData: any, genericState: any, apiKeyPresent: any, userDvFocus: any) => {
+    if (!apiKeyPresent) return { data: null, error: "API Key not set." };
+    if (!allProcessedData || allProcessedData.size === 0) return { data: null, error: "No processed transcript data available for P3.2." };
+
+    const rdu_rows: string[] = ["transcript_id\trefined_du_id\tdescription\ttemporal_phase\tiv_details"];
+    
+    allProcessedData.forEach((tData: any, tId: any) => {
+        if (tData.p1_3_output?.refined_diachronic_units) {
+            const ivDetails = tData.p_neg1_1_output?.independent_variable_details || 
+                             tData.p1_4_output?.independent_variable_details || 
+                             "IV Not Available";
+            
+            tData.p1_3_output.refined_diachronic_units.forEach((rdu: any) => {
+                const row = [
+                    tId,
+                    rdu.unit_id,
+                    rdu.description.replace(/\s+/g, ' '), // Clean description for TSV
+                    rdu.temporal_phase,
+                    ivDetails.replace(/\t/g, ' ').replace(/\n/g, ' ') // Clean IV details for TSV
+                ].join('\t');
+                rdu_rows.push(row);
+            });
+        }
+    });
+
+    if (rdu_rows.length <= 1) { // Only header row
+        return { data: null, error: "No Refined Diachronic Units (P1.3 outputs) found across all transcripts." };
+    }
+
+    return {
+        data: {
+            // No context from P3.1 - pure bottom-up analysis
+            rdu_list_tsv: rdu_rows.join('\n'),
+            global_dv_focus: userDvFocus?.dv_focus || []
+        }
+    };
+};
+
+const generateZeroContextTsvP3_2_Prompt = (input: any) => `You are a micro-phenomenological analyst tasked with classifying specific experiential moments (Refined Diachronic Units - RDUs) into generic groups that will become Generic Diachronic Units (GDUs).
+
+## Core Task: Classify RDUs
+
+Analyze the following list of RDUs, provided in TSV format. Your task is to assign each RDU to a semantic group based purely on the content of their descriptions.
+
+**Guidelines:**
+1.  **Focus on Generality:** Look for patterns that represent recurring, cross-transcript experiences. Your \`gdu_group_id\` should be abstract and generalizable (e.g., "Initial_Sensory_Noticing", "Problem_Engagement", "Resolution_Feeling"). Avoid creating groups that are specific to a single transcript.
+2.  **Semantic Similarity:** Group RDUs based on the semantic meaning of their \`description\`.
+3.  **Consistency:** Use the same \`gdu_group_id\` for all RDUs that belong to the same generic theme.
+4.  **Bottom-Up Analysis:** Base your groupings purely on the RDU descriptions without external bias.
+5.  **IV Analysis:** Note how the \`iv_details\` column influences manifestation of each RDU.
+
+**Input RDU Data (TSV Format):**
+\`\`\`tsv
+${input.rdu_list_tsv}
+\`\`\`
+
+## Required Output Format
+
+Your output MUST be a single, valid JSON array. Each object in the array must correspond to exactly one RDU from the input TSV and have the following structure:
+
+\`\`\`json
+[
+  {
+    "refined_du_id": "(The exact refined_du_id from the TSV)",
+    "gdu_group_id": "Your_Chosen_Generic_Group_Name",
+    "rationale": "A brief justification for why this RDU belongs to this group.",
+    "iv_variation_note": "Brief observation on how the IV context influences this RDU's manifestation."
+  }
+]
+\`\`\`
+
+Ensure your response contains one object for EVERY RDU provided in the input TSV. Do not add any text or markdown outside of the main JSON array.`;
+
+// Full context TSV implementation functions  
+const getFullContextTsvP3_2_Input = (_: any, allProcessedData: any, genericState: any, apiKeyPresent: any, userDvFocus: any) => {
+    if (!apiKeyPresent) return { data: null, error: "API Key not set." };
+    if (!allProcessedData || allProcessedData.size === 0) return { data: null, error: "No processed transcript data available for P3.2." };
+    if (!genericState?.p3_1_output) return { data: null, error: "P3.1 output (for guidance) not found for P3.2." };
+
+    const rdu_rows: string[] = ["transcript_id\trefined_du_id\tdescription\ttemporal_phase\tiv_details"];
+    
+    allProcessedData.forEach((tData: any, tId: any) => {
+        if (tData.p1_3_output?.refined_diachronic_units) {
+            const ivDetails = tData.p_neg1_1_output?.independent_variable_details || 
+                             tData.p1_4_output?.independent_variable_details || 
+                             "IV Not Available";
+            
+            tData.p1_3_output.refined_diachronic_units.forEach((rdu: any) => {
+                const row = [
+                    tId,
+                    rdu.unit_id,
+                    rdu.description.replace(/\s+/g, ' '), // Clean description for TSV
+                    rdu.temporal_phase,
+                    ivDetails.replace(/\t/g, ' ').replace(/\n/g, ' ') // Clean IV details for TSV
+                ].join('\t');
+                rdu_rows.push(row);
+            });
+        }
+    });
+
+    if (rdu_rows.length <= 1) { // Only header row
+        return { data: null, error: "No Refined Diachronic Units (P1.3 outputs) found across all transcripts." };
+    }
+
+    return {
+        data: {
+            // Full context from P3.1 including complete aligned_structures_report
+            full_context: {
+                aligned_structures_report: genericState.p3_1_output.aligned_structures_report,
+                common_patterns_summary: genericState.p3_1_output.common_patterns_summary,
+                key_differences: genericState.p3_1_output.key_differences,
+            },
+            // Token-efficient RDU data
+            rdu_list_tsv: rdu_rows.join('\n'),
+            global_dv_focus: userDvFocus?.dv_focus || []
+        }
+    };
+};
+
+const generateFullContextTsvP3_2_Prompt = (input: any) => `You are a micro-phenomenological analyst tasked with classifying specific experiential moments (Refined Diachronic Units - RDUs) into generic groups that will become Generic Diachronic Units (GDUs).
+
+## Complete Contextual Analysis (from P3.1)
+
+First, review this comprehensive analysis of patterns and structures across all transcripts. Use this detailed context to guide your understanding and ensure your RDU classifications align with the identified structural patterns.
+
+### Aligned Structures Report
+${input.full_context.aligned_structures_report}
+
+### Common Patterns Summary  
+${input.full_context.common_patterns_summary}
+
+### Key Differences
+${input.full_context.key_differences.join(' | ')}
+
+## Core Task: Classify RDUs
+
+Now, analyze the following list of RDUs, provided in TSV format. Your task is to assign each RDU to a semantic group, informed by the comprehensive contextual analysis above.
+
+**Guidelines:**
+1.  **Leverage Context:** Use the detailed aligned structures report to understand how RDUs fit into the broader patterns identified across transcripts.
+2.  **Focus on Generality:** Your \`gdu_group_id\` should be abstract and generalizable, reflecting the patterns described in the contextual analysis.
+3.  **Semantic Similarity:** Group RDUs based on their semantic meaning AND their role in the overall structural patterns.
+4.  **Consistency:** Use the same \`gdu_group_id\` for all RDUs that belong to the same generic theme.
+5.  **IV Analysis:** Note how the \`iv_details\` column influences manifestation of each RDU.
+
+**Input RDU Data (TSV Format):**
+\`\`\`tsv
+${input.rdu_list_tsv}
+\`\`\`
+
+## Required Output Format
+
+Your output MUST be a single, valid JSON array. Each object in the array must correspond to exactly one RDU from the input TSV and have the following structure:
+
+\`\`\`json
+[
+  {
+    "refined_du_id": "(The exact refined_du_id from the TSV)",
+    "gdu_group_id": "Your_Chosen_Generic_Group_Name",
+    "rationale": "A brief justification for why this RDU belongs to this group, referencing the contextual analysis where relevant.",
+    "iv_variation_note": "Brief observation on how the IV context influences this RDU's manifestation."
+  }
+]
+\`\`\`
+
+Ensure your response contains one object for EVERY RDU provided in the input TSV. Do not add any text or markdown outside of the main JSON array.`;
 
 export const PlayIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>);
 export const PauseIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M5.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 007.25 3h-1.5zM12.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 00-.75-.75h-1.5z" /></svg>);
@@ -862,71 +1252,47 @@ A JSON object adhering EXACTLY to the following structure:
   },
   [StepId.P3_2_IDENTIFY_GDUS]: {
     id: StepId.P3_2_IDENTIFY_GDUS,
-    title: "P3.2: Identify Generic Diachronic Units (GDUs)",
+    title: (() => {
+      switch (P3_2_APPROACH) {
+        case 'minimal_context_tsv':
+        case 'zero_context_tsv':
+          return "P3.2: Classify RDUs for GDU Identification";
+        case 'full_context_tsv':
+          return "P3.2: Classify RDUs (Full Context TSV)";
+        case 'minified':
+          return "P3.2: Identify GDUs (Minified JSON)";
+        default:
+          return "P3.2: Identify Generic Diachronic Units (GDUs)";
+      }
+    })(),
     part: "PartIII_GenDia",
     isJsonOutput: true,
-    getInput: (_, allProcessedData, genericState, apiKeyPresent, userDvFocus) => {
-        if (!apiKeyPresent) return { data: null, error: "API Key not set." };
-        if (!allProcessedData || allProcessedData.size === 0) return { data: null, error: "No processed transcript data available for P3.2." };
-        if (!genericState?.p3_1_output) return { data: null, error: "P3.1 output not found for P3.2." };
-
-        const all_refined_dus_with_iv_and_ids: Array<{
-            transcript_id: string;
-            filename: string;
-            independent_variable_details: string;
-            refined_diachronic_units: Array<{ unit_id: string; description: string; confidence: number; temporal_phase: string; source_p1_2_du_ids: string[] }>;
-        }> = [];
-
-         allProcessedData.forEach(tData => {
-            if (tData.p1_3_output && tData.p1_3_output.refined_diachronic_units && (tData.p_neg1_1_output || tData.p1_4_output) ) {
-                all_refined_dus_with_iv_and_ids.push({
-                    transcript_id: tData.id,
-                    filename: tData.filename,
-                    independent_variable_details: tData.p_neg1_1_output?.independent_variable_details || tData.p1_4_output?.independent_variable_details || "IV Not Found",
-                    refined_diachronic_units: tData.p1_3_output.refined_diachronic_units
-                });
-            }
-        });
-        if (all_refined_dus_with_iv_and_ids.length === 0) return { data: null, error: "No refined diachronic units (P1.3 outputs with IVs and unit_ids) found." };
-
-        return { data: { p3_1_output: genericState.p3_1_output, all_refined_dus_with_iv_and_ids, global_dv_focus: userDvFocus?.dv_focus } };
-    },
-    generatePrompt: (input: { p3_1_output: P3_1_Output, all_refined_dus_with_iv_and_ids: any[], global_dv_focus: string[] }) => `You are a Generic Diachronic Analysis assistant. Task: Identify Generic Diachronic Units (GDUs) from refined DUs across transcripts, considering IVs and ensuring traceability.
-Input:
-- P3.1 output (\`aligned_structures_report\`, etc.).
-- All P1.3 outputs, provided as \`all_refined_dus_with_iv_and_ids\`. Each element contains \`transcript_id\`, \`filename\`, \`independent_variable_details\`, and \`refined_diachronic_units\` (which is an array of objects, each with \`unit_id\`, \`description\`, etc.).
-- Global DV focus.
-${JSON.stringify(input, null, 2)}
-
-Instructions:
-1.  Abstract from DUs: Review \`refined_diachronic_units\` from \`all_refined_dus_with_iv_and_ids\`. Group similar DUs across transcripts to define GDUs. A GDU is an abstraction representing a common type of diachronic unit.
-2.  Define GDUs: For each GDU, provide:
-    *   \`gdu_id\`: A unique identifier for the GDU (e.g., "GDU_Orientation").
-    *   \`definition\`: A clear definition of what this GDU represents.
-    *   \`supporting_transcripts_count\`: Number of unique transcripts contributing to this GDU.
-    *   \`iv_variation_notes\` (Optional): Observations on how the manifestation of this GDU (e.g., frequency, specific content of its DUs) varies with the \`independent_variable_details\` of the supporting transcripts.
-    *   \`contributing_refined_du_ids\`: An array of objects, where each object specifies a \`transcript_id\` and the \`refined_du_id\` (this is the \`unit_id\` from the P1.3 \`refined_diachronic_units\` object) that contributes to this GDU. This is crucial for traceability.
-3.  Criteria: Briefly state the criteria used for GDU abstraction and identification.
-
-Output:
-A JSON object adhering EXACTLY to the following structure:
-{
-  "identified_gdus": [
-    {
-      "gdu_id": "GDU_Example",
-      "definition": "Definition of the GDU.",
-      "supporting_transcripts_count": 3,
-      "iv_variation_notes": "Observed variations linked to IVs.",
-      "contributing_refined_du_ids": [
-        { "transcript_id": "transcript_A_id", "refined_du_id": "refinedDU-5_from_transcript_A" },
-        { "transcript_id": "transcript_B_id", "refined_du_id": "refinedDU-2_from_transcript_B" }
-      ]
-    }
-    // ... more GDUs
-  ],
-  "criteria_for_gdu_identification": "Criteria used for GDU abstraction (e.g., thematic similarity of DU descriptions, similar temporal phase).",
-  "dependent_variable_focus": ${JSON.stringify(input.global_dv_focus)}
-}`,
+    getInput: (() => {
+      switch (P3_2_APPROACH) {
+        case 'minimal_context_tsv':
+        case 'zero_context_tsv':
+          return getTwoPhaseP3_2_Input;
+        case 'full_context_tsv':
+          return getFullContextTsvP3_2_Input;
+        case 'minified':
+          return getMinifiedP3_2_Input;
+        default:
+          return getOriginalP3_2_Input;
+      }
+    })(),
+    generatePrompt: (() => {
+      switch (P3_2_APPROACH) {
+        case 'minimal_context_tsv':
+        case 'zero_context_tsv':
+          return generateTwoPhaseP3_2_Prompt;
+        case 'full_context_tsv':
+          return generateFullContextTsvP3_2_Prompt;
+        case 'minified':
+          return generateMinifiedP3_2_Prompt;
+        default:
+          return generateOriginalP3_2_Prompt;
+      }
+    })(),
   },
   [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: {
     id: StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE,
@@ -1763,7 +2129,7 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
       }
 
       const all_mermaid_syntaxes: Record<string, string> = {}; 
-      allProcessedData.forEach((tData, tId) => {
+      allProcessedData.forEach((tData: any, tId: any) => {
         if (tData.p1_4_mermaid_syntax) all_mermaid_syntaxes[`sds_${tId}`] = tData.p1_4_mermaid_syntax;
         if (tData.p2s_outputs_by_phase) {
           Object.entries(tData.p2s_outputs_by_phase).forEach(([phase, pData]) => {

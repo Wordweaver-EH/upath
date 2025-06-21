@@ -6,7 +6,7 @@ import { marked, Renderer as MarkedRenderer, MarkedOptions, Tokens } from 'marke
 import {
   RawTranscript, TranscriptProcessedData, GenericAnalysisState, StepId, StepStatus,
   PromptHistoryEntry, CurrentStepInfo, UserDVFocus, P2SPhaseData,
-  P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P6_1_Output, AppState, P7_3_Output, P7_3b_Output,
+  P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_2_Output, P3_2_Classification, P3_2_IdentifiedGdu, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P6_1_Output, AppState, P7_3_Output, P7_3b_Output,
   P0_1_Output, P0_2_Output, P0_3_Output, P_neg1_1_Output
 } from './types';
 import {
@@ -16,7 +16,8 @@ import {
   STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_ORDER_PART_5_REFINEMENT,
   STEP_ORDER_PART_7_CAUSAL_MODELING, STEP_ORDER_PART_6_REPORT,
   PlayIcon, PauseIcon, DownloadIcon, NextIcon, PreviousIcon, RetryIcon,
-  SaveIcon, LoadIcon, LightbulbIcon, CheckCircleIcon, UploadIcon, FileTextIcon, InfoIcon, AppendixIcon, ChevronDownIcon, ChevronUpIcon
+  SaveIcon, LoadIcon, LightbulbIcon, CheckCircleIcon, UploadIcon, FileTextIcon, InfoIcon, AppendixIcon, ChevronDownIcon, ChevronUpIcon,
+  USE_TWO_PHASE_P3_2
 } from './constants';
 import { callGeminiAPI, isApiKeySet } from './services/geminiService';
 import { downloadFile, generateTsvForPromptHistory, genericJsonToTsv, generateTsvForP0_1, generateTsvForP0_2, generateTsvForP0_3, generateTsvForTranscriptDiachronic, generateTsvForTranscriptSynchronic } from './utils/tsvHelper';
@@ -980,6 +981,92 @@ const App: React.FC = () => {
                 };
             });
         }
+    } else if (stepId === StepId.P3_2_IDENTIFY_GDUS && output && USE_TWO_PHASE_P3_2) {
+        // Phase 2: Programmatic Aggregation and Validation for Two-Phase P3_2
+        console.log('[P3.2 Two-Phase] Starting aggregation phase...');
+        const classifications = output as P3_2_Classification[]; // The LLM's raw classification output
+        
+        // 1. Get all valid RDU IDs from the source data for validation
+        const validRduMap = new Map<string, { transcript_id: string }>();
+        processedData.forEach((tData, tId) => {
+            tData.p1_3_output?.refined_diachronic_units.forEach(rdu => {
+                validRduMap.set(rdu.unit_id, { transcript_id: tId });
+            });
+        });
+
+        // 2. Group validated classifications from the LLM response
+        const gduGroups = new Map<string, { rationales: string[], iv_variation_notes: string[], contributing_rdus: { transcript_id: string; refined_du_id: string }[] }>();
+        
+        classifications.forEach(item => {
+            // Data Integrity Check: Ensure the RDU ID from the LLM exists in our source data
+            if (validRduMap.has(item.refined_du_id)) {
+                const transcriptInfo = validRduMap.get(item.refined_du_id)!;
+                const groupId = item.gdu_group_id;
+
+                if (!gduGroups.has(groupId)) {
+                    gduGroups.set(groupId, { rationales: [], iv_variation_notes: [], contributing_rdus: [] });
+                }
+                gduGroups.get(groupId)!.rationales.push(item.rationale);
+                
+                // Collect IV variation notes if available from LLM output
+                if (item.iv_variation_note) {
+                    gduGroups.get(groupId)!.iv_variation_notes.push(item.iv_variation_note);
+                }
+                
+                gduGroups.get(groupId)!.contributing_rdus.push({
+                    transcript_id: transcriptInfo.transcript_id,
+                    refined_du_id: item.refined_du_id,
+                });
+            } else {
+                console.warn(`[P3.2 Aggregation] Discarding classification for hallucinated refined_du_id: ${item.refined_du_id}`);
+            }
+        });
+
+        // 3. Filter for truly "generic" groups (must span >= 2 transcripts)
+        const finalGdus: P3_2_IdentifiedGdu[] = [];
+        gduGroups.forEach((groupData, gdu_id) => {
+            const supportingTranscriptIds = new Set(groupData.contributing_rdus.map(r => r.transcript_id));
+            if (supportingTranscriptIds.size >= 2) {
+                // Synthesize a definition (e.g., from the most common rationale)
+                const rationaleCounts = groupData.rationales.reduce((acc, r) => acc.set(r, (acc.get(r) || 0) + 1), new Map<string, number>());
+                const mostCommonRationale = [...rationaleCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "A recurring diachronic unit.";
+
+                // Synthesize IV variation notes from LLM classifications
+                let synthesizedIvNotes = "To be analyzed."; // Fallback
+                if (groupData.iv_variation_notes.length > 0) {
+                    // Combine unique IV observations, removing duplicates
+                    const uniqueIvNotes = [...new Set(groupData.iv_variation_notes)];
+                    synthesizedIvNotes = uniqueIvNotes.join('; ');
+                }
+
+                finalGdus.push({
+                    gdu_id,
+                    definition: mostCommonRationale,
+                    supporting_transcripts_count: supportingTranscriptIds.size,
+                    iv_variation_notes: synthesizedIvNotes,
+                    contributing_refined_du_ids: groupData.contributing_rdus,
+                });
+            } else {
+                 console.log(`[P3.2 Aggregation] Discarding group '${gdu_id}' because it only appeared in ${supportingTranscriptIds.size} transcript(s).`);
+            }
+        });
+
+        // 4. Construct the final P3_2_Output object and update state
+        const p3_2_final_output: P3_2_Output = {
+            identified_gdus: finalGdus,
+            criteria_for_gdu_identification: "GDUs were formed by classifying RDUs based on semantic similarity of their descriptions. A group was confirmed as a GDU only if it was supported by RDUs from at least two different transcripts.",
+            dependent_variable_focus: userDvFocus?.dv_focus || [],
+        };
+        
+        console.log(`[P3.2 Two-Phase] Generated ${finalGdus.length} validated GDUs from ${gduGroups.size} initial groups`);
+        
+        // Save the programmatically generated, validated output
+        setGenericAnalysisState(prev => ({
+            ...prev,
+            p3_2_output: p3_2_final_output,
+            p3_2_error: undefined
+        }));
+
     } else if (key && !transcriptIdToProcess && typeof key === 'string') { 
          const eKey=`${key.replace('_output','_error')}`as keyof GenericAnalysisState;
          setGenericAnalysisState(prev=>({...prev,[key as keyof GenericAnalysisState]:output,[eKey]:undefined}as any));

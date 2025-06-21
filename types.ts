@@ -194,6 +194,14 @@ export interface P3_1_Output {
   dependent_variable_focus: string[];
 }
 
+// New intermediate type for P3.2 LLM classification output (Two-Phase Architecture)
+export interface P3_2_Classification {
+  refined_du_id: string; // The ID of the RDU being classified
+  gdu_group_id: string;  // The generic group name assigned by the LLM
+  rationale: string;     // The LLM's justification for the grouping
+  iv_variation_note?: string; // The LLM's analysis of IV influence (optional for backward compatibility)
+}
+
 export interface P3_2_IdentifiedGdu {
   gdu_id: string;
   definition: string;
