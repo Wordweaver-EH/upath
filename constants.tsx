@@ -167,7 +167,7 @@ export const P3_2_APPROACH = process.env.REACT_APP_P3_2_APPROACH || 'original';
                    3. **Output JSON:** Populate the schema provided in <DYNAMIC_OUTPUT_SCHEMA> with your complete analysis.
                       – Adhere strictly to the keys and structure.
                       – The text you generate should match the *quality and intent* described by the instructional placeholders.
-                      – For any retained GSS category, the \\`example_specific_nodes\\` array **must** be populated with relevant nodes from the input data.
+                      – For any retained GSS category, the \`example_specific_nodes\` array **must** be populated with relevant nodes from the input data.
                    
                    ### DYNAMIC_OUTPUT_SCHEMA (Follow this structure and the instructions within)
                    <DYNAMIC_OUTPUT_SCHEMA>
@@ -220,8 +220,7 @@ const getTwoPhaseP3_2_Input = (_: any, allProcessedData: any, genericState: any,
                 key_differences: genericState.p3_1_output.key_differences,
             },
             // Token-efficient RDU data
-            rdu_list_tsv: rdu_rows.join('
-'),
+            rdu_list_tsv: rdu_rows.join('\n'),
             global_dv_focus: userDvFocus?.dv_focus || [],
             tot_rdus: totalRdus
         }
@@ -445,8 +444,7 @@ const getZeroContextTsvP3_2_Input = (_: any, allProcessedData: any, genericState
     return {
         data: {
             // No context from P3.1 - pure bottom-up analysis
-            rdu_list_tsv: rdu_rows.join('
-'),
+            rdu_list_tsv: rdu_rows.join('\n'),
             global_dv_focus: userDvFocus?.dv_focus || [],
             tot_rdus: totalRdus
         }
@@ -530,8 +528,7 @@ const getFullContextTsvP3_2_Input = (_: any, allProcessedData: any, genericState
                 key_differences: genericState.p3_1_output.key_differences,
             },
             // Token-efficient RDU data
-            rdu_list_tsv: rdu_rows.join('
-'),
+            rdu_list_tsv: rdu_rows.join('\n'),
             global_dv_focus: userDvFocus?.dv_focus || [],
             tot_rdus: totalRdus
         }

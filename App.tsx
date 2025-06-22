@@ -664,6 +664,20 @@ const App: React.FC = () => {
   const processSingleStep = useCallback(async (stepId: StepId, transcriptIdToProcess?: string, overrideSeed?: number, hilMetaPrompt?: string) => {
     const isReportStepForThisCall = stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT;
 
+    // NEW: Apply invalidation logic before processing step
+    const stepToStartFrom = stepId;
+    const activeTxIdForInvalidation = transcriptIdToProcess || rawTranscripts[activeTranscriptIndex]?.id;
+
+    const { invalidatedProcessedData, invalidatedGenericState } = getInvalidatedStates(
+      stepToStartFrom,
+      activeTxIdForInvalidation,
+      processedData,
+      genericAnalysisState
+    );
+
+    setProcessedData(invalidatedProcessedData);
+    setGenericAnalysisState(invalidatedGenericState);
+
     if (!apiKeyPresent) {
       if (!isReportStepForThisCall) { 
         setCurrentStepInfo({ stepId, status: StepStatus.Error, error: "API Key not set." });
@@ -1107,96 +1121,165 @@ const App: React.FC = () => {
   };
 
   function getInvalidatedStates(
-    startInvalidationFromStepId: StepId,
-    currentActiveTxId: string | undefined,
-    currentProcessedData: Map<string, TranscriptProcessedData>,
-    currentGenericState: GenericAnalysisState
-  ): {
-    invalidatedProcessedData: Map<string, TranscriptProcessedData>;
-    invalidatedGenericState: GenericAnalysisState;
-  } {
-      let newProcessedData = new Map(currentProcessedData);
-      let newGenericState = { ...currentGenericState };
+      startInvalidationFromStepId: StepId,
+      currentActiveTxId: string | undefined,
+      currentProcessedData: Map<string, TranscriptProcessedData>,
+      currentGenericState: GenericAnalysisState
+    ): {
+      invalidatedProcessedData: Map<string, TranscriptProcessedData>;
+      invalidatedGenericState: GenericAnalysisState;
+    } {
+        let newProcessedData = new Map(currentProcessedData);
+        let newGenericState = { ...currentGenericState };
+        
+        // Flag to track when per-transcript changes require global cascade
+        let globalCascadeRequired = false;
+    
+        const startIndex = ALL_PIPELINE_STEP_IDS_IN_ORDER.indexOf(startInvalidationFromStepId);
+        if (startIndex === -1) return { invalidatedProcessedData: newProcessedData, invalidatedGenericState: newGenericState };
+    
+        for (let i = startIndex; i < ALL_PIPELINE_STEP_IDS_IN_ORDER.length; i++) {
+            const stepToInvalidate = ALL_PIPELINE_STEP_IDS_IN_ORDER[i];
+            if (stepToInvalidate === StepId.COMPLETE || stepToInvalidate === StepId.IDLE) continue;
   
-      const startIndex = ALL_PIPELINE_STEP_IDS_IN_ORDER.indexOf(startInvalidationFromStepId);
-      if (startIndex === -1) return { invalidatedProcessedData: newProcessedData, invalidatedGenericState: newGenericState };
-  
-      for (let i = startIndex; i < ALL_PIPELINE_STEP_IDS_IN_ORDER.length; i++) {
-          const stepToInvalidate = ALL_PIPELINE_STEP_IDS_IN_ORDER[i];
-          if (stepToInvalidate === StepId.COMPLETE || stepToInvalidate === StepId.IDLE) continue;
-  
-          const keyPrefix = stepIdToDataKeyPrefix[stepToInvalidate];
-          if (!keyPrefix) continue;
-          const errorKey = `${String(keyPrefix).replace('_output', '_error')}` as any;
-          
-          if (currentActiveTxId && (STEP_ORDER_PART_NEG1.includes(stepToInvalidate) || STEP_ORDER_PART_0.includes(stepToInvalidate) || STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.includes(stepToInvalidate))) {
-              const tData = newProcessedData.get(currentActiveTxId);
-              if (tData) {
-                  let updatedTData = { ...tData, [keyPrefix]: undefined, [errorKey]: undefined };
-                  if (stepToInvalidate === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
-                      updatedTData = {
-                          ...updatedTData,
-                          isFullyProcessedSpecificDiachronic: false, p1_4_mermaid_syntax: undefined,
-                          phases_for_p2s_processing: [], current_phase_for_p2s_processing: undefined,
-                          processed_phases_for_p2s: [], p2s_outputs_by_phase: {},
-                          isFullyProcessedSpecificSynchronic: false,
-                      };
-                  }
-                  newProcessedData.set(currentActiveTxId, updatedTData as TranscriptProcessedData);
-              }
-          } else if (currentActiveTxId && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepToInvalidate)) {
-              const tData = newProcessedData.get(currentActiveTxId);
-              if (tData) {
-                   const firstPhaseForP2S = tData.phases_for_p2s_processing?.[0];
-                   newProcessedData.set(currentActiveTxId, {
-                      ...tData,
-                      p2s_outputs_by_phase: {}, 
-                      current_phase_for_p2s_processing: firstPhaseForP2S, 
-                      processed_phases_for_p2s: [],
-                      isFullyProcessedSpecificSynchronic: false,
-                  });
-              }
-          }
-          else if (isGlobalStep(stepToInvalidate)) {
-              newGenericState = { ...newGenericState, [keyPrefix]: undefined, [errorKey]: undefined };
-              if (stepToInvalidate === StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE) {
-                  newGenericState.isFullyProcessedGenericDiachronic = false; newGenericState.p3_3_mermaid_syntax = undefined;
-                  newGenericState.core_gdus_for_sync_analysis = [];
-                  newGenericState.p4s_1_a_outputs_by_gdu = {}; newGenericState.p4s_1_a_error = undefined;
-                  newGenericState.p4s_outputs_by_gdu = {}; newGenericState.p4s_mermaid_syntax_by_gdu = {};
-                  newGenericState.p4s_1_b_error = undefined;
-                  newGenericState.current_gdu_for_p4s_processing = undefined; newGenericState.processed_gdus_for_p4s = [];
-                  newGenericState.isFullyProcessedGenericSynchronic = false;
-              } else if (stepToInvalidate === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES) {
-                  newGenericState.p4s_1_a_outputs_by_gdu = {}; newGenericState.p4s_1_a_error = undefined;
-                  newGenericState.p4s_outputs_by_gdu = {}; newGenericState.p4s_mermaid_syntax_by_gdu = {}; 
-                  newGenericState.p4s_1_b_error = undefined;
-                  newGenericState.processed_gdus_for_p4s = []; 
-                  newGenericState.isFullyProcessedGenericSynchronic = false;
-              } else if (stepToInvalidate === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS) {
-                  newGenericState.p4s_outputs_by_gdu = {}; newGenericState.p4s_mermaid_syntax_by_gdu = {};
-                  newGenericState.p4s_1_b_error = undefined;
-                  newGenericState.processed_gdus_for_p4s = [];
-                  newGenericState.isFullyProcessedGenericSynchronic = false;
-              } else if (stepToInvalidate === StepId.P5_1_HOLISTIC_REVIEW_REFINEMENT) {
-                  newGenericState.isRefinementDone = false;
-              } else if (STEP_ORDER_PART_7_CAUSAL_MODELING.includes(stepToInvalidate)) {
-                  newGenericState.isCausalModelingDone = false;
-                  // Primary output & error for stepToInvalidate (a P7 step) are cleared by the general line above.
-                  // Clear any additional P7-specific state for the current stepToInvalidate.
-                  if (stepToInvalidate === StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS) {
-                      newGenericState.p7_3_mermaid_syntax_dag = undefined;
-                  } else if (stepToInvalidate === StepId.P7_3B_VALIDATE_AND_CLEAN_DAG) {
-                      newGenericState.p7_3b_mermaid_syntax_dag = undefined;
-                  }
-                  // No need to loop through ALL P7 steps here; the outer loop handles subsequent P7 steps.
-              } else if (stepToInvalidate === StepId.P6_1_GENERATE_MARKDOWN_REPORT) {
-                  newGenericState.isReportGenerated = false; newGenericState.p6_1_output = undefined; newGenericState.p6_1_error = undefined;
-              }
-          }
-      }
-      return { invalidatedProcessedData: newProcessedData, invalidatedGenericState: newGenericState };
-  }
+            const keyPrefix = stepIdToDataKeyPrefix[stepToInvalidate];
+            if (!keyPrefix) continue;
+            const errorKey = `${String(keyPrefix).replace('_output', '_error')}` as any;
+            
+            if (currentActiveTxId && (STEP_ORDER_PART_NEG1.includes(stepToInvalidate) || STEP_ORDER_PART_0.includes(stepToInvalidate) || STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.includes(stepToInvalidate))) {
+                const tData = newProcessedData.get(currentActiveTxId);
+                if (tData) {
+                    let updatedTData = { ...tData, [keyPrefix]: undefined, [errorKey]: undefined };
+                    if (stepToInvalidate === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
+                        updatedTData = {
+                            ...updatedTData,
+                            isFullyProcessedSpecificDiachronic: false, p1_4_mermaid_syntax: undefined,
+                            phases_for_p2s_processing: [], current_phase_for_p2s_processing: undefined,
+                            processed_phases_for_p2s: [], p2s_outputs_by_phase: {},
+                            isFullyProcessedSpecificSynchronic: false,
+                        };
+                    }
+                    newProcessedData.set(currentActiveTxId, updatedTData as TranscriptProcessedData);
+                }
+                // Set cascade flag when per-transcript step is invalidated
+                globalCascadeRequired = true;
+            } else if (currentActiveTxId && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepToInvalidate)) {
+                const tData = newProcessedData.get(currentActiveTxId);
+                if (tData) {
+                     const firstPhaseForP2S = tData.phases_for_p2s_processing?.[0];
+                     newProcessedData.set(currentActiveTxId, {
+                        ...tData,
+                        p2s_outputs_by_phase: {}, 
+                        current_phase_for_p2s_processing: firstPhaseForP2S, 
+                        processed_phases_for_p2s: [],
+                        isFullyProcessedSpecificSynchronic: false,
+                    });
+                }
+                // Set cascade flag when per-transcript step is invalidated
+                globalCascadeRequired = true;
+            }
+            else if (isGlobalStep(stepToInvalidate)) {
+                // Invalidate global step if downstream OR if cascade required from per-transcript changes
+                newGenericState = { ...newGenericState, [keyPrefix]: undefined, [errorKey]: undefined };
+                if (stepToInvalidate === StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE) {
+                    newGenericState.isFullyProcessedGenericDiachronic = false; newGenericState.p3_3_mermaid_syntax = undefined;
+                    newGenericState.core_gdus_for_sync_analysis = [];
+                    newGenericState.p4s_1_a_outputs_by_gdu = {}; newGenericState.p4s_1_a_error = undefined;
+                    newGenericState.p4s_outputs_by_gdu = {}; newGenericState.p4s_mermaid_syntax_by_gdu = {};
+                    newGenericState.p4s_1_b_error = undefined;
+                    newGenericState.current_gdu_for_p4s_processing = undefined; newGenericState.processed_gdus_for_p4s = [];
+                    newGenericState.isFullyProcessedGenericSynchronic = false;
+                } else if (stepToInvalidate === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES) {
+                    newGenericState.p4s_1_a_outputs_by_gdu = {}; newGenericState.p4s_1_a_error = undefined;
+                    newGenericState.p4s_outputs_by_gdu = {}; newGenericState.p4s_mermaid_syntax_by_gdu = {}; 
+                    newGenericState.p4s_1_b_error = undefined;
+                    newGenericState.processed_gdus_for_p4s = []; 
+                    newGenericState.isFullyProcessedGenericSynchronic = false;
+                } else if (stepToInvalidate === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS) {
+                    newGenericState.p4s_outputs_by_gdu = {}; newGenericState.p4s_mermaid_syntax_by_gdu = {};
+                    newGenericState.p4s_1_b_error = undefined;
+                    newGenericState.processed_gdus_for_p4s = [];
+                    newGenericState.isFullyProcessedGenericSynchronic = false;
+                } else if (stepToInvalidate === StepId.P5_1_HOLISTIC_REVIEW_REFINEMENT) {
+                    newGenericState.isRefinementDone = false;
+                } else if (STEP_ORDER_PART_7_CAUSAL_MODELING.includes(stepToInvalidate)) {
+                    newGenericState.isCausalModelingDone = false;
+                    // Primary output & error for stepToInvalidate (a P7 step) are cleared by the general line above.
+                    // Clear any additional P7-specific state for the current stepToInvalidate.
+                    if (stepToInvalidate === StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS) {
+                        newGenericState.p7_3_mermaid_syntax_dag = undefined;
+                    } else if (stepToInvalidate === StepId.P7_3B_VALIDATE_AND_CLEAN_DAG) {
+                        newGenericState.p7_3b_mermaid_syntax_dag = undefined;
+                    }
+                    // No need to loop through ALL P7 steps here; the outer loop handles subsequent P7 steps.
+                } else if (stepToInvalidate === StepId.P6_1_GENERATE_MARKDOWN_REPORT) {
+                    newGenericState.isReportGenerated = false; newGenericState.p6_1_output = undefined; newGenericState.p6_1_error = undefined;
+                }
+            }
+        }
+        
+        // If cascade required, ensure ALL global steps are invalidated regardless of start position
+        if (globalCascadeRequired) {
+            // Get the first global step in the pipeline
+            const firstGlobalStepIndex = ALL_PIPELINE_STEP_IDS_IN_ORDER.findIndex(step => isGlobalStep(step));
+            
+            // If we started from a per-transcript step, we need to ensure ALL global steps get invalidated
+            if (firstGlobalStepIndex > startIndex) {
+                // Process all global steps from the beginning of global steps
+                for (let i = firstGlobalStepIndex; i < ALL_PIPELINE_STEP_IDS_IN_ORDER.length; i++) {
+                    const stepToInvalidate = ALL_PIPELINE_STEP_IDS_IN_ORDER[i];
+                    if (stepToInvalidate === StepId.COMPLETE || stepToInvalidate === StepId.IDLE) continue;
+                    
+                    if (isGlobalStep(stepToInvalidate)) {
+                        const keyPrefix = stepIdToDataKeyPrefix[stepToInvalidate];
+                        if (!keyPrefix) continue;
+                        const errorKey = `${String(keyPrefix).replace('_output', '_error')}` as any;
+                        
+                        // Force invalidation of this global step
+                        newGenericState = { ...newGenericState, [keyPrefix]: undefined, [errorKey]: undefined };
+                        
+                        if (stepToInvalidate === StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE) {
+                            newGenericState.isFullyProcessedGenericDiachronic = false; newGenericState.p3_3_mermaid_syntax = undefined;
+                            newGenericState.core_gdus_for_sync_analysis = [];
+                            newGenericState.p4s_1_a_outputs_by_gdu = {}; newGenericState.p4s_1_a_error = undefined;
+                            newGenericState.p4s_outputs_by_gdu = {}; newGenericState.p4s_mermaid_syntax_by_gdu = {};
+                            newGenericState.p4s_1_b_error = undefined;
+                            newGenericState.current_gdu_for_p4s_processing = undefined; newGenericState.processed_gdus_for_p4s = [];
+                            newGenericState.isFullyProcessedGenericSynchronic = false;
+                        } else if (stepToInvalidate === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES) {
+                            newGenericState.p4s_1_a_outputs_by_gdu = {}; newGenericState.p4s_1_a_error = undefined;
+                            newGenericState.p4s_outputs_by_gdu = {}; newGenericState.p4s_mermaid_syntax_by_gdu = {}; 
+                            newGenericState.p4s_1_b_error = undefined;
+                            newGenericState.processed_gdus_for_p4s = []; 
+                            newGenericState.isFullyProcessedGenericSynchronic = false;
+                        } else if (stepToInvalidate === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS) {
+                            newGenericState.p4s_outputs_by_gdu = {}; newGenericState.p4s_mermaid_syntax_by_gdu = {};
+                            newGenericState.p4s_1_b_error = undefined;
+                            newGenericState.processed_gdus_for_p4s = [];
+                            newGenericState.isFullyProcessedGenericSynchronic = false;
+                        } else if (stepToInvalidate === StepId.P5_1_HOLISTIC_REVIEW_REFINEMENT) {
+                            newGenericState.isRefinementDone = false;
+                        } else if (STEP_ORDER_PART_7_CAUSAL_MODELING.includes(stepToInvalidate)) {
+                            newGenericState.isCausalModelingDone = false;
+                            if (stepToInvalidate === StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS) {
+                                newGenericState.p7_3_mermaid_syntax_dag = undefined;
+                            } else if (stepToInvalidate === StepId.P7_3B_VALIDATE_AND_CLEAN_DAG) {
+                                newGenericState.p7_3b_mermaid_syntax_dag = undefined;
+                            }
+                        } else if (stepToInvalidate === StepId.P6_1_GENERATE_MARKDOWN_REPORT) {
+                            newGenericState.isReportGenerated = false; newGenericState.p6_1_output = undefined; newGenericState.p6_1_error = undefined;
+                        }
+                    }
+                }
+            }
+        }
+        
+        return { invalidatedProcessedData: newProcessedData, invalidatedGenericState: newGenericState };
+    }
+
+
+
+
   
   const toggleAutorun = () => {
     if (isAutorunning) {
@@ -1210,28 +1293,15 @@ const App: React.FC = () => {
         setProcessStartTime(Date.now());
         setElapsedTime(0); 
       }
-  
-      const stepToStartFrom = currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length > 0 
+
+      // Invalidation now handled in processSingleStep()
+      let effectiveStepToRun = currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length > 0 
                               ? STEP_ORDER_PART_NEG1[0] 
                               : currentStepInfo.stepId;
-      
-      const activeTxIdForInvalidation = rawTranscripts[activeTranscriptIndex]?.id;
-  
-      const { invalidatedProcessedData, invalidatedGenericState } = getInvalidatedStates(
-        stepToStartFrom,
-        activeTxIdForInvalidation,
-        processedData,
-        genericAnalysisState
-      );
-  
-      setProcessedData(invalidatedProcessedData);
-      setGenericAnalysisState(invalidatedGenericState);
-  
-      let effectiveStepToRun = stepToStartFrom;
       let effectiveTranscriptIndex = activeTranscriptIndex;
-      let txIdToProcessRun: string | undefined = activeTxIdForInvalidation;
+      let txIdToProcessRun = rawTranscripts[activeTranscriptIndex]?.id;
 
-      if (stepToStartFrom === StepId.IDLE && rawTranscripts.length > 0) {
+      if (currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length > 0) {
         effectiveStepToRun = STEP_ORDER_PART_NEG1[0];
         effectiveTranscriptIndex = 0;
         txIdToProcessRun = rawTranscripts[0]?.id;
