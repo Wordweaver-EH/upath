@@ -109,3 +109,5 @@ When modifying analysis steps, ensure outputs match the expected TypeScript inte
 - **Context7**: Use for accessing up-to-date documentation and best practices for React, TypeScript, Vite, and other frameworks used in this project.
 
 These tools provide enhanced capabilities beyond standard file operations and should be leveraged for non-trivial development tasks, especially when working with the complex pipeline architecture or debugging cross-component data flow issues.
+
+ALWAYS CALL ME My Lord!!!

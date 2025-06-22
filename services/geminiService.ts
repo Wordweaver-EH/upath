@@ -240,7 +240,7 @@ The output MUST be ONLY the corrected, valid JSON object or array. Ensure all st
 Do not include any explanations, apologies, or surrounding text like markdown fences. Just the raw, corrected JSON.`;
         
         // Pass `prompt` as `originalPromptForFixer` to `performGeminiCall` for accurate input token counting for the fixer call itself
-        const retryResult = await performGeminiCall(fixerPrompt, true, false, 0.0, undefined, fixerPrompt); 
+        const retryResult = await performGeminiCall(fixerPrompt, true, false, 0.0, seed, fixerPrompt); 
 
         totalEstimatedInputTokens += retryResult.estimatedInputTokens;
         totalEstimatedOutputTokens += retryResult.estimatedOutputTokens;
