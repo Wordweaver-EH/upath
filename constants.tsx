@@ -10,9 +10,174 @@ export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash-preview-04-17';
 
 // Feature flag for P3_2 implementation approach
 export const P3_2_APPROACH = process.env.REACT_APP_P3_2_APPROACH || 'original';
-// Values: 'original' | 'minified' | 'minimal_context_tsv' | 'full_context_tsv' | 'zero_context_tsv'
-
-// Legacy feature flag removed - use P3_2_APPROACH instead
+             
+             // Optional runtime validator for strict P3_2 schema compliance
+             function validateStrictP3_2_Output(output: any, expectedTotRdus: number): void {
+                 if (!output || !Array.isArray(output.identified_gdus)) {
+                     throw new Error('No GDUs array found in output');
+                 }
+                 
+                 const seen = new Set<string>();
+                 output.identified_gdus.forEach((gdu: any) => {
+                     if (!Array.isArray(gdu.contributing_refined_du_ids)) {
+                         throw new Error(`GDU ${gdu.gdu_id} missing contributing_refined_du_ids array`);
+                     }
+                     
+                     gdu.contributing_refined_du_ids.forEach((item: any) => {
+                         const key = `${item.transcript_id}|${item.refined_du_id}`;
+                         if (seen.has(key)) {
+                             throw new Error(`Duplicate RDU reference: ${key}`);
+                         }
+                         seen.add(key);
+                     });
+                 });
+                 
+                 if (seen.size !== expectedTotRdus) {
+                     throw new Error(`Expected ${expectedTotRdus} RDUs, got ${seen.size}`);
+                 }
+                 
+                 if (output.tot_rdus !== expectedTotRdus) {
+                     throw new Error(`tot_rdus mismatch: expected ${expectedTotRdus}, got ${output.tot_rdus}`);
+                 }
+             }// Values: 'original' | 'minified' | 'minimal_context_tsv' | 'full_context_tsv' | 'zero_context_tsv'
+             
+             // ───────────────────────────────────────────────────────────────────────────────
+             // P5.1 - Holistic Review Prompt Builder (schema_version: "2.0" - Dynamic)
+             // ───────────────────────────────────────────────────────────────────────────
+             
+             /**
+              * A dictionary of high-quality, instructional placeholder text.
+              * This centralizes the qualitative guidance, making it easy to tune.
+              */
+             const instructionalText = {
+               summary: "Provide a concise, insightful summary of the refined structure. Detail key themes and significant adjustments made based on the holistic review of all specific data.",
+               gdsName: "A refined, descriptive name for the generic structure based on its core experiential arc.",
+               gdsDescription: "A rich description of the entire experiential journey, explaining the core flow and any optional variations.",
+               gduDescription: "A clear, phenomenologically-grounded description of what it is like to be in this phase of the experience.",
+               sequenceDescription: "Describe the experiential transition between these two phases.",
+               gssDescription: "A detailed summary of the synchronic structure for this phase, outlining the key categories of experience and their typical interplay.",
+               gssCategoryName: "A concise, descriptive name for this generic category of experience.",
+               gssCategoryDescription: "A definition of this category, explaining what types of specific experiences it groups together.",
+               gssLinkDescription: "Explain the typical relationship or influence between these two categories (e.g., causal, correlated, sequential).",
+               instantiationNotesDescription: "Provide illustrative examples from the specific data that are captured by this generic category.",
+               logObservation: "A key observation from the holistic data review that prompted a change.",
+               logAdjustment: "The specific change made to the generic structures as a result of the observation.",
+               logJustification: "The reasoning for the adjustment, linking it back to the empirical data.",
+               insight: "A novel, high-level understanding derived from seeing all the data together. Frame as a declarative statement about the phenomenon.",
+               hypothesis: "A specific, testable phenomenological hypothesis that emerges from the refined structures or insights.",
+             };
+                   
+                   /**
+                    * Builds the P5.1 prompt with a dynamically generated, un-anchored output schema.
+                    * This minimizes overfitting and maintenance burden while maximizing structural guidance.
+                    */
+                   const buildDynamicP5Prompt = ({
+                     gdsName,
+                     numGss,
+                     numSds,
+                     numSss,
+                     generic_diachronic_structure_input,
+                     generic_synchronic_structures_by_gdu_input,
+                     all_specific_diachronic_structures_input,
+                     all_specific_synchronic_structures_input,
+                     dvFocus,
+                   }: {
+                     gdsName: string;
+                     numGss: number;
+                     numSds: number;
+                     numSss: number;
+                     generic_diachronic_structure_input: any;
+                     generic_synchronic_structures_by_gdu_input: any;
+                     all_specific_diachronic_structures_input: any[];
+                     all_specific_synchronic_structures_input: any[];
+                     dvFocus: string[];
+                   }) => {
+                     // Dynamically get the GDU IDs from the *current* input data.
+                     const gduIds = Object.keys(generic_synchronic_structures_by_gdu_input);
+                   
+                     // Programmatically build the exemplar to match the input's structure.
+                     const dynamicExemplar = {
+                       final_refined_generic_diachronic_structure_summary: instructionalText.summary,
+                       final_refined_generic_synchronic_structures_summary: Object.fromEntries(
+                         gduIds.map(id => [id, `(${instructionalText.summary} for GDU: ${id})`])
+                       ),
+                       updated_gds_object: {
+                         name: instructionalText.gdsName,
+                         description: instructionalText.gdsDescription,
+                         core_gdus: [{ gdu_id: "GDU_ID_CORE_EXAMPLE", name: "Example Core GDU", description: instructionalText.gduDescription }],
+                         optional_gdus: [{ gdu_id: "GDU_ID_OPTIONAL_EXAMPLE", name: "Example Optional GDU", description: instructionalText.gduDescription }],
+                         typical_sequence: [{ from_gdu_id: "GDU_ID_A", to_gdu_id: "GDU_ID_B", description: instructionalText.sequenceDescription }],
+                       },
+                       updated_gss_outputs_by_gdu: Object.fromEntries(
+                         gduIds.map(id => [
+                           id,
+                           {
+                             representation_type: "Semantic Network",
+                             description: `(${instructionalText.gssDescription} for GDU: ${id})`,
+                             generic_nodes_categories: [{ generic_category_id: "gss_cat_example_id", name: instructionalText.gssCategoryName, description: instructionalText.gssCategoryDescription }],
+                             generic_network_links: [{ from_category_id: "gss_cat_id_1", to_category_id: "gss_cat_id_2", description: instructionalText.gssLinkDescription }],
+                             instantiation_notes: [{
+                               generic_category_id: "gss_cat_example_id",
+                               textual_description: instructionalText.instantiationNotesDescription,
+                               // NOTE: We show the structure but keep the array empty, as the model's task is to populate it.
+                               // The instruction in TASKS enforces the non-empty rule on output.
+                               example_specific_nodes: [ { transcript_id: "tx_id", sss_node_id: "node_id", phase_name: "phase_name" } ]
+                             }]
+                           }
+                         ])
+                       ),
+                       refinement_log: [{ observation: instructionalText.logObservation, adjustment_made: instructionalText.logAdjustment, justification: instructionalText.logJustification }],
+                       emergent_insights: [instructionalText.insight],
+                       hypotheses_generated: [instructionalText.hypothesis],
+                     };
+                   
+                     return `
+                   ### SYSTEM
+                   You are a **senior micro-phenomenological researcher**.  
+                   Your sole task is to (1) perform a holistic review of the provided data, and (2) output a single JSON object that **exactly** follows the structure and qualitative instructions provided in <DYNAMIC_OUTPUT_SCHEMA>.
+                   
+                   ### CONTEXT
+                   <DATA_STATS>
+                   gds_name:             ${gdsName}
+                   num_gss_inputs:       ${numGss}
+                   num_sds_inputs:       ${numSds}
+                   num_sss_inputs:       ${numSss}
+                   dv_focus:             ${dvFocus.join(', ')}
+                   </DATA_STATS>
+                   
+                   <GENERIC_DDS>
+                   ${JSON.stringify(generic_diachronic_structure_input, null, 2)}
+                   </GENERIC_DDS>
+                   
+                   <GENERIC_SSS_BY_GDU>
+                   ${JSON.stringify(generic_synchronic_structures_by_gdu_input, null, 2)}
+                   </GENERIC_SSS_BY_GDU>
+                   
+                   <SPECIFIC_DDS_ARRAY>
+                   ${JSON.stringify(all_specific_diachronic_structures_input, null, 2)}
+                   </SPECIFIC_DDS_ARRAY>
+                   
+                   <SPECIFIC_SSS_ARRAY>
+                   ${JSON.stringify(all_specific_synchronic_structures_input, null, 2)}
+                   </SPECIFIC_SSS_ARRAY>
+                   
+                   ### TASKS
+                   1. **Holistic Review:** Analyze all provided structures (<GENERIC_DDS>, <GENERIC_SSS_BY_GDU>, <SPECIFIC_DDS_ARRAY>, <SPECIFIC_SSS_ARRAY>) to identify patterns, inconsistencies, and emergent themes.
+                   2. **Refine & Generate:** Based on your review, refine the generic structures and generate the requested summaries, logs, insights, and hypotheses.
+                   3. **Output JSON:** Populate the schema provided in <DYNAMIC_OUTPUT_SCHEMA> with your complete analysis.
+                      – Adhere strictly to the keys and structure.
+                      – The text you generate should match the *quality and intent* described by the instructional placeholders.
+                      – For any retained GSS category, the \\`example_specific_nodes\\` array **must** be populated with relevant nodes from the input data.
+                   
+                   ### DYNAMIC_OUTPUT_SCHEMA (Follow this structure and the instructions within)
+                   <DYNAMIC_OUTPUT_SCHEMA>
+                   ${JSON.stringify(dynamicExemplar, null, 2)}
+                   </DYNAMIC_OUTPUT_SCHEMA>
+                   
+                   ### FORMAT
+                   Respond **only** with the single, valid JSON object. Do not include any other text, apologies, or code fences.
+                   `.trim();
+                   };// Legacy feature flag removed - use P3_2_APPROACH instead
 
 // Two-phase P3_2 implementation functions
 const getTwoPhaseP3_2_Input = (_: any, allProcessedData: any, genericState: any, apiKeyPresent: any, userDvFocus: any) => {
@@ -45,6 +210,8 @@ const getTwoPhaseP3_2_Input = (_: any, allProcessedData: any, genericState: any,
         return { data: null, error: "No Refined Diachronic Units (P1.3 outputs) found across all transcripts." };
     }
 
+    const totalRdus = rdu_rows.length - 1; // header excluded
+    
     return {
         data: {
             // Minimal guidance from P3.1
@@ -53,52 +220,49 @@ const getTwoPhaseP3_2_Input = (_: any, allProcessedData: any, genericState: any,
                 key_differences: genericState.p3_1_output.key_differences,
             },
             // Token-efficient RDU data
-            rdu_list_tsv: rdu_rows.join('\n'),
-            global_dv_focus: userDvFocus?.dv_focus || []
+            rdu_list_tsv: rdu_rows.join('
+'),
+            global_dv_focus: userDvFocus?.dv_focus || [],
+            tot_rdus: totalRdus
         }
     };
 };
 
-const generateTwoPhaseP3_2_Prompt = (input: any) => `You are a micro-phenomenological analyst tasked with classifying specific experiential moments (Refined Diachronic Units - RDUs) into generic groups that will become Generic Diachronic Units (GDUs).
+const generateTwoPhaseP3_2_Prompt = (input: any) => `
+Micro-phenomenological analyst. Produce **only** the JSON object described below.
 
-## High-Level Context (from P3.1)
+### Context from P3.1 (abridged)
+PATTERN: ${input.high_level_context.common_patterns_summary}
+DIFFS : ${input.high_level_context.key_differences.join(' | ')}
 
-First, review this high-level summary of patterns and differences observed across all transcripts. Use this as guiding context to understand the overall landscape, but your primary task is to classify the specific RDUs based on their descriptions.
-
-- **Common Patterns:** ${input.high_level_context.common_patterns_summary}
-- **Key Differences:** ${input.high_level_context.key_differences.join(', ')}
-
-## Core Task: Classify RDUs
-
-Now, analyze the following list of RDUs, provided in TSV format. Your task is to assign each RDU to a semantic group.
-
-**Guidelines:**
-1.  **Focus on Generality:** Look for patterns that represent recurring, cross-transcript experiences. Your \`gdu_group_id\` should be abstract and generalizable (e.g., "Initial_Sensory_Noticing", "Problem_Engagement", "Resolution_Feeling"). Avoid creating groups that are specific to a single transcript.
-2.  **Semantic Similarity:** Group RDUs based on the semantic meaning of their \`description\`.
-3.  **Consistency:** Use the same \`gdu_group_id\` for all RDUs that belong to the same generic theme.
-4.  **IV Analysis:** Note how the \`iv_details\` column influences manifestation of each RDU.
-
-**Input RDU Data (TSV Format):**
+### RDU TSV (total rows = ${input.tot_rdus})
 \`\`\`tsv
 ${input.rdu_list_tsv}
 \`\`\`
 
-## Required Output Format
+### TASK
+1. Cluster RDUs into Generic Diachronic Units (GDUs) by semantic similarity and structural role.
+2. For each GDU output
+   • \`gdu_id\`, single-sentence \`definition\`,
+   • \`supporting_transcripts_count\`, optional \`iv_variation_notes\`,
+   • full \`contributing_refined_du_ids\` trace list.
+3. State the criteria you used in ≤160 characters.
+4. Copy the DV focus list exactly as given.
 
-Your output MUST be a single, valid JSON array. Each object in the array must correspond to exactly one RDU from the input TSV and have the following structure:
+### STRICT OUTPUT
+Return **only** this JSON object (no markdown):
 
-\`\`\`json
-[
-  {
-    "refined_du_id": "(The exact refined_du_id from the TSV)",
-    "gdu_group_id": "Your_Chosen_Generic_Group_Name",
-    "rationale": "A brief justification for why this RDU belongs to this group.",
-    "iv_variation_note": "Brief observation on how the IV context influences this RDU's manifestation."
-  }
-]
-\`\`\`
+{
+  "identified_gdus": […],
+  "criteria_for_gdu_identification": "…",
+  "dependent_variable_focus": ${JSON.stringify(input.global_dv_focus)},
+  "tot_rdus": ${input.tot_rdus}
+}
 
-Ensure your response contains one object for EVERY RDU provided in the input TSV. Do not add any text or markdown outside of the main JSON array.`;
+Hard rules – obey or fail:
+• Use ONLY \`transcript_id\` and \`refined_du_id\` values from the TSV; never invent or change IDs.
+• Every TSV row appears **exactly once** in some GDU's \`contributing_refined_du_ids\`.
+• Output nothing except the JSON object.`.trim();
 
 // Minified JSON implementation functions
 const getMinifiedP3_2_Input = (_: any, allProcessedData: any, genericState: any, apiKeyPresent: any, userDvFocus: any) => {
@@ -137,32 +301,44 @@ const getMinifiedP3_2_Input = (_: any, allProcessedData: any, genericState: any,
             diffs: genericState.p3_1_output.key_differences,
             // Minified RDU list
             rdus: allRefinedDus,
-            dv: userDvFocus?.dv_focus || []
+            dv: userDvFocus?.dv_focus || [],
+            tot_rdus: allRefinedDus.length
         }
     };
 };
 
-const generateMinifiedP3_2_Prompt = (input: any) => `Micro-phenomenological analyst: classify RDUs into GDU groups with IV analysis.
+const generateMinifiedP3_2_Prompt = (input: any) => `
+Analyst. Produce the strict JSON object only.
 
-Context from P3.1:
-- Patterns: ${input.patterns}
-- Differences: ${input.diffs.join(', ')}
+Context PATTERN: ${input.patterns}
+Context DIFFS  : ${input.diffs.join(' | ')}
 
-RDU Data (minified): ${JSON.stringify(input.rdus)}
+RDU LIST (total = ${input.tot_rdus}):
+${JSON.stringify(input.rdus)}
 
-Guidelines:
-1. Focus on generality - abstract group names
-2. Semantic similarity based on 'desc' field  
-3. Consistent gdu_group_id usage
-4. Analyze 'iv' field for IV variation patterns
+### TASK
+1. Cluster RDUs into Generic Diachronic Units (GDUs) by semantic similarity and structural role.
+2. For each GDU output
+   • \`gdu_id\`, single-sentence \`definition\`,
+   • \`supporting_transcripts_count\`, optional \`iv_variation_notes\`,
+   • full \`contributing_refined_du_ids\` trace list.
+3. State the criteria you used in ≤160 characters.
+4. Copy the DV focus list exactly as given.
 
-Output: JSON array with objects containing:
-- refined_du_id: exact 'id' from input
-- gdu_group_id: generic group name
-- rationale: brief justification
-- iv_variation_note: how this RDU's manifestation relates to its IV context
+### STRICT OUTPUT
+Return **only** this JSON object (no markdown):
 
-Output one object per input RDU. JSON only, no markdown.`;
+{
+  "identified_gdus": […],
+  "criteria_for_gdu_identification": "…",
+  "dependent_variable_focus": ${JSON.stringify(input.dv)},
+  "tot_rdus": ${input.tot_rdus}
+}
+
+Hard rules – obey or fail:
+• Use ONLY the 'tid' and 'id' fields from the list above; never invent or change IDs.
+• Every RDU appears **exactly once** in some GDU's \`contributing_refined_du_ids\`.
+• Output nothing except the JSON object.`.trim();
 
 // Original P3_2 implementation functions
 const getOriginalP3_2_Input = (_: any, allProcessedData: any, genericState: any, apiKeyPresent: any, userDvFocus: any) => {
@@ -189,7 +365,11 @@ const getOriginalP3_2_Input = (_: any, allProcessedData: any, genericState: any,
     });
     if (all_refined_dus_with_iv_and_ids.length === 0) return { data: null, error: "No refined diachronic units (P1.3 outputs with IVs and unit_ids) found." };
 
-    return { data: { p3_1_output: genericState.p3_1_output, all_refined_dus_with_iv_and_ids, global_dv_focus: userDvFocus?.dv_focus } };
+    // Count total RDUs for validation
+    const totalRdus = all_refined_dus_with_iv_and_ids.reduce((count, transcript) => 
+        count + transcript.refined_diachronic_units.length, 0);
+
+    return { data: { p3_1_output: genericState.p3_1_output, all_refined_dus_with_iv_and_ids, global_dv_focus: userDvFocus?.dv_focus, tot_rdus: totalRdus } };
 };
 
 const generateOriginalP3_2_Prompt = (input: { p3_1_output: P3_1_Output, all_refined_dus_with_iv_and_ids: any[], global_dv_focus: string[] }) => `You are a Generic Diachronic Analysis assistant. Task: Identify Generic Diachronic Units (GDUs) from refined DUs across transcripts, considering IVs and ensuring traceability.
@@ -226,7 +406,8 @@ A JSON object adhering EXACTLY to the following structure:
     // ... more GDUs
   ],
   "criteria_for_gdu_identification": "Criteria used for GDU abstraction (e.g., thematic similarity of DU descriptions, similar temporal phase).",
-  "dependent_variable_focus": ${JSON.stringify(input.global_dv_focus)}
+  "dependent_variable_focus": ${JSON.stringify(input.global_dv_focus)},
+  "tot_rdus": ${input.tot_rdus}
 }`;
 
 // Zero context TSV implementation functions  
@@ -259,49 +440,53 @@ const getZeroContextTsvP3_2_Input = (_: any, allProcessedData: any, genericState
         return { data: null, error: "No Refined Diachronic Units (P1.3 outputs) found across all transcripts." };
     }
 
+    const totalRdus = rdu_rows.length - 1; // header excluded
+    
     return {
         data: {
             // No context from P3.1 - pure bottom-up analysis
-            rdu_list_tsv: rdu_rows.join('\n'),
-            global_dv_focus: userDvFocus?.dv_focus || []
+            rdu_list_tsv: rdu_rows.join('
+'),
+            global_dv_focus: userDvFocus?.dv_focus || [],
+            tot_rdus: totalRdus
         }
     };
 };
 
-const generateZeroContextTsvP3_2_Prompt = (input: any) => `You are a micro-phenomenological analyst tasked with classifying specific experiential moments (Refined Diachronic Units - RDUs) into generic groups that will become Generic Diachronic Units (GDUs).
+const generateZeroContextTsvP3_2_Prompt = (input: any) => `
+Micro-phenomenological analyst. Produce **only** the JSON object described below.
 
-## Core Task: Classify RDUs
+### Context
+No top-down context provided. Perform bottom-up clustering only.
 
-Analyze the following list of RDUs, provided in TSV format. Your task is to assign each RDU to a semantic group based purely on the content of their descriptions.
-
-**Guidelines:**
-1.  **Focus on Generality:** Look for patterns that represent recurring, cross-transcript experiences. Your \`gdu_group_id\` should be abstract and generalizable (e.g., "Initial_Sensory_Noticing", "Problem_Engagement", "Resolution_Feeling"). Avoid creating groups that are specific to a single transcript.
-2.  **Semantic Similarity:** Group RDUs based on the semantic meaning of their \`description\`.
-3.  **Consistency:** Use the same \`gdu_group_id\` for all RDUs that belong to the same generic theme.
-4.  **Bottom-Up Analysis:** Base your groupings purely on the RDU descriptions without external bias.
-5.  **IV Analysis:** Note how the \`iv_details\` column influences manifestation of each RDU.
-
-**Input RDU Data (TSV Format):**
+### RDU TSV (total rows = ${input.tot_rdus})
 \`\`\`tsv
 ${input.rdu_list_tsv}
 \`\`\`
 
-## Required Output Format
+### TASK
+1. Cluster RDUs into Generic Diachronic Units (GDUs) by semantic similarity and structural role.
+2. For each GDU output
+   • \`gdu_id\`, single-sentence \`definition\`,
+   • \`supporting_transcripts_count\`, optional \`iv_variation_notes\`,
+   • full \`contributing_refined_du_ids\` trace list.
+3. State the criteria you used in ≤160 characters.
+4. Copy the DV focus list exactly as given.
 
-Your output MUST be a single, valid JSON array. Each object in the array must correspond to exactly one RDU from the input TSV and have the following structure:
+### STRICT OUTPUT
+Return **only** this JSON object (no markdown):
 
-\`\`\`json
-[
-  {
-    "refined_du_id": "(The exact refined_du_id from the TSV)",
-    "gdu_group_id": "Your_Chosen_Generic_Group_Name",
-    "rationale": "A brief justification for why this RDU belongs to this group.",
-    "iv_variation_note": "Brief observation on how the IV context influences this RDU's manifestation."
-  }
-]
-\`\`\`
+{
+  "identified_gdus": […],
+  "criteria_for_gdu_identification": "…",
+  "dependent_variable_focus": ${JSON.stringify(input.global_dv_focus)},
+  "tot_rdus": ${input.tot_rdus}
+}
 
-Ensure your response contains one object for EVERY RDU provided in the input TSV. Do not add any text or markdown outside of the main JSON array.`;
+Hard rules – obey or fail:
+• Use ONLY \`transcript_id\` and \`refined_du_id\` values from the TSV; never invent or change IDs.
+• Every TSV row appears **exactly once** in some GDU's \`contributing_refined_du_ids\`.
+• Output nothing except the JSON object.`.trim();
 
 // Full context TSV implementation functions  
 const getFullContextTsvP3_2_Input = (_: any, allProcessedData: any, genericState: any, apiKeyPresent: any, userDvFocus: any) => {
@@ -334,6 +519,8 @@ const getFullContextTsvP3_2_Input = (_: any, allProcessedData: any, genericState
         return { data: null, error: "No Refined Diachronic Units (P1.3 outputs) found across all transcripts." };
     }
 
+    const totalRdus = rdu_rows.length - 1; // header excluded
+    
     return {
         data: {
             // Full context from P3.1 including complete aligned_structures_report
@@ -343,59 +530,50 @@ const getFullContextTsvP3_2_Input = (_: any, allProcessedData: any, genericState
                 key_differences: genericState.p3_1_output.key_differences,
             },
             // Token-efficient RDU data
-            rdu_list_tsv: rdu_rows.join('\n'),
-            global_dv_focus: userDvFocus?.dv_focus || []
+            rdu_list_tsv: rdu_rows.join('
+'),
+            global_dv_focus: userDvFocus?.dv_focus || [],
+            tot_rdus: totalRdus
         }
     };
 };
 
-const generateFullContextTsvP3_2_Prompt = (input: any) => `You are a micro-phenomenological analyst tasked with classifying specific experiential moments (Refined Diachronic Units - RDUs) into generic groups that will become Generic Diachronic Units (GDUs).
+const generateFullContextTsvP3_2_Prompt = (input: any) => `
+Micro-phenomenological analyst. Produce **only** the JSON object described below.
 
-## Complete Contextual Analysis (from P3.1)
+### Complete Context from P3.1
+ALIGNED STRUCTURES: ${input.full_context.aligned_structures_report}
+PATTERN: ${input.full_context.common_patterns_summary}
+DIFFS : ${input.full_context.key_differences.join(' | ')}
 
-First, review this comprehensive analysis of patterns and structures across all transcripts. Use this detailed context to guide your understanding and ensure your RDU classifications align with the identified structural patterns.
-
-### Aligned Structures Report
-${input.full_context.aligned_structures_report}
-
-### Common Patterns Summary  
-${input.full_context.common_patterns_summary}
-
-### Key Differences
-${input.full_context.key_differences.join(' | ')}
-
-## Core Task: Classify RDUs
-
-Now, analyze the following list of RDUs, provided in TSV format. Your task is to assign each RDU to a semantic group, informed by the comprehensive contextual analysis above.
-
-**Guidelines:**
-1.  **Leverage Context:** Use the detailed aligned structures report to understand how RDUs fit into the broader patterns identified across transcripts.
-2.  **Focus on Generality:** Your \`gdu_group_id\` should be abstract and generalizable, reflecting the patterns described in the contextual analysis.
-3.  **Semantic Similarity:** Group RDUs based on their semantic meaning AND their role in the overall structural patterns.
-4.  **Consistency:** Use the same \`gdu_group_id\` for all RDUs that belong to the same generic theme.
-5.  **IV Analysis:** Note how the \`iv_details\` column influences manifestation of each RDU.
-
-**Input RDU Data (TSV Format):**
+### RDU TSV (total rows = ${input.tot_rdus})
 \`\`\`tsv
 ${input.rdu_list_tsv}
 \`\`\`
 
-## Required Output Format
+### TASK
+1. Cluster RDUs into Generic Diachronic Units (GDUs) by semantic similarity and structural role.
+2. For each GDU output
+   • \`gdu_id\`, single-sentence \`definition\`,
+   • \`supporting_transcripts_count\`, optional \`iv_variation_notes\`,
+   • full \`contributing_refined_du_ids\` trace list.
+3. State the criteria you used in ≤160 characters.
+4. Copy the DV focus list exactly as given.
 
-Your output MUST be a single, valid JSON array. Each object in the array must correspond to exactly one RDU from the input TSV and have the following structure:
+### STRICT OUTPUT
+Return **only** this JSON object (no markdown):
 
-\`\`\`json
-[
-  {
-    "refined_du_id": "(The exact refined_du_id from the TSV)",
-    "gdu_group_id": "Your_Chosen_Generic_Group_Name",
-    "rationale": "A brief justification for why this RDU belongs to this group, referencing the contextual analysis where relevant.",
-    "iv_variation_note": "Brief observation on how the IV context influences this RDU's manifestation."
-  }
-]
-\`\`\`
+{
+  "identified_gdus": […],
+  "criteria_for_gdu_identification": "…",
+  "dependent_variable_focus": ${JSON.stringify(input.global_dv_focus)},
+  "tot_rdus": ${input.tot_rdus}
+}
 
-Ensure your response contains one object for EVERY RDU provided in the input TSV. Do not add any text or markdown outside of the main JSON array.`;
+Hard rules – obey or fail:
+• Use ONLY \`transcript_id\` and \`refined_du_id\` values from the TSV; never invent or change IDs.
+• Every TSV row appears **exactly once** in some GDU's \`contributing_refined_du_ids\`.
+• Output nothing except the JSON object.`.trim();
 
 export const PlayIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>);
 export const PauseIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M5.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 007.25 3h-1.5zM12.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 00-.75-.75h-1.5z" /></svg>);
@@ -1645,49 +1823,17 @@ Do NOT include a "mermaid_syntax_generic_synchronic" field; this will be generat
             dv_focus: genericState.p3_3_output.dependent_variable_focus
         }};
     },
-    generatePrompt: (input: any) => `You are a senior micro-phenomenological researcher. Task: Perform a holistic review of all generated structures, refine them, synthesize IV observations, generate insights/hypotheses, and output the *complete, updated GDS and GSS objects*.
-Input:
-- \`generic_diachronic_structure_input\`: The P3.3 output containing the GDS definition.
-- \`generic_synchronic_structures_by_gdu_input\`: A map of GDU_ID to P4S.1.B outputs (each containing a GSS definition and instantiation notes).
-- \`all_specific_diachronic_structures_input\`: Array of all P1.4 specific diachronic structures.
-- \`all_specific_synchronic_structures_input\`: Array of all P2S.3 specific synchronic structures.
-- \`dv_focus\`: The dependent variable focus list.
-${JSON.stringify({ gds_name: input.generic_diachronic_structure_input?.generic_diachronic_structure_definition?.name, num_gss_inputs: Object.keys(input.generic_synchronic_structures_by_gdu_input || {}).length, num_sds_inputs: input.all_specific_diachronic_structures_input?.length, num_sss_inputs: input.all_specific_synchronic_structures_input?.length, dv_focus: input.dv_focus }, null, 2)} (Summary of extensive input provided to LLM)
-
-Instructions:
-1.  **Review & Refine Generic Structures:**
-    *   Examine all structures (GDS, GSSs, SDSs, SSSs) for consistency, coherence, and accuracy.
-    *   Propose refinements to the GDS (from \`generic_diachronic_structure_input.generic_diachronic_structure_definition\`) and each GSS (from \`generic_synchronic_structures_by_gdu_input[GDU_ID].generic_synchronic_structure\`) based on the full dataset of specific structures.
-    *   Ensure diachronic structures reflect experiential timelines and synchronic structures detail the 'what' of those moments.
-2.  **Output Updated Generic Structures:**
-    *   \`updated_gds_object\`: Provide the *complete, refined* GDS object, adhering to the \`GenericDiachronicStructureDefinition\` type.
-    *   \`updated_gss_outputs_by_gdu\`: Provide a map where keys are GDU_IDs and values are the *complete, refined* GSS objects (matching the type of \`P4S_1_Output['generic_synchronic_structure']\`). Ensure that within each GSS, the \`example_specific_nodes\` array in \`instantiation_notes\` remains non-empty if the category is to be kept.
-3.  **Refinement Log, Insights, Hypotheses:**
-    *   \`refinement_log\`: Document key observations, adjustments made to generic structures, and justifications.
-    *   \`emergent_insights\`: List new understandings from viewing all data holistically. (Consider adding unique IDs like "Insight_1" for P7.1 traceability).
-    *   \`hypotheses_generated\`: Formulate testable phenomenological hypotheses. (Consider adding unique IDs like "PhenoHyp_1" for P7.1 traceability).
-4.  **Synthesize IV Impact:** Consolidate all IV-related observations. How do IVs consistently affect diachronic and synchronic aspects across the dataset? This can be part of the textual summaries or refinement log.
-
-Output:
-A JSON object adhering EXACTLY to the following structure:
-{
-  "final_refined_generic_diachronic_structure_summary": "Textual summary of GDS after review, noting key refinements.",
-  "final_refined_generic_synchronic_structures_summary": {
-    "GDU_ID_1": "Textual summary of GSS for GDU_ID_1 after review.",
-    "GDU_ID_2": "..."
-  },
-  "updated_gds_object": { /* Complete GenericDiachronicStructureDefinition object */
-    "name": "Refined GDS Name", "description": "...", "core_gdus": [], "optional_gdus": [], "typical_sequence": []
-  },
-  "updated_gss_outputs_by_gdu": { /* GDU_ID -> complete refined P4S_1_Output['generic_synchronic_structure'] object */
-    "GDU_ID_1": { "representation_type": "Semantic Network", "description": "...", "generic_nodes_categories": [], "generic_network_links": [], "instantiation_notes": [ { "generic_category_id": "gss_cat_Example", "textual_description": "...", "example_specific_nodes": [ { "transcript_id": "txA", "sss_node_id": "node1", "phase_name": "phaseX" } ] } ] }
-  },
-  "refinement_log": [
-    {"observation": "Initial GDU_X was too broad.", "adjustment_made": "Split GDU_X into GDU_Xa and GDU_Xb in updated_gds_object.", "justification": "Improves specificity based on SSS review."}
-  ],
-  "emergent_insights": ["Insight_1: Insight text...", "Insight_2: Insight text..."],
-  "hypotheses_generated": ["PhenoHyp_1: Hypothesis text...", "PhenoHyp_2: Hypothesis text..."]
-}`,
+    generatePrompt: (input: any) => buildDynamicP5Prompt({
+        gdsName: input.generic_diachronic_structure_input?.generic_diachronic_structure_definition?.name || "Generic Diachronic Structure",
+        numGss: Object.keys(input.generic_synchronic_structures_by_gdu_input || {}).length,
+        numSds: input.all_specific_diachronic_structures_input?.length || 0,
+        numSss: input.all_specific_synchronic_structures_input?.length || 0,
+        generic_diachronic_structure_input: input.generic_diachronic_structure_input,
+        generic_synchronic_structures_by_gdu_input: input.generic_synchronic_structures_by_gdu_input,
+        all_specific_diachronic_structures_input: input.all_specific_diachronic_structures_input,
+        all_specific_synchronic_structures_input: input.all_specific_synchronic_structures_input,
+        dvFocus: input.dv_focus || []
+    }),
   },
   [StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION]: {
     id: StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION,
