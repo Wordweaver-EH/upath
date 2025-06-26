@@ -414,10 +414,15 @@ const App: React.FC = () => {
         if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || p2sOutputForCurrentPhaseAndStepExists) {
             if (currentP2SStepIndex < STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.length - 1) return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[currentP2SStepIndex + 1], nextTranscriptIndex: activeTranscriptIndex };
             if (currentStepInfo.stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
-                if (currentTData.current_phase_for_p2s_processing) return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex }; // Next phase for P2S.1
-                if (activeTranscriptIndex < rawTranscripts.length - 1) return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: activeTranscriptIndex + 1 }; // Next transcript for P1.1
-                if (rawTranscripts.every(rt => { const d=processedData.get(rt.id); return d&&d.isFullyProcessedSpecificDiachronic&& (d.isFullyProcessedSpecificSynchronic||!d.phases_for_p2s_processing?.length); }))
-                  return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0], nextTranscriptIndex: 0 }; // All P1/P2S done, move to P3
+                // Fixed: Check isFullyProcessedSpecificSynchronic to avoid stale state bug
+                if (!currentTData.isFullyProcessedSpecificSynchronic) {
+                    return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex }; // Next phase for P2S.1
+                } else {
+                    // This transcript is done with P2S. Move to the next transcript or Part 3.
+                    if (activeTranscriptIndex < rawTranscripts.length - 1) return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: activeTranscriptIndex + 1 }; // Next transcript for P1.1
+                    if (rawTranscripts.every(rt => { const d=processedData.get(rt.id); return d&&d.isFullyProcessedSpecificDiachronic&& (d.isFullyProcessedSpecificSynchronic||!d.phases_for_p2s_processing?.length); }))
+                      return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0], nextTranscriptIndex: 0 }; // All P1/P2S done, move to P3
+                }
             }
         }
     }
