@@ -1,6 +1,14 @@
 
 import React from 'react';
 import { PlayIcon, PauseIcon, NextIcon, PreviousIcon, RetryIcon, LightbulbIcon, DownloadIcon, AppendixIcon, ChevronDownIcon } from '../constants'; // Assuming icons are here
+
+// IRR (Inter-Rater Reliability) icon
+const IrrIcon = (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+    <path d="M2.5 8a1.5 1.5 0 0 0-1.5 1.5v1a1.5 1.5 0 0 0 1.5 1.5h1a1.5 1.5 0 0 0 1.5-1.5v-1A1.5 1.5 0 0 0 3.5 8h-1ZM6.5 8a1.5 1.5 0 0 0-1.5 1.5v1a1.5 1.5 0 0 0 1.5 1.5h1A1.5 1.5 0 0 0 9 10.5v-1A1.5 1.5 0 0 0 7.5 8h-1ZM10.5 8a1.5 1.5 0 0 0-1.5 1.5v1a1.5 1.5 0 0 0 1.5 1.5h1a1.5 1.5 0 0 0 1.5-1.5v-1A1.5 1.5 0 0 0 11.5 8h-1Z" />
+    <path d="M2.5 4a1.5 1.5 0 0 0-1.5 1.5v1a1.5 1.5 0 0 0 1.5 1.5h1a1.5 1.5 0 0 0 1.5-1.5v-1A1.5 1.5 0 0 0 3.5 4h-1ZM6.5 4a1.5 1.5 0 0 0-1.5 1.5v1a1.5 1.5 0 0 0 1.5 1.5h1A1.5 1.5 0 0 0 9 6.5v-1A1.5 1.5 0 0 0 7.5 4h-1ZM10.5 4a1.5 1.5 0 0 0-1.5 1.5v1a1.5 1.5 0 0 0 1.5 1.5h1a1.5 1.5 0 0 0 1.5-1.5v-1A1.5 1.5 0 0 0 11.5 4h-1Z" />
+  </svg>
+);
 import { StepStatus, StepId, CurrentStepInfo } from '../types'; // Assuming types are here
 
 interface ControlsPanelProps {
@@ -22,6 +30,8 @@ interface ControlsPanelProps {
   onGenerateAppendix: () => void;
   isAppendixDataAvailable: boolean;
   onGenerateHtmlAppendix: () => void;
+  onOpenIrrModal?: () => void;
+  isIrrButtonDisabled?: boolean;
   showRetryWithNewSeedUI: boolean;
   retrySeedInput: string;
   onRetrySeedInputChange: (value: string) => void;
@@ -55,7 +65,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = (props) => {
         <button onClick={props.onOpenHilModal} disabled={isHilModalDisabled} className={`${secondaryButtonClasses} ${isHilModalDisabled ? disabledButtonClasses : ''}`} title="Provide guidance to correct and re-run current step."> {LightbulbIcon} <span>Guidance</span> </button>
         <button onClick={props.onDownloadOutput} disabled={isDownloadOutputDisabled} className={`${secondaryButtonClasses} ${isDownloadOutputDisabled ? disabledButtonClasses : ''}`}> {DownloadIcon} <span>DL Output</span> </button>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
           <div className="relative lg:col-span-1">
               <button id="dl-history-button" disabled={isDownloadHistoryDisabled} className={`${secondaryButtonClasses} w-full ${isDownloadHistoryDisabled ? disabledButtonClasses : ''}`} onClick={() => document.getElementById('history-dropdown')?.classList.toggle('hidden')}> {DownloadIcon} <span>DL History</span> {ChevronDownIcon} </button>
               <div id="history-dropdown" className="absolute z-10 mt-1 w-full bg-light-bg-alt dark:bg-dark-bg-alt border border-light-border dark:border-dark-border rounded-md shadow-lg hidden">
@@ -70,6 +80,18 @@ const ControlsPanel: React.FC<ControlsPanelProps> = (props) => {
                   <a href="#" onClick={(e)=>{e.preventDefault(); props.onGenerateHtmlAppendix();document.getElementById('appendix-dropdown')?.classList.add('hidden');}} className="block px-4 py-2 text-sm text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border">As HTML (.html)</a>
               </div>
           </div>
+          {props.onOpenIrrModal && (
+            <div className="lg:col-span-1">
+                <button 
+                  onClick={props.onOpenIrrModal} 
+                  disabled={props.isIrrButtonDisabled} 
+                  className={`${secondaryButtonClasses} w-full ${props.isIrrButtonDisabled ? disabledButtonClasses : ''}`} 
+                  title="Compare two independent analysis runs for inter-rater reliability"
+                > 
+                  {IrrIcon} <span>Compare Runs (IRR)</span> 
+                </button>
+            </div>
+          )}
       </div>
       {showRetryWithNewSeedUI && (
           <div className="p-3 border border-yellow-400 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-900 rounded-md space-y-2">

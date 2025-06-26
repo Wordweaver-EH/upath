@@ -1,0 +1,299 @@
+import React, { useState, useEffect } from 'react';
+import { P9_1_SemanticGduMapping, GduMappingDisplayItem, AppState, P3_2_IdentifiedGdu } from '../types';
+
+interface GduMappingModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  mappingProposal: P9_1_SemanticGduMapping;
+  runAState: AppState;
+  runBState: AppState;
+  onConfirmMapping: (confirmedMapping: Record<string, string | null>) => void;
+}
+
+const GduMappingModal: React.FC<GduMappingModalProps> = ({
+  isOpen,
+  onClose,
+  mappingProposal,
+  runAState,
+  runBState,
+  onConfirmMapping
+}) => {
+  const [userMappings, setUserMappings] = useState<Record<string, string | null>>({});
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+
+  // Initialize user mappings with LLM proposals
+  useEffect(() => {
+    if (mappingProposal) {
+      const initialMappings: Record<string, string | null> = {};
+      mappingProposal.gdu_mappings.forEach(mapping => {
+        initialMappings[mapping.run_a_gdu_id] = mapping.run_b_gdu_id;
+      });
+      setUserMappings(initialMappings);
+    }
+  }, [mappingProposal]);
+
+  if (!isOpen) return null;
+
+  // Helper function to build enhanced display items
+  const buildDisplayItems = (): GduMappingDisplayItem[] => {
+    const runBGdus = runBState.genericAnalysisState.p3_2_output?.identified_gdus || [];
+    
+    return mappingProposal.gdu_mappings.map(mapping => {
+      const availableRunBOptions = runBGdus.map(gdu => ({
+        gduId: gdu.gdu_id,
+        definition: gdu.definition,
+        contributingRduCount: gdu.contributing_refined_du_ids.length,
+        transcriptCount: new Set(gdu.contributing_refined_du_ids.map(c => c.transcript_id)).size
+      }));
+
+      const proposedGdu = runBGdus.find(g => g.gdu_id === mapping.run_b_gdu_id);
+
+      return {
+        runAGduId: mapping.run_a_gdu_id,
+        runADefinition: mapping.run_a_definition,
+        runAContributingRduCount: mapping.run_a_contributing_rdu_count,
+        runATranscriptCount: new Set(
+          runAState.genericAnalysisState.p3_2_output?.identified_gdus
+            ?.find(g => g.gdu_id === mapping.run_a_gdu_id)
+            ?.contributing_refined_du_ids.map(c => c.transcript_id) || []
+        ).size,
+        proposedRunBGduId: mapping.run_b_gdu_id,
+        proposedRunBDefinition: mapping.run_b_definition,
+        proposedRunBContributingRduCount: mapping.run_b_contributing_rdu_count,
+        proposedRunBTranscriptCount: proposedGdu ? new Set(proposedGdu.contributing_refined_du_ids.map(c => c.transcript_id)).size : 0,
+        semanticSimilarityScore: mapping.semantic_similarity_score,
+        mappingJustification: mapping.mapping_justification,
+        availableRunBOptions
+      };
+    });
+  };
+
+  const displayItems = buildDisplayItems();
+
+  const handleMappingChange = (runAGduId: string, selectedRunBGduId: string | null) => {
+    setUserMappings(prev => ({
+      ...prev,
+      [runAGduId]: selectedRunBGduId === '' ? null : selectedRunBGduId
+    }));
+  };
+
+  const toggleRowExpansion = (runAGduId: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(runAGduId)) {
+        newSet.delete(runAGduId);
+      } else {
+        newSet.add(runAGduId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleConfirm = () => {
+    onConfirmMapping(userMappings);
+  };
+
+  const getSelectedGduDetails = (runAGduId: string) => {
+    const selectedId = userMappings[runAGduId];
+    if (!selectedId) return null;
+    
+    const item = displayItems.find(d => d.runAGduId === runAGduId);
+    return item?.availableRunBOptions.find(opt => opt.gduId === selectedId);
+  };
+
+  const renderDefinitionCell = (definition: string, maxLength: number = 80) => {
+    const truncated = definition.length > maxLength ? definition.substring(0, maxLength) + '...' : definition;
+    
+    return (
+      <div title={definition} className="text-sm">
+        {truncated}
+      </div>
+    );
+  };
+
+  const renderExpandedDetails = (item: GduMappingDisplayItem) => {
+    const selectedDetails = getSelectedGduDetails(item.runAGduId);
+    
+    return (
+      <tr className="bg-gray-50">
+        <td colSpan={6} className="px-4 py-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Run A Details */}
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">Run A - {item.runAGduId}</h4>
+              <div className="text-sm text-gray-700 space-y-1">
+                <div><strong>Definition:</strong> {item.runADefinition}</div>
+                <div><strong>Contributing RDUs:</strong> {item.runAContributingRduCount}</div>
+                <div><strong>Transcripts:</strong> {item.runATranscriptCount}</div>
+              </div>
+            </div>
+            
+            {/* Run B Details */}
+            <div>
+              <h4 className="font-medium text-gray-900 mb-2">
+                Selected from Run B - {userMappings[item.runAGduId] || '[Unmatched]'}
+              </h4>
+              {selectedDetails ? (
+                <div className="text-sm text-gray-700 space-y-1">
+                  <div><strong>Definition:</strong> {selectedDetails.definition}</div>
+                  <div><strong>Contributing RDUs:</strong> {selectedDetails.contributingRduCount}</div>
+                  <div><strong>Transcripts:</strong> {selectedDetails.transcriptCount}</div>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 italic">No mapping selected</div>
+              )}
+            </div>
+          </div>
+          
+          {/* LLM Justification */}
+          <div className="mt-4">
+            <h4 className="font-medium text-gray-900 mb-2">LLM Mapping Justification</h4>
+            <div className="text-sm text-gray-700 bg-white p-3 rounded border">
+              {item.mappingJustification}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              Similarity Score: {(item.semanticSimilarityScore * 100).toFixed(1)}%
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-6 border-b">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-900">
+              Validate GDU Mappings
+            </h2>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+          <p className="text-gray-600 text-sm mt-2">
+            Review and adjust the LLM-proposed mappings between Run A and Run B GDUs. 
+            Click the expand button (↓) for full details and justification.
+          </p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          <table className="w-full">
+            <thead className="bg-gray-100 sticky top-0">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Run A GDU
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Definition (Run A)
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Context
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Mapped to Run B
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Confidence
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {displayItems.map((item) => (
+                <React.Fragment key={item.runAGduId}>
+                  <tr className="hover:bg-gray-50">
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => toggleRowExpansion(item.runAGduId)}
+                        className="text-gray-400 hover:text-gray-600 text-lg"
+                      >
+                        {expandedRows.has(item.runAGduId) ? '↑' : '↓'}
+                      </button>
+                    </td>
+                    
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {item.runAGduId}
+                      </div>
+                    </td>
+                    
+                    <td className="px-4 py-4">
+                      {renderDefinitionCell(item.runADefinition)}
+                    </td>
+                    
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div>{item.runAContributingRduCount} RDUs</div>
+                      <div>{item.runATranscriptCount} transcripts</div>
+                    </td>
+                    
+                    <td className="px-4 py-4">
+                      <select
+                        value={userMappings[item.runAGduId] || ''}
+                        onChange={(e) => handleMappingChange(item.runAGduId, e.target.value || null)}
+                        className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:border-blue-500 focus:outline-none"
+                      >
+                        <option value="">-- Unmatched --</option>
+                        {item.availableRunBOptions.map(option => (
+                          <option key={option.gduId} value={option.gduId}>
+                            {option.gduId} ({option.contributingRduCount} RDUs, {option.transcriptCount} transcripts)
+                          </option>
+                        ))}
+                      </select>
+                      {userMappings[item.runAGduId] && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          {getSelectedGduDetails(item.runAGduId)?.definition.substring(0, 60)}...
+                        </div>
+                      )}
+                    </td>
+                    
+                    <td className="px-4 py-4 whitespace-nowrap text-sm">
+                      <div className={`font-medium ${
+                        item.semanticSimilarityScore >= 0.8 ? 'text-green-600' :
+                        item.semanticSimilarityScore >= 0.6 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {(item.semanticSimilarityScore * 100).toFixed(0)}%
+                      </div>
+                    </td>
+                  </tr>
+                  
+                  {expandedRows.has(item.runAGduId) && renderExpandedDetails(item)}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="border-t p-6">
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-gray-600">
+              {Object.values(userMappings).filter(v => v !== null).length} of {displayItems.length} GDUs mapped
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirm}
+                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
+              >
+                Confirm Mapping
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default GduMappingModal;

@@ -7,7 +7,7 @@ import {
   RawTranscript, TranscriptProcessedData, GenericAnalysisState, StepId, StepStatus,
   PromptHistoryEntry, CurrentStepInfo, UserDVFocus, P2SPhaseData,
   P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_2_Output, P3_2_Classification, P3_2_IdentifiedGdu, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P6_1_Output, AppState, P7_3_Output, P7_3b_Output,
-  P0_1_Output, P0_2_Output, P0_3_Output, P_neg1_1_Output
+  P0_1_Output, P0_2_Output, P0_3_Output, P_neg1_1_Output, IrrWorkflowState, IrrResults, P9_1_SemanticGduMapping
 } from './types';
 import {
   STEP_CONFIGS, ALL_PIPELINE_STEP_IDS_IN_ORDER, ESSENTIAL_STEPS_FOR_AUTODOWNLOAD,
@@ -22,6 +22,8 @@ import {
 import { callGeminiAPI, isApiKeySet } from './services/geminiService';
 import { downloadFile, generateTsvForPromptHistory, genericJsonToTsv, generateTsvForP0_1, generateTsvForP0_2, generateTsvForP0_3, generateTsvForTranscriptDiachronic, generateTsvForTranscriptSynchronic } from './utils/tsvHelper';
 import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './utils/htmlHelper';
+import { buildCompleteUtteranceToGduMapping } from './utils/traceabilityHelper';
+import { calculateKrippendorffsAlpha, buildReliabilityMatrix, validateReliabilityMatrix } from './utils/statisticsHelper';
 import { generateMarkdownReportProgrammatically, ReportData } from './utils/reportHelper';
 import {
     transformDiachronicToMermaid, transformSynchronicToMermaid,
@@ -35,6 +37,8 @@ import ControlsPanel from './components/ControlsPanel';
 import StatusDisplay from './components/StatusDisplay';
 import HilModal from './components/HilModal';
 import PipelineOverview, { PipelineStepNode } from './components/PipelineOverview';
+import IRRModal from './components/IRRModal';
+import GduMappingModal from './components/GduMappingModal';
 
 
 const APP_VERSION = "1.9.1"; 
@@ -193,6 +197,18 @@ const App: React.FC = () => {
   const [isHilModalOpen, setIsHilModalOpen] = useState<boolean>(false);
   const [hilUserGuidance, setHilUserGuidance] = useState<string>('');
   const [hilContext, setHilContext] = useState<{ stepInfo: CurrentStepInfo; originalPrompt: string; previousResponse: string; } | null>(null);
+  
+  // IRR (Inter-Rater Reliability) state
+  const [irrWorkflowState, setIrrWorkflowState] = useState<IrrWorkflowState>({
+    isIrrModalOpen: false,
+    runA: null,
+    runB: null,
+    isMappingModalOpen: false,
+    mappingProposal: null,
+    confirmedMapping: null,
+    results: null,
+    loadingState: 'idle'
+  });
 
   const outputDisplayRef = useRef<HTMLDivElement | null>(null);
   const loadStateInputRef = useRef<HTMLInputElement>(null);
@@ -1582,6 +1598,197 @@ const App: React.FC = () => {
         catch (e) { return "Error displaying previous response."; }
     };
 
+    // IRR Workflow Handlers
+    const handleIrrStateUpdate = (updates: Partial<IrrWorkflowState>) => {
+      setIrrWorkflowState(prev => ({ ...prev, ...updates }));
+    };
+
+    const handleStartIrrComparison = async () => {
+      if (!irrWorkflowState.runA || !irrWorkflowState.runB) {
+        handleIrrStateUpdate({ loadingState: 'error', errorMessage: 'Both Run A and Run B must be loaded' });
+        return;
+      }
+
+      try {
+        // Check if GDU sets are identical (skip mapping step)
+        const runAGduIds = new Set(irrWorkflowState.runA.genericAnalysisState.p3_2_output?.identified_gdus?.map(g => g.gdu_id) || []);
+        const runBGduIds = new Set(irrWorkflowState.runB.genericAnalysisState.p3_2_output?.identified_gdus?.map(g => g.gdu_id) || []);
+        const intersection = new Set([...runAGduIds].filter(id => runBGduIds.has(id)));
+        const areIdentical = runAGduIds.size === runBGduIds.size && intersection.size === runAGduIds.size;
+
+        if (areIdentical) {
+          // Skip mapping step, proceed directly to calculation
+          const confirmedMapping: Record<string, string | null> = {};
+          runAGduIds.forEach(gduId => {
+            confirmedMapping[gduId] = gduId; // Identity mapping
+          });
+          
+          handleIrrStateUpdate({ confirmedMapping, loadingState: 'calculating' });
+          await calculateIrrResults(confirmedMapping);
+        } else {
+          // Need semantic mapping via LLM
+          handleIrrStateUpdate({ loadingState: 'calling-llm' });
+          await generateSemanticGduMapping();
+        }
+      } catch (error) {
+        handleIrrStateUpdate({ 
+          loadingState: 'error', 
+          errorMessage: `Failed to start comparison: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        });
+      }
+    };
+
+    const generateSemanticGduMapping = async () => {
+      if (!irrWorkflowState.runA || !irrWorkflowState.runB) return;
+
+      try {
+        // Build LLM prompt for semantic GDU mapping
+        const runAGdus = irrWorkflowState.runA.genericAnalysisState.p3_2_output?.identified_gdus || [];
+        const runBGdus = irrWorkflowState.runB.genericAnalysisState.p3_2_output?.identified_gdus || [];
+
+        const prompt = `You are analyzing two independent µ-PATH analysis runs to map semantically similar GDUs between them for inter-rater reliability calculation.
+
+**Run A GDUs (${runAGdus.length} total):**
+${runAGdus.map((gdu, i) => `${i + 1}. **${gdu.gdu_id}**: ${gdu.definition} (${gdu.contributing_refined_du_ids.length} RDUs, ${new Set(gdu.contributing_refined_du_ids.map(c => c.transcript_id)).size} transcripts)`).join('\n')}
+
+**Run B GDUs (${runBGdus.length} total):**
+${runBGdus.map((gdu, i) => `${i + 1}. **${gdu.gdu_id}**: ${gdu.definition} (${gdu.contributing_refined_du_ids.length} RDUs, ${new Set(gdu.contributing_refined_du_ids.map(c => c.transcript_id)).size} transcripts)`).join('\n')}
+
+For each Run A GDU, identify the most semantically similar Run B GDU. If no good match exists, indicate null.
+
+Respond with a JSON object following this exact structure:
+\`\`\`json
+{
+  "gdu_mappings": [
+    {
+      "run_a_gdu_id": "string",
+      "run_a_definition": "string", 
+      "run_a_contributing_rdu_count": number,
+      "run_b_gdu_id": "string or null",
+      "run_b_definition": "string or null",
+      "run_b_contributing_rdu_count": number,
+      "semantic_similarity_score": number,
+      "mapping_justification": "string"
+    }
+  ]
+}
+\`\`\`
+
+Guidelines:
+- semantic_similarity_score: 0.0-1.0 confidence in the mapping
+- Only map if semantic_similarity_score >= 0.3
+- Each Run B GDU can only be mapped once (1:1 mapping)
+- Prioritize definitional similarity over statistical similarity
+- mapping_justification: Brief explanation of why these GDUs are semantically similar or why no match exists`;
+
+        const response = await callGeminiAPI(prompt, undefined, temperature, seed);
+        
+        if (!response.success) {
+          throw new Error(response.error || 'Failed to generate semantic mapping');
+        }
+
+        // Parse and validate the mapping response
+        let mappingProposal: P9_1_SemanticGduMapping;
+        try {
+          mappingProposal = JSON.parse(response.response);
+          if (!mappingProposal.gdu_mappings || !Array.isArray(mappingProposal.gdu_mappings)) {
+            throw new Error('Invalid mapping structure');
+          }
+        } catch (parseError) {
+          throw new Error(`Failed to parse mapping response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`);
+        }
+
+        // Show mapping modal for human validation
+        handleIrrStateUpdate({ 
+          mappingProposal,
+          isMappingModalOpen: true,
+          loadingState: 'idle' 
+        });
+
+      } catch (error) {
+        handleIrrStateUpdate({ 
+          loadingState: 'error', 
+          errorMessage: `Failed to generate semantic mapping: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        });
+      }
+    };
+
+    const handleConfirmGduMapping = async (confirmedMapping: Record<string, string | null>) => {
+      handleIrrStateUpdate({ 
+        confirmedMapping,
+        isMappingModalOpen: false,
+        loadingState: 'calculating' 
+      });
+      
+      await calculateIrrResults(confirmedMapping);
+    };
+
+    const calculateIrrResults = async (confirmedMapping: Record<string, string | null>) => {
+      if (!irrWorkflowState.runA || !irrWorkflowState.runB) return;
+
+      try {
+        // Build utterance-to-GDU mappings for both runs
+        const runAProcessedDataMap = new Map(irrWorkflowState.runA.processedDataArray);
+        const runBProcessedDataMap = new Map(irrWorkflowState.runB.processedDataArray);
+
+        const runAMappings = buildCompleteUtteranceToGduMapping(
+          runAProcessedDataMap, 
+          irrWorkflowState.runA.genericAnalysisState.p3_2_output
+        );
+        
+        const runBMappings = buildCompleteUtteranceToGduMapping(
+          runBProcessedDataMap, 
+          irrWorkflowState.runB.genericAnalysisState.p3_2_output
+        );
+
+        // Build GDU mapping for the reliability matrix
+        const gduMapping = new Map<string, string | null>();
+        Object.entries(confirmedMapping).forEach(([runAGdu, runBGdu]) => {
+          gduMapping.set(runAGdu, runBGdu);
+        });
+
+        // Build reliability matrix
+        const reliabilityMatrix = buildReliabilityMatrix(runAMappings, runBMappings, gduMapping);
+        
+        // Validate matrix
+        const matrixValidation = validateReliabilityMatrix(reliabilityMatrix);
+        
+        // Calculate Krippendorff's Alpha
+        const alphaResult = calculateKrippendorffsAlpha(reliabilityMatrix);
+
+        // Count statistics
+        const totalUtterances = reliabilityMatrix.length;
+        const mappedGdus = Object.values(confirmedMapping).filter(v => v !== null).length;
+        const unmappedGdusRunA = Object.values(confirmedMapping).filter(v => v === null).length;
+        const runBGduIds = new Set(irrWorkflowState.runB.genericAnalysisState.p3_2_output?.identified_gdus?.map(g => g.gdu_id) || []);
+        const mappedRunBGdus = new Set(Object.values(confirmedMapping).filter(v => v !== null));
+        const unmappedGdusRunB = runBGduIds.size - mappedRunBGdus.size;
+
+        const results: IrrResults = {
+          alpha_score: alphaResult.alpha,
+          interpretation: alphaResult.interpretation,
+          total_utterances: totalUtterances,
+          mapped_gdus: mappedGdus,
+          unmapped_gdus_run_a: unmappedGdusRunA,
+          unmapped_gdus_run_b: unmappedGdusRunB,
+          observed_disagreement: alphaResult.observedDisagreement,
+          expected_disagreement: alphaResult.expectedDisagreement,
+          matrix_validation: matrixValidation
+        };
+
+        handleIrrStateUpdate({ 
+          results,
+          loadingState: 'complete' 
+        });
+
+      } catch (error) {
+        handleIrrStateUpdate({ 
+          loadingState: 'error', 
+          errorMessage: `Failed to calculate IRR: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        });
+      }
+    };
+
     const handleHilSubmit = () => {
       if (hilContext && hilUserGuidance.trim()) {
         const { stepInfo, originalPrompt } = hilContext;
@@ -1709,6 +1916,8 @@ Based on this guidance, please re-attempt the original task. Your output MUST st
               onGenerateAppendix={() => handleGenerateAppendix('markdown')}
               isAppendixDataAvailable={rawTranscripts.length > 0 && genericAnalysisState.isReportGenerated}
               onGenerateHtmlAppendix={() => handleGenerateAppendix('html')}
+              onOpenIrrModal={() => handleIrrStateUpdate({ isIrrModalOpen: true })}
+              isIrrButtonDisabled={false}
               showRetryWithNewSeedUI={currentStepInfo.status === StepStatus.Error && !!currentStepInfo.error?.match(/parse JSON/i)}
               retrySeedInput={retrySeedInput} onRetrySeedInputChange={setRetrySeedInput} onRetryWithUserSeed={handleRetryWithUserSeed}
               inputBaseClasses={inputBaseClasses} primaryButtonClasses={primaryButtonClasses} secondaryButtonClasses={secondaryButtonClasses} disabledButtonClasses={disabledButtonClasses}
@@ -1726,6 +1935,26 @@ Based on this guidance, please re-attempt the original task. Your output MUST st
           </div>
         </div>
       </main>
+
+      {/* IRR Analysis Modals */}
+      <IRRModal
+        isOpen={irrWorkflowState.isIrrModalOpen}
+        onClose={() => handleIrrStateUpdate({ isIrrModalOpen: false })}
+        irrState={irrWorkflowState}
+        onStateUpdate={handleIrrStateUpdate}
+        onStartComparison={handleStartIrrComparison}
+      />
+
+      {irrWorkflowState.mappingProposal && irrWorkflowState.runA && irrWorkflowState.runB && (
+        <GduMappingModal
+          isOpen={irrWorkflowState.isMappingModalOpen}
+          onClose={() => handleIrrStateUpdate({ isMappingModalOpen: false })}
+          mappingProposal={irrWorkflowState.mappingProposal}
+          runAState={irrWorkflowState.runA}
+          runBState={irrWorkflowState.runB}
+          onConfirmMapping={handleConfirmGduMapping}
+        />
+      )}
 
       <HilModal
         isOpen={isHilModalOpen} onClose={() => setIsHilModalOpen(false)} hilContext={hilContext}

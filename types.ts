@@ -628,6 +628,9 @@ export enum StepId {
   // Part VI: Report Generation
   P6_1_GENERATE_MARKDOWN_REPORT = "P6_1_GENERATE_MARKDOWN_REPORT",
 
+  // Part IX: Inter-Rater Reliability Analysis
+  P9_1_SEMANTIC_GDU_MAPPING = "P9_1_SEMANTIC_GDU_MAPPING",
+
   // Meta states
   IDLE = "IDLE",
   ALL_TRANSCRIPTS_VARIABLE_ID_DONE = "ALL_TRANSCRIPTS_VARIABLE_ID_DONE",
@@ -666,4 +669,85 @@ export interface AppState {
   totalOutputTokens: number;
   elapsedTime: number;
   // processStartTime is not saved as it's transient for the current session's timer
+}
+
+// === Inter-Rater Reliability (IRR) Module Types ===
+
+/**
+ * For P9.1 step - Semantic GDU Mapping between two analysis runs
+ */
+export interface P9_1_SemanticGduMapping {
+  gdu_mappings: Array<{
+    run_a_gdu_id: string;
+    run_a_definition: string;
+    run_a_contributing_rdu_count: number; // Number of RDUs contributing to this GDU
+    run_b_gdu_id: string | null; // null if no semantic match found
+    run_b_definition: string | null;
+    run_b_contributing_rdu_count: number;
+    semantic_similarity_score: number; // 0-1 confidence score from LLM
+    mapping_justification: string;
+  }>;
+}
+
+/**
+ * Output type for P9.1 step
+ */
+export interface P9_1_Output extends P9_1_SemanticGduMapping {
+  // Inherits gdu_mappings array
+}
+
+/**
+ * Results of Inter-Rater Reliability analysis
+ */
+export interface IrrResults {
+  alpha_score: number; // Krippendorff's Alpha coefficient
+  interpretation: string; // Qualitative interpretation (e.g., "Excellent reliability")
+  total_utterances: number; // Total utterances analyzed
+  mapped_gdus: number; // Number of GDUs successfully mapped between runs
+  unmapped_gdus_run_a: number; // GDUs in Run A with no match in Run B
+  unmapped_gdus_run_b: number; // GDUs in Run B with no match in Run A
+  observed_disagreement: number; // Raw observed disagreement
+  expected_disagreement: number; // Expected disagreement by chance
+  matrix_validation: {
+    isValid: boolean;
+    warnings: string[];
+    errors: string[];
+  };
+}
+
+/**
+ * Consolidated state for the IRR workflow
+ */
+export interface IrrWorkflowState {
+  isIrrModalOpen: boolean;
+  runA: AppState | null; // Loaded state file for Run A
+  runB: AppState | null; // Loaded state file for Run B
+  isMappingModalOpen: boolean;
+  mappingProposal: P9_1_SemanticGduMapping | null; // LLM-proposed GDU mappings
+  confirmedMapping: Record<string, string | null> | null; // User-confirmed mappings (RunA_GDU_ID -> RunB_GDU_ID)
+  results: IrrResults | null; // Final IRR calculation results
+  loadingState: 'idle' | 'loading-files' | 'calling-llm' | 'calculating' | 'complete' | 'error';
+  errorMessage?: string;
+}
+
+/**
+ * Enhanced GDU mapping item for UI display with additional context
+ */
+export interface GduMappingDisplayItem {
+  runAGduId: string;
+  runADefinition: string;
+  runAContributingRduCount: number;
+  runATranscriptCount: number;
+  proposedRunBGduId: string | null;
+  proposedRunBDefinition: string | null;
+  proposedRunBContributingRduCount: number;
+  proposedRunBTranscriptCount: number;
+  semanticSimilarityScore: number;
+  mappingJustification: string;
+  availableRunBOptions: Array<{
+    gduId: string;
+    definition: string;
+    contributingRduCount: number;
+    transcriptCount: number;
+  }>;
 }
