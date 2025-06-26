@@ -414,14 +414,40 @@ const App: React.FC = () => {
         if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || p2sOutputForCurrentPhaseAndStepExists) {
             if (currentP2SStepIndex < STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.length - 1) return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[currentP2SStepIndex + 1], nextTranscriptIndex: activeTranscriptIndex };
             if (currentStepInfo.stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
-                // Fixed: Check isFullyProcessedSpecificSynchronic to avoid stale state bug
-                if (!currentTData.isFullyProcessedSpecificSynchronic) {
-                    return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex }; // Next phase for P2S.1
+                // Predictive logic fix: Use fresh currentStepInfo data to determine actual completion
+                const justCompletedPhase = currentStepInfo.currentPhaseForP2S;
+                const allPhases = currentTData.phases_for_p2s_processing || [];
+                const staleProcessedPhases = currentTData.processed_phases_for_p2s || [];
+                
+                // Build the ACTUAL list of completed phases by adding the just-completed phase
+                const actualCompletedPhases = justCompletedPhase 
+                    ? [...new Set([...staleProcessedPhases, justCompletedPhase])]
+                    : staleProcessedPhases;
+                
+                // Now we can accurately determine if all phases are complete
+                const allPhasesComplete = allPhases.length > 0 && 
+                    allPhases.every(phase => actualCompletedPhases.includes(phase));
+                
+                if (!allPhasesComplete && allPhases.length > 0) {
+                    // More phases to process
+                    return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex };
                 } else {
                     // This transcript is done with P2S. Move to the next transcript or Part 3.
-                    if (activeTranscriptIndex < rawTranscripts.length - 1) return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: activeTranscriptIndex + 1 }; // Next transcript for P1.1
-                    if (rawTranscripts.every(rt => { const d=processedData.get(rt.id); return d&&d.isFullyProcessedSpecificDiachronic&& (d.isFullyProcessedSpecificSynchronic||!d.phases_for_p2s_processing?.length); }))
-                      return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0], nextTranscriptIndex: 0 }; // All P1/P2S done, move to P3
+                    if (activeTranscriptIndex < rawTranscripts.length - 1) {
+                        return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: activeTranscriptIndex + 1 };
+                    }
+                    
+                    // Check if all OTHER transcripts are complete (we know current one is done)
+                    const allOtherTranscriptsComplete = rawTranscripts.every((rt, idx) => {
+                        if (idx === activeTranscriptIndex) return true; // Current transcript is done
+                        const d = processedData.get(rt.id);
+                        return d && d.isFullyProcessedSpecificDiachronic && 
+                               (d.isFullyProcessedSpecificSynchronic || !d.phases_for_p2s_processing?.length);
+                    });
+                    
+                    if (allOtherTranscriptsComplete) {
+                        return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0], nextTranscriptIndex: 0 };
+                    }
                 }
             }
         }
