@@ -3,6 +3,9 @@ import { mapUtteranceToGdu } from '../traceabilityHelper';
 import { calculateKrippendorffsAlpha, type ReliabilityMatrix } from '../statisticsHelper';
 import type { TranscriptProcessedData, P3_2_Output } from '../../types';
 
+// Import the validation function to test it
+import { validateAndCleanP3_2_Output } from '../../constants';
+
 describe('Bug Fixes Verification', () => {
   describe('Deterministic GDU Ordering', () => {
     it('should return GDUs in sorted order for consistent results', () => {
@@ -196,6 +199,142 @@ describe('Bug Fixes Verification', () => {
       // This should cause a TypeScript error if 'category_mismatch' were still valid
       const invalidType: 'assignment_count' | 'partial_overlap' | 'no_overlap' = 'assignment_count';
       expect(typeof invalidType).toBe('string');
+    });
+  });
+
+  describe('P3.2 Duplicate RDU Validation', () => {
+    it('should enforce first-assignment-wins for duplicate RDU assignments', () => {
+      const outputWithDuplicates = {
+        identified_gdus: [
+          {
+            gdu_id: 'GDU_A',
+            definition: 'First GDU',
+            supporting_transcripts_count: 1,
+            contributing_refined_du_ids: [
+              { transcript_id: 'tx1', refined_du_id: 'rdu1' },
+              { transcript_id: 'tx1', refined_du_id: 'rdu2' }
+            ]
+          },
+          {
+            gdu_id: 'GDU_B', 
+            definition: 'Second GDU',
+            supporting_transcripts_count: 1,
+            contributing_refined_du_ids: [
+              { transcript_id: 'tx1', refined_du_id: 'rdu1' }, // Duplicate - should be filtered
+              { transcript_id: 'tx1', refined_du_id: 'rdu3' }
+            ]
+          }
+        ],
+        criteria_for_gdu_identification: 'Test criteria',
+        dependent_variable_focus: [],
+        tot_rdus: 3
+      };
+
+      const cleanedOutput = validateAndCleanP3_2_Output(outputWithDuplicates, 3);
+
+      // GDU_A should keep rdu1 (first assignment wins)
+      expect(cleanedOutput.identified_gdus[0].contributing_refined_du_ids).toHaveLength(2);
+      expect(cleanedOutput.identified_gdus[0].contributing_refined_du_ids).toContainEqual(
+        { transcript_id: 'tx1', refined_du_id: 'rdu1' }
+      );
+
+      // GDU_B should lose rdu1 but keep rdu3  
+      expect(cleanedOutput.identified_gdus[1].contributing_refined_du_ids).toHaveLength(1);
+      expect(cleanedOutput.identified_gdus[1].contributing_refined_du_ids).not.toContainEqual(
+        { transcript_id: 'tx1', refined_du_id: 'rdu1' }
+      );
+      expect(cleanedOutput.identified_gdus[1].contributing_refined_du_ids).toContainEqual(
+        { transcript_id: 'tx1', refined_du_id: 'rdu3' }
+      );
+    });
+
+    it('should handle complex duplicate scenarios correctly', () => {
+      const outputWithMultipleDuplicates = {
+        identified_gdus: [
+          {
+            gdu_id: 'GDU_A',
+            definition: 'First GDU',
+            supporting_transcripts_count: 1,
+            contributing_refined_du_ids: [
+              { transcript_id: 'tx1', refined_du_id: 'rdu1' },
+              { transcript_id: 'tx2', refined_du_id: 'rdu2' }
+            ]
+          },
+          {
+            gdu_id: 'GDU_B',
+            definition: 'Second GDU', 
+            supporting_transcripts_count: 1,
+            contributing_refined_du_ids: [
+              { transcript_id: 'tx1', refined_du_id: 'rdu1' }, // Duplicate
+              { transcript_id: 'tx2', refined_du_id: 'rdu2' }, // Duplicate
+              { transcript_id: 'tx1', refined_du_id: 'rdu3' }
+            ]
+          },
+          {
+            gdu_id: 'GDU_C',
+            definition: 'Third GDU',
+            supporting_transcripts_count: 1, 
+            contributing_refined_du_ids: [
+              { transcript_id: 'tx1', refined_du_id: 'rdu3' }, // Duplicate
+              { transcript_id: 'tx2', refined_du_id: 'rdu4' }
+            ]
+          }
+        ],
+        criteria_for_gdu_identification: 'Test criteria',
+        dependent_variable_focus: [],
+        tot_rdus: 4
+      };
+
+      const cleanedOutput = validateAndCleanP3_2_Output(outputWithMultipleDuplicates, 4);
+
+      // Verify each RDU appears exactly once across all GDUs
+      const allRduKeys = new Set<string>();
+      cleanedOutput.identified_gdus.forEach((gdu: any) => {
+        gdu.contributing_refined_du_ids.forEach((rdu: any) => {
+          const key = `${rdu.transcript_id}|${rdu.refined_du_id}`;
+          expect(allRduKeys.has(key)).toBe(false); // Should not already exist
+          allRduKeys.add(key);
+        });
+      });
+
+      // Should have exactly 4 unique RDU assignments
+      expect(allRduKeys.size).toBe(4);
+      expect(allRduKeys).toContain('tx1|rdu1');
+      expect(allRduKeys).toContain('tx2|rdu2'); 
+      expect(allRduKeys).toContain('tx1|rdu3');
+      expect(allRduKeys).toContain('tx2|rdu4');
+    });
+
+    it('should preserve other GDU properties while cleaning duplicates', () => {
+      const outputWithDuplicates = {
+        identified_gdus: [
+          {
+            gdu_id: 'GDU_A',
+            definition: 'First GDU',
+            supporting_transcripts_count: 2,
+            iv_variation_notes: 'Some variation notes',
+            contributing_refined_du_ids: [
+              { transcript_id: 'tx1', refined_du_id: 'rdu1' }
+            ]
+          }
+        ],
+        criteria_for_gdu_identification: 'Test criteria',
+        dependent_variable_focus: ['dv1', 'dv2'],
+        tot_rdus: 1
+      };
+
+      const cleanedOutput = validateAndCleanP3_2_Output(outputWithDuplicates, 1);
+
+      // Should preserve all other properties
+      expect(cleanedOutput.criteria_for_gdu_identification).toBe('Test criteria');
+      expect(cleanedOutput.dependent_variable_focus).toEqual(['dv1', 'dv2']);
+      expect(cleanedOutput.tot_rdus).toBe(1);
+      
+      const gdu = cleanedOutput.identified_gdus[0];
+      expect(gdu.gdu_id).toBe('GDU_A');
+      expect(gdu.definition).toBe('First GDU');
+      expect(gdu.supporting_transcripts_count).toBe(2);
+      expect(gdu.iv_variation_notes).toBe('Some variation notes');
     });
   });
 });

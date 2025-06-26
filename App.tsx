@@ -1013,11 +1013,15 @@ const App: React.FC = () => {
             });
         }
     } else if (stepId === StepId.P3_2_IDENTIFY_GDUS && output) {
-        // All approaches now produce the original schema directly - no aggregation needed
+        // All approaches now produce the original schema directly - validate and clean for duplicates
         console.log(`[P3.2 ${P3_2_APPROACH}] Using direct output from LLM with original schema`);
         
-        // All approaches now output the same P3_2_Output structure
-        const p3_2_output = output as P3_2_Output;
+        // Apply defensive validation - clean any duplicate RDU assignments with first-assignment-wins
+        const cleanedOutput = STEP_CONFIGS[StepId.P3_2_IDENTIFY_GDUS].validateAndClean 
+            ? STEP_CONFIGS[StepId.P3_2_IDENTIFY_GDUS].validateAndClean(output, 0)
+            : output;
+        
+        const p3_2_output = cleanedOutput as P3_2_Output;
         
         setGenericAnalysisState(prev => ({
             ...prev,

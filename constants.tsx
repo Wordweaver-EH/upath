@@ -11,26 +11,38 @@ export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash-preview-04-17';
 // Feature flag for P3_2 implementation approach
 export const P3_2_APPROACH = process.env.REACT_APP_P3_2_APPROACH || 'original';
              
-             // Optional runtime validator for strict P3_2 schema compliance
-             function validateStrictP3_2_Output(output: any, expectedTotRdus: number): void {
-                 if (!output || !Array.isArray(output.identified_gdus)) {
-                     throw new Error('No GDUs array found in output');
-                 }
-                 
-                 const seen = new Set<string>();
-                 output.identified_gdus.forEach((gdu: any) => {
-                     if (!Array.isArray(gdu.contributing_refined_du_ids)) {
-                         throw new Error(`GDU ${gdu.gdu_id} missing contributing_refined_du_ids array`);
-                     }
-                     
-                     gdu.contributing_refined_du_ids.forEach((item: any) => {
-                         const key = `${item.transcript_id}|${item.refined_du_id}`;
-                         if (seen.has(key)) {
-                             throw new Error(`Duplicate RDU reference: ${key}`);
-                         }
-                         seen.add(key);
-                     });
-                 });
+             // Optional runtime validator for strict P3_2 schema compliance with defensive duplicate handling
+export function validateAndCleanP3_2_Output(output: any, expectedTotRdus: number): any {
+    if (!output || !Array.isArray(output.identified_gdus)) {
+        throw new Error('No GDUs array found in output');
+    }
+    
+    const seen = new Set<string>();
+    const cleanedGdus = output.identified_gdus.map((gdu: any) => {
+        if (!Array.isArray(gdu.contributing_refined_du_ids)) {
+            throw new Error(`GDU ${gdu.gdu_id} missing contributing_refined_du_ids array`);
+        }
+        
+        const cleanedContributions = gdu.contributing_refined_du_ids.filter((item: any) => {
+            const key = `${item.transcript_id}|${item.refined_du_id}`;
+            if (seen.has(key)) {
+                console.warn(`[P3.2 VALIDATION] Duplicate RDU assignment for '${key}' to GDU '${gdu.gdu_id}'. Ignoring subsequent assignment (first-assignment-wins).`);
+                return false; // Filter out this duplicate
+            }
+            seen.add(key);
+            return true; // Keep this assignment
+        });
+        
+        return {
+            ...gdu,
+            contributing_refined_du_ids: cleanedContributions
+        };
+    });
+    
+    return {
+        ...output,
+        identified_gdus: cleanedGdus
+    };
                  
                  if (seen.size !== expectedTotRdus) {
                      throw new Error(`Expected ${expectedTotRdus} RDUs, got ${seen.size}`);
@@ -387,6 +399,8 @@ Instructions:
     *   \`iv_variation_notes\` (Optional): Observations on how the manifestation of this GDU (e.g., frequency, specific content of its DUs) varies with the \`independent_variable_details\` of the supporting transcripts.
     *   \`contributing_refined_du_ids\`: An array of objects, where each object specifies a \`transcript_id\` and the \`refined_du_id\` (this is the \`unit_id\` from the P1.3 \`refined_diachronic_units\` object) that contributes to this GDU. This is crucial for traceability.
 3.  Criteria: Briefly state the criteria used for GDU abstraction and identification.
+
+**CRITICAL CONSTRAINT**: Each refined DU (identified by transcript_id + refined_du_id) must appear in **exactly one** GDU's contributing_refined_du_ids list. No refined DU can be assigned to multiple GDUs.
 
 Output:
 A JSON object adhering EXACTLY to the following structure:
@@ -1467,6 +1481,7 @@ A JSON object adhering EXACTLY to the following structure:
           return generateOriginalP3_2_Prompt;
       }
     })(),
+    validateAndClean: validateAndCleanP3_2_Output,
   },
   [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: {
     id: StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE,
