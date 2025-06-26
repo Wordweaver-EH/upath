@@ -123,12 +123,10 @@ function extractPairableValues(matrix: ReliabilityMatrix): Array<[string, string
         // Get all non-null values in this row
         const nonNullValues = row.filter((value): value is string => value !== null);
         
-        // Create all possible pairs from this row
+        // Create all possible pairs from this row (standard Krippendorff's approach)
         for (let i = 0; i < nonNullValues.length; i++) {
             for (let j = i + 1; j < nonNullValues.length; j++) {
                 pairs.push([nonNullValues[i], nonNullValues[j]]);
-                // Add reverse pair for symmetry in calculation
-                pairs.push([nonNullValues[j], nonNullValues[i]]);
             }
         }
     }
@@ -186,6 +184,7 @@ function calculateExpectedDisagreement(
         categoryFreq.set(category, 0);
     }
     
+    // Count each value in pairs (each appears once per pair it's in)
     for (const [v1, v2] of pairableValues) {
         categoryFreq.set(v1, (categoryFreq.get(v1) || 0) + 1);
         categoryFreq.set(v2, (categoryFreq.get(v2) || 0) + 1);

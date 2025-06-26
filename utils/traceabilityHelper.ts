@@ -154,7 +154,8 @@ export function mapUtteranceToGdu(
         }
 
         if (assignedGdus.size > 0) {
-            utteranceToGduMap.set(utteranceKey, Array.from(assignedGdus));
+            // Sort to ensure deterministic ordering
+            utteranceToGduMap.set(utteranceKey, Array.from(assignedGdus).sort());
         }
     }
 

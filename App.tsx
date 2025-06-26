@@ -24,6 +24,7 @@ import { downloadFile, generateTsvForPromptHistory, genericJsonToTsv, generateTs
 import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './utils/htmlHelper';
 import { buildCompleteUtteranceToGduMapping } from './utils/traceabilityHelper';
 import { calculateKrippendorffsAlpha, buildReliabilityMatrix, validateReliabilityMatrix } from './utils/statisticsHelper';
+import { generateDisagreementReport, disagreementReportToCsv, disagreementReportToMarkdown } from './utils/irrReportHelper';
 import { generateMarkdownReportProgrammatically, ReportData } from './utils/reportHelper';
 import {
     transformDiachronicToMermaid, transformSynchronicToMermaid,
@@ -1789,6 +1790,30 @@ Guidelines:
       }
     };
 
+    const handleDownloadDisagreementReport = () => {
+      if (!irrWorkflowState.results || !irrWorkflowState.runA || !irrWorkflowState.runB || !irrWorkflowState.confirmedMapping) {
+        alert('Cannot generate disagreement report: IRR analysis must be completed first');
+        return;
+      }
+
+      try {
+        const disagreementReport = generateDisagreementReport(irrWorkflowState, irrWorkflowState.results);
+        
+        // Generate both CSV and Markdown versions
+        const csvContent = disagreementReportToCsv(disagreementReport);
+        const markdownContent = disagreementReportToMarkdown(disagreementReport);
+        
+        // Download both files
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+        downloadFile(csvContent, `${outputDirectory}/irr_disagreement_report_${timestamp}.csv`, 'text/csv;charset=utf-8');
+        downloadFile(markdownContent, `${outputDirectory}/irr_disagreement_report_${timestamp}.md`, 'text/markdown;charset=utf-8');
+        
+        alert(`Disagreement report downloaded in both CSV and Markdown formats!\n\nSummary:\n- Total utterances: ${disagreementReport.summary.totalUtterances}\n- Disagreements: ${disagreementReport.summary.disagreements}\n- Agreement rate: ${(disagreementReport.summary.agreementRate * 100).toFixed(1)}%`);
+      } catch (error) {
+        alert(`Failed to generate disagreement report: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    };
+
     const handleHilSubmit = () => {
       if (hilContext && hilUserGuidance.trim()) {
         const { stepInfo, originalPrompt } = hilContext;
@@ -1943,6 +1968,7 @@ Based on this guidance, please re-attempt the original task. Your output MUST st
         irrState={irrWorkflowState}
         onStateUpdate={handleIrrStateUpdate}
         onStartComparison={handleStartIrrComparison}
+        onDownloadDisagreementReport={handleDownloadDisagreementReport}
       />
 
       {irrWorkflowState.mappingProposal && irrWorkflowState.runA && irrWorkflowState.runB && (

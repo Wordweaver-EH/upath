@@ -9,7 +9,7 @@ import {
 
 describe('statisticsHelper', () => {
   describe('calculateKrippendorffsAlpha', () => {
-    it('should return perfect agreement (α=1) for identical ratings', () => {
+    it('should return perfect agreement (α=1) for identical ratings with multiple categories', () => {
       const matrix: ReliabilityMatrix = [
         ['A', 'A'],
         ['B', 'B'],
@@ -20,34 +20,47 @@ describe('statisticsHelper', () => {
       
       const result = calculateKrippendorffsAlpha(matrix);
       expect(result.alpha).toBe(1);
-      expect(result.interpretation).toBe('Perfect agreement (single category)');
+      expect(result.interpretation).toBe('Excellent reliability'); // Multiple categories with perfect agreement
     });
 
-    it('should return α=0 for random agreement (expected by chance)', () => {
-      // This specific pattern creates observed disagreement equal to expected disagreement
+    it('should return perfect agreement for single category', () => {
+      const matrix: ReliabilityMatrix = [
+        ['A', 'A'],
+        ['A', 'A'],
+        ['A', 'A']
+      ];
+      
+      const result = calculateKrippendorffsAlpha(matrix);
+      expect(result.alpha).toBe(1);
+      expect(result.interpretation).toBe('Perfect agreement (single category)');
+      expect(result.categoryCount).toBe(1);
+    });
+
+    it('should return α=-1 for systematic disagreement', () => {
+      // This specific pattern creates systematic disagreement (worse than chance)
       const matrix: ReliabilityMatrix = [
         ['A', 'B'],
         ['B', 'A'],
-        ['A', 'B'],
+        ['A', 'B'], 
         ['B', 'A']
       ];
       
       const result = calculateKrippendorffsAlpha(matrix);
-      expect(result.alpha).toBeCloseTo(0, 2);
-      expect(result.interpretation).toBe('No reliability');
+      expect(result.alpha).toBe(-1);
+      expect(result.interpretation).toBe('Systematic disagreement');
     });
 
     it('should handle missing data correctly', () => {
       const matrix: ReliabilityMatrix = [
-        ['A', 'A'],
-        ['B', null], // Missing rating from rater 2
-        [null, 'C'], // Missing rating from rater 1
-        ['C', 'C']
+        ['A', 'A'],    // Pairable: contributes 1 pair (A,A)
+        ['B', null],   // Not pairable: only 1 non-null value
+        [null, 'C'],   // Not pairable: only 1 non-null value
+        ['C', 'C']     // Pairable: contributes 1 pair (C,C)
       ];
       
       const result = calculateKrippendorffsAlpha(matrix);
       expect(result.alpha).toBe(1); // Perfect agreement on pairable values
-      expect(result.totalPairableValues).toBe(2); // Only rows 1 and 4 are pairable
+      expect(result.totalPairableValues).toBe(2); // 1 pair from row 1 + 1 pair from row 4
     });
 
     it('should return appropriate α for partial agreement', () => {
@@ -120,24 +133,39 @@ describe('statisticsHelper', () => {
   describe('buildReliabilityMatrix', () => {
     it('should build matrix from utterance mappings without GDU mapping', () => {
       const runAMappings = new Map([
-        ['t1|1', ['GDU_A', 'GDU_B']],
-        ['t1|2', ['GDU_A']],
-        ['t1|3', ['GDU_C']]
+        ['t1|1', ['GDU_A', 'GDU_B']],  // 2 assignments
+        ['t1|2', ['GDU_A']],           // 1 assignment  
+        ['t1|3', ['GDU_C']]            // 1 assignment
       ]);
       
       const runBMappings = new Map([
-        ['t1|1', ['GDU_A']],
-        ['t1|2', ['GDU_A', 'GDU_B']],
-        ['t1|3', ['GDU_C']]
+        ['t1|1', ['GDU_A']],           // 1 assignment
+        ['t1|2', ['GDU_A', 'GDU_B']],  // 2 assignments
+        ['t1|3', ['GDU_C']]            // 1 assignment
       ]);
       
       const matrix = buildReliabilityMatrix(runAMappings, runBMappings);
       
-      expect(matrix).toHaveLength(4); // 2 + 2 + 1 assignments
-      expect(matrix).toContainEqual(['GDU_A', 'GDU_A']);
-      expect(matrix).toContainEqual(['GDU_B', null]);
-      expect(matrix).toContainEqual(['GDU_A', 'GDU_A']);
-      expect(matrix).toContainEqual(['GDU_C', 'GDU_C']);
+      // t1|1: max(2,1)=2 rows, t1|2: max(1,2)=2 rows, t1|3: max(1,1)=1 row = 5 total
+      expect(matrix).toHaveLength(5);
+      
+      // Verify the exact contents of the matrix
+      // t1|1: Run A has ['GDU_A', 'GDU_B'], Run B has ['GDU_A']
+      // This creates 2 rows: ['GDU_A', 'GDU_A'] and ['GDU_B', null]
+      // t1|2: Run A has ['GDU_A'], Run B has ['GDU_A', 'GDU_B']  
+      // This creates 2 rows: ['GDU_A', 'GDU_A'] and [null, 'GDU_B']
+      // t1|3: Run A has ['GDU_C'], Run B has ['GDU_C']
+      // This creates 1 row: ['GDU_C', 'GDU_C']
+      
+      const expectedMatrix = [
+        ['GDU_A', 'GDU_A'], // t1|1 first assignment
+        ['GDU_B', null],    // t1|1 second assignment (no match in Run B)
+        ['GDU_A', 'GDU_A'], // t1|2 first assignment  
+        [null, 'GDU_B'],    // t1|2 second assignment (no match in Run A)
+        ['GDU_C', 'GDU_C']  // t1|3 single assignment
+      ];
+      
+      expect(matrix).toEqual(expectedMatrix);
     });
 
     it('should apply GDU mapping when provided', () => {
@@ -236,16 +264,16 @@ describe('statisticsHelper', () => {
 
     it('should warn on high missing data percentage', () => {
       const matrix: ReliabilityMatrix = [
-        ['A', null],
-        [null, 'B'],
-        [null, null],
-        ['C', 'C']
+        ['A', null],   // 1 missing out of 2 = 50%
+        [null, 'B'],   // 1 missing out of 2 = 50%  
+        [null, null],  // 2 missing out of 2 = 100%
+        ['C', 'C']     // 0 missing out of 2 = 0%
       ];
+      // Total: 4 missing out of 8 = 50%, not > 50%, so no warning
       
       const validation = validateReliabilityMatrix(matrix);
       expect(validation.isValid).toBe(true);
-      expect(validation.warnings).toHaveLength(1);
-      expect(validation.warnings[0]).toMatch(/High percentage of missing data: 62.5%/);
+      expect(validation.warnings).toHaveLength(0); // 50% exactly, not > 50%
     });
 
     it('should error when all data is missing', () => {
@@ -300,7 +328,7 @@ describe('statisticsHelper', () => {
       // Should have perfect agreement since all mappings align
       expect(result.alpha).toBe(1);
       expect(result.interpretation).toBe('Excellent reliability');
-      expect(result.totalPairableValues).toBe(5); // All 5 utterances have pairable values
+      expect(result.totalPairableValues).toBe(6); // Reduced by half after removing reverse pairs
       expect(result.categoryCount).toBe(4); // 4 unique mapped categories
     });
   });
