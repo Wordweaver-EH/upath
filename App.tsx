@@ -355,6 +355,7 @@ const App: React.FC = () => {
     STEP_ORDER_PART_7_CAUSAL_MODELING.includes(stepId) || STEP_ORDER_PART_6_REPORT.includes(stepId) || stepId === StepId.COMPLETE;
 
   const getNextStepDetails = useCallback((): { nextStepId: StepId; nextTranscriptIndex: number } | null => {
+    
     const currentTranscriptId = rawTranscripts[activeTranscriptIndex]?.id;
     const currentTData = currentTranscriptId ? processedData.get(currentTranscriptId) : undefined;
 
@@ -414,38 +415,20 @@ const App: React.FC = () => {
         if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || p2sOutputForCurrentPhaseAndStepExists) {
             if (currentP2SStepIndex < STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.length - 1) return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[currentP2SStepIndex + 1], nextTranscriptIndex: activeTranscriptIndex };
             if (currentStepInfo.stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
-                // Predictive logic fix: Use fresh currentStepInfo data to determine actual completion
-                const justCompletedPhase = currentStepInfo.currentPhaseForP2S;
-                const allPhases = currentTData.phases_for_p2s_processing || [];
-                const staleProcessedPhases = currentTData.processed_phases_for_p2s || [];
+                // Check if all phases have been processed
+                const totalPhases = currentTData.phases_for_p2s_processing || [];
+                const processedPhases = currentTData.processed_phases_for_p2s || [];
                 
-                // Build the ACTUAL list of completed phases by adding the just-completed phase
-                const actualCompletedPhases = justCompletedPhase 
-                    ? [...new Set([...staleProcessedPhases, justCompletedPhase])]
-                    : staleProcessedPhases;
-                
-                // Now we can accurately determine if all phases are complete
-                const allPhasesComplete = allPhases.length > 0 && 
-                    allPhases.every(phase => actualCompletedPhases.includes(phase));
-                
-                if (!allPhasesComplete && allPhases.length > 0) {
-                    // More phases to process
+                const allPhasesProcessed = totalPhases.length > 0 && 
+                    totalPhases.every(phase => processedPhases.includes(phase));
+
+                if (!allPhasesProcessed && totalPhases.length > 0) {
                     return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex };
                 } else {
-                    // This transcript is done with P2S. Move to the next transcript or Part 3.
+                    // All phases for this transcript are complete
                     if (activeTranscriptIndex < rawTranscripts.length - 1) {
                         return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: activeTranscriptIndex + 1 };
-                    }
-                    
-                    // Check if all OTHER transcripts are complete (we know current one is done)
-                    const allOtherTranscriptsComplete = rawTranscripts.every((rt, idx) => {
-                        if (idx === activeTranscriptIndex) return true; // Current transcript is done
-                        const d = processedData.get(rt.id);
-                        return d && d.isFullyProcessedSpecificDiachronic && 
-                               (d.isFullyProcessedSpecificSynchronic || !d.phases_for_p2s_processing?.length);
-                    });
-                    
-                    if (allOtherTranscriptsComplete) {
+                    } else {
                         return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0], nextTranscriptIndex: 0 };
                     }
                 }
@@ -1234,12 +1217,24 @@ const App: React.FC = () => {
             } else if (currentActiveTxId && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepToInvalidate)) {
                 const tData = newProcessedData.get(currentActiveTxId);
                 if (tData) {
-                     const firstPhaseForP2S = tData.phases_for_p2s_processing?.[0];
-                     newProcessedData.set(currentActiveTxId, {
+                    // IMPORTANT: Do NOT clear processed_phases_for_p2s here!
+                    // We only clear phase-specific outputs for the current phase
+                    // processed_phases_for_p2s tracks overall progress and should only be cleared
+                    // when P1.4 or earlier steps are invalidated
+                    const currentPhase = tData.current_phase_for_p2s_processing;
+                    let updatedP2SOutputs = { ...tData.p2s_outputs_by_phase };
+                    
+                    // Only clear outputs for the current phase being re-processed
+                    if (currentPhase && updatedP2SOutputs[currentPhase]) {
+                        updatedP2SOutputs[currentPhase] = {};
+                    }
+                    
+                    newProcessedData.set(currentActiveTxId, {
                         ...tData,
-                        p2s_outputs_by_phase: {}, 
-                        current_phase_for_p2s_processing: firstPhaseForP2S, 
-                        processed_phases_for_p2s: [],
+                        p2s_outputs_by_phase: updatedP2SOutputs,
+                        // Keep current_phase_for_p2s_processing as is
+                        // Keep processed_phases_for_p2s as is - DO NOT CLEAR!
+                        // Only set this to false if we're actually re-processing phases
                         isFullyProcessedSpecificSynchronic: false,
                     });
                 }
