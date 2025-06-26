@@ -249,6 +249,7 @@ export interface SSSNodeGroup {
 export interface P4S_1_A_Output {
   analyzed_gdu: string; // GDU_ID from P3.2
   sss_node_groups: SSSNodeGroup[];
+  idiosyncratic_sss_node_groups?: SSSNodeGroup[]; // Groups that appeared in only one transcript
   dependent_variable_focus: string[];
   // Potential notes on grouping process or challenges
   grouping_process_notes?: string;

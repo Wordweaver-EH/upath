@@ -332,6 +332,87 @@ export const generateGssTraceabilityBreakdown = (
   return html;
 };
              
+             // Generate Idiosyncratic SSS Node Groups breakdown
+             export const generateIdiosyncraticSssGroupsBreakdown = (
+               genericState: GenericAnalysisState | undefined
+             ): string => {
+               if (!genericState?.p4s_1_a_outputs_by_gdu) {
+                 return "<p>No P4S.1.A outputs available for idiosyncratic SSS node group analysis.</p>";
+               }
+               
+               let html = `
+                 <div class="idiosyncratic-sss-section" style="color: var(--app-text);">
+                   <h3 style="color: var(--app-accent-red);">🔬 Idiosyncratic SSS Node Groups</h3>
+                   <p style="color: var(--app-text);"><em>SSS node patterns that appeared in only one transcript. These may represent unique experiential configurations or participant-specific phenomena that warrant theoretical consideration despite not being "generic."</em></p>
+               `;
+               
+               let hasIdiosyncraticFindings = false;
+               let totalIdiosyncraticGroups = 0;
+               
+               for (const [gduId, p4s1aOutput] of Object.entries(genericState.p4s_1_a_outputs_by_gdu)) {
+                 if (!p4s1aOutput?.idiosyncratic_sss_node_groups || p4s1aOutput.idiosyncratic_sss_node_groups.length === 0) {
+                   continue;
+                 }
+                 
+                 hasIdiosyncraticFindings = true;
+                 totalIdiosyncraticGroups += p4s1aOutput.idiosyncratic_sss_node_groups.length;
+                 
+                 html += `
+                   <div class="gdu-idiosyncratic-section" style="margin-bottom: 20px; color: var(--app-text);">
+                     <h4 style="color: var(--app-accent-red);">GDU: ${escapeHtml(gduId)}</h4>
+                     <div style="margin-left: 15px; color: var(--app-text);">
+                       <div><strong>Idiosyncratic Groups Found:</strong> ${p4s1aOutput.idiosyncratic_sss_node_groups.length}</div>
+                     </div>
+                 `;
+                 
+                 for (const idiosyncraticGroup of p4s1aOutput.idiosyncratic_sss_node_groups) {
+                   html += `
+                     <div class="idiosyncratic-group" style="margin: 15px 0; padding: 12px; background: var(--app-subtle-bg); border: 1px solid var(--app-border); border-radius: 4px; border-left: 4px solid var(--app-accent-red); color: var(--app-text);">
+                       <div style="font-weight: bold; color: var(--app-accent-red); margin-bottom: 8px;">
+                         🔍 ${escapeHtml(idiosyncraticGroup.group_id)}
+                       </div>
+                       <div style="margin-left: 10px; color: var(--app-text);">
+                         <div><strong>Rationale:</strong> ${escapeHtml(idiosyncraticGroup.group_rationale)}</div>
+                         <div style="margin-top: 8px;"><strong>Contributing SSS Nodes (${idiosyncraticGroup.contributing_sss_nodes.length}):</strong></div>
+                   `;
+                   
+                   for (const sssNodeRef of idiosyncraticGroup.contributing_sss_nodes) {
+                     html += `
+                       <div class="sss-node-ref" style="margin: 5px 0 5px 20px; padding: 6px; background: var(--app-bg); border: 1px solid var(--app-border); border-radius: 3px; font-size: 0.9em; color: var(--app-text);">
+                         <div><strong>SSS Node:</strong> ${escapeHtml(sssNodeRef.sss_node_id)}</div>
+                         <div><strong>Transcript:</strong> ${escapeHtml(sssNodeRef.transcript_id)}</div>
+                         <div><strong>Phase:</strong> ${escapeHtml(sssNodeRef.phase_name)}</div>
+                         ${sssNodeRef.sss_node_label ? `<div><strong>Label:</strong> ${escapeHtml(sssNodeRef.sss_node_label)}</div>` : ''}
+                       </div>
+                     `;
+                   }
+                   
+                   html += `</div></div>`;
+                 }
+                 
+                 html += `</div>`;
+               }
+               
+               if (!hasIdiosyncraticFindings) {
+                 html += `
+                   <div style="padding: 15px; background: var(--app-subtle-bg); border: 1px solid var(--app-border); border-radius: 4px; color: var(--app-text); text-align: center; font-style: italic;">
+                     <p>No idiosyncratic SSS node groups were identified in this analysis.</p>
+                     <p style="font-size: 0.9em; margin-top: 10px;">This indicates that all SSS node patterns identified during P4S.1.A were found across multiple transcripts, suggesting robust generic structures without participant-specific anomalies.</p>
+                   </div>
+                 `;
+               } else {
+                 html += `
+                   <div style="margin-top: 20px; padding: 10px; background: var(--app-highlight-bg); border-radius: 4px; color: var(--app-text);">
+                     <strong>Summary:</strong> Found ${totalIdiosyncraticGroups} idiosyncratic SSS node group(s) across ${Object.keys(genericState.p4s_1_a_outputs_by_gdu).length} GDU(s).
+                     <br><em>These findings preserve analytical transparency and may inform future theoretical development or methodological refinement.</em>
+                   </div>
+                 `;
+               }
+               
+               html += `</div>`;
+               return html;
+             };
+
              // Generate GDU -> RDU -> DU -> Utterances traceability breakdown
              export const generateGduTraceabilityBreakdown = (
                processedData: Map<string, TranscriptProcessedData>,
@@ -752,6 +833,7 @@ h1{border-bottom:2px solid var(--app-border);padding-bottom:10px;margin-top:0;}h
     <h3>📊 Traceability</h3>
     <ul>
         <li><a href="#gss-traceability" class="nav-link">GSS → SSS → ISU → Utterances</a></li>
+        <li><a href="#idiosyncratic-sss" class="nav-link">🔬 Idiosyncratic SSS Findings</a></li>
         <li><a href="#gdu-traceability" class="nav-link">GDU → RDU → DU → Utterances</a></li>
     </ul>
     
@@ -841,6 +923,11 @@ h1{border-bottom:2px solid var(--app-border);padding-bottom:10px;margin-top:0;}h
     // Enhanced GSS Traceability Section
     html += `<section class="gss-grounding-trace-section" id="gss-traceability">`;
     html += generateGssTraceabilityBreakdown(processedDataMap, genericState.p4s_outputs_by_gdu);
+    html += `</section>`;
+    
+    // Idiosyncratic SSS Node Groups Section
+    html += `<section class="gss-grounding-trace-section" id="idiosyncratic-sss">`;
+    html += generateIdiosyncraticSssGroupsBreakdown(genericState);
     html += `</section>`;
     
     // Enhanced GDU Traceability Section  

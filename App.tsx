@@ -6,7 +6,7 @@ import { marked, Renderer as MarkedRenderer, MarkedOptions, Tokens } from 'marke
 import {
   RawTranscript, TranscriptProcessedData, GenericAnalysisState, StepId, StepStatus,
   PromptHistoryEntry, CurrentStepInfo, UserDVFocus, P2SPhaseData,
-  P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_2_Output, P3_2_Classification, P3_2_IdentifiedGdu, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P6_1_Output, AppState, P7_3_Output, P7_3b_Output,
+  P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_2_Output, P3_2_Classification, P3_2_IdentifiedGdu, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P6_1_Output, AppState, P7_3_Output, P7_3b_Output, SSSNodeGroup,
   P0_1_Output, P0_2_Output, P0_3_Output, P_neg1_1_Output, IrrWorkflowState, IrrResults, P9_1_SemanticGduMapping
 } from './types';
 import {
@@ -937,7 +937,9 @@ const App: React.FC = () => {
             
             // Validate cross-transcript requirement for each group
             const validatedGroups: P4S_1_A_Output['sss_node_groups'] = [];
+            const idiosyncraticGroups: SSSNodeGroup[] = []; // <<< FIX: ADD THIS
             let groupCounter = 1;
+            let idiosyncraticCounter = 1;
             
             groupsMap.forEach((nodes, groupId) => {
                 const transcriptIds = new Set(nodes.map(n => n.transcript_id));
@@ -957,7 +959,20 @@ const App: React.FC = () => {
                     groupCounter++;
                     console.log(`[P4S.1.A Processing] Created valid group ${groupId} with ${nodes.length} nodes from ${transcriptIds.size} transcripts`);
                 } else {
-                    console.log(`[P4S.1.A Processing] Rejected group ${groupId}: only ${transcriptIds.size} transcript(s), requires 2+`);
+                    // <<< FIX: INSTEAD OF DISCARDING, STORE IT
+                    const groupRationale = nodes[0]?.group_rationale || `Idiosyncratic group for concept: ${groupId}`;
+                    idiosyncraticGroups.push({
+                        group_id: `idiosyncratic_group_${idiosyncraticCounter}_${groupId}`,
+                        group_rationale: groupRationale,
+                        contributing_sss_nodes: nodes.map(n => ({
+                            transcript_id: n.transcript_id,
+                            phase_name: n.phase_name,
+                            sss_node_id: n.sss_node_id,
+                            sss_node_label: n.sss_node_label
+                        }))
+                    });
+                    idiosyncraticCounter++;
+                    console.log(`[P4S.1.A Processing] Identified idiosyncratic group ${groupId} from transcript ${Array.from(transcriptIds)[0]}`);
                 }
             });
             
@@ -974,8 +989,9 @@ const App: React.FC = () => {
             const p4s1a_out: P4S_1_A_Output = {
                 analyzed_gdu: gduProc,
                 sss_node_groups: validatedGroups,
+                idiosyncratic_sss_node_groups: idiosyncraticGroups.length > 0 ? idiosyncraticGroups : undefined, // <<< FIX: POPULATE THE OUTPUT
                 dependent_variable_focus: userDvFocus?.dv_focus || [],
-                grouping_process_notes: `Reconstructed from LLM classification. Original nodes: ${llmResponse.grouped_data.length}, Valid groups: ${validatedGroups.length}. ${llmResponse.classification_notes || ''}`
+                grouping_process_notes: `Reconstructed from LLM classification. Original nodes: ${llmResponse.grouped_data.length}, Valid groups: ${validatedGroups.length}, Idiosyncratic groups: ${idiosyncraticGroups.length}. ${llmResponse.classification_notes || ''}`
             };
             
             console.log(`[P4S.1.A Processing] Successfully reconstructed P4S_1_A output with ${validatedGroups.length} valid groups`);
