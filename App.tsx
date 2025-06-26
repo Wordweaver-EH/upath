@@ -834,7 +834,7 @@ const App: React.FC = () => {
                 let mermaid:string|undefined=undefined;
                 if (stepId===StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE && output) mermaid=transformSynchronicToMermaid((output as P2S_3_Output).specific_synchronic_structure, currentPhase);
                 const uP2S = {...(tD.p2s_outputs_by_phase||{}), [currentPhase!]:{...(tD.p2s_outputs_by_phase?.[currentPhase!]||{}), [key as keyof P2SPhaseData]:output, [`${key.replace('_output','_error')}` as keyof P2SPhaseData]:undefined, ...(mermaid&&{p2s_3_mermaid_syntax:mermaid}) }};
-                let newProcPhases = [...(tD.processed_phases_for_p2s||[])]; let allDone = tD.isFullyProcessedSpecificSynchronic; let nextPhase:string|undefined=tD.current_phase_for_p2s_processing;
+                let newProcPhases = [...(tD.processed_phases_for_p2s||[])]; let allDone = tD.isFullyProcessedSpecificSynchronic; let nextPhase:string|undefined=currentPhase;
                 if (stepId===StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
                     newProcPhases = Array.from(new Set([...newProcPhases,currentPhase!]));
                     const transcriptPhases = tD.phases_for_p2s_processing||[];
