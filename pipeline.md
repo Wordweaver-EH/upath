@@ -1,6 +1,6 @@
 # µ-PATH Analysis Pipeline Documentation
 
-**Version:** 1.9.1
+**Version:** 1.10.0
 
 ## 1. Introduction
 
@@ -1270,3 +1270,33 @@ Beyond the main report, the application offers additional data export capabiliti
     *   **Generic Structures Section:** Includes diagrams for GDS, GSSs (per core GDU), and the Causal DAG.
     *   **Quantitative Summaries:** Tables for GDU vs. Utterances, GSS Category vs. Utterances, and GDU Transitions.
 *   **Purpose:** This HTML appendix serves as a valuable interactive detailed reference, complementing the main report by providing granular, transcript-specific data and visualizations in one place. It is particularly useful for reviewing the foundational analyses that contribute to the generic structures and final insights. Embedded Mermaid diagrams are rendered and interactive within the HTML. The Markdown version is a more basic representation.
+
+---
+
+## 5. Inter-Rater Reliability (IRR) Analysis
+
+**Note:** The IRR module operates independently of the formal analysis pipeline. It is designed to compare two completed analysis runs (saved as JSON state files) to measure the reliability of GDU assignments.
+
+### 5.1. IRR Workflow Overview
+
+The IRR analysis follows this sequence:
+
+1.  **Load Analysis Runs:** Two completed µ-PATH analyses are loaded from saved JSON files
+2.  **GDU Set Detection:** System determines if both runs use identical or different GDU sets
+3.  **Semantic Mapping (if needed):** For different GDU sets, an LLM generates semantic mappings between GDUs via direct service call (not a formal pipeline step)
+4.  **Human Validation:** Users can review and adjust the proposed GDU mappings
+5.  **Utterance Tracing:** System traces utterances through the analysis pipeline (P0.3→P1.1→P1.2→P1.3→P3.2) for both runs
+6.  **Reliability Matrix Construction:** Creates a matrix where each row represents an utterance and columns represent the two analysis runs
+7.  **Krippendorff's Alpha Calculation:** Computes the reliability coefficient for nominal data
+8.  **Report Generation:** Provides detailed disagreement analysis and export options
+
+### 5.2. Pipeline Independence
+
+The IRR module is intentionally separate from the main analysis pipeline because:
+
+*   It operates on completed analyses rather than raw transcripts
+*   It requires comparison logic that doesn't fit the sequential pipeline structure  
+*   It uses direct LLM service calls rather than formal pipeline steps
+*   It serves a quality assurance function rather than a core analysis function
+
+This architectural decision maintains the pipeline's focus on analysis while providing robust reliability assessment capabilities.

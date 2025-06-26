@@ -1,6 +1,6 @@
 # µ-PATH : Micro-Phenomenological Analytic Threader
 
-**Version:** 1.9.1 (Human-in-the-Loop Correction, State Save/Load, Mermaid.js Visualizations, Report Integration, Causal Modeling)
+**Version:** 1.10.0 (Human-in-the-Loop Correction, State Save/Load, Mermaid.js Visualizations, Report Integration, Causal Modeling, Inter-Rater Reliability)
 **Based on:**
 * Valenzuela-Moguillansky, Camila, and Alejandra Vásquez-Rosati. "An analysis procedure for the micro-phenomenological interview." *Constructivist Foundations* 14.2 (2019): 123-145.
 * Sheldrake, Kevin, and Zoltan Dienes. "Micro-phenomenological Interviews for Hypothesis Generation." (2025). *(Note: Adjust date/status as appropriate, e.g., "Forthcoming", "Working Paper")*
@@ -19,6 +19,7 @@ These visualizations are rendered directly in the UI and are also embedded withi
 *   **Human-in-the-Loop (HIL) Correction:** Users can provide natural language guidance to correct and re-run steps, with automatic invalidation of downstream data.
 *   **State Management (Save/Load):** Save and load the entire application state.
 *   **Integrated Causal Modeling (Part VII):** Formalizes variables, proposes links, assembles and cleans a DAG, analyzes paths/biases, and generates formal causal hypotheses.
+*   **Inter-Rater Reliability (IRR) Module:** Compare two independent analysis runs to measure reliability of GDU assignments using Krippendorff's Alpha coefficient.
 
 The application is built with React, TypeScript, and Tailwind CSS for the frontend, and utilizes the `@google/genai` SDK to interact with Google's Gemini models.
 
@@ -126,15 +127,53 @@ Standard web application build/run process. Ensure `API_KEY` is set.
 *   **Text (.txt):** Simple string outputs.
 *   **Mermaid Syntax (In-App Rendering & Report/Appendix):** Diagrams rendered in browser and embedded.
 
-## 6. Technical Details
+## 6. Inter-Rater Reliability (IRR) Module
+
+The IRR module enables comparison of two independent analysis runs to measure the reliability of GDU (Generic Diachronic Unit) assignments using Krippendorff's Alpha coefficient.
+
+### 6.1. Key Features
+
+*   **Automatic GDU Set Detection:** Determines if runs use identical or different GDU sets
+*   **LLM-Powered Semantic Mapping:** For different GDU sets, uses AI to map semantically equivalent GDUs
+*   **Human-in-the-Loop Validation:** Review and adjust GDU mappings before calculation
+*   **Krippendorff's Alpha Calculation:** Industry-standard reliability metric for nominal data
+*   **Comprehensive Reporting:** Detailed disagreement analysis with export options
+
+### 6.2. IRR Workflow
+
+1.  **Load Analysis Runs:** Click "Compare Runs (IRR)" and load two saved analysis JSON files
+2.  **GDU Mapping (if needed):** 
+    *   System detects if GDU sets differ
+    *   LLM generates semantic mappings between GDU sets
+    *   Review and adjust mappings in the validation modal
+3.  **Calculate Reliability:** 
+    *   Traces utterances through the analysis pipeline (P0.3→P1.1→P1.2→P1.3→P3.2)
+    *   Builds reliability matrix comparing GDU assignments
+    *   Calculates Krippendorff's Alpha with interpretation
+4.  **Review Results:**
+    *   View alpha coefficient and interpretation
+    *   Download detailed disagreement report (CSV/Markdown)
+    *   Examine specific disagreements by type
+
+### 6.3. Interpreting Results
+
+*   **α ≥ 0.8:** Excellent reliability
+*   **α ≥ 0.667:** Good reliability  
+*   **α ≥ 0.4:** Moderate reliability
+*   **α > 0:** Poor reliability
+*   **α = 0:** No reliability
+*   **α < 0:** Systematic disagreement
+
+## 7. Technical Details
 
 *   **Frontend:** React 19, TypeScript, Tailwind CSS
 *   **API Interaction:** `@google/genai` SDK (Model: `gemini-2.5-flash-preview-04-17`).
 *   **Markdown Rendering:** `marked` library.
 *   **Data Visualization:** `Mermaid.js` (version 11+).
 *   **State Versioning:** `APP_VERSION` field in saved state.
+*   **Statistical Analysis:** Krippendorff's Alpha for inter-rater reliability.
 
-## 7. Project File Structure (Key Files)
+## 8. Project File Structure (Key Files)
 
 *   `index.html`, `index.tsx`, `App.tsx`, `README.md`
 *   `components/`: Contains UI components.
@@ -145,7 +184,7 @@ Standard web application build/run process. Ensure `API_KEY` is set.
 *   `metadata.json`
 *   `pipeline.md` (Detailed pipeline documentation)
 
-## 8. Troubleshooting & Notes
+## 9. Troubleshooting & Notes
 
 *   **API Key Missing:** Ensure `process.env.API_KEY` is set.
 *   **State File Compatibility:** Check `APP_VERSION`.
@@ -164,7 +203,7 @@ Standard web application build/run process. Ensure `API_KEY` is set.
     *   `P6_1_GENERATE_MARKDOWN_REPORT` (or `COMPLETE` which uses P6.1 output)
     *   *Note: For steps producing diagrams, the primary data output is autodownloaded. Mermaid syntax is stored for UI/report embedding.*
 
-## 9. Citation
+## 10. Citation
 
 This tool is based on the methodologies described in:
 
