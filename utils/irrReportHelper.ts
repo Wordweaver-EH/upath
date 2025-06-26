@@ -11,7 +11,7 @@ export interface DisagreementItem {
   runBGdus: string[];
   mappedRunAGdus: (string | null)[];
   isDisagreement: boolean;
-  disagreementType: 'assignment_count' | 'category_mismatch' | 'partial_overlap' | 'no_overlap';
+  disagreementType: 'assignment_count' | 'partial_overlap' | 'no_overlap';
 }
 
 export interface DisagreementReport {
@@ -23,7 +23,6 @@ export interface DisagreementReport {
   };
   disagreementsByType: {
     assignment_count: number;
-    category_mismatch: number;
     partial_overlap: number;
     no_overlap: number;
   };
@@ -70,7 +69,6 @@ export function generateDisagreementReport(
   const detailedDisagreements: DisagreementItem[] = [];
   const disagreementsByType = {
     assignment_count: 0,
-    category_mismatch: 0,
     partial_overlap: 0,
     no_overlap: 0
   };
@@ -92,7 +90,7 @@ export function generateDisagreementReport(
 
     // Determine disagreement type
     let isDisagreement = false;
-    let disagreementType: DisagreementItem['disagreementType'] = 'category_mismatch';
+    let disagreementType: DisagreementItem['disagreementType'] = 'no_overlap';
 
     if (runAGdus.length !== runBGdus.length) {
       isDisagreement = true;
@@ -200,7 +198,6 @@ export function disagreementReportToCsv(report: DisagreementReport): string {
   lines.push('## Disagreement Types');
   lines.push('Type,Count');
   lines.push(`Assignment Count Mismatch,${report.disagreementsByType.assignment_count}`);
-  lines.push(`Category Mismatch,${report.disagreementsByType.category_mismatch}`);
   lines.push(`Partial Overlap,${report.disagreementsByType.partial_overlap}`);
   lines.push(`No Overlap,${report.disagreementsByType.no_overlap}`);
   lines.push('');
@@ -251,7 +248,6 @@ export function disagreementReportToMarkdown(report: DisagreementReport): string
   lines.push('| Type | Count | Description |');
   lines.push('|------|-------|-------------|');
   lines.push(`| Assignment Count Mismatch | ${report.disagreementsByType.assignment_count} | Different numbers of GDU assignments |`);
-  lines.push(`| Category Mismatch | ${report.disagreementsByType.category_mismatch} | Same count but different categories |`);
   lines.push(`| Partial Overlap | ${report.disagreementsByType.partial_overlap} | Some matching categories, some different |`);
   lines.push(`| No Overlap | ${report.disagreementsByType.no_overlap} | Completely different categories |`);
   lines.push('');

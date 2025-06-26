@@ -154,8 +154,8 @@ export function mapUtteranceToGdu(
         }
 
         if (assignedGdus.size > 0) {
-            // Sort to ensure deterministic ordering
-            utteranceToGduMap.set(utteranceKey, Array.from(assignedGdus).sort());
+            // Sort to ensure deterministic ordering (case-insensitive)
+            utteranceToGduMap.set(utteranceKey, Array.from(assignedGdus).sort((a, b) => a.localeCompare(b)));
         }
     }
 
