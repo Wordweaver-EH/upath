@@ -2,7 +2,7 @@
 
 
 import React from 'react';
-import { StepId, UserDVFocus, SelectedUtterance, P2SPhaseData, RawTranscript, TranscriptProcessedData, GenericAnalysisState, P_neg1_1_Output, P0_1_Output, P0_2_Output, P0_3_Output, P1_1_Output, P1_2_Output, P1_3_Output, P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_1_Output, P3_2_Output, P3_2_Classification, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P5_1_ComparativeAnalysisOutput, P5_1_Input, P5_1_InputWithFlag, P5_1_IvGroupSummary, P5_1_TranscriptGduSequence, P5_2_RefinementOutput, P7_1_Output, P7_2_Output, P7_3_Output, P7_3b_Output, P7_4_Output, P7_5_Output, GenericDiachronicStructureDefinition, P4S_1_GenericNode, P4S_1_GenericLink, SegmentedUtteranceSegment, P7_2_ProposedLink, RefinedLine, P7_1_CandidateVariable, P3_2_GDU } from './types';
+import { StepId, UserDVFocus, SelectedUtterance, P2SPhaseData, RawTranscript, TranscriptProcessedData, GenericAnalysisState, P_neg1_1_Output, P0_1_Output, P0_2_Output, P0_3_Output, P1_1_Output, P1_2_Output, P1_3_Output, P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_1_Output, P3_2_Output, P3_2_Classification, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P5_1_ComparativeAnalysisOutput, P5_1_Input, P5_1_InputWithFlag, P5_1_IvGroupSummary, P5_1_TranscriptGduSequence, P5_2_RefinementOutput, P7_1_Output, P7_2_Output, P7_3_Output, P7_3b_Output, P7_4_Output, P7_5_Output, GenericDiachronicStructureDefinition, P4S_1_GenericNode, P4S_1_GenericLink, SegmentedUtteranceSegment, P7_2_ProposedLink, RefinedLine, P7_1_CandidateVariable } from './types';
 import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './utils/htmlHelper'; // For P6.1 input
 import { ReportData } from './utils/reportHelper'; // Ensure this matches the actual path if different
 
@@ -415,7 +415,7 @@ const getOriginalP3_2_Input = (_: any, allProcessedData: any, genericState: any,
     return { data: { p3_1_output: genericState.p3_1_output, all_refined_dus_with_iv_and_ids, global_dv_focus: userDvFocus?.dv_focus, tot_rdus: totalRdus } };
 };
 
-const generateOriginalP3_2_Prompt = (input: { p3_1_output: P3_1_Output, all_refined_dus_with_iv_and_ids: any[], global_dv_focus: string[] }) => `You are a Generic Diachronic Analysis assistant. Task: Identify Generic Diachronic Units (GDUs) from refined DUs across transcripts, considering IVs and ensuring traceability.
+const generateOriginalP3_2_Prompt = (input: { p3_1_output: P3_1_Output, all_refined_dus_with_iv_and_ids: any[], global_dv_focus: string[], tot_rdus: number }) => `You are a Generic Diachronic Analysis assistant. Task: Identify Generic Diachronic Units (GDUs) from refined DUs across transcripts, considering IVs and ensuring traceability.
 Input:
 - P3.1 output (\`aligned_structures_report\`, etc.).
 - All P1.3 outputs, provided as \`all_refined_dus_with_iv_and_ids\`. Each element contains \`transcript_id\`, \`filename\`, \`independent_variable_details\`, and \`refined_diachronic_units\` (which is an array of objects, each with \`unit_id\`, \`description\`, etc.).
@@ -453,7 +453,7 @@ A JSON object adhering EXACTLY to the following structure:
   "criteria_for_gdu_identification": "Criteria used for GDU abstraction (e.g., thematic similarity of DU descriptions, similar temporal phase).",
   "dependent_variable_focus": ${JSON.stringify(input.global_dv_focus)},
   "tot_rdus": ${input.tot_rdus}
-}`;
+`;
 
 // Zero context TSV implementation functions  
 const getZeroContextTsvP3_2_Input = (_: any, allProcessedData: any, genericState: any, apiKeyPresent: any, userDvFocus: any) => {
@@ -2009,7 +2009,7 @@ A JSON object adhering EXACTLY to the following structure:
     }
   ],
   "comparative_diachronic_mermaid_syntax": "gantt\n    title Diachronic Flow for ${input.iv_group_summaries[0].iv_condition}\n    ..."
-}`;
+`;
         }
         
         // Original comparative prompt for multiple IV conditions
@@ -2052,7 +2052,7 @@ A JSON object adhering EXACTLY to the following structure:
   "comparative_diachronic_mermaid_syntax": "gantt\n    title Comparative Diachronic Alignment\n    ..."
 }
 
-Important: This is a meta-analysis of already-identified structures. Do not modify the original GDS or GSS structures, only analyze and compare how they manifest differently across IV conditions.\`;
+Important: This is a meta-analysis of already-identified structures. Do not modify the original GDS or GSS structures, only analyze and compare how they manifest differently across IV conditions.`;
     },
     parseOutput: (output: any, input: P5_1_Input): P5_1_ComparativeAnalysisOutput => {
         // Validate required fields
@@ -2067,29 +2067,29 @@ Important: This is a meta-analysis of already-identified structures. Do not modi
         // Validate each IV group analysis
         const validatedGroups = output.analysis_by_iv_group.map((group: any, index: number) => {
             if (!group.iv_condition || !Array.isArray(group.transcript_ids)) {
-                throw new Error(\`P5.1 IV group \${index} missing required fields\`);
+                throw new Error(`P5.1 IV group \${index} missing required fields`);
             }
             
             // Validate diachronic summary
             if (!group.diachronic_summary || !Array.isArray(group.diachronic_summary.common_sequences)) {
-                throw new Error(\`P5.1 IV group \${index} missing valid diachronic_summary\`);
+                throw new Error(`P5.1 IV group \${index} missing valid diachronic_summary`);
             }
             
             // Validate synchronic summary
             if (!group.synchronic_summary || !Array.isArray(group.synchronic_summary.dominant_gss_categories)) {
-                throw new Error(\`P5.1 IV group \${index} missing valid synchronic_summary\`);
+                throw new Error(`P5.1 IV group \${index} missing valid synchronic_summary`);
             }
             
             // Validate GSS categories reference actual GDUs
             group.synchronic_summary.dominant_gss_categories.forEach((cat: any) => {
                 if (!cat.gdu_context || !cat.category_label) {
-                    throw new Error(\`P5.1 IV group \${index} has invalid GSS category\`);
+                    throw new Error(`P5.1 IV group \${index} has invalid GSS category`);
                 }
                 
                 // Check if GDU exists in input
                 const gduExists = input.all_identified_gdus.some(gdu => gdu.gdu_id === cat.gdu_context);
                 if (!gduExists) {
-                    console.warn(\`P5.1 references non-existent GDU: \${cat.gdu_context}\`);
+                    console.warn(`P5.1 references non-existent GDU: \${cat.gdu_context}`);
                 }
             });
             
@@ -2102,7 +2102,7 @@ Important: This is a meta-analysis of already-identified structures. Do not modi
         
         inputIvConditions.forEach(iv => {
             if (!outputIvConditions.has(iv)) {
-                console.warn(\`P5.1 output missing analysis for IV condition: \${iv}\`);
+                console.warn(`P5.1 output missing analysis for IV condition: \${iv}`);
             }
         });
         
@@ -2261,7 +2261,7 @@ A JSON object adhering EXACTLY to the following structure. The \`grounding_refer
     // ... more variables
   ],
   "rationale_summary": "Brief summary of the process used to derive these variables from the phenomenological insights and structures."
-}\`;
+`;
     },
   },
   [StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS]: {

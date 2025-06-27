@@ -331,7 +331,7 @@ export interface P5_1_Input {
   generic_diachronic_structure: P3_3_Output;
   generic_synchronic_structures_by_gdu: Record<string, P4S_1_Output>;
   iv_group_summaries: P5_1_IvGroupSummary[];
-  all_identified_gdus: P3_2_GDU[];
+  all_identified_gdus: P3_2_IdentifiedGdu[];
 }
 
 // Extended input for P5.1 that includes single IV flag
