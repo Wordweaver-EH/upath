@@ -195,7 +195,7 @@ export const generateGssTraceabilityBreakdown = (
                   html += `<div><strong>ISU Definition:</strong> ${escapeHtml(matchingIsu.intensional_definition)}</div>`;
                   
                   // Try to get utterances from the ISU
-                  const collectBaseUtterances = (isuName: string, hierarchy: typeof phaseData.p2s_2_output.specific_synchronic_units_hierarchy): Array<{original_line_num: string, utterance_text: string}> => {
+                  const collectBaseUtterances = (isuName: string, hierarchy: any[]): Array<{original_line_num: string, utterance_text: string}> => {
                     const currentIsu = hierarchy.find(u => u.unit_name === isuName);
                     if (!currentIsu) return [];
                     if (currentIsu.utterances && currentIsu.utterances.length > 0) {
@@ -210,7 +210,7 @@ export const generateGssTraceabilityBreakdown = (
                     return collected;
                   };
                   
-                  const utterances = collectBaseUtterances(matchingIsu.unit_name, phaseData.p2s_2_output.specific_synchronic_units_hierarchy);
+                  const utterances = collectBaseUtterances(matchingIsu.unit_name, phaseData?.p2s_2_output?.specific_synchronic_units_hierarchy || []);
                   if (utterances.length > 0) {
                     html += `<div><strong>Potential Grounded Utterances (${utterances.length}):</strong></div>`;
                     html += `<div style="margin-left: 10px;">`;
@@ -255,7 +255,7 @@ export const generateGssTraceabilityBreakdown = (
                 `;
                 
                 // Collect utterances through ISU hierarchy traversal
-                const collectBaseUtterances = (isuName: string, hierarchy: typeof phaseData.p2s_2_output.specific_synchronic_units_hierarchy): Array<{original_line_num: string, utterance_text: string}> => {
+                const collectBaseUtterances = (isuName: string, hierarchy: any[]): Array<{original_line_num: string, utterance_text: string}> => {
                   const currentIsu = hierarchy.find(u => u.unit_name === isuName);
                   if (!currentIsu) return [];
                   if (currentIsu.utterances && currentIsu.utterances.length > 0) {
@@ -270,7 +270,7 @@ export const generateGssTraceabilityBreakdown = (
                   return collected;
                 };
                 
-                const utterances = collectBaseUtterances(sourceIsu.unit_name, phaseData.p2s_2_output.specific_synchronic_units_hierarchy);
+                const utterances = collectBaseUtterances(sourceIsu.unit_name, phaseData?.p2s_2_output?.specific_synchronic_units_hierarchy || []);
                 
                 if (utterances.length === 0) {
                   html += `<div style="color: var(--app-accent-red);"><strong>⚠️ WARNING:</strong> No utterances found for this ISU</div>`;

@@ -655,6 +655,8 @@ export interface StepConfig {
   ) => { data: any; error?: string } | null; // data can be any, error is optional string
   generatePrompt: (input: any) => string;
   isJsonOutput: boolean;
+  parseOutput?: (response: any, ...args: any[]) => any; // Optional for steps that need custom output parsing
+  validateAndClean?: (output: any, ...args: any[]) => any; // Optional for steps that need validation/cleaning
 }
 
 type ConfigMap = { [key in StepId]?: StepConfig };

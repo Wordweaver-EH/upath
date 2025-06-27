@@ -393,7 +393,7 @@ const App: React.FC = () => {
       if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || part1OutputExists) {
         if (currentPart1StepIndex < STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.length - 1) return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[currentPart1StepIndex + 1], nextTranscriptIndex: activeTranscriptIndex };
         if (currentStepInfo.stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && currentTData?.isFullyProcessedSpecificDiachronic) {
-            if (currentTData.phases_for_p2s_processing?.length > 0 && !currentTData.isFullyProcessedSpecificSynchronic) return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex };
+            if (currentTData?.phases_for_p2s_processing?.length > 0 && !currentTData?.isFullyProcessedSpecificSynchronic) return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex };
             if (activeTranscriptIndex < rawTranscripts.length - 1) return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: activeTranscriptIndex + 1 };
             if (rawTranscripts.every(rt => processedData.get(rt.id)?.isFullyProcessedSpecificDiachronic) && rawTranscripts.every(rt => { const d=processedData.get(rt.id); return !d||(!d.phases_for_p2s_processing?.length||d.isFullyProcessedSpecificSynchronic); }))
               return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0], nextTranscriptIndex: 0 };
@@ -551,7 +551,7 @@ const App: React.FC = () => {
         if (lastTxIdx < 0) return null; 
         const lastTData = processedData.get(rawTranscripts[lastTxIdx].id);
         if (lastTData?.isFullyProcessedSpecificSynchronic && lastTData.phases_for_p2s_processing?.length > 0) { 
-            const lastPhase = lastTData.processed_phases_for_p2s?.[lastTData.processed_phases_for_p2s.length - 1] || lastTData.phases_for_p2s_processing[lastTData.phases_for_p2s_processing.length - 1];
+            const lastPhase = lastTData.processed_phases_for_p2s?.[lastTData.processed_phases_for_p2s.length - 1] || lastTData.phases_for_p2s_processing?.[lastTData.phases_for_p2s_processing?.length - 1];
             return { prevStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.length - 1], prevTranscriptIndex: lastTxIdx, prevPhaseForP2S: lastPhase };
         } 
         return { prevStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.length - 1], prevTranscriptIndex: lastTxIdx };
@@ -733,7 +733,7 @@ const App: React.FC = () => {
         if (tData) {
             currentPhase = tData.current_phase_for_p2s_processing;
             if (!currentPhase && stepId === STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0] && tData.phases_for_p2s_processing?.length > 0) {
-                 currentPhase = tData.phases_for_p2s_processing[0];
+                 currentPhase = tData.phases_for_p2s_processing?.[0];
                  setProcessedData(prev => { const u=new Map(prev); const d=u.get(transcriptIdToProcess); if(d)u.set(transcriptIdToProcess,{...d,current_phase_for_p2s_processing:currentPhase}); return u; });
             }
             if (!currentPhase && tData.phases_for_p2s_processing?.length > 0 && !tData.isFullyProcessedSpecificSynchronic) {
@@ -745,7 +745,7 @@ const App: React.FC = () => {
     if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(stepId)) {
         currentGDU = tempGenericState.current_gdu_for_p4s_processing;
         if (!currentGDU && stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES && tempGenericState.core_gdus_for_sync_analysis?.length > 0) {
-            const firstNonProcessed = tempGenericState.core_gdus_for_sync_analysis.find(g => !(tempGenericState.processed_gdus_for_p4s || []).includes(g));
+            const firstNonProcessed = tempGenericState.core_gdus_for_sync_analysis?.find(g => !(tempGenericState.processed_gdus_for_p4s || []).includes(g));
             if (firstNonProcessed) {
                 currentGDU = firstNonProcessed;
                 tempGenericState = { ...tempGenericState, current_gdu_for_p4s_processing: firstNonProcessed, p4s_1_a_error: undefined, p4s_1_b_error: undefined }; // Clear errors for new GDU
@@ -803,10 +803,10 @@ const App: React.FC = () => {
             }
         }
         groundingSources = apiResult.groundingSources;
-        estIn = apiResult.estimatedInputTokens;
-        estOut = apiResult.estimatedOutputTokens;
-        if (estIn) setTotalInputTokens(prev => prev + estIn);
-        if (estOut) setTotalOutputTokens(prev => prev + estOut);
+        estIn = apiResult?.estimatedInputTokens;
+        estOut = apiResult?.estimatedOutputTokens;
+        if (estIn != null) setTotalInputTokens(prev => prev + estIn!);
+        if (estOut != null) setTotalOutputTokens(prev => prev + estOut!);
     }
     
     const historyEntry: PromptHistoryEntry = { 
@@ -1138,7 +1138,7 @@ const App: React.FC = () => {
         if (tData) {
             phaseNav = tData.current_phase_for_p2s_processing;
             if (!phaseNav && nextStepId === STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0]) phaseNav = tData.phases_for_p2s_processing?.find(p=>!(tData.processed_phases_for_p2s||[]).includes(p));
-            if (!phaseNav && nextStepId === STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0] && tData.phases_for_p2s_processing?.length>0) phaseNav = tData.phases_for_p2s_processing[0];
+            if (!phaseNav && nextStepId === STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0] && tData.phases_for_p2s_processing?.length>0) phaseNav = tData.phases_for_p2s_processing?.[0];
         }
     } else if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(nextStepId)) {
         gduNav = genericAnalysisState.current_gdu_for_p4s_processing;
@@ -1173,10 +1173,10 @@ const App: React.FC = () => {
         txIdNav = rawTranscripts[activeTranscriptIndex]?.id;
         const tData = txIdNav ? processedData.get(txIdNav) : undefined;
         phaseNav = tData?.current_phase_for_p2s_processing || tData?.phases_for_p2s_processing?.[0];
-        if (!phaseNav && tData?.processed_phases_for_p2s?.length > 0) phaseNav = tData.processed_phases_for_p2s[tData.processed_phases_for_p2s.length-1];
+        if (!phaseNav && tData?.processed_phases_for_p2s?.length > 0) phaseNav = tData?.processed_phases_for_p2s?.[tData.processed_phases_for_p2s.length-1];
     } else if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(clickedStepId)) {
         gduNav = genericAnalysisState.current_gdu_for_p4s_processing || genericAnalysisState.core_gdus_for_sync_analysis?.[0];
-        if (!gduNav && genericAnalysisState.processed_gdus_for_p4s?.length > 0) gduNav = genericAnalysisState.processed_gdus_for_p4s[genericAnalysisState.processed_gdus_for_p4s.length - 1];
+        if (!gduNav && genericAnalysisState.processed_gdus_for_p4s?.length > 0) gduNav = genericAnalysisState.processed_gdus_for_p4s?.[genericAnalysisState.processed_gdus_for_p4s?.length - 1];
     }
     const data = loadStepData(clickedStepId, txIdNav, phaseNav, gduNav);
     setCurrentStepInfo({ stepId:clickedStepId, transcriptId:txIdNav, currentPhaseForP2S:phaseNav, currentGduForP4S:gduNav, status:data.error?StepStatus.Error:(data.outputData?StepStatus.Success:StepStatus.Idle), inputData:data.inputData, outputData:data.outputData, error:data.error, groundingSources:data.groundingSources });
@@ -1339,7 +1339,7 @@ const App: React.FC = () => {
                             newGenericState.p4s_1_b_error = undefined;
                             newGenericState.processed_gdus_for_p4s = [];
                             newGenericState.isFullyProcessedGenericSynchronic = false;
-                        } else if (stepToInvalidate === StepId.P5_1_HOLISTIC_REVIEW_REFINEMENT) {
+                        } else if (stepToInvalidate === StepId.P5_2_HOLISTIC_REFINEMENT) {
                             newGenericState.isRefinementDone = false;
                         } else if (STEP_ORDER_PART_7_CAUSAL_MODELING.includes(stepToInvalidate)) {
                             newGenericState.isCausalModelingDone = false;
@@ -1447,12 +1447,12 @@ const App: React.FC = () => {
     if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepToLoad)) {
         const tData = processedData.get(rawTranscripts[index].id);
         phaseToLoad = tData?.current_phase_for_p2s_processing || tData?.phases_for_p2s_processing?.[0];
-        if (!phaseToLoad && tData?.processed_phases_for_p2s?.length > 0) phaseToLoad = tData.processed_phases_for_p2s[tData.processed_phases_for_p2s.length -1];
+        if (!phaseToLoad && tData?.processed_phases_for_p2s?.length > 0) phaseToLoad = tData?.processed_phases_for_p2s?.[tData.processed_phases_for_p2s.length -1];
     } else if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(stepToLoad)) {
         // Keep current GDU if P4S step is selected, or default to first if not set.
         gduToLoad = genericAnalysisState.current_gdu_for_p4s_processing || genericAnalysisState.core_gdus_for_sync_analysis?.[0];
         if (!gduToLoad && genericAnalysisState.processed_gdus_for_p4s?.length > 0) {
-            gduToLoad = genericAnalysisState.processed_gdus_for_p4s[genericAnalysisState.processed_gdus_for_p4s.length - 1];
+            gduToLoad = genericAnalysisState.processed_gdus_for_p4s?.[genericAnalysisState.processed_gdus_for_p4s?.length - 1];
         }
     }
 
@@ -1747,16 +1747,16 @@ Guidelines:
 - Prioritize definitional similarity over statistical similarity
 - mapping_justification: Brief explanation of why these GDUs are semantically similar or why no match exists`;
 
-        const response = await callGeminiAPI(prompt, undefined, temperature, seed);
+        const response = await callGeminiAPI(prompt, true, false, temperature, seed);
         
-        if (!response.success) {
+        if (response.error) {
           throw new Error(response.error || 'Failed to generate semantic mapping');
         }
 
         // Parse and validate the mapping response
         let mappingProposal: P9_1_SemanticGduMapping;
         try {
-          mappingProposal = JSON.parse(response.response);
+          mappingProposal = response.parsedJson;
           if (!mappingProposal.gdu_mappings || !Array.isArray(mappingProposal.gdu_mappings)) {
             throw new Error('Invalid mapping structure');
           }
