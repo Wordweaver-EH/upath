@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { CurrentStepInfo, StepId, StepStatus, TranscriptProcessedData, GenericAnalysisState } from '../types';
+import { CurrentStepInfo, StepId, StepStatus, TranscriptProcessedData } from '../types';
 import { STEP_CONFIGS, CheckCircleIcon } from '../constants'; // Assuming CheckCircleIcon is in constants
 
 interface StatusDisplayProps {

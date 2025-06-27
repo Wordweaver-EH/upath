@@ -6,8 +6,8 @@ import { marked, Renderer as MarkedRenderer, MarkedOptions, Tokens } from 'marke
 import {
   RawTranscript, TranscriptProcessedData, GenericAnalysisState, StepId, StepStatus,
   PromptHistoryEntry, CurrentStepInfo, UserDVFocus, P2SPhaseData,
-  P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_2_Output, P3_2_Classification, P3_2_IdentifiedGdu, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P6_1_Output, AppState, P7_3_Output, P7_3b_Output, SSSNodeGroup,
-  P0_1_Output, P0_2_Output, P0_3_Output, P_neg1_1_Output, IrrWorkflowState, IrrResults, P9_1_SemanticGduMapping
+  P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_2_Output, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P6_1_Output, AppState, P7_3_Output, P7_3b_Output, SSSNodeGroup,
+  P0_1_Output, P0_2_Output, P0_3_Output, IrrWorkflowState, IrrResults, P9_1_SemanticGduMapping
 } from './types';
 import {
   STEP_CONFIGS, ALL_PIPELINE_STEP_IDS_IN_ORDER, ESSENTIAL_STEPS_FOR_AUTODOWNLOAD,
@@ -15,12 +15,10 @@ import {
   STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC, STEP_ORDER_PART_3_GENERIC_DIACHRONIC,
   STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_ORDER_PART_5_REFINEMENT,
   STEP_ORDER_PART_7_CAUSAL_MODELING, STEP_ORDER_PART_6_REPORT,
-  PlayIcon, PauseIcon, DownloadIcon, NextIcon, PreviousIcon, RetryIcon,
-  SaveIcon, LoadIcon, LightbulbIcon, CheckCircleIcon, UploadIcon, FileTextIcon, InfoIcon, AppendixIcon, ChevronDownIcon, ChevronUpIcon,
   P3_2_APPROACH
 } from './constants';
 import { callGeminiAPI, isApiKeySet } from './services/geminiService';
-import { downloadFile, generateTsvForPromptHistory, genericJsonToTsv, generateTsvForP0_1, generateTsvForP0_2, generateTsvForP0_3, generateTsvForTranscriptDiachronic, generateTsvForTranscriptSynchronic } from './utils/tsvHelper';
+import { downloadFile, generateTsvForPromptHistory, genericJsonToTsv, generateTsvForP0_1, generateTsvForP0_2, generateTsvForP0_3 } from './utils/tsvHelper';
 import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './utils/htmlHelper';
 import { buildCompleteUtteranceToGduMapping } from './utils/traceabilityHelper';
 import { calculateKrippendorffsAlpha, buildReliabilityMatrix, validateReliabilityMatrix } from './utils/statisticsHelper';
@@ -393,7 +391,7 @@ const App: React.FC = () => {
       if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || part1OutputExists) {
         if (currentPart1StepIndex < STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.length - 1) return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[currentPart1StepIndex + 1], nextTranscriptIndex: activeTranscriptIndex };
         if (currentStepInfo.stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && currentTData?.isFullyProcessedSpecificDiachronic) {
-            if (currentTData?.phases_for_p2s_processing?.length > 0 && !currentTData?.isFullyProcessedSpecificSynchronic) return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex };
+            if ((currentTData?.phases_for_p2s_processing?.length || 0) > 0 && !currentTData?.isFullyProcessedSpecificSynchronic) return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex };
             if (activeTranscriptIndex < rawTranscripts.length - 1) return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: activeTranscriptIndex + 1 };
             if (rawTranscripts.every(rt => processedData.get(rt.id)?.isFullyProcessedSpecificDiachronic) && rawTranscripts.every(rt => { const d=processedData.get(rt.id); return !d||(!d.phases_for_p2s_processing?.length||d.isFullyProcessedSpecificSynchronic); }))
               return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0], nextTranscriptIndex: 0 };
@@ -440,7 +438,7 @@ const App: React.FC = () => {
     const currentPart3StepIndex = STEP_ORDER_PART_3_GENERIC_DIACHRONIC.indexOf(currentStepInfo.stepId);
     if (currentPart3StepIndex !== -1 && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || genericAnalysisState.isFullyProcessedGenericDiachronic)) {
         if (genericAnalysisState.isFullyProcessedGenericDiachronic) { // If P3.3 is already done (e.g. loaded state)
-            if (genericAnalysisState.core_gdus_for_sync_analysis?.length > 0 && !genericAnalysisState.isFullyProcessedGenericSynchronic) return { nextStepId: StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, nextTranscriptIndex: 0 };
+            if ((genericAnalysisState.core_gdus_for_sync_analysis?.length || 0) > 0 && !genericAnalysisState.isFullyProcessedGenericSynchronic) return { nextStepId: StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, nextTranscriptIndex: 0 };
             if (STEP_ORDER_PART_5_REFINEMENT.length > 0 && !genericAnalysisState.isRefinementDone) return { nextStepId: STEP_ORDER_PART_5_REFINEMENT[0], nextTranscriptIndex: 0 };
             if (STEP_ORDER_PART_7_CAUSAL_MODELING.length > 0 && !genericAnalysisState.isCausalModelingDone) return { nextStepId: STEP_ORDER_PART_7_CAUSAL_MODELING[0], nextTranscriptIndex: 0 };
             return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 };
@@ -550,7 +548,7 @@ const App: React.FC = () => {
         const lastTxIdx = rawTranscripts.length - 1;
         if (lastTxIdx < 0) return null; 
         const lastTData = processedData.get(rawTranscripts[lastTxIdx].id);
-        if (lastTData?.isFullyProcessedSpecificSynchronic && lastTData.phases_for_p2s_processing?.length > 0) { 
+        if (lastTData?.isFullyProcessedSpecificSynchronic && (lastTData.phases_for_p2s_processing?.length || 0) > 0) { 
             const lastPhase = lastTData.processed_phases_for_p2s?.[lastTData.processed_phases_for_p2s.length - 1] || lastTData.phases_for_p2s_processing?.[lastTData.phases_for_p2s_processing?.length - 1];
             return { prevStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.length - 1], prevTranscriptIndex: lastTxIdx, prevPhaseForP2S: lastPhase };
         } 
@@ -732,11 +730,11 @@ const App: React.FC = () => {
         const tData = processedData.get(transcriptIdToProcess);
         if (tData) {
             currentPhase = tData.current_phase_for_p2s_processing;
-            if (!currentPhase && stepId === STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0] && tData.phases_for_p2s_processing?.length > 0) {
+            if (!currentPhase && stepId === STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0] && (tData.phases_for_p2s_processing?.length || 0) > 0) {
                  currentPhase = tData.phases_for_p2s_processing?.[0];
                  setProcessedData(prev => { const u=new Map(prev); const d=u.get(transcriptIdToProcess); if(d)u.set(transcriptIdToProcess,{...d,current_phase_for_p2s_processing:currentPhase}); return u; });
             }
-            if (!currentPhase && tData.phases_for_p2s_processing?.length > 0 && !tData.isFullyProcessedSpecificSynchronic) {
+            if (!currentPhase && (tData.phases_for_p2s_processing?.length || 0) > 0 && !tData.isFullyProcessedSpecificSynchronic) {
                  setCurrentStepInfo({ stepId, transcriptId:transcriptIdToProcess, status:StepStatus.Error, error:`P2S Error: Current phase not set for ${transcriptIdToProcess}` }); setIsAutorunning(false); return;
             }
         }
@@ -744,7 +742,7 @@ const App: React.FC = () => {
     
     if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(stepId)) {
         currentGDU = tempGenericState.current_gdu_for_p4s_processing;
-        if (!currentGDU && stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES && tempGenericState.core_gdus_for_sync_analysis?.length > 0) {
+        if (!currentGDU && stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES && (tempGenericState.core_gdus_for_sync_analysis?.length || 0) > 0) {
             const firstNonProcessed = tempGenericState.core_gdus_for_sync_analysis?.find(g => !(tempGenericState.processed_gdus_for_p4s || []).includes(g));
             if (firstNonProcessed) {
                 currentGDU = firstNonProcessed;
@@ -1058,8 +1056,8 @@ const App: React.FC = () => {
         console.log(`[P3.2 ${P3_2_APPROACH}] Using direct output from LLM with original schema`);
         
         // Apply defensive validation - clean any duplicate RDU assignments with first-assignment-wins
-        const cleanedOutput = STEP_CONFIGS[StepId.P3_2_IDENTIFY_GDUS].validateAndClean 
-            ? STEP_CONFIGS[StepId.P3_2_IDENTIFY_GDUS].validateAndClean(output, 0)
+        const cleanedOutput = STEP_CONFIGS[StepId.P3_2_IDENTIFY_GDUS]?.validateAndClean 
+            ? STEP_CONFIGS[StepId.P3_2_IDENTIFY_GDUS].validateAndClean(output, inputData?.tot_rdus || 0)
             : output;
         
         const p3_2_output = cleanedOutput as P3_2_Output;
@@ -1138,7 +1136,7 @@ const App: React.FC = () => {
         if (tData) {
             phaseNav = tData.current_phase_for_p2s_processing;
             if (!phaseNav && nextStepId === STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0]) phaseNav = tData.phases_for_p2s_processing?.find(p=>!(tData.processed_phases_for_p2s||[]).includes(p));
-            if (!phaseNav && nextStepId === STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0] && tData.phases_for_p2s_processing?.length>0) phaseNav = tData.phases_for_p2s_processing?.[0];
+            if (!phaseNav && nextStepId === STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0] && (tData.phases_for_p2s_processing?.length || 0) > 0) phaseNav = tData.phases_for_p2s_processing?.[0];
         }
     } else if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(nextStepId)) {
         gduNav = genericAnalysisState.current_gdu_for_p4s_processing;
@@ -1173,10 +1171,10 @@ const App: React.FC = () => {
         txIdNav = rawTranscripts[activeTranscriptIndex]?.id;
         const tData = txIdNav ? processedData.get(txIdNav) : undefined;
         phaseNav = tData?.current_phase_for_p2s_processing || tData?.phases_for_p2s_processing?.[0];
-        if (!phaseNav && tData?.processed_phases_for_p2s?.length > 0) phaseNav = tData?.processed_phases_for_p2s?.[tData.processed_phases_for_p2s.length-1];
+        if (!phaseNav && (tData?.processed_phases_for_p2s?.length || 0) > 0) phaseNav = tData?.processed_phases_for_p2s?.[tData.processed_phases_for_p2s.length-1];
     } else if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(clickedStepId)) {
         gduNav = genericAnalysisState.current_gdu_for_p4s_processing || genericAnalysisState.core_gdus_for_sync_analysis?.[0];
-        if (!gduNav && genericAnalysisState.processed_gdus_for_p4s?.length > 0) gduNav = genericAnalysisState.processed_gdus_for_p4s?.[genericAnalysisState.processed_gdus_for_p4s?.length - 1];
+        if (!gduNav && (genericAnalysisState.processed_gdus_for_p4s?.length || 0) > 0) gduNav = genericAnalysisState.processed_gdus_for_p4s?.[genericAnalysisState.processed_gdus_for_p4s?.length - 1];
     }
     const data = loadStepData(clickedStepId, txIdNav, phaseNav, gduNav);
     setCurrentStepInfo({ stepId:clickedStepId, transcriptId:txIdNav, currentPhaseForP2S:phaseNav, currentGduForP4S:gduNav, status:data.error?StepStatus.Error:(data.outputData?StepStatus.Success:StepStatus.Idle), inputData:data.inputData, outputData:data.outputData, error:data.error, groundingSources:data.groundingSources });
@@ -1447,11 +1445,11 @@ const App: React.FC = () => {
     if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepToLoad)) {
         const tData = processedData.get(rawTranscripts[index].id);
         phaseToLoad = tData?.current_phase_for_p2s_processing || tData?.phases_for_p2s_processing?.[0];
-        if (!phaseToLoad && tData?.processed_phases_for_p2s?.length > 0) phaseToLoad = tData?.processed_phases_for_p2s?.[tData.processed_phases_for_p2s.length -1];
+        if (!phaseToLoad && (tData?.processed_phases_for_p2s?.length || 0) > 0) phaseToLoad = tData?.processed_phases_for_p2s?.[tData.processed_phases_for_p2s.length -1];
     } else if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(stepToLoad)) {
         // Keep current GDU if P4S step is selected, or default to first if not set.
         gduToLoad = genericAnalysisState.current_gdu_for_p4s_processing || genericAnalysisState.core_gdus_for_sync_analysis?.[0];
-        if (!gduToLoad && genericAnalysisState.processed_gdus_for_p4s?.length > 0) {
+        if (!gduToLoad && (genericAnalysisState.processed_gdus_for_p4s?.length || 0) > 0) {
             gduToLoad = genericAnalysisState.processed_gdus_for_p4s?.[genericAnalysisState.processed_gdus_for_p4s?.length - 1];
         }
     }
@@ -1468,7 +1466,7 @@ const App: React.FC = () => {
     if (isStepGlobal) {
         if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(stepId)) {
             if (genericAnalysisState.isFullyProcessedGenericSynchronic) status = StepStatus.Success;
-            else if (genericAnalysisState.processed_gdus_for_p4s?.length > 0) status = StepStatus.Loading; 
+            else if ((genericAnalysisState.processed_gdus_for_p4s?.length || 0) > 0) status = StepStatus.Loading; 
             // Check for specific P4S_A or P4S_B error
             if (stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES && genericAnalysisState.p4s_1_a_error) error = genericAnalysisState.p4s_1_a_error;
             if (stepId === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS && genericAnalysisState.p4s_1_b_error) error = genericAnalysisState.p4s_1_b_error;
@@ -1485,7 +1483,7 @@ const App: React.FC = () => {
             if (tData) {
                 if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)) {
                     if(tData.isFullyProcessedSpecificSynchronic) status = StepStatus.Success;
-                    else if (tData.processed_phases_for_p2s?.length > 0) status = StepStatus.Loading; 
+                    else if ((tData.processed_phases_for_p2s?.length || 0) > 0) status = StepStatus.Loading; 
                     if (currentStepInfo.stepId === stepId && currentStepInfo.transcriptId === currentTId && currentStepInfo.error) error = currentStepInfo.error;
                 } else {
                     const keyPrefix = stepIdToDataKeyPrefix[stepId] as keyof TranscriptProcessedData;

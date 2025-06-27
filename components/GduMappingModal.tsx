@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { P9_1_SemanticGduMapping, GduMappingDisplayItem, AppState, P3_2_IdentifiedGdu } from '../types';
+import { P9_1_SemanticGduMapping, GduMappingDisplayItem, AppState } from '../types';
 
 interface GduMappingModalProps {
   isOpen: boolean;

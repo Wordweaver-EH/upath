@@ -58,8 +58,8 @@ export function prepareAnnotationDataForTranscript(transcriptData: TranscriptPro
         for (const p0_3_utt of p0_3_utterances) {
             const trace: ContributingP0_3UtteranceTrace = { p0_3_original_line_num: p0_3_utt.original_line_num, p0_3_utterance_text: p0_3_utt.utterance_text, p1_1_segment_ids: [], synchronic_p2s1_groups: [], synchronic_p2s2_isus: [] };
             const p1_1_container = transcriptData.p1_1_output?.segmented_utterances.find(seg_utt => seg_utt.original_utterance.original_line_num === p0_3_utt.original_line_num);
-            if (p1_1_container?.segments?.length > 0) {
-                trace.p1_1_segment_ids = p1_1_container.segments.map(s => s.segment_id);
+            if ((p1_1_container?.segments?.length || 0) > 0) {
+                trace.p1_1_segment_ids = p1_1_container?.segments?.map(s => s.segment_id) || [];
                 const first_seg_id = trace.p1_1_segment_ids[0];
                 const p1_2_du = transcriptData.p1_2_output?.diachronic_units.find(du => du.source_segment_ids.includes(first_seg_id));
                 if (p1_2_du) {

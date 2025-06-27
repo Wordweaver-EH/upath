@@ -2,7 +2,6 @@
 import React from 'react';
 import { RawTranscript, StepId, CurrentStepInfo, StepStatus } from '../types'; // Added StepStatus
 import { UploadIcon, FileTextIcon, SaveIcon, LoadIcon, InfoIcon } from '../constants';
-import CollapsibleSection from './CollapsibleSection'; // Assuming it's in the same directory
 
 interface SettingsPanelProps {
   apiKeyPresent: boolean;

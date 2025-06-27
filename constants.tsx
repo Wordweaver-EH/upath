@@ -1,8 +1,7 @@
 
 
 
-import React from 'react';
-import { StepId, UserDVFocus, SelectedUtterance, P2SPhaseData, RawTranscript, TranscriptProcessedData, GenericAnalysisState, P_neg1_1_Output, P0_1_Output, P0_2_Output, P0_3_Output, P1_1_Output, P1_2_Output, P1_3_Output, P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_1_Output, P3_2_Output, P3_2_Classification, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P5_1_ComparativeAnalysisOutput, P5_1_Input, P5_1_InputWithFlag, P5_1_IvGroupSummary, P5_1_TranscriptGduSequence, P5_2_RefinementOutput, P7_1_Output, P7_2_Output, P7_3_Output, P7_3b_Output, P7_4_Output, P7_5_Output, GenericDiachronicStructureDefinition, P4S_1_GenericNode, P4S_1_GenericLink, SegmentedUtteranceSegment, P7_2_ProposedLink, RefinedLine, P7_1_CandidateVariable } from './types';
+import { StepId, UserDVFocus, SelectedUtterance, RawTranscript, TranscriptProcessedData, GenericAnalysisState, P_neg1_1_Output, P0_1_Output, P0_2_Output, P0_3_Output, P1_1_Output, P1_2_Output, P1_3_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_1_Output, P3_2_Output, P4S_1_A_Output, P5_1_ComparativeAnalysisOutput, P5_1_Input, P5_1_InputWithFlag, P5_2_RefinementOutput, P7_1_Output, P7_3_Output, P7_3b_Output, P7_4_Output, P7_2_ProposedLink, P7_1_CandidateVariable } from './types';
 import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './utils/htmlHelper'; // For P6.1 input
 import { ReportData } from './utils/reportHelper'; // Ensure this matches the actual path if different
 
