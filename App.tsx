@@ -73,7 +73,8 @@ const stepIdToDataKeyPrefix: Partial<Record<StepId, keyof GenericAnalysisState |
   [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "p3_3_output",
   [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES]: "p4s_1_a_outputs_by_gdu",
   [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: "p4s_outputs_by_gdu",
-  [StepId.P5_1_HOLISTIC_REVIEW_REFINEMENT]: "p5_1_output",
+  [StepId.P5_1_IV_COMPARATIVE_ANALYSIS]: "p5_1_output",
+  [StepId.P5_2_HOLISTIC_REFINEMENT]: "p5_2_output",
   [StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION]: "p7_1_output",
   [StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS]: "p7_2_output",
   [StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS]: "p7_3_output",
@@ -791,6 +792,16 @@ const App: React.FC = () => {
         const apiResult = await callGeminiAPI(promptForHistory, config.isJsonOutput, false, temperature, effectiveSeed);
         output = config.isJsonOutput ? apiResult.parsedJson : apiResult.text;
         apiError = apiResult.error;
+        
+        // Apply parseOutput validation if available and no API error
+        if (!apiError && output && config.parseOutput) {
+            try {
+                output = config.parseOutput(output, inputData);
+            } catch (validationError: any) {
+                apiError = `Output validation failed: ${validationError.message || String(validationError)}`;
+                console.error(`Validation failed for ${stepId}:`, validationError);
+            }
+        }
         groundingSources = apiResult.groundingSources;
         estIn = apiResult.estimatedInputTokens;
         estOut = apiResult.estimatedOutputTokens;
@@ -1064,7 +1075,7 @@ const App: React.FC = () => {
          setGenericAnalysisState(prev=>({...prev,[key as keyof GenericAnalysisState]:output,[eKey]:undefined}as any));
          if (stepId === StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS && output) { const p7_3=(output as P7_3_Output); const mermaid=p7_3.final_dag?transformDagToMermaid(p7_3.final_dag):undefined; setGenericAnalysisState(prev=>({...prev,p7_3_mermaid_syntax_dag:mermaid})); }
          else if (stepId === StepId.P7_3B_VALIDATE_AND_CLEAN_DAG && output) { const p7_3b=(output as P7_3b_Output); const mermaid=p7_3b.final_dag?transformDagToMermaid(p7_3b.final_dag):undefined; setGenericAnalysisState(prev=>({...prev,p7_3b_mermaid_syntax_dag:mermaid})); }
-         else if (stepId === StepId.P5_1_HOLISTIC_REVIEW_REFINEMENT) setGenericAnalysisState(prev=>({...prev,isRefinementDone:true}));
+         else if (stepId === StepId.P5_2_HOLISTIC_REFINEMENT) setGenericAnalysisState(prev=>({...prev,isRefinementDone:true}));
          else if (stepId === StepId.P7_5_GENERATE_FORMAL_HYPOTHESES) setGenericAnalysisState(prev=>({...prev,isCausalModelingDone:true}));
     }
 
@@ -1263,7 +1274,15 @@ const App: React.FC = () => {
                     newGenericState.p4s_1_b_error = undefined;
                     newGenericState.processed_gdus_for_p4s = [];
                     newGenericState.isFullyProcessedGenericSynchronic = false;
-                } else if (stepToInvalidate === StepId.P5_1_HOLISTIC_REVIEW_REFINEMENT) {
+                } else if (stepToInvalidate === StepId.P5_1_IV_COMPARATIVE_ANALYSIS) {
+                    newGenericState.p5_1_output = undefined;
+                    newGenericState.p5_1_error = undefined;
+                    newGenericState.p5_2_output = undefined;
+                    newGenericState.p5_2_error = undefined;
+                    newGenericState.isRefinementDone = false;
+                } else if (stepToInvalidate === StepId.P5_2_HOLISTIC_REFINEMENT) {
+                    newGenericState.p5_2_output = undefined;
+                    newGenericState.p5_2_error = undefined;
                     newGenericState.isRefinementDone = false;
                 } else if (STEP_ORDER_PART_7_CAUSAL_MODELING.includes(stepToInvalidate)) {
                     newGenericState.isCausalModelingDone = false;

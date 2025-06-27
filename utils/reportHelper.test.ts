@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { generateMarkdownReportProgrammatically, type ReportData } from './reportHelper'
 import type { 
-  P5_1_Output,
+  P5_2_RefinementOutput,
   P3_2_Output,
   P3_3_Output,
   P4S_1_Output,
@@ -38,7 +38,7 @@ describe('generateMarkdownReportProgrammatically', () => {
         ],
         emergent_insights: ['Test insight 1', 'Test insight 2'],
         hypotheses_generated: ['Initial hypothesis 1']
-      } as P5_1_Output,
+      } as P5_2_RefinementOutput,
       p3_2_output: {
         identified_gdus: [
           {
@@ -161,10 +161,10 @@ describe('generateMarkdownReportProgrammatically', () => {
     expect(result).toContain('## 2. Transcripts Analyzed')
     expect(result).toContain('## 3. Generic Diachronic Structure (GDS)')
     expect(result).toContain('## 4. Generic Synchronic Structures (GSS)')
-    expect(result).toContain('## 5. Holistic Refinement Summary')
-    expect(result).toContain('## 6. Proposed Causal Model')
-    expect(result).toContain('## 7. Conclusion')
-    expect(result).toContain('## 8. Appendix')
+    expect(result).toContain('## 6. Holistic Refinement Summary (P5.2)')
+    expect(result).toContain('## 7. Proposed Causal Model')
+    expect(result).toContain('## 8. Conclusion')
+    expect(result).toContain('## 9. Appendix')
   })
 
   it('should include current date', () => {
@@ -343,7 +343,7 @@ describe('generateMarkdownReportProgrammatically', () => {
     
     const result = generateMarkdownReportProgrammatically(dataWithoutP5)
     
-    expect(result).toContain('*Holistic refinement data (P5.1) not available.*')
+    expect(result).toContain('*Holistic refinement data (P5.2) not available.*')
   })
 
   it('should handle missing causal model data gracefully', () => {
@@ -388,7 +388,7 @@ describe('generateMarkdownReportProgrammatically', () => {
       p5_output: {
         ...baseReportData.p5_output,
         refinement_log: []
-      } as P5_1_Output
+      } as P5_2_RefinementOutput
     }
     
     const result = generateMarkdownReportProgrammatically(dataWithEmptyLog)
@@ -402,7 +402,7 @@ describe('generateMarkdownReportProgrammatically', () => {
       p5_output: {
         ...baseReportData.p5_output,
         emergent_insights: []
-      } as P5_1_Output
+      } as P5_2_RefinementOutput
     }
     
     const result = generateMarkdownReportProgrammatically(dataWithEmptyInsights)
@@ -416,7 +416,7 @@ describe('generateMarkdownReportProgrammatically', () => {
       p5_output: {
         ...baseReportData.p5_output,
         hypotheses_generated: []
-      } as P5_1_Output
+      } as P5_2_RefinementOutput
     }
     
     const result = generateMarkdownReportProgrammatically(dataWithEmptyHypotheses)

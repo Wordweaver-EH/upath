@@ -292,7 +292,53 @@ export interface P4S_1_Output { // This is effectively P4S_1_B_Output now
 }
 
 // Part V: Refinement
-export interface P5_1_Output {
+// New P5.1: IV-Centric Comparative Analysis
+export interface P5_1_IvGroupAnalysis {
+  iv_condition: string; // e.g., "High Score", "Condition A"
+  transcript_ids: string[];
+  diachronic_summary: {
+    common_sequences: string[]; // e.g., "GDU_A -> GDU_B"
+    key_structural_features: string; // e.g., "Frequently skips GDU_C", "Shows longer GDU_D"
+  };
+  synchronic_summary: {
+    dominant_gss_categories: Array<{ 
+      gdu_context: string; 
+      category_label: string; 
+    }>;
+    key_thematic_features: string; // e.g., "Emphasis on visual details in GDU_A", "Lacks emotional expression in GDU_B"
+  };
+}
+
+export interface P5_1_ComparativeAnalysisOutput {
+  analysis_summary: string; // High-level summary of the main contrasts found
+  analysis_by_iv_group: P5_1_IvGroupAnalysis[];
+  comparative_diachronic_mermaid_syntax: string; // The syntax for the new diagram
+}
+
+// Input types for P5.1 IV Comparative Analysis
+export interface P5_1_TranscriptGduSequence {
+  transcript_id: string;
+  sequence: string[];
+}
+
+export interface P5_1_IvGroupSummary {
+  iv_condition: string;
+  transcript_ids: string[];
+  gdu_sequences: P5_1_TranscriptGduSequence[];
+}
+
+export interface P5_1_Input {
+  generic_diachronic_structure: P3_3_Output;
+  generic_synchronic_structures_by_gdu: Record<string, P4S_1_Output>;
+  iv_group_summaries: P5_1_IvGroupSummary[];
+  all_identified_gdus: P3_2_GDU[];
+}
+
+// Extended input for P5.1 that includes single IV flag
+export interface P5_1_InputWithFlag extends P5_1_Input {
+  is_single_iv_condition?: boolean;
+}// P5.2 (formerly P5.1): Holistic Refinement
+export interface P5_2_RefinementOutput {
   final_refined_generic_diachronic_structure_summary: string;
   final_refined_generic_synchronic_structures_summary: Record<string, string>; // GDU_ID -> summary string
   refinement_log: Array<{ observation: string; adjustment_made: string; justification: string; }>;
@@ -540,8 +586,10 @@ export interface GenericAnalysisState {
 
   isFullyProcessedGenericSynchronic: boolean;
 
-  p5_1_output?: P5_1_Output;
+  p5_1_output?: P5_1_ComparativeAnalysisOutput;
   p5_1_error?: string;
+  p5_2_output?: P5_2_RefinementOutput;
+  p5_2_error?: string;
   isRefinementDone: boolean;
 
   p7_1_output?: P7_1_Output;
@@ -615,8 +663,9 @@ export enum StepId {
   P4S_1_B_DEFINE_GSS_FROM_GROUPS = "P4S_1_B_DEFINE_GSS_FROM_GROUPS",
   // P4S_1_IDENTIFY_GENERIC_SYNCHRONIC_UNITS = "P4S_1_IDENTIFY_GENERIC_SYNCHRONIC_UNITS", // Old step, to be removed/commented
 
-  // Part V: Refinement
-  P5_1_HOLISTIC_REVIEW_REFINEMENT = "P5_1_HOLISTIC_REVIEW_REFINEMENT",
+  // Part V: Refinement (Two-step process)
+  P5_1_IV_COMPARATIVE_ANALYSIS = "P5_1_IV_COMPARATIVE_ANALYSIS",
+  P5_2_HOLISTIC_REFINEMENT = "P5_2_HOLISTIC_REFINEMENT",
 
   // Part VII: Causal Structure Elicitation
   P7_1_CANDIDATE_VARIABLE_FORMALIZATION = "P7_1_CANDIDATE_VARIABLE_FORMALIZATION",

@@ -1,10 +1,12 @@
 
 import { 
-    P5_1_Output, 
+    P5_1_ComparativeAnalysisOutput,
+    P5_2_RefinementOutput, 
     P3_2_Output, 
     P3_3_Output,
     P4S_1_Output,
     P7_1_Output, 
+    P7_3_Output,
     P7_3b_Output, 
     P7_5_Output,
     GenericDiachronicStructureDefinition,
@@ -18,15 +20,16 @@ import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calcu
 // Define the expected input structure for the report generator
 // This should match the 'data' field of the getInput result for P6_1
 export interface ReportData {
-    p5_output: P5_1_Output;
+    p5_1_output?: P5_1_ComparativeAnalysisOutput; // NEW: P5.1 IV Comparative Analysis
+    p5_output: P5_2_RefinementOutput;
     p3_2_output: P3_2_Output;
     p3_3_output: P3_3_Output;
     p4s_outputs_by_gdu?: Record<string, P4S_1_Output | undefined>;
     p7_1_output: P7_1_Output;
-    p7_3_output?: any; // Keep for reference if needed, though p7_3b is primary for cleaned DAG
+    p7_3_output?: P7_3_Output; // Keep for reference if needed, though p7_3b is primary for cleaned DAG
     p7_3b_output?: P7_3b_Output; // Optional: P7.3 might be used if P7.3b is not available/successful
     p7_5_output: P7_5_Output;
-    p7_3_or_3b_dag_output_for_stats: any; // P7_3_Output or P7_3b_Output
+    p7_3_or_3b_dag_output_for_stats: P7_3_Output | P7_3b_Output; // P7_3_Output or P7_3b_Output
     all_mermaid_syntaxes: Record<string, string>; // This will still contain all syntaxes
     transcripts_analyzed_summary: Array<{
         filename: string;
@@ -159,15 +162,49 @@ export function generateMarkdownReportProgrammatically(input: ReportData): strin
         md += `*No core GDUs identified for GSS analysis or GSS data missing.*\n\n`;
     }
 
+    // NEW Section 5: IV Comparative Analysis (P5.1)
+    md += `## 5. IV-Centric Comparative Analysis (P5.1)\n`;
+    if (input.p5_1_output) {
+        md += `${escapeMarkdown(input.p5_1_output.analysis_summary)}\n\n`;
+        
+        if (input.p5_1_output.analysis_by_iv_group && input.p5_1_output.analysis_by_iv_group.length > 0) {
+            md += `### 5.1. Analysis by IV Group\n`;
+            input.p5_1_output.analysis_by_iv_group.forEach((group, index) => {
+                md += `#### ${index + 1}. ${escapeMarkdown(group.iv_condition)}\n`;
+                md += `- **Transcripts:** ${group.transcript_ids.join(', ')}\n`;
+                
+                md += `- **Diachronic Patterns:**\n`;
+                if (group.diachronic_summary.common_sequences.length > 0) {
+                    md += `  - Common sequences: ${group.diachronic_summary.common_sequences.map(seq => `\`${escapeMarkdown(seq)}\``).join(', ')}\n`;
+                }
+                md += `  - Key features: ${escapeMarkdown(group.diachronic_summary.key_structural_features)}\n`;
+                
+                md += `- **Synchronic Patterns:**\n`;
+                if (group.synchronic_summary.dominant_gss_categories.length > 0) {
+                    md += `  - Dominant categories: ${group.synchronic_summary.dominant_gss_categories.map(cat => 
+                        `\`${escapeMarkdown(cat.category_label)}\` (in ${escapeMarkdown(cat.gdu_context)})`
+                    ).join(', ')}\n`;
+                }
+                md += `  - Key themes: ${escapeMarkdown(group.synchronic_summary.key_thematic_features)}\n\n`;
+            });
+        }
+        
+        if (input.p5_1_output.comparative_diachronic_mermaid_syntax) {
+            md += renderMermaidMarkdown('Comparative Diachronic Alignment', input.p5_1_output.comparative_diachronic_mermaid_syntax, 'comparative_diachronic_diagram');
+        }
+    } else {
+        md += `*IV Comparative Analysis data (P5.1) not available.*\n\n`;
+    }
+
     // Section 6: Holistic Refinement Summary
-    md += `## 5. Holistic Refinement Summary (P5.1)\n`;
+    md += `## 6. Holistic Refinement Summary (P5.2)\n`;
     if (input.p5_output) {
         md += `${escapeMarkdown(input.p5_output.final_refined_generic_diachronic_structure_summary)}\n\n`;
         md += `**Refined GSS Summaries:**\n`;
         for (const [gduId, summary] of Object.entries(input.p5_output.final_refined_generic_synchronic_structures_summary)) {
             md += `- **GDU \`${escapeMarkdown(gduId)}\`:** ${escapeMarkdown(summary)}\n`;
         }
-        md += `\n### 5.1. Refinement Log\n`;
+        md += `\n### 6.1. Refinement Log\n`;
         if (input.p5_output.refinement_log && input.p5_output.refinement_log.length > 0) {
             input.p5_output.refinement_log.forEach(log => {
                 md += `- **Observation:** ${escapeMarkdown(log.observation)}\n`;
@@ -177,26 +214,26 @@ export function generateMarkdownReportProgrammatically(input: ReportData): strin
         } else {
             md += `*No refinement log entries.*\n\n`;
         }
-        md += `### 5.2. Emergent Insights\n`;
+        md += `### 6.2. Emergent Insights\n`;
         if (input.p5_output.emergent_insights && input.p5_output.emergent_insights.length > 0) {
             input.p5_output.emergent_insights.forEach(insight => md += `- ${escapeMarkdown(insight)}\n`);
         } else {
             md += `*No emergent insights recorded.*\n\n`;
         }
-        md += `\n### 5.3. Initial Hypotheses (from P5)\n`;
+        md += `\n### 6.3. Initial Hypotheses (from P5.2)\n`;
         if (input.p5_output.hypotheses_generated && input.p5_output.hypotheses_generated.length > 0) {
             input.p5_output.hypotheses_generated.forEach(hyp => md += `- ${escapeMarkdown(hyp)}\n`);
         } else {
             md += `*No initial hypotheses generated in P5.*\n\n`;
         }
     } else {
-        md += `*Holistic refinement data (P5.1) not available.*\n\n`;
+        md += `*Holistic refinement data (P5.2) not available.*\n\n`;
     }
 
     // Section 7: Proposed Causal Model
-    md += `## 6. Proposed Causal Model\n`;
+    md += `## 7. Proposed Causal Model\n`;
     if (input.p7_1_output && (input.p7_3b_output || input.p7_3_output) && input.p7_5_output) {
-        md += `### 6.1. Formal Variables (P7.1)\n`;
+        md += `### 7.1. Formal Variables (P7.1)\n`;
         const varHeaders = ["ID", "Name", "Phenomenological Grounding (Excerpt)", "Measurement Type", "Grounding Refs (Type:ID)"];
         const varRows = input.p7_1_output.candidate_variables.map((v: P7_1_CandidateVariable) => [
             v.variable_id,
@@ -207,7 +244,7 @@ export function generateMarkdownReportProgrammatically(input: ReportData): strin
         ]);
         md += renderMarkdownTable(varHeaders, varRows);
 
-        md += `### 6.2. Causal Graph (P7.3b / P7.3)\n`;
+        md += `### 7.2. Causal Graph (P7.3b / P7.3)\n`;
         const dagSyntaxKey = input.all_mermaid_syntaxes['cleaned_causal_dag'] ? 'cleaned_causal_dag' : 'initial_causal_dag';
         const dagTitle = dagSyntaxKey === 'cleaned_causal_dag' ? "Cleaned Causal DAG" : "Initial Proposed Causal DAG";
         md += renderMermaidMarkdown(dagTitle, input.all_mermaid_syntaxes[dagSyntaxKey], 'causal_dag_diagram');
@@ -228,7 +265,7 @@ export function generateMarkdownReportProgrammatically(input: ReportData): strin
         md += `\n`;
 
 
-        md += `### 6.3. Formal Causal Hypotheses (P7.5)\n`;
+        md += `### 7.3. Formal Causal Hypotheses (P7.5)\n`;
         if (input.p7_5_output.formal_causal_hypotheses && input.p7_5_output.formal_causal_hypotheses.length > 0) {
             input.p7_5_output.formal_causal_hypotheses.forEach((h: P7_5_FormalHypothesis) => {
                 md += `#### Hypothesis: \`${escapeMarkdown(h.hypothesis_id)}\`\n`;
@@ -248,11 +285,11 @@ export function generateMarkdownReportProgrammatically(input: ReportData): strin
     }
 
     // Section 8: Conclusion
-    md += `## 7. Conclusion\n`;
+    md += `## 8. Conclusion\n`;
     md += `This report presents a summary of the automated micro-phenomenological analysis. Further interpretation and validation by human researchers are recommended. For detailed specific-level analyses, diagrams, and quantitative data, please consult the accompanying HTML Appendix.\n\n`;
 
     // Section 9: Appendix (Mermaid Syntaxes - for generic structures only, as specific ones are in HTML Appendix)
-    md += `## 8. Appendix: Mermaid Diagram Syntaxes (Generic Structures & Causal DAG)\n`;
+    md += `## 9. Appendix: Mermaid Diagram Syntaxes (Generic Structures & Causal DAG)\n`;
     md += `This section provides the raw Mermaid.js syntax for the high-level generic diagrams and the causal DAG included in this report for reference and reproducibility.\n\n`;
     
     const genericDiagramKeys = ['gds_main', 'causal_dag', 'cleaned_causal_dag'];

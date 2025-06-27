@@ -2,7 +2,7 @@
 
 
 import React from 'react';
-import { StepId, UserDVFocus, SelectedUtterance, P2SPhaseData, RawTranscript, TranscriptProcessedData, GenericAnalysisState, P_neg1_1_Output, P0_1_Output, P0_2_Output, P0_3_Output, P1_1_Output, P1_2_Output, P1_3_Output, P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_1_Output, P3_2_Output, P3_2_Classification, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P5_1_Output, P7_1_Output, P7_2_Output, P7_3_Output, P7_3b_Output, P7_4_Output, P7_5_Output, GenericDiachronicStructureDefinition, P4S_1_GenericNode, P4S_1_GenericLink, SegmentedUtteranceSegment, P7_2_ProposedLink, RefinedLine, P7_1_CandidateVariable } from './types';
+import { StepId, UserDVFocus, SelectedUtterance, P2SPhaseData, RawTranscript, TranscriptProcessedData, GenericAnalysisState, P_neg1_1_Output, P0_1_Output, P0_2_Output, P0_3_Output, P1_1_Output, P1_2_Output, P1_3_Output, P1_4_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_1_Output, P3_2_Output, P3_2_Classification, P3_3_Output, P4S_1_A_Output, P4S_1_Output, P5_1_ComparativeAnalysisOutput, P5_1_Input, P5_1_InputWithFlag, P5_1_IvGroupSummary, P5_1_TranscriptGduSequence, P5_2_RefinementOutput, P7_1_Output, P7_2_Output, P7_3_Output, P7_3b_Output, P7_4_Output, P7_5_Output, GenericDiachronicStructureDefinition, P4S_1_GenericNode, P4S_1_GenericLink, SegmentedUtteranceSegment, P7_2_ProposedLink, RefinedLine, P7_1_CandidateVariable, P3_2_GDU } from './types';
 import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './utils/htmlHelper'; // For P6.1 input
 import { ReportData } from './utils/reportHelper'; // Ensure this matches the actual path if different
 
@@ -39,22 +39,45 @@ export function validateAndCleanP3_2_Output(output: any, expectedTotRdus: number
         };
     });
     
+    // Validate that all RDUs have been accounted for
+    if (seen.size !== expectedTotRdus) {
+        throw new Error(`[P3.2 VALIDATION] Mismatch in RDU count: Expected ${expectedTotRdus} RDUs to be processed, but found ${seen.size} unique RDUs in GDU assignments. This indicates some RDUs were missed or duplicated.`);
+    }
+    
+    // Note: output.tot_rdus is not part of the P3_2_Output type, it's only an input parameter
+    
     return {
         ...output,
         identified_gdus: cleanedGdus
     };
-                 
-                 if (seen.size !== expectedTotRdus) {
-                     throw new Error(`Expected ${expectedTotRdus} RDUs, got ${seen.size}`);
-                 }
-                 
-                 if (output.tot_rdus !== expectedTotRdus) {
-                     throw new Error(`tot_rdus mismatch: expected ${expectedTotRdus}, got ${output.tot_rdus}`);
-                 }
-             }// Values: 'original' | 'minified' | 'minimal_context_tsv' | 'full_context_tsv' | 'zero_context_tsv'
-             
+}// Values: 'original' | 'minified' | 'minimal_context_tsv' | 'full_context_tsv' | 'zero_context_tsv'
+
+// Helper function to extract numeric value from RDU ID for proper sorting
+function extractNumericFromRduId(rduId: string): number {
+    // Handle various formats: "DU_1", "DU_01", "RDU_1", "RDU_01", etc.
+    const match = rduId.match(/(\d+)/);
+    if (match) {
+        return parseInt(match[1], 10);
+    }
+    // Fallback for non-numeric IDs - use string comparison
+    return 0;
+}
+
+// Compare RDU IDs with proper numeric handling
+function compareRduIds(a: string, b: string): number {
+    const numA = extractNumericFromRduId(a);
+    const numB = extractNumericFromRduId(b);
+    
+    // If both have numeric parts, compare numerically
+    if (numA !== 0 && numB !== 0) {
+        return numA - numB;
+    }
+    
+    // Fallback to string comparison if no numeric parts
+    return a.localeCompare(b);
+}             
              // ───────────────────────────────────────────────────────────────────────────────
-             // P5.1 - Holistic Review Prompt Builder (schema_version: "2.0" - Dynamic)
+             // P5.2 - Holistic Review Prompt Builder (schema_version: "2.0" - Dynamic)
              // ───────────────────────────────────────────────────────────────────────────
              
              /**
@@ -80,116 +103,125 @@ export function validateAndCleanP3_2_Output(output: any, expectedTotRdus: number
              };
                    
                    /**
-                    * Builds the P5.1 prompt with a dynamically generated, un-anchored output schema.
+                    * Builds the P5.2 prompt with a dynamically generated, un-anchored output schema.
                     * This minimizes overfitting and maintenance burden while maximizing structural guidance.
                     */
                    const buildDynamicP5Prompt = ({
-                     gdsName,
-                     numGss,
-                     numSds,
-                     numSss,
-                     generic_diachronic_structure_input,
-                     generic_synchronic_structures_by_gdu_input,
-                     all_specific_diachronic_structures_input,
-                     all_specific_synchronic_structures_input,
-                     dvFocus,
-                   }: {
-                     gdsName: string;
-                     numGss: number;
-                     numSds: number;
-                     numSss: number;
-                     generic_diachronic_structure_input: any;
-                     generic_synchronic_structures_by_gdu_input: any;
-                     all_specific_diachronic_structures_input: any[];
-                     all_specific_synchronic_structures_input: any[];
-                     dvFocus: string[];
-                   }) => {
-                     // Dynamically get the GDU IDs from the *current* input data.
-                     const gduIds = Object.keys(generic_synchronic_structures_by_gdu_input);
-                   
-                     // Programmatically build the exemplar to match the input's structure.
-                     const dynamicExemplar = {
-                       final_refined_generic_diachronic_structure_summary: instructionalText.summary,
-                       final_refined_generic_synchronic_structures_summary: Object.fromEntries(
-                         gduIds.map(id => [id, `(${instructionalText.summary} for GDU: ${id})`])
-                       ),
-                       updated_gds_object: {
-                         name: instructionalText.gdsName,
-                         description: instructionalText.gdsDescription,
-                         core_gdus: [{ gdu_id: "GDU_ID_CORE_EXAMPLE", name: "Example Core GDU", description: instructionalText.gduDescription }],
-                         optional_gdus: [{ gdu_id: "GDU_ID_OPTIONAL_EXAMPLE", name: "Example Optional GDU", description: instructionalText.gduDescription }],
-                         typical_sequence: [{ from_gdu_id: "GDU_ID_A", to_gdu_id: "GDU_ID_B", description: instructionalText.sequenceDescription }],
-                       },
-                       updated_gss_outputs_by_gdu: Object.fromEntries(
-                         gduIds.map(id => [
-                           id,
-                           {
-                             representation_type: "Semantic Network",
-                             description: `(${instructionalText.gssDescription} for GDU: ${id})`,
-                             generic_nodes_categories: [{ generic_category_id: "gss_cat_example_id", name: instructionalText.gssCategoryName, description: instructionalText.gssCategoryDescription }],
-                             generic_network_links: [{ from_category_id: "gss_cat_id_1", to_category_id: "gss_cat_id_2", description: instructionalText.gssLinkDescription }],
-                             instantiation_notes: [{
-                               generic_category_id: "gss_cat_example_id",
-                               textual_description: instructionalText.instantiationNotesDescription,
-                               // NOTE: We show the structure but keep the array empty, as the model's task is to populate it.
-                               // The instruction in TASKS enforces the non-empty rule on output.
-                               example_specific_nodes: [ { transcript_id: "tx_id", sss_node_id: "node_id", phase_name: "phase_name" } ]
-                             }]
-                           }
-                         ])
-                       ),
-                       refinement_log: [{ observation: instructionalText.logObservation, adjustment_made: instructionalText.logAdjustment, justification: instructionalText.logJustification }],
-                       emergent_insights: [instructionalText.insight],
-                       hypotheses_generated: [instructionalText.hypothesis],
-                     };
-                   
-                     return `
-                   ### SYSTEM
-                   You are a **senior micro-phenomenological researcher**.  
-                   Your sole task is to (1) perform a holistic review of the provided data, and (2) output a single JSON object that **exactly** follows the structure and qualitative instructions provided in <DYNAMIC_OUTPUT_SCHEMA>.
-                   
-                   ### CONTEXT
-                   <DATA_STATS>
-                   gds_name:             ${gdsName}
-                   num_gss_inputs:       ${numGss}
-                   num_sds_inputs:       ${numSds}
-                   num_sss_inputs:       ${numSss}
-                   dv_focus:             ${dvFocus.join(', ')}
-                   </DATA_STATS>
-                   
-                   <GENERIC_DDS>
-                   ${JSON.stringify(generic_diachronic_structure_input, null, 2)}
-                   </GENERIC_DDS>
-                   
-                   <GENERIC_SSS_BY_GDU>
-                   ${JSON.stringify(generic_synchronic_structures_by_gdu_input, null, 2)}
-                   </GENERIC_SSS_BY_GDU>
-                   
-                   <SPECIFIC_DDS_ARRAY>
-                   ${JSON.stringify(all_specific_diachronic_structures_input, null, 2)}
-                   </SPECIFIC_DDS_ARRAY>
-                   
-                   <SPECIFIC_SSS_ARRAY>
-                   ${JSON.stringify(all_specific_synchronic_structures_input, null, 2)}
-                   </SPECIFIC_SSS_ARRAY>
-                   
-                   ### TASKS
-                   1. **Holistic Review:** Analyze all provided structures (<GENERIC_DDS>, <GENERIC_SSS_BY_GDU>, <SPECIFIC_DDS_ARRAY>, <SPECIFIC_SSS_ARRAY>) to identify patterns, inconsistencies, and emergent themes.
-                   2. **Refine & Generate:** Based on your review, refine the generic structures and generate the requested summaries, logs, insights, and hypotheses.
-                   3. **Output JSON:** Populate the schema provided in <DYNAMIC_OUTPUT_SCHEMA> with your complete analysis.
-                      – Adhere strictly to the keys and structure.
-                      – The text you generate should match the *quality and intent* described by the instructional placeholders.
-                      – For any retained GSS category, the \`example_specific_nodes\` array **must** be populated with relevant nodes from the input data.
-                   
-                   ### DYNAMIC_OUTPUT_SCHEMA (Follow this structure and the instructions within)
-                   <DYNAMIC_OUTPUT_SCHEMA>
-                   ${JSON.stringify(dynamicExemplar, null, 2)}
-                   </DYNAMIC_OUTPUT_SCHEMA>
-                   
-                   ### FORMAT
-                   Respond **only** with the single, valid JSON object. Do not include any other text, apologies, or code fences.
-                   `.trim();
-                   };// Legacy feature flag removed - use P3_2_APPROACH instead
+                                              gdsName,
+                                              numGss,
+                                              numSds,
+                                              numSss,
+                                              generic_diachronic_structure_input,
+                                              generic_synchronic_structures_by_gdu_input,
+                                              all_specific_diachronic_structures_input,
+                                              all_specific_synchronic_structures_input,
+                                              dvFocus,
+                                              p5_1_comparative_analysis,
+                                            }: {
+                                              gdsName: string;
+                                              numGss: number;
+                                              numSds: number;
+                                              numSss: number;
+                                              generic_diachronic_structure_input: any;
+                                              generic_synchronic_structures_by_gdu_input: any;
+                                              all_specific_diachronic_structures_input: any[];
+                                              all_specific_synchronic_structures_input: any[];
+                                              dvFocus: string[];
+                                              p5_1_comparative_analysis?: any; // NEW: P5.1 output
+                                            }) => {
+                                              // Dynamically get the GDU IDs from the *current* input data.
+                                              const gduIds = Object.keys(generic_synchronic_structures_by_gdu_input);
+                                            
+                                              // Programmatically build the exemplar to match the input's structure.
+                                              const dynamicExemplar = {
+                                                final_refined_generic_diachronic_structure_summary: instructionalText.summary,
+                                                final_refined_generic_synchronic_structures_summary: Object.fromEntries(
+                                                  gduIds.map(id => [id, `(${instructionalText.summary} for GDU: ${id})`])
+                                                ),
+                                                updated_gds_object: {
+                                                  name: instructionalText.gdsName,
+                                                  description: instructionalText.gdsDescription,
+                                                  core_gdus: [{ gdu_id: "GDU_ID_CORE_EXAMPLE", name: "Example Core GDU", description: instructionalText.gduDescription }],
+                                                  optional_gdus: [{ gdu_id: "GDU_ID_OPTIONAL_EXAMPLE", name: "Example Optional GDU", description: instructionalText.gduDescription }],
+                                                  typical_sequence: [{ from_gdu_id: "GDU_ID_A", to_gdu_id: "GDU_ID_B", description: instructionalText.sequenceDescription }],
+                                                },
+                                                updated_gss_outputs_by_gdu: Object.fromEntries(
+                                                  gduIds.map(id => [
+                                                    id,
+                                                    {
+                                                      representation_type: "Semantic Network",
+                                                      description: `(${instructionalText.gssDescription} for GDU: ${id})`,
+                                                      generic_nodes_categories: [{ generic_category_id: "gss_cat_example_id", name: instructionalText.gssCategoryName, description: instructionalText.gssCategoryDescription }],
+                                                      generic_network_links: [{ from_category_id: "gss_cat_id_1", to_category_id: "gss_cat_id_2", description: instructionalText.gssLinkDescription }],
+                                                      instantiation_notes: [{
+                                                        generic_category_id: "gss_cat_example_id",
+                                                        textual_description: instructionalText.instantiationNotesDescription,
+                                                        // NOTE: We show the structure but keep the array empty, as the model's task is to populate it.
+                                                        // The instruction in TASKS enforces the non-empty rule on output.
+                                                        example_specific_nodes: [ { transcript_id: "tx_id", sss_node_id: "node_id", phase_name: "phase_name" } ]
+                                                      }]
+                                                    }
+                                                  ])
+                                                ),
+                                                refinement_log: [{ observation: instructionalText.logObservation, adjustment_made: instructionalText.logAdjustment, justification: instructionalText.logJustification }],
+                                                emergent_insights: [instructionalText.insight],
+                                                hypotheses_generated: [instructionalText.hypothesis],
+                                              };
+                                            
+                                              return `
+                                            ### SYSTEM
+                                            You are a **senior micro-phenomenological researcher**.  
+                                            Your sole task is to (1) perform a holistic review of the provided data, and (2) output a single JSON object that **exactly** follows the structure and qualitative instructions provided in <DYNAMIC_OUTPUT_SCHEMA>.
+                                            
+                                            ### CONTEXT
+                                            <DATA_STATS>
+                                            gds_name:             ${gdsName}
+                                            num_gss_inputs:       ${numGss}
+                                            num_sds_inputs:       ${numSds}
+                                            num_sss_inputs:       ${numSss}
+                                            dv_focus:             ${dvFocus.join(', ')}
+                                            </DATA_STATS>
+                                            ${p5_1_comparative_analysis ? `
+                                            <IV_COMPARATIVE_ANALYSIS>
+                                            This analysis was performed in P5.1 to compare patterns across different Independent Variable groups:
+                                            ${JSON.stringify(p5_1_comparative_analysis, null, 2)}
+                                            </IV_COMPARATIVE_ANALYSIS>
+                                            ` : ''}
+                                            <GENERIC_DDS>
+                                            ${JSON.stringify(generic_diachronic_structure_input, null, 2)}
+                                            </GENERIC_DDS>
+                                            
+                                            <GENERIC_SSS_BY_GDU>
+                                            ${JSON.stringify(generic_synchronic_structures_by_gdu_input, null, 2)}
+                                            </GENERIC_SSS_BY_GDU>
+                                            
+                                            <SPECIFIC_DDS_ARRAY>
+                                            ${JSON.stringify(all_specific_diachronic_structures_input, null, 2)}
+                                            </SPECIFIC_DDS_ARRAY>
+                                            
+                                            <SPECIFIC_SSS_ARRAY>
+                                            ${JSON.stringify(all_specific_synchronic_structures_input, null, 2)}
+                                            </SPECIFIC_SSS_ARRAY>
+                                            
+                                            ### TASKS
+                                            1. **Holistic Review:** Analyze all provided structures (<GENERIC_DDS>, <GENERIC_SSS_BY_GDU>, <SPECIFIC_DDS_ARRAY>, <SPECIFIC_SSS_ARRAY>) to identify patterns, inconsistencies, and emergent themes.
+                                               ${p5_1_comparative_analysis ? '- **IMPORTANT**: Use the IV Comparative Analysis from P5.1 as critical context. The patterns identified across IV groups should inform your refinements and insights.' : ''}
+                                            2. **Refine & Generate:** Based on your review, refine the generic structures and generate the requested summaries, logs, insights, and hypotheses.
+                                            3. **Output JSON:** Populate the schema provided in <DYNAMIC_OUTPUT_SCHEMA> with your complete analysis.
+                                               – Adhere strictly to the keys and structure.
+                                               – The text you generate should match the *quality and intent* described by the instructional placeholders.
+                                               – For any retained GSS category, the \`example_specific_nodes\` array **must** be populated with relevant nodes from the input data.
+                                            
+                                            ### DYNAMIC_OUTPUT_SCHEMA (Follow this structure and the instructions within)
+                                            <DYNAMIC_OUTPUT_SCHEMA>
+                                            ${JSON.stringify(dynamicExemplar, null, 2)}
+                                            </DYNAMIC_OUTPUT_SCHEMA>
+                                            
+                                            ### FORMAT
+                                            Respond **only** with the single, valid JSON object. Do not include any other text, apologies, or code fences.
+                                            `.trim();
+                                            };
+;// Legacy feature flag removed - use P3_2_APPROACH instead
 
 // Two-phase P3_2 implementation functions
 const getTwoPhaseP3_2_Input = (_: any, allProcessedData: any, genericState: any, apiKeyPresent: any, userDvFocus: any) => {
@@ -255,7 +287,7 @@ ${input.rdu_list_tsv}
 1. Cluster RDUs into Generic Diachronic Units (GDUs) by semantic similarity and structural role.
 2. For each GDU output
    • \`gdu_id\`, single-sentence \`definition\`,
-   • \`supporting_transcripts_count\`, optional \`iv_variation_notes\`,
+   • \`supporting_transcripts_count\`, optional \`iv_variation_notes\` (incidental observations if patterns coincidentally align with IVs),
    • full \`contributing_refined_du_ids\` trace list.
 3. State the criteria you used in ≤160 characters.
 4. Copy the DV focus list exactly as given.
@@ -331,7 +363,7 @@ ${JSON.stringify(input.rdus)}
 1. Cluster RDUs into Generic Diachronic Units (GDUs) by semantic similarity and structural role.
 2. For each GDU output
    • \`gdu_id\`, single-sentence \`definition\`,
-   • \`supporting_transcripts_count\`, optional \`iv_variation_notes\`,
+   • \`supporting_transcripts_count\`, optional \`iv_variation_notes\` (incidental observations if patterns coincidentally align with IVs),
    • full \`contributing_refined_du_ids\` trace list.
 3. State the criteria you used in ≤160 characters.
 4. Copy the DV focus list exactly as given.
@@ -396,7 +428,7 @@ Instructions:
     *   \`gdu_id\`: A unique identifier for the GDU (e.g., "GDU_Orientation").
     *   \`definition\`: A clear definition of what this GDU represents.
     *   \`supporting_transcripts_count\`: Number of unique transcripts contributing to this GDU.
-    *   \`iv_variation_notes\` (Optional): Observations on how the manifestation of this GDU (e.g., frequency, specific content of its DUs) varies with the \`independent_variable_details\` of the supporting transcripts.
+    *   \`iv_variation_notes\` (Optional): If you notice patterns that coincidentally align with the \`independent_variable_details\` of the supporting transcripts, you may note them here as incidental observations. This is not a primary focus of the analysis.
     *   \`contributing_refined_du_ids\`: An array of objects, where each object specifies a \`transcript_id\` and the \`refined_du_id\` (this is the \`unit_id\` from the P1.3 \`refined_diachronic_units\` object) that contributes to this GDU. This is crucial for traceability.
 3.  Criteria: Briefly state the criteria used for GDU abstraction and identification.
 
@@ -480,7 +512,7 @@ ${input.rdu_list_tsv}
 1. Cluster RDUs into Generic Diachronic Units (GDUs) by semantic similarity and structural role.
 2. For each GDU output
    • \`gdu_id\`, single-sentence \`definition\`,
-   • \`supporting_transcripts_count\`, optional \`iv_variation_notes\`,
+   • \`supporting_transcripts_count\`, optional \`iv_variation_notes\` (incidental observations if patterns coincidentally align with IVs),
    • full \`contributing_refined_du_ids\` trace list.
 3. State the criteria you used in ≤160 characters.
 4. Copy the DV focus list exactly as given.
@@ -566,7 +598,7 @@ ${input.rdu_list_tsv}
 1. Cluster RDUs into Generic Diachronic Units (GDUs) by semantic similarity and structural role.
 2. For each GDU output
    • \`gdu_id\`, single-sentence \`definition\`,
-   • \`supporting_transcripts_count\`, optional \`iv_variation_notes\`,
+   • \`supporting_transcripts_count\`, optional \`iv_variation_notes\` (incidental observations if patterns coincidentally align with IVs),
    • full \`contributing_refined_du_ids\` trace list.
 3. State the criteria you used in ≤160 characters.
 4. Copy the DV focus list exactly as given.
@@ -633,7 +665,10 @@ export const STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC = [StepId.P1_1_INITIAL_SEGMEN
 export const STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC = [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC, StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS, StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE];
 export const STEP_ORDER_PART_3_GENERIC_DIACHRONIC = [StepId.P3_1_ALIGN_STRUCTURES, StepId.P3_2_IDENTIFY_GDUS, StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE];
 export const STEP_ORDER_PART_4_GENERIC_SYNCHRONIC = [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS];
-export const STEP_ORDER_PART_5_REFINEMENT = [StepId.P5_1_HOLISTIC_REVIEW_REFINEMENT];
+export const STEP_ORDER_PART_5_REFINEMENT = [
+  StepId.P5_1_IV_COMPARATIVE_ANALYSIS,
+  StepId.P5_2_HOLISTIC_REFINEMENT
+];
 export const STEP_ORDER_PART_7_CAUSAL_MODELING = [
   StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION,
   StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS,
@@ -669,7 +704,8 @@ export const ESSENTIAL_STEPS_FOR_AUTODOWNLOAD: StepId[] = [
   // Part IV_S (Note: P4S_1_B output is per GDU, handled in App.tsx)
   StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS,
   // Part V
-  StepId.P5_1_HOLISTIC_REVIEW_REFINEMENT,
+  StepId.P5_1_IV_COMPARATIVE_ANALYSIS,
+  StepId.P5_2_HOLISTIC_REFINEMENT,
   // Part VII
   StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS, // Initial DAG
   StepId.P7_3B_VALIDATE_AND_CLEAN_DAG, // Cleaned DAG
@@ -1755,7 +1791,7 @@ Instructions:
 3.  **MANDATORY: Populate Instantiation Notes with Traceability:** This is the most critical step. For EACH generic category you create, you MUST create a corresponding \`instantiation_notes\` object.
     *   The \`generic_category_id\` MUST match the ID of the generic category it describes.
     *   The \`example_specific_nodes\` array in your output **MUST** be populated **directly and exactly** from the \`contributing_sss_nodes\` array of the corresponding \`SSSNodeGroup\` from the input. Copy the \`transcript_id\`, \`sss_node_id\`, and \`phase_name\` for each contributing node. **DO NOT invent, summarize, or omit these examples.** This provides a verifiable audit trail.
-4.  **Summarize IV Variations:** In \`variations_notes\`, describe any patterns observed in the SSS node groups that correlate with different Independent Variables from the source transcripts.
+4.  **Optional IV Observations:** In \`variations_notes\`, if you notice patterns in the SSS node groups that coincidentally align with different Independent Variables from the source transcripts, you may note them as incidental observations. This is not a primary focus of the analysis.
 5.  **Final JSON:** Ensure the final output is a single, valid JSON object adhering to the specified structure. Do not add any text or markdown outside the JSON.
 
 Output:
@@ -1781,60 +1817,374 @@ A JSON object adhering EXACTLY to the following structure. The \`example_specifi
       }
     ]
   },
-  "variations_notes": "Summary of GSS variations linked to IVs, if observed from grouped SSS node characteristics.",
+  "variations_notes": "Optional: Incidental observations about patterns that coincidentally align with IVs, if any are noticed.",
   "dependent_variable_focus": ${JSON.stringify(input.p4s_1_a_data.dependent_variable_focus)}
 }
 Do NOT include a "mermaid_syntax_generic_synchronic" field; this will be generated by the system later.`,
   },
-  [StepId.P5_1_HOLISTIC_REVIEW_REFINEMENT]: {
-    id: StepId.P5_1_HOLISTIC_REVIEW_REFINEMENT,
-    title: "P5.1: Holistic Review & Refinement",
+  [StepId.P5_1_IV_COMPARATIVE_ANALYSIS]: {
+    id: StepId.P5_1_IV_COMPARATIVE_ANALYSIS,
+    title: "P5.1: IV-Centric Comparative Analysis",
     part: "PartV_Refine",
     isJsonOutput: true,
     getInput: (_, allProcessedData, genericState, apiKeyPresent) => {
         if (!apiKeyPresent) return { data: null, error: "API Key not set." };
         if (!allProcessedData || allProcessedData.size === 0) return { data: null, error: "No processed transcript data available." };
-        if (!genericState?.p3_3_output || !genericState?.p4s_outputs_by_gdu) { return { data: null, error: "Generic Diachronic (P3.3) or Generic Synchronic (P4S.1.B outputs by GDU) data not found." }; }
+        if (!genericState?.p3_3_output || !genericState?.p4s_outputs_by_gdu) { 
+            return { data: null, error: "Generic Diachronic (P3.3) or Generic Synchronic (P4S.1.B outputs by GDU) data not found." }; 
+        }
         
-        const all_sds_outputs: any[] = [];
-        allProcessedData.forEach(tData => {
-            if (tData.p1_4_output) { 
-                all_sds_outputs.push({
-                    transcript_id: tData.id,
-                    filename: tData.filename,
-                    independent_variable: tData.p_neg1_1_output?.independent_variable_details,
-                    structure: tData.p1_4_output.specific_diachronic_structure
+        // Build efficient lookup map for RDU to GDU mapping
+        const rduToGduMap = new Map<string, { transcript_id: string; gdu_id: string }>();
+        if (genericState.p3_2_output?.identified_gdus) {
+            genericState.p3_2_output.identified_gdus.forEach(gdu => {
+                gdu.contributing_refined_du_ids.forEach(rdu => {
+                    const key = `${rdu.transcript_id}|${rdu.refined_du_id}`;
+                    rduToGduMap.set(key, { transcript_id: rdu.transcript_id, gdu_id: gdu.gdu_id });
                 });
+            });
+        }
+        
+        // Group transcripts by IV condition
+        const transcriptsByIv = new Map<string, Array<{id: string; filename: string; gdu_sequence: string[]}>>();
+        allProcessedData.forEach(tData => {
+            const iv = tData.p_neg1_1_output?.independent_variable_details;
+            if (!iv) {
+                console.warn(`Transcript ${tData.id} missing IV details, skipping from comparative analysis`);
+                return; // Skip this transcript
             }
-        });
-
-        const all_sss_outputs_by_phase_and_transcript: Array<{
-            transcript_id: string; filename: string; phase: string; independent_variable?: string;
-            structure: P2S_3_Output['specific_synchronic_structure'];
-        }> = [];
-         allProcessedData.forEach(tData => {
-            if (tData.p2s_outputs_by_phase) {
-                Object.entries(tData.p2s_outputs_by_phase).forEach(([phaseName, phaseData]) => {
-                    if(phaseData.p2s_3_output?.specific_synchronic_structure){
-                        all_sss_outputs_by_phase_and_transcript.push({
-                            transcript_id: tData.id,
-                            filename: tData.filename,
-                            phase: phaseName,
-                            independent_variable: phaseData.p2s_3_output.independent_variable_details,
-                            structure: phaseData.p2s_3_output.specific_synchronic_structure
-                        });
+            if (!transcriptsByIv.has(iv)) {
+                transcriptsByIv.set(iv, []);
+            }
+            
+            // Extract GDU sequence from P3.2 output using efficient lookup
+            const gduSequence: string[] = [];
+            
+            // Get RDUs for this transcript from P1.3 output
+            const p1_3_output = tData.p1_3_output;
+            if (p1_3_output?.refined_diachronic_units) {
+                // Define phase order for consistent temporal sorting
+                const phaseOrder: Record<string, number> = {
+                    "Beginning": 0, "Start": 0, "Initial": 0,
+                    "Early": 1, "Early-Middle": 1,
+                    "Core": 2, "Core Event": 2, "Middle": 2, "Peak": 2,
+                    "Late": 3, "Late-Middle": 3,
+                    "End": 4, "Ending": 4, "Final": 4, "Conclusion": 4,
+                    "Reflection": 5, "Post": 5, "After": 5,
+                    "Transition": 6, "Between": 6,
+                    "Other": 99
+                };
+                
+                // Sort RDUs by temporal phase and then by unit_id for consistent ordering
+                const sortedRdus = [...p1_3_output.refined_diachronic_units].sort((a, b) => {
+                    const phaseA = phaseOrder[a.temporal_phase] ?? 99;
+                    const phaseB = phaseOrder[b.temporal_phase] ?? 99;
+                    
+                    if (phaseA !== phaseB) return phaseA - phaseB;
+                    return compareRduIds(a.unit_id, b.unit_id);
+                });
+                
+                // Map each RDU to its GDU
+                sortedRdus.forEach(rdu => {
+                    const key = `${tData.id}|${rdu.unit_id}`;
+                    const mapping = rduToGduMap.get(key);
+                    if (mapping) {
+                        // Only add if different from last GDU (avoid consecutive duplicates)
+                        if (gduSequence.length === 0 || gduSequence[gduSequence.length - 1] !== mapping.gdu_id) {
+                            gduSequence.push(mapping.gdu_id);
+                        }
                     }
                 });
             }
+            
+            transcriptsByIv.get(iv)!.push({
+                id: tData.id,
+                filename: tData.filename,
+                gdu_sequence: gduSequence
+            });
         });
-        return { data: {
-            generic_diachronic_structure_input: genericState.p3_3_output, 
-            generic_synchronic_structures_by_gdu_input: genericState.p4s_outputs_by_gdu, // These are P4S_1_B outputs
-            all_specific_diachronic_structures_input: all_sds_outputs,
-            all_specific_synchronic_structures_input: all_sss_outputs_by_phase_and_transcript,
-            dv_focus: genericState.p3_3_output.dependent_variable_focus
-        }};
+        
+        // Validate we have IV groups to analyze
+        if (transcriptsByIv.size === 0) {
+            return { data: null, error: "No transcripts with valid IV data found for comparative analysis." };
+        }
+        
+        // Handle single IV condition gracefully
+        if (transcriptsByIv.size === 1) {
+            const [singleIv, transcripts] = Array.from(transcriptsByIv.entries())[0];
+            console.log(`Only one IV condition found: "${singleIv}". P5.1 will provide a summary without comparison.`);
+            
+            // Return data that indicates single condition analysis
+            const singleIvSummary = [{
+                iv_condition: singleIv,
+                transcript_ids: transcripts.map(t => t.id),
+                gdu_sequences: transcripts.map(t => ({
+                    transcript_id: t.id,
+                    sequence: t.gdu_sequence
+                }))
+            }];
+            
+            return {
+                data: {
+                    generic_diachronic_structure: genericState.p3_3_output,
+                    generic_synchronic_structures_by_gdu: genericState.p4s_outputs_by_gdu,
+                    iv_group_summaries: singleIvSummary,
+                    all_identified_gdus: genericState.p3_2_output?.identified_gdus || [],
+                    is_single_iv_condition: true  // Flag to indicate single condition
+                }
+            };
+        }
+        
+        // Prepare IV group summaries
+        const ivGroupSummaries = Array.from(transcriptsByIv.entries()).map(([iv, transcripts]) => ({
+            iv_condition: iv,
+            transcript_ids: transcripts.map(t => t.id),
+            gdu_sequences: transcripts.map(t => ({
+                transcript_id: t.id,
+                sequence: t.gdu_sequence
+            }))
+        }));
+        
+        // Validate that we have meaningful data to analyze
+        const hasNonEmptySequences = ivGroupSummaries.some(group => 
+            group.gdu_sequences.some(seq => seq.sequence.length > 0)
+        );
+        
+        if (!hasNonEmptySequences) {
+            return { data: null, error: "No GDU sequences found in any transcript. Cannot perform comparative analysis." };
+        }
+        
+        return { 
+            data: {
+                generic_diachronic_structure: genericState.p3_3_output,
+                generic_synchronic_structures_by_gdu: genericState.p4s_outputs_by_gdu,
+                iv_group_summaries: ivGroupSummaries,
+                all_identified_gdus: genericState.p3_2_output?.identified_gdus || []
+            }
+        };
     },
+    generatePrompt: (input: P5_1_InputWithFlag) => {
+        // Get actual GDU IDs for examples
+        const coreGduIds = input.generic_diachronic_structure.generic_diachronic_structure_definition.core_gdus;
+        const exampleSequences = coreGduIds.length >= 2 
+            ? [`"${coreGduIds[0]} -> ${coreGduIds[1]}"`, `"${coreGduIds[coreGduIds.length-1]} only"`]
+            : ['"[Use actual GDU sequences from data]"'];
+        
+        // Handle single IV condition with a different prompt
+        if (input.is_single_iv_condition) {
+            return `You are a phenomenological analyst. Your task is to provide a comprehensive summary of how the generic structures (GDS and GSSs) manifest in the single Independent Variable (IV) condition present in the data.
+
+Input:
+- Generic Diachronic Structure (GDS): ${JSON.stringify(input.generic_diachronic_structure, null, 2)}
+- Generic Synchronic Structures (GSS) by GDU: ${JSON.stringify(input.generic_synchronic_structures_by_gdu, null, 2)}
+- Single IV Condition Summary: ${JSON.stringify(input.iv_group_summaries[0], null, 2)}
+
+Instructions:
+1. Analyze the patterns in this single IV condition:
+   a. **Diachronic Patterns**: Identify the common GDU sequences and structural characteristics
+   b. **Synchronic Patterns**: Identify the prominent GSS categories and recurring themes
+
+2. **Provide Summary**: Since there is only one IV condition, provide a descriptive summary of how the generic structures manifest, noting any interesting variations within this condition.
+
+3. **Generate Visualization**: Create a simple Mermaid diagram showing the typical flow for this condition.
+
+Output:
+A JSON object adhering EXACTLY to the following structure:
+{
+  "analysis_summary": "Summary of how the generic structures manifest in this single IV condition (note: no comparison possible with only one condition)",
+  "analysis_by_iv_group": [
+    {
+      "iv_condition": "${input.iv_group_summaries[0].iv_condition}",
+      "transcript_ids": ${JSON.stringify(input.iv_group_summaries[0].transcript_ids)},
+      "diachronic_summary": {
+        "common_sequences": ${JSON.stringify(exampleSequences)},
+        "key_structural_features": "Description of patterns observed"
+      },
+      "synchronic_summary": {
+        "dominant_gss_categories": [
+          { "gdu_context": "\${coreGduIds[0] || 'GDU_ID'}", "category_label": "Category name from GSS" }
+        ],
+        "key_thematic_features": "Description of thematic patterns"
+      }
+    }
+  ],
+  "comparative_diachronic_mermaid_syntax": "gantt\n    title Diachronic Flow for ${input.iv_group_summaries[0].iv_condition}\n    ..."
+}`;
+        }
+        
+        // Original comparative prompt for multiple IV conditions
+        return `You are a comparative phenomenological analyst. Your task is to perform a focused comparative analysis of the final generic structures (GDS and GSSs) across different Independent Variable (IV) groups.
+
+Input:
+- Generic Diachronic Structure (GDS): ${JSON.stringify(input.generic_diachronic_structure, null, 2)}
+- Generic Synchronic Structures (GSS) by GDU: ${JSON.stringify(input.generic_synchronic_structures_by_gdu, null, 2)}
+- IV Group Summaries with GDU sequences: ${JSON.stringify(input.iv_group_summaries, null, 2)}
+
+Instructions:
+1. For each IV group, analyze:
+   a. **Diachronic Patterns**: Identify the most common GDU sequences and structural characteristics (e.g., common omissions, unique orderings) for the transcripts within this IV group.
+   b. **Synchronic Patterns**: Identify the most prominent GSS categories and recurring themes for this IV group by examining which GSS categories appear most frequently or uniquely.
+
+2. **Synthesize Findings**: After analyzing all groups, provide a high-level summary that directly contrasts the diachronic and synchronic patterns between the IV groups.
+
+3. **Generate Comparative Visualization**: Create Mermaid syntax for a Comparative Diachronic Alignment diagram showing parallel timelines for each IV condition.
+
+Output:
+A JSON object adhering EXACTLY to the following structure:
+{
+  "analysis_summary": "High-level summary of the main contrasts found between IV groups",
+  "analysis_by_iv_group": [
+    {
+      "iv_condition": "string",
+      "transcript_ids": ["string"],
+      "diachronic_summary": {
+        "common_sequences": ${JSON.stringify(exampleSequences)},
+        "key_structural_features": "Description of patterns like 'Frequently skips ${coreGduIds[0] || 'a GDU'}', 'Shows longer ${coreGduIds[1] || 'another GDU'} duration'"
+      },
+      "synchronic_summary": {
+        "dominant_gss_categories": [
+          { "gdu_context": "\${coreGduIds[0] || 'GDU_ID'}", "category_label": "Category name from GSS" }
+        ],
+        "key_thematic_features": "Description like 'Emphasis on visual details in \${coreGduIds[0] || 'first GDU'}', 'Lacks emotional expression in \${coreGduIds[1] || 'second GDU'}'"
+      }
+    }
+  ],
+  "comparative_diachronic_mermaid_syntax": "gantt\n    title Comparative Diachronic Alignment\n    ..."
+}
+
+Important: This is a meta-analysis of already-identified structures. Do not modify the original GDS or GSS structures, only analyze and compare how they manifest differently across IV conditions.\`;
+    },
+    parseOutput: (output: any, input: P5_1_Input): P5_1_ComparativeAnalysisOutput => {
+        // Validate required fields
+        if (!output.analysis_summary || typeof output.analysis_summary !== 'string') {
+            throw new Error("P5.1 output missing required 'analysis_summary' field");
+        }
+        
+        if (!Array.isArray(output.analysis_by_iv_group)) {
+            throw new Error("P5.1 output missing required 'analysis_by_iv_group' array");
+        }
+        
+        // Validate each IV group analysis
+        const validatedGroups = output.analysis_by_iv_group.map((group: any, index: number) => {
+            if (!group.iv_condition || !Array.isArray(group.transcript_ids)) {
+                throw new Error(\`P5.1 IV group \${index} missing required fields\`);
+            }
+            
+            // Validate diachronic summary
+            if (!group.diachronic_summary || !Array.isArray(group.diachronic_summary.common_sequences)) {
+                throw new Error(\`P5.1 IV group \${index} missing valid diachronic_summary\`);
+            }
+            
+            // Validate synchronic summary
+            if (!group.synchronic_summary || !Array.isArray(group.synchronic_summary.dominant_gss_categories)) {
+                throw new Error(\`P5.1 IV group \${index} missing valid synchronic_summary\`);
+            }
+            
+            // Validate GSS categories reference actual GDUs
+            group.synchronic_summary.dominant_gss_categories.forEach((cat: any) => {
+                if (!cat.gdu_context || !cat.category_label) {
+                    throw new Error(\`P5.1 IV group \${index} has invalid GSS category\`);
+                }
+                
+                // Check if GDU exists in input
+                const gduExists = input.all_identified_gdus.some(gdu => gdu.gdu_id === cat.gdu_context);
+                if (!gduExists) {
+                    console.warn(\`P5.1 references non-existent GDU: \${cat.gdu_context}\`);
+                }
+            });
+            
+            return group;
+        });
+        
+        // Validate all input IV groups are represented
+        const inputIvConditions = new Set(input.iv_group_summaries.map(g => g.iv_condition));
+        const outputIvConditions = new Set(validatedGroups.map((g: any) => g.iv_condition));
+        
+        inputIvConditions.forEach(iv => {
+            if (!outputIvConditions.has(iv)) {
+                console.warn(\`P5.1 output missing analysis for IV condition: \${iv}\`);
+            }
+        });
+        
+        // For single IV condition, update the summary to indicate no comparison was possible
+        if (inputIvConditions.size === 1 && !output.analysis_summary.toLowerCase().includes('single') && 
+            !output.analysis_summary.toLowerCase().includes('one condition')) {
+            console.log("P5.1: Single IV condition detected, adjusting summary.");
+        }
+        
+        // Validate Mermaid syntax if present
+        if (output.comparative_diachronic_mermaid_syntax) {
+            if (!output.comparative_diachronic_mermaid_syntax.includes('gantt') && 
+                !output.comparative_diachronic_mermaid_syntax.includes('graph')) {
+                console.warn("P5.1 Mermaid syntax may be invalid - missing expected diagram type");
+            }
+        }
+        
+        return {
+            analysis_summary: output.analysis_summary,
+            analysis_by_iv_group: validatedGroups,
+            comparative_diachronic_mermaid_syntax: output.comparative_diachronic_mermaid_syntax || ""
+        };
+    },
+  },
+  [StepId.P5_2_HOLISTIC_REFINEMENT]: {
+    id: StepId.P5_2_HOLISTIC_REFINEMENT,
+    title: "P5.2: Holistic Refinement & Insight Generation",
+    part: "PartV_Refine",
+    isJsonOutput: true,
+    getInput: (_, allProcessedData, genericState, apiKeyPresent) => {
+            if (!apiKeyPresent) return { data: null, error: "API Key not set." };
+            if (!allProcessedData || allProcessedData.size === 0) return { data: null, error: "No processed transcript data available." };
+            if (!genericState?.p3_3_output || !genericState?.p4s_outputs_by_gdu) { 
+                return { data: null, error: "Generic Diachronic (P3.3) or Generic Synchronic (P4S.1.B outputs by GDU) data not found." }; 
+            }
+            // Check for P5.1 output (optional - may be missing if single IV condition or other reasons)
+            const hasP51Output = !!genericState?.p5_1_output;
+            if (!hasP51Output) {
+                console.log("P5.1 output not found. P5.2 will proceed without IV comparative analysis context.");
+            }
+            
+            const all_sds_outputs: any[] = [];
+            allProcessedData.forEach(tData => {
+                if (tData.p1_4_output) { 
+                    all_sds_outputs.push({
+                        transcript_id: tData.id,
+                        filename: tData.filename,
+                        independent_variable: tData.p_neg1_1_output?.independent_variable_details,
+                        structure: tData.p1_4_output.specific_diachronic_structure
+                    });
+                }
+            });
+    
+            const all_sss_outputs_by_phase_and_transcript: Array<{
+                transcript_id: string; filename: string; phase: string; independent_variable?: string;
+                structure: P2S_3_Output['specific_synchronic_structure'];
+            }> = [];
+             allProcessedData.forEach(tData => {
+                if (tData.p2s_outputs_by_phase) {
+                    Object.entries(tData.p2s_outputs_by_phase).forEach(([phaseName, phaseData]) => {
+                        if(phaseData.p2s_3_output?.specific_synchronic_structure){
+                            all_sss_outputs_by_phase_and_transcript.push({
+                                transcript_id: tData.id,
+                                filename: tData.filename,
+                                phase: phaseName,
+                                independent_variable: phaseData.p2s_3_output.independent_variable_details,
+                                structure: phaseData.p2s_3_output.specific_synchronic_structure
+                            });
+                        }
+                    });
+                }
+            });
+            return { data: {
+                generic_diachronic_structure_input: genericState.p3_3_output, 
+                generic_synchronic_structures_by_gdu_input: genericState.p4s_outputs_by_gdu, // These are P4S_1_B outputs
+                all_specific_diachronic_structures_input: all_sds_outputs,
+                all_specific_synchronic_structures_input: all_sss_outputs_by_phase_and_transcript,
+                dv_focus: genericState.p3_3_output.dependent_variable_focus,
+                // NEW: Include P5.1 comparative analysis as context
+                p5_1_comparative_analysis: genericState.p5_1_output
+            }};
+        },
     generatePrompt: (input: any) => buildDynamicP5Prompt({
         gdsName: input.generic_diachronic_structure_input?.generic_diachronic_structure_definition?.name || "Generic Diachronic Structure",
         numGss: Object.keys(input.generic_synchronic_structures_by_gdu_input || {}).length,
@@ -1844,7 +2194,8 @@ Do NOT include a "mermaid_syntax_generic_synchronic" field; this will be generat
         generic_synchronic_structures_by_gdu_input: input.generic_synchronic_structures_by_gdu_input,
         all_specific_diachronic_structures_input: input.all_specific_diachronic_structures_input,
         all_specific_synchronic_structures_input: input.all_specific_synchronic_structures_input,
-        dvFocus: input.dv_focus || []
+        dvFocus: input.dv_focus || [],
+        p5_1_comparative_analysis: input.p5_1_comparative_analysis
     }),
   },
   [StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION]: {
@@ -1854,13 +2205,14 @@ Do NOT include a "mermaid_syntax_generic_synchronic" field; this will be generat
     isJsonOutput: true,
     getInput: (_, __, genericState, apiKeyPresent) => {
         if (!apiKeyPresent) return { data: null, error: "API Key not set." };
-        if (!genericState?.p5_1_output) { return { data: null, error: "P5.1 (Holistic Review) output not found, which is required for P7.1." }; }
-        return { data: { p5_output: genericState.p5_1_output } };
+        if (!genericState?.p5_2_output) { return { data: null, error: "P5.2 (Holistic Refinement) output not found, which is required for P7.1." }; }
+        return { data: { p5_output: genericState.p5_2_output } };
     },
-    generatePrompt: (input: { p5_output: P5_1_Output }) => `You are a Causal Inference Scientist tasked with the first step of building a formal model from a micro-phenomenological analysis. Your job is to translate rich, descriptive concepts into formalized variables suitable for a Structural Causal Model (SCM), ensuring traceability to their phenomenological grounding.
+    generatePrompt: (input: { p5_output: P5_2_RefinementOutput }) => {
+        return `You are a Causal Inference Scientist tasked with the first step of building a formal model from a micro-phenomenological analysis. Your job is to translate rich, descriptive concepts into formalized variables suitable for a Structural Causal Model (SCM), ensuring traceability to their phenomenological grounding.
 ${CAUSAL_INFERENCE_GLOSSARY_TEXT}
 Input:
-The complete, refined output from the holistic analysis (P5.1). This includes \`emergent_insights\`, \`hypotheses_generated\`, \`updated_gds_object\` (the refined Generic Diachronic Structure), and \`updated_gss_outputs_by_gdu\` (refined Generic Synchronic Structures).
+The complete, refined output from the holistic analysis (P5.2). This includes \`emergent_insights\`, \`hypotheses_generated\`, \`updated_gds_object\` (the refined Generic Diachronic Structure), and \`updated_gss_outputs_by_gdu\` (refined Generic Synchronic Structures).
 ${JSON.stringify(input.p5_output, null, 2)}
 
 Instructions:
@@ -1909,7 +2261,8 @@ A JSON object adhering EXACTLY to the following structure. The \`grounding_refer
     // ... more variables
   ],
   "rationale_summary": "Brief summary of the process used to derive these variables from the phenomenological insights and structures."
-}`,
+}\`;
+    },
   },
   [StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS]: {
     id: StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS,
@@ -1919,17 +2272,17 @@ A JSON object adhering EXACTLY to the following structure. The \`grounding_refer
     getInput: (_, __, genericState, apiKeyPresent) => {
         if (!apiKeyPresent) return { data: null, error: "API Key not set." };
         if (!genericState?.p7_1_output) { return { data: null, error: "P7.1 (Candidate Variables) output not found, required for P7.2." }; }
-        if (!genericState?.p5_1_output?.updated_gds_object || !genericState?.p5_1_output?.updated_gss_outputs_by_gdu) {
-             return { data: null, error: "P5.1 refined GDS/GSS objects not found, required for P7.2 context." };
+        if (!genericState?.p5_2_output?.updated_gds_object || !genericState?.p5_2_output?.updated_gss_outputs_by_gdu) {
+             return { data: null, error: "P5.2 refined GDS/GSS objects not found, required for P7.2 context." };
         }
         return {
           data: {
             p7_1_output: genericState.p7_1_output, 
             phenomenological_context: { 
-                gds: genericState.p5_1_output.updated_gds_object,
-                gss_by_gdu: genericState.p5_1_output.updated_gss_outputs_by_gdu,
-                insights: genericState.p5_1_output.emergent_insights,
-                pheno_hypotheses: genericState.p5_1_output.hypotheses_generated
+                gds: genericState.p5_2_output.updated_gds_object,
+                gss_by_gdu: genericState.p5_2_output.updated_gss_outputs_by_gdu,
+                insights: genericState.p5_2_output.emergent_insights,
+                pheno_hypotheses: genericState.p5_2_output.hypotheses_generated
             },
             causal_glossary: CAUSAL_INFERENCE_GLOSSARY_TEXT 
           }
@@ -1938,7 +2291,7 @@ A JSON object adhering EXACTLY to the following structure. The \`grounding_refer
     generatePrompt: (input: { p7_1_output: P7_1_Output, phenomenological_context: any, causal_glossary: string }) => `You are a Causal Inference Scientist. Your task is to propose potential direct causal links between pairs of formalized variables, justifying each with phenomenological evidence and causal definitions.
 Input:
 - Candidate Variables (from P7.1): ${JSON.stringify(input.p7_1_output.candidate_variables, null, 2)}
-- Phenomenological Context (GDS, GSSs, insights, hypotheses from P5.1): ${JSON.stringify(input.phenomenological_context, null, 2)}
+- Phenomenological Context (GDS, GSSs, insights, hypotheses from P5.2): ${JSON.stringify(input.phenomenological_context, null, 2)}
 - Causal Glossary: ${input.causal_glossary}
 
 Instructions:
@@ -1946,7 +2299,7 @@ Instructions:
 2.  **Propose Edge and Justify:** If you propose an edge exists, you MUST provide:
     *   \`source\`: The \`variable_id\` of the causal variable (A).
     *   \`target\`: The \`variable_id\` of the effect variable (B).
-    *   \`justification_from_phenomenology\`: Explain WHY you believe A causes B, citing evidence from the GDS (e.g., temporal sequence of GDUs), GSSs (e.g., thematic links within a GDU's synchronic structure), P5 insights, or P5 phenomenological hypotheses. Refer to specific GDU IDs, GSS category IDs, or insight/hypothesis IDs if possible (from the \`grounding_references\` in P7.1 or known IDs from P5.1).
+    *   \`justification_from_phenomenology\`: Explain WHY you believe A causes B, citing evidence from the GDS (e.g., temporal sequence of GDUs), GSSs (e.g., thematic links within a GDU's synchronic structure), P5 insights, or P5 phenomenological hypotheses. Refer to specific GDU IDs, GSS category IDs, or insight/hypothesis IDs if possible (from the \`grounding_references\` in P7.1 or known IDs from P5.2).
     *   \`justification_from_glossary\`: Refer to a term in the provided causal_glossary to support your reasoning (e.g., "This represents a direct causal link as defined by 'Directed Edge'.").
 3.  **Explicitly State Non-Links:** If you believe there is NO direct causal link between a pair, state that and provide a brief reason (e.g., "No arrow from Y to M1, as the GDS shows M1 states (related to GDU_X) precede Y states (related to GDU_Z)."). This prevents omissions.
 4.  **Guardrail - Avoid Overfitting:** Do not propose a link simply because two concepts appeared together. The justification must be based on a plausible generative mechanism or clear temporal ordering from the phenomenological data.
@@ -1958,7 +2311,7 @@ A JSON object adhering EXACTLY to the following structure:
     {
       "source": "S_varID", // variable_id from P7.1
       "target": "M1_varID", // variable_id from P7.1
-      "justification_from_phenomenology": "The GDS (from P5.1 refined output) shows the GDU 'GDU_Initial_Orientation_ID' (linked to M1_varID) is a direct response to the 'Suggestion' (S_varID).",
+      "justification_from_phenomenology": "The GDS (from P5.2 refined output) shows the GDU 'GDU_Initial_Orientation_ID' (linked to M1_varID) is a direct response to the 'Suggestion' (S_varID).",
       "justification_from_glossary": "This is a 'Directed Edge' representing a direct causal influence."
     }
     // ... more links
@@ -2209,17 +2562,17 @@ A JSON object adhering EXACTLY to the following structure:
             p7_3b_output: genericState.p7_3b_output, 
             p7_4_output: genericState.p7_4_output,
             dv_focus: userDvFocus.dv_focus,
-            p5_output: genericState.p5_1_output, 
+            p5_output: genericState.p5_2_output, 
             causal_glossary: CAUSAL_INFERENCE_GLOSSARY_TEXT
         }};
     },
-    generatePrompt: (input: {p7_1_output: P7_1_Output, p7_3b_output: P7_3b_Output, p7_4_output: P7_4_Output, dv_focus: string[], p5_output?: P5_1_Output, causal_glossary: string}) => `You are a Causal Inference Scientist. Your final task is to translate the structured causal analysis into a set of formal, testable causal hypotheses, linking them to specific structural elements identified earlier.
+    generatePrompt: (input: {p7_1_output: P7_1_Output, p7_3b_output: P7_3b_Output, p7_4_output: P7_4_Output, dv_focus: string[], p5_output?: P5_2_RefinementOutput, causal_glossary: string}) => `You are a Causal Inference Scientist. Your final task is to translate the structured causal analysis into a set of formal, testable causal hypotheses, linking them to specific structural elements identified earlier.
 Input:
 - Formalized Variables (P7.1): ${JSON.stringify(input.p7_1_output.candidate_variables.map((v:P7_1_CandidateVariable)=>({id:v.variable_id, name:v.variable_name})), null, 2)}
 - Cleaned Causal DAG (P7.3b): Nodes: ${input.p7_3b_output.final_dag.nodes.length}, Edges: ${input.p7_3b_output.final_dag.edges.length}. Context: ${input.p7_3b_output.validation_summary}
 - Path Analysis & Bias Warnings (P7.4): ${input.p7_4_output.path_analysis.length} path analyses, ${input.p7_4_output.collider_bias_warnings.length} collider warnings.
 - Dependent Variable Focus: ${JSON.stringify(input.dv_focus)}
-- Prior Insights/Hypotheses (P5.1 - for context): ${JSON.stringify(input.p5_output?.emergent_insights?.slice(0,2) || [], null, 2)}, ${JSON.stringify(input.p5_output?.hypotheses_generated?.slice(0,2) || [], null, 2)}
+- Prior Insights/Hypotheses (P5.2 - for context): ${JSON.stringify(input.p5_output?.emergent_insights?.slice(0,2) || [], null, 2)}, ${JSON.stringify(input.p5_output?.hypotheses_generated?.slice(0,2) || [], null, 2)}
 - Causal Inference Glossary: ${input.causal_glossary}
 
 Instructions:
@@ -2272,7 +2625,7 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
           !genericState.p7_1_output || !genericState.p7_5_output 
          ) {
         let missing = [];
-        if (!genericState?.p5_1_output) missing.push("P5.1 output (Holistic Refinement)");
+        if (!genericState?.p5_2_output) missing.push("P5.2 output (Holistic Refinement)");
         if (!genericState?.p3_2_output) missing.push("P3.2 output (GDU Definitions)");
         if (!genericState?.p3_3_output) missing.push("P3.3 output (GDS Definition)");
         if (!allProcessedData || allProcessedData.size === 0) missing.push("Processed Transcript Data");
