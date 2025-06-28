@@ -785,7 +785,11 @@ export const STEP_CONFIGS: ConfigMap = {
     part: "PartNeg1",
     isJsonOutput: true,
     getInput: (currentTranscript, _allProcessedData, _genericState, _apiKeyPresent, userDvFocus) => {
+        console.log(`[P-1.1 getInput] currentTranscript:`, currentTranscript ? { id: currentTranscript.id, contentLength: currentTranscript.content?.length } : null);
+        console.log(`[P-1.1 getInput] userDvFocus:`, userDvFocus);
+        
         if (!currentTranscript?.content || !userDvFocus?.dv_focus || userDvFocus.dv_focus.length === 0) {
+            console.error(`[P-1.1 getInput] Validation failed - transcript content: ${!!currentTranscript?.content}, userDvFocus exists: ${!!userDvFocus}, dv_focus exists: ${!!userDvFocus?.dv_focus}, dv_focus length: ${userDvFocus?.dv_focus?.length || 0}`);
             return { data: null, error: "Missing transcript content or DV focus for P-1.1." };
         }
         return {
@@ -1584,14 +1588,52 @@ Do NOT include a "mermaid_syntax_generic_diachronic" field; this will be generat
 
         // Helper function to check if an ISU is grounded in utterances
         const isNodeGrounded = (isuName: string, hierarchy: P2S_2_Output['specific_synchronic_units_hierarchy'], memo: Map<string, boolean>): boolean => {
-            if (memo.has(isuName)) return memo.get(isuName)!;
-            const isu = hierarchy.find(u => u.unit_name === isuName);
-            if (!isu) { memo.set(isuName, false); return false; }
-            if (isu.utterances && isu.utterances.length > 0) { memo.set(isuName, true); return true; }
-            if (!isu.constituent_lower_units || isu.constituent_lower_units.length === 0) { memo.set(isuName, false); return false; }
-            for (const lowerUnit of isu.constituent_lower_units) {
-                if (isNodeGrounded(lowerUnit, hierarchy, memo)) { memo.set(isuName, true); return true; }
+            console.log(`[P4S.1.A isNodeGrounded] Checking grounding for ISU: ${isuName}`);
+            
+            if (memo.has(isuName)) {
+                const memoResult = memo.get(isuName)!;
+                console.log(`[P4S.1.A isNodeGrounded] Found memoized result for ${isuName}: ${memoResult}`);
+                return memoResult;
             }
+            
+            const isu = hierarchy.find(u => u.unit_name === isuName);
+            if (!isu) { 
+                console.log(`[P4S.1.A isNodeGrounded] ISU ${isuName} not found in hierarchy! Available ISUs: ${hierarchy.map(u => u.unit_name).join(', ')}`);
+                memo.set(isuName, false); 
+                return false; 
+            }
+            
+            console.log(`[P4S.1.A isNodeGrounded] Found ISU ${isuName} - level: ${isu.level}, utterances: ${isu.utterances?.length || 0}, constituent_lower_units: ${isu.constituent_lower_units?.length || 0}`);
+            
+            // Check direct utterances
+            if (isu.utterances && isu.utterances.length > 0) { 
+                console.log(`[P4S.1.A isNodeGrounded] ✓ ISU ${isuName} is directly grounded with ${isu.utterances.length} utterances`);
+                console.log(`[P4S.1.A isNodeGrounded] Utterances for ${isuName}:`, isu.utterances.map(u => `Line ${u.original_line_num}: "${u.utterance_text.substring(0, 50)}..."`));
+                memo.set(isuName, true); 
+                return true; 
+            }
+            
+            // Check if no lower units (leaf node)
+            if (!isu.constituent_lower_units || isu.constituent_lower_units.length === 0) { 
+                console.log(`[P4S.1.A isNodeGrounded] ISU ${isuName} is a leaf node with no utterances - marking as ungrounded`);
+                memo.set(isuName, false); 
+                return false; 
+            }
+            
+            // Check constituent lower units recursively
+            console.log(`[P4S.1.A isNodeGrounded] ISU ${isuName} has ${isu.constituent_lower_units.length} constituent lower units: ${isu.constituent_lower_units.join(', ')}`);
+            for (const lowerUnit of isu.constituent_lower_units) {
+                console.log(`[P4S.1.A isNodeGrounded] Checking constituent lower unit: ${lowerUnit} for parent ${isuName}`);
+                if (isNodeGrounded(lowerUnit, hierarchy, memo)) { 
+                    console.log(`[P4S.1.A isNodeGrounded] ✓ ISU ${isuName} is grounded through constituent lower unit: ${lowerUnit}`);
+                    memo.set(isuName, true); 
+                    return true; 
+                } else {
+                    console.log(`[P4S.1.A isNodeGrounded] ✗ Constituent lower unit ${lowerUnit} is not grounded`);
+                }
+            }
+            
+            console.log(`[P4S.1.A isNodeGrounded] ISU ${isuName} is not grounded - no direct utterances and no grounded constituent lower units`);
             memo.set(isuName, false);
             return false;
         };
@@ -1601,32 +1643,72 @@ Do NOT include a "mermaid_syntax_generic_diachronic" field; this will be generat
         const mermaidSections: string[] = [];
         const validatedTranscriptIds = new Set<string>();
 
-        allProcessedData.forEach(tData => {
-            const relevantRefinedDuIdsFromThisTranscript = contributingRefinedDuInfo.filter(info => info.transcript_id === tData.id).map(info => info.refined_du_id);
-            if (relevantRefinedDuIdsFromThisTranscript.length === 0) return;
-            if (!tData.p1_4_output?.specific_diachronic_structure.phases || !tData.p2s_outputs_by_phase) return;
+        console.log(`[P4S.1.A getInput] Processing ${allProcessedData.size} transcripts for GDU ${currentGDUToAnalyze}`);
+        console.log(`[P4S.1.A getInput] Contributing refined DU info:`, contributingRefinedDuInfo);
 
+        allProcessedData.forEach(tData => {
+            console.log(`[P4S.1.A getInput] Processing transcript: ${tData.id}`);
+            
+            const relevantRefinedDuIdsFromThisTranscript = contributingRefinedDuInfo.filter(info => info.transcript_id === tData.id).map(info => info.refined_du_id);
+            console.log(`[P4S.1.A getInput] Relevant refined DU IDs for ${tData.id}:`, relevantRefinedDuIdsFromThisTranscript);
+            
+            if (relevantRefinedDuIdsFromThisTranscript.length === 0) {
+                console.log(`[P4S.1.A getInput] No relevant refined DU IDs for transcript ${tData.id}, skipping`);
+                return;
+            }
+            
+            if (!tData.p1_4_output?.specific_diachronic_structure.phases || !tData.p2s_outputs_by_phase) {
+                console.log(`[P4S.1.A getInput] Missing required data for transcript ${tData.id}: p1_4_output=${!!tData.p1_4_output}, p2s_outputs_by_phase=${!!tData.p2s_outputs_by_phase}`);
+                return;
+            }
+
+            console.log(`[P4S.1.A getInput] Processing ${tData.p1_4_output.specific_diachronic_structure.phases.length} phases for transcript ${tData.id}`);
+            
             tData.p1_4_output.specific_diachronic_structure.phases.forEach(phase => {
+                console.log(`[P4S.1.A getInput] Processing phase: ${phase.phase_name} with units_involved:`, phase.units_involved);
+                
                 const phaseUsesRelevantRefinedDU = phase.units_involved.some(unitId => relevantRefinedDuIdsFromThisTranscript.includes(unitId));
-                if (!phaseUsesRelevantRefinedDU) return;
+                console.log(`[P4S.1.A getInput] Phase ${phase.phase_name} uses relevant refined DU: ${phaseUsesRelevantRefinedDU}`);
+                
+                if (!phaseUsesRelevantRefinedDU) {
+                    console.log(`[P4S.1.A getInput] Phase ${phase.phase_name} does not use relevant refined DU, skipping`);
+                    return;
+                }
 
                 const phaseData = tData.p2s_outputs_by_phase?.[phase.phase_name];
-                if (!phaseData?.p2s_3_output?.specific_synchronic_structure || !phaseData.p2s_2_output?.specific_synchronic_units_hierarchy) return;
+                console.log(`[P4S.1.A getInput] Phase data for ${phase.phase_name}:`, phaseData ? Object.keys(phaseData) : 'null');
+                if (!phaseData?.p2s_3_output?.specific_synchronic_structure || !phaseData.p2s_2_output?.specific_synchronic_units_hierarchy) {
+                    console.log(`[P4S.1.A getInput] Missing P2S data for phase ${phase.phase_name}: p2s_3_output=${!!phaseData?.p2s_3_output}, p2s_2_output=${!!phaseData?.p2s_2_output}`);
+                    if (phaseData) {
+                        console.log(`[P4S.1.A getInput] Available phase data keys for ${phase.phase_name}:`, Object.keys(phaseData));
+                        if (phaseData.p2s_2_output) {
+                            console.log(`[P4S.1.A getInput] P2S.2 output exists but missing specific_synchronic_units_hierarchy:`, !!phaseData.p2s_2_output.specific_synchronic_units_hierarchy);
+                        }
+                    }
+                    return;
+                }
 
                 const sss = phaseData.p2s_3_output.specific_synchronic_structure;
                 const isuHierarchy = phaseData.p2s_2_output.specific_synchronic_units_hierarchy;
                 const groundingMemo = new Map<string, boolean>();
+                
+                console.log(`[P4S.1.A getInput] Phase ${phase.phase_name} has ${sss.network_nodes.length} SSS nodes and ${isuHierarchy.length} ISUs`);
+                console.log(`[P4S.1.A getInput] ISU hierarchy for phase ${phase.phase_name}:`, isuHierarchy.map(isu => `${isu.unit_name} (level ${isu.level}, ${isu.utterances?.length || 0} utterances, ${isu.constituent_lower_units?.length || 0} lower units)`));
+                console.log(`[P4S.1.A getInput] SSS nodes for phase ${phase.phase_name}:`, sss.network_nodes.map(node => `${node.id} -> ${node.source_isu_id} (${node.label})`));
 
                 // Build Mermaid section for this transcript-phase
                 const mermaidPhaseId = `${tData.id}_${phase.phase_name}`.replace(/[^a-zA-Z0-9_]/g, '_');
                 const mermaidLines = [`    subgraph ${mermaidPhaseId} ["${tData.id} - ${phase.phase_name}"]`];
                 
                 // Process each SSS node
+                let groundedNodeCount = 0;
                 sss.network_nodes.forEach(node => {
+                    console.log(`[P4S.1.A getInput] Processing SSS node ${node.id} with source_isu_id: ${node.source_isu_id}`);
                     const isGrounded = isNodeGrounded(node.source_isu_id, isuHierarchy, groundingMemo);
                     console.log(`[P4S.1.A getInput] SSS node ${node.id} (${node.source_isu_id}) in ${tData.id}/${phase.phase_name}: grounded=${isGrounded}`);
                     
                     if (isGrounded) {
+                        groundedNodeCount++;
                         // Find the ISU definition for this node
                         const sourceIsu = isuHierarchy.find(isu => isu.unit_name === node.source_isu_id);
                         const isuDefinition = sourceIsu?.intensional_definition || "No definition available";
@@ -1646,9 +1728,11 @@ Do NOT include a "mermaid_syntax_generic_diachronic" field; this will be generat
                         
                         validatedTranscriptIds.add(tData.id);
                     } else {
-                        console.log(`[P4S.1.A getInput] EXCLUDED ungrounded SSS node ${node.id} from TSV`);
+                        console.log(`[P4S.1.A getInput] EXCLUDED ungrounded SSS node ${node.id} (source_isu_id: ${node.source_isu_id}) from TSV`);
                     }
                 });
+                
+                console.log(`[P4S.1.A getInput] Phase ${phase.phase_name} summary: ${groundedNodeCount}/${sss.network_nodes.length} SSS nodes are grounded`);
 
                 // Add SSS links to Mermaid
                 sss.network_links.forEach(link => {
@@ -1666,9 +1750,29 @@ Do NOT include a "mermaid_syntax_generic_diachronic" field; this will be generat
         });
 
         // Validation checks
+        console.log(`[P4S.1.A getInput] Final validation - TSV rows: ${tsvRows.length} (including header), validated transcript IDs: ${validatedTranscriptIds.size}`);
+        console.log(`[P4S.1.A getInput] TSV content:`, tsvRows.slice(0, 5)); // Show first 5 rows including header
+        console.log(`[P4S.1.A getInput] Validated transcripts:`, Array.from(validatedTranscriptIds));
+        
         if (tsvRows.length <= 1) { // Only header row
             const errorMsg = `No utterance-grounded SSS nodes found for GDU ${currentGDUToAnalyze}. Cannot proceed with generic synchronic analysis.`;
             console.error(`[P4S.1.A getInput] ${errorMsg}`);
+            console.error(`[P4S.1.A getInput] DEBUG INFO:`);
+            console.error(`[P4S.1.A getInput] - Total transcripts processed: ${allProcessedData.size}`);
+            console.error(`[P4S.1.A getInput] - GDU being processed: ${currentGDUToAnalyze}`);
+            console.error(`[P4S.1.A getInput] - Contributing refined DU info:`, contributingRefinedDuInfo);
+            console.error(`[P4S.1.A getInput] - Validated transcript IDs: ${Array.from(validatedTranscriptIds)}`);
+            console.error(`[P4S.1.A getInput] - TSV rows: ${tsvRows}`);
+            
+            // Additional debugging: show what transcripts have relevant data
+            allProcessedData.forEach(tData => {
+                const relevantRefinedDuIds = contributingRefinedDuInfo.filter(info => info.transcript_id === tData.id);
+                console.error(`[P4S.1.A getInput] Transcript ${tData.id}: ${relevantRefinedDuIds.length} relevant refined DUs, has p1_4_output: ${!!tData.p1_4_output}, has p2s_outputs_by_phase: ${!!tData.p2s_outputs_by_phase}`);
+                if (relevantRefinedDuIds.length > 0) {
+                    console.error(`[P4S.1.A getInput] - Relevant refined DU IDs for ${tData.id}:`, relevantRefinedDuIds.map(info => info.refined_du_id));
+                }
+            });
+            
             return { data: null, error: errorMsg };
         }
 
