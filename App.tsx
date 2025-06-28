@@ -459,14 +459,29 @@ const App: React.FC = () => {
             if (currentStepInfo.stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES) {
                 return { nextStepId: StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS, nextTranscriptIndex: 0 }; 
             } else if (currentStepInfo.stepId === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS) {
-                const allP4SBDone = genericAnalysisState.core_gdus_for_sync_analysis?.every(gdu => genericAnalysisState.processed_gdus_for_p4s?.includes(gdu));
-                if (allP4SBDone || genericAnalysisState.isFullyProcessedGenericSynchronic) { 
+                const allCoreGdus = genericAnalysisState.core_gdus_for_sync_analysis || [];
+                const justCompletedGdu = currentStepInfo.currentGduForP4S;
+                const staleProcessedGdus = genericAnalysisState.processed_gdus_for_p4s || [];
+                
+                // Predictive state: add the GDU that just finished to the list of processed GDUs
+                const prospectiveProcessedGdus = justCompletedGdu 
+                    ? Array.from(new Set([...staleProcessedGdus, justCompletedGdu]))
+                    : staleProcessedGdus;
+                
+                const allP4SBDone = allCoreGdus.length > 0 && allCoreGdus.every(gdu => prospectiveProcessedGdus.includes(gdu));
+
+                if (allP4SBDone || genericAnalysisState.isFullyProcessedGenericSynchronic) {
                     if (STEP_ORDER_PART_5_REFINEMENT.length > 0) return { nextStepId: STEP_ORDER_PART_5_REFINEMENT[0], nextTranscriptIndex: 0 };
                     if (STEP_ORDER_PART_7_CAUSAL_MODELING.length > 0) return { nextStepId: STEP_ORDER_PART_7_CAUSAL_MODELING[0], nextTranscriptIndex: 0 };
                     return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 };
                 } else {
-                    const nextGDU = genericAnalysisState.core_gdus_for_sync_analysis?.find(gdu => !(genericAnalysisState.processed_gdus_for_p4s || []).includes(gdu));
-                    if (nextGDU) return { nextStepId: StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, nextTranscriptIndex: 0 };
+                    // Find the next GDU to process using the ACCURATE prospective list
+                    const nextGDU = allCoreGdus.find(gdu => !prospectiveProcessedGdus.includes(gdu));
+                    if (nextGDU) {
+                        return { nextStepId: StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, nextTranscriptIndex: 0 };
+                    }
+                    // This is a fallback case if something is wrong with the logic
+                    console.warn("[getNextStepDetails] P4S.1.B: All GDUs seem processed but 'isFullyProcessedGenericSynchronic' is false. Proceeding to P5.");
                     if (STEP_ORDER_PART_5_REFINEMENT.length > 0) return { nextStepId: STEP_ORDER_PART_5_REFINEMENT[0], nextTranscriptIndex: 0 };
                     return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 };
                 }
@@ -1226,28 +1241,46 @@ const App: React.FC = () => {
             } else if (currentActiveTxId && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepToInvalidate)) {
                 const tData = newProcessedData.get(currentActiveTxId);
                 if (tData) {
-                    // IMPORTANT: Do NOT clear processed_phases_for_p2s here!
-                    // We only clear phase-specific outputs for the current phase
-                    // processed_phases_for_p2s tracks overall progress and should only be cleared
-                    // when P1.4 or earlier steps are invalidated
+                    // Invalidation for P2S steps is scoped to the currently active phase.
                     const currentPhase = tData.current_phase_for_p2s_processing;
-                    let updatedP2SOutputs = { ...tData.p2s_outputs_by_phase };
                     
-                    // Only clear outputs for the current phase being re-processed
-                    if (currentPhase && updatedP2SOutputs[currentPhase]) {
-                        updatedP2SOutputs[currentPhase] = {};
+                    if (currentPhase && tData.p2s_outputs_by_phase?.[currentPhase]) {
+                        const keyPrefixToClear = stepIdToDataKeyPrefix[stepToInvalidate] as keyof P2SPhaseData;
+                        if (keyPrefixToClear) {
+                            // Create a mutable copy of the data for the specific phase we are invalidating
+                            const phaseDataToUpdate = { ...tData.p2s_outputs_by_phase[currentPhase] };
+
+                            // Delete the output and error for this specific step
+                            delete phaseDataToUpdate[keyPrefixToClear];
+                            const errorKeyToClear = `${String(keyPrefixToClear).replace('_output', '_error')}` as keyof P2SPhaseData;
+                            delete phaseDataToUpdate[errorKeyToClear];
+
+                            // Special handling for P2S.3 which also generates mermaid syntax
+                            if (stepToInvalidate === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
+                                delete phaseDataToUpdate.p2s_3_mermaid_syntax;
+                            }
+
+                            // Construct the new state for p2s_outputs_by_phase
+                            const updatedP2SOutputs = {
+                                ...tData.p2s_outputs_by_phase,
+                                [currentPhase]: phaseDataToUpdate,
+                            };
+                            
+                            // Since we are invalidating a step, this phase is no longer fully processed.
+                            // We must remove it from the list of completed phases.
+                            const newProcessedPhases = tData.processed_phases_for_p2s?.filter(p => p !== currentPhase) || [];
+
+                            // Update the transcript data in the map
+                            newProcessedData.set(currentActiveTxId, {
+                                ...tData,
+                                p2s_outputs_by_phase: updatedP2SOutputs,
+                                isFullyProcessedSpecificSynchronic: false, // The transcript is no longer fully synchronic processed
+                                processed_phases_for_p2s: newProcessedPhases,
+                            });
+                        }
                     }
-                    
-                    newProcessedData.set(currentActiveTxId, {
-                        ...tData,
-                        p2s_outputs_by_phase: updatedP2SOutputs,
-                        // Keep current_phase_for_p2s_processing as is
-                        // Keep processed_phases_for_p2s as is - DO NOT CLEAR!
-                        // Only set this to false if we're actually re-processing phases
-                        isFullyProcessedSpecificSynchronic: false,
-                    });
                 }
-                // Set cascade flag when per-transcript step is invalidated
+                // Any change in a per-transcript step requires global steps to be re-run
                 globalCascadeRequired = true;
             }
             else if (isGlobalStep(stepToInvalidate)) {
