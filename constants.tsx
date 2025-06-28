@@ -2726,7 +2726,7 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
       userDvFocus,
       allRawTranscripts,
     ): { data: ReportData | null; error?: string } => { 
-      if (!genericState?.p5_1_output || !genericState.p3_2_output || !genericState.p3_3_output || !allProcessedData || !allRawTranscripts || !userDvFocus ||
+      if (!genericState?.p5_2_output || !genericState.p3_2_output || !genericState.p3_3_output || !allProcessedData || !allRawTranscripts || !userDvFocus ||
           !genericState.p7_1_output || !genericState.p7_5_output 
          ) {
         let missing = [];
@@ -2789,7 +2789,8 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
 
       return {
         data: {
-          p5_output: genericState.p5_1_output,
+          p5_1_output: genericState.p5_1_output, // Optional IV comparative analysis
+          p5_output: genericState.p5_2_output,
           p3_2_output: genericState.p3_2_output,
           p3_3_output: genericState.p3_3_output,
           p4s_outputs_by_gdu: genericState.p4s_outputs_by_gdu, 
