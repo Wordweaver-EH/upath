@@ -106,7 +106,7 @@ const IRRModal: React.FC<IRRModalProps> = ({
             className="block w-full text-sm text-light-sidenote dark:text-dark-sidenote file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-light-accent/10 dark:file:bg-dark-accent/10 file:text-light-accent dark:file:text-dark-accent hover:file:bg-light-accent/20 dark:hover:file:bg-dark-accent/20"
           />
           {isLoaded && (
-            <div className="text-green-600 dark:text-green-400 text-sm">
+            <div className="text-light-accent-subtle dark:text-dark-accent-subtle text-sm">
               ✓ Loaded ({state?.rawTranscripts?.length || 0} transcripts, {state?.genericAnalysisState?.p3_2_output?.identified_gdus?.length || 0} GDUs)
             </div>
           )}
@@ -122,10 +122,10 @@ const IRRModal: React.FC<IRRModalProps> = ({
 
   const renderResults = (results: IrrResults) => {
     const getReliabilityColor = (alpha: number) => {
-      if (alpha >= 0.8) return 'text-green-600';
-      if (alpha >= 0.667) return 'text-blue-600';
-      if (alpha >= 0.4) return 'text-yellow-600';
-      return 'text-red-600';
+      if (alpha >= 0.8) return 'text-light-accent-subtle dark:text-dark-accent-subtle';
+      if (alpha >= 0.667) return 'text-light-accent-subtle dark:text-dark-accent-subtle';
+      if (alpha >= 0.4) return 'text-yellow-600 dark:text-yellow-400';
+      return 'text-light-accent dark:text-dark-accent';
     };
 
     return (
@@ -244,8 +244,8 @@ const IRRModal: React.FC<IRRModalProps> = ({
 
           {/* Smart GDU check info */}
           {irrState.runA && irrState.runB && irrState.loadingState === 'idle' && (
-            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-              <div className="text-blue-800 dark:text-blue-200 text-sm">
+            <div className="mb-6 p-4 bg-light-accent-subtle/10 dark:bg-dark-accent-subtle/10 border border-light-accent-subtle/30 dark:border-dark-accent-subtle/30 rounded-lg">
+              <div className="text-light-accent-subtle dark:text-dark-accent-subtle text-sm">
                 <div className="font-medium mb-1">GDU Comparison Preview:</div>
                 <div>Run A: {irrState.runA.genericAnalysisState.p3_2_output?.identified_gdus?.length || 0} GDUs</div>
                 <div>Run B: {irrState.runB.genericAnalysisState.p3_2_output?.identified_gdus?.length || 0} GDUs</div>

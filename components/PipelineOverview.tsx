@@ -37,14 +37,14 @@ export const PipelineStepNode: React.FC<PipelineStepNodeProps> = ({
 
   switch (status) {
     case StepStatus.Success:
-      bgColor = 'bg-green-100 dark:bg-green-800'; textColor = 'text-green-700 dark:text-green-200';
-      borderColor = 'border-green-500 dark:border-green-600'; statusIcon = CheckCircleIcon; break;
+      bgColor = 'bg-light-accent-subtle/20 dark:bg-dark-accent-subtle/20'; textColor = 'text-light-accent-subtle dark:text-dark-accent-subtle';
+      borderColor = 'border-light-accent-subtle dark:border-dark-accent-subtle'; statusIcon = CheckCircleIcon; break;
     case StepStatus.Error:
       bgColor = 'bg-red-100 dark:bg-red-800'; textColor = 'text-red-700 dark:text-red-300';
       borderColor = 'border-red-500 dark:border-red-600'; statusIcon = InfoIcon; break;
     case StepStatus.Loading:
-      bgColor = 'bg-blue-100 dark:bg-blue-800'; textColor = 'text-blue-700 dark:text-blue-200';
-      borderColor = 'border-blue-500 dark:border-blue-600'; break;
+      bgColor = 'bg-light-accent/10 dark:bg-dark-accent/10'; textColor = 'text-light-accent dark:text-dark-accent';
+      borderColor = 'border-light-accent dark:border-dark-accent'; break;
     default: break;
   }
   const shortTitle = title.split(':')[1]?.trim() || title;

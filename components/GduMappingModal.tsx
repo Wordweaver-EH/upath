@@ -263,8 +263,8 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
                     
                     <td className="px-4 py-4 whitespace-nowrap text-sm">
                       <div className={`font-medium ${
-                        item.semanticSimilarityScore >= 0.8 ? 'text-green-600' :
-                        item.semanticSimilarityScore >= 0.6 ? 'text-yellow-600' : 'text-red-600'
+                        item.semanticSimilarityScore >= 0.8 ? 'text-light-accent-subtle dark:text-dark-accent-subtle' :
+                        item.semanticSimilarityScore >= 0.6 ? 'text-yellow-600 dark:text-yellow-400' : 'text-light-accent dark:text-dark-accent'
                       }`}>
                         {(item.semanticSimilarityScore * 100).toFixed(0)}%
                       </div>
