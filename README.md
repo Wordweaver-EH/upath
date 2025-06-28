@@ -1,5 +1,6 @@
 # µ-PATH : Micro-Phenomenological Analytic Threader
 [License](LICENSE)
+
 Copyright (c) 2025 wordweaver.eh@gmail.com. All rights reserved.
 
 **Version:** 0.10.0 (Human-in-the-Loop Correction, State Save/Load, Mermaid.js Visualizations, IV-Centric & Causal Modeling, Inter-Rater Reliability)
