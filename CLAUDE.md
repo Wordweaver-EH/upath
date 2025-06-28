@@ -4,110 +4,122 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build Commands
 
-- **Development**: `npm run dev` - Starts Vite development server
-- **Build**: `npm run build` - Creates production build  
-- **Preview**: `npm run preview` - Preview production build
+- **Development**: `npm run dev` - Starts Vite development server with hot reload
+- **Build**: `npm run build` - Creates production build in `dist/` directory
+- **Preview**: `npm run preview` - Preview production build locally
 
 ## Essential Environment Setup
 
-This application requires a Google Gemini API key configured as `process.env.API_KEY`. The app will not function without this key being set in the environment.
-
-**Model Configuration**: Uses `gemini-2.5-flash-preview-04-17` (defined in `constants.tsx` as `GEMINI_MODEL_TEXT`).
-
-### Feature Flags
-
-**P3_2 Implementation Approaches**: The application supports multiple P3_2 implementation approaches via the `REACT_APP_P3_2_APPROACH` environment variable:
-
-- **original**: Legacy JSON approach with full IV analysis (~15k tokens)
-- **minified**: Compressed JSON approach with IV analysis (~10k tokens)  
-- **minimal_context_tsv**: Two-phase TSV with minimal P3.1 context + IV analysis (~5k tokens)
-- **full_context_tsv**: Two-phase TSV with full P3.1 context + IV analysis (~7k tokens)
-- **zero_context_tsv**: Two-phase TSV with no P3.1 context + IV analysis (~4k tokens)
-
-Set in `.env` file: `REACT_APP_P3_2_APPROACH=full_context_tsv`
-
-**IV Analysis Implementation**: All approaches now include Independent Variable (IV) analysis:
-- LLM analyzes how IV conditions influence RDU manifestations
-- TSV approaches include `iv_details` column with IV information
-- Programmatic aggregation synthesizes IV variation notes from individual RDU classifications
-- Enables comprehensive A/B testing with full feature parity across all approaches
-
-**Implementation Notes**:
-- All non-original approaches use two-phase architecture: LLM classification + programmatic aggregation
-- Validation prevents hallucinated RDU IDs by checking against source data
-- IV analysis synthesis combines observations from multiple RDUs per GDU group
-
-## Core Architecture
-
-µ-PATH is a React-based web application for automated micro-phenomenological interview analysis. The architecture centers around:
-
-### State Management Pattern
-- **Global State**: Managed in `App.tsx` with multiple state objects:
-  - `rawTranscripts`: Array of uploaded interview transcripts
-  - `processedDataMap`: Map tracking per-transcript analysis results  
-  - `genericAnalysisState`: Cross-transcript analysis results
-  - `currentStepInfo`: Current pipeline execution status
-  - `promptHistory`: All API interactions for debugging/export
-
-### Pipeline Architecture
-- **Sequential Processing**: Analysis follows a strict 9-part pipeline defined in `constants.tsx`
-- **Per-transcript vs Generic Steps**: Parts -1 through II process individual transcripts; Parts III+ work across all transcripts
-- **Step Configuration**: Each step has input validation, prompt generation, and output parsing logic in `STEP_CONFIGS`
-
-### Key Data Flow
-1. **Upload** → `RawTranscript[]` 
-2. **Per-transcript Analysis** → `TranscriptProcessedData` (Parts -1, 0, I, II)
-3. **Generic Analysis** → `GenericAnalysisState` (Parts III, IV, V, VII, VI)
-4. **Visualization** → Mermaid diagrams generated from structured outputs
-5. **Export** → Multiple formats (JSON, TSV, Markdown, HTML)
-
-### Component Organization
-- `App.tsx`: Main application logic and state management
-- `components/`: UI components (controls, visualizations, status displays)
-- `services/geminiService.ts`: Google Gemini API integration
-- `utils/`: Data transformation utilities (TSV export, HTML generation, Mermaid conversions)
-- `constants.tsx`: Pipeline configuration and prompts
-- `types.ts`: Comprehensive TypeScript interfaces for all data structures
-
-### Critical Patterns
-- **State Persistence**: Complete application state can be saved/loaded as JSON
-- **Human-in-the-Loop**: Users can provide guidance to re-run steps with corrections
-- **Iterative Processing**: Parts II and IV iterate over phases/GDUs respectively
-- **Error Handling**: Each step tracks success/error states separately
-- **Mermaid Integration**: Structured data automatically generates interactive diagrams
-
-### Data Structure Hierarchy
-```
-RawTranscript
-├── TranscriptProcessedData (per-transcript results)
-│   ├── Parts -1,0,I outputs
-│   └── Part II: P2SPhaseData (per-phase results)
-└── GenericAnalysisState (cross-transcript results)
-    ├── Parts III,V,VII,VI outputs  
-    └── Part IV: outputs per-GDU
+**Required**: Google Gemini API key must be set as `REACT_APP_API_KEY` in `.env` file:
+```bash
+# Copy .env.example to .env and add your key:
+REACT_APP_API_KEY=your_gemini_api_key_here
 ```
 
-## Pipeline Implementation Notes
+**Model**: Uses `gemini-2.5-flash-preview-04-17` (defined in `constants.tsx` as `GEMINI_MODEL_TEXT`)
 
-The analysis pipeline follows a strict 9-part sequence detailed in `pipeline.md`:
-- **Parts -1 to II**: Per-transcript analysis (Variable ID → Data Prep → Specific Diachronic → Specific Synchronic)  
-- **Parts III+**: Cross-transcript analysis (Generic Diachronic → Generic Synchronic → Refinement → Causal Modeling → Report)
+**Feature Flags**: 
+- `REACT_APP_P3_2_APPROACH` - Controls GDU identification approach (default: `full_context_tsv`)
+  - `original`: Legacy JSON (~15k tokens)
+  - `minimal_context_tsv`: Two-phase TSV with minimal context (~5k tokens)
+  - `full_context_tsv`: Two-phase TSV with full context (~7k tokens)
 
-**Critical Implementation Details**:
-- **Step Dependencies**: Each step's `getInput()` function validates prerequisites and constructs input from prior outputs
-- **Iterative Steps**: Parts II and IV process multiple phases/GDUs respectively using `current_phase_for_p2s_processing` and `current_gdu_for_p4s_processing` tracking
-- **Output Validation**: All outputs must match TypeScript interfaces in `types.ts` exactly - the system includes JSON parsing self-correction
-- **Mermaid Generation**: Structured outputs automatically generate diagrams via `utils/visualizationHelper.ts`
+## High-Level Architecture
 
-When modifying analysis steps, ensure outputs match the expected TypeScript interfaces in `types.ts` and update corresponding transformation utilities in `utils/`.
+µ-PATH is a React/TypeScript application implementing a 9-part micro-phenomenological analysis pipeline inspired by Valenzuela-Moguillansky & Vásquez-Rosati (2019) and Sheldrake & Dienes (2025).
 
-## Claude Code Tooling Guidelines
+### Core Components & Data Flow
 
-**Use Advanced MCP Tools When Appropriate**:
-- **Serena**: Use for complex codebase analysis, symbol navigation, code refactoring, and multi-file operations. Particularly valuable for understanding the pipeline architecture and component relationships.
-- **Zen**: Use for deep analysis, code review, debugging complex issues, test generation, and architectural planning. Excellent for validating pipeline implementations and analyzing data flow patterns.
-- **Context7**: Use for accessing up-to-date documentation and best practices for React, TypeScript, Vite, and other frameworks used in this project.
+```
+App.tsx (State Management)
+├── RawTranscript[] → Upload transcripts
+├── Map<TranscriptProcessedData> → Per-transcript analysis (Parts -1 through II)
+├── GenericAnalysisState → Cross-transcript analysis (Parts III+)
+├── CurrentStepInfo → Pipeline execution tracking
+└── PromptHistory[] → API interaction log
 
-These tools provide enhanced capabilities beyond standard file operations and should be leveraged for non-trivial development tasks, especially when working with the complex pipeline architecture or debugging cross-component data flow issues.
+Pipeline Execution (constants.tsx)
+├── Per-transcript: Parts -1, 0, I, II_S (iterates per phase)
+└── Cross-transcript: Parts III, IV_S (iterates per GDU), V, VII, VI
+
+Key Services & Utils
+├── geminiService.ts → Gemini API integration with retry logic
+├── visualizationHelper.ts → Mermaid diagram generation
+├── traceabilityHelper.ts → Utterance-to-GDU mapping
+├── statisticsHelper.ts → Krippendorff's Alpha for IRR
+└── reportHelper.ts → Programmatic Markdown report generation
+```
+
+### Critical Implementation Patterns
+
+1. **Step Dependencies**: Each step's `getInput()` validates prerequisites from prior outputs
+2. **Iterative Processing**: 
+   - Part II_S: Processes each diachronic phase from Part I
+   - Part IV_S: Processes each Generic Diachronic Unit (GDU) from Part III
+3. **Type Safety**: All outputs must match TypeScript interfaces in `types.ts` exactly
+4. **State Management**: 
+   - Complete state can be saved/loaded as JSON
+   - Human-in-the-Loop corrections invalidate downstream data
+5. **Visualization**: Mermaid diagrams auto-generated from structured outputs:
+   - Diachronic: Gantt charts
+   - Synchronic: Flowcharts
+   - Causal: DAG graphs
+
+### Pipeline Parts Summary
+
+1. **Part -1**: Variable Identification (IV/DV extraction)
+2. **Part 0**: Data Preparation (utterance selection)
+3. **Part I**: Specific Diachronic Analysis (temporal structure)
+4. **Part II_S**: Specific Synchronic Analysis (per phase)
+5. **Part III**: Generic Diachronic (cross-transcript patterns)
+6. **Part IV_S**: Generic Synchronic (per GDU)
+7. **Part V**: Refinement (IV analysis & holistic review)
+8. **Part VII**: Causal Modeling (DAG construction)
+9. **Part VI**: Report Generation (programmatic Markdown)
+
+### Key Modules
+
+**Inter-Rater Reliability (IRR)**:
+- Independent module for comparing analysis runs
+- Uses Krippendorff's Alpha coefficient
+- LLM-powered semantic GDU mapping
+- Transcript ID normalization for cross-run comparison
+
+**Human-in-the-Loop (HIL)**:
+- Modal interface for step corrections
+- Meta-prompts incorporate user guidance
+- Automatic downstream invalidation
+
+## Development Guidelines
+
+### When Modifying Pipeline Steps
+1. Update TypeScript interfaces in `types.ts` first
+2. Modify step configuration in `constants.tsx` (prompts, parsing)
+3. Update transformation utilities in `utils/` if output format changes
+4. Test with real transcript data through full pipeline
+5. Verify Mermaid diagram generation still works
+
+### Common Development Tasks
+- **Add new pipeline step**: Define in `STEP_CONFIGS`, add to `STEP_ORDER_*` arrays
+- **Modify prompts**: Edit `generatePrompt` functions in `constants.tsx`
+- **Debug API calls**: Check `promptHistory` state or download prompt history TSV
+- **Fix parsing errors**: Update `parseOutput` functions, use JSON self-correction
+- **Trace data flow**: Use `buildCompleteUtteranceToGduMapping` in `traceabilityHelper.ts`
+
+### Testing Considerations
+- No automated tests configured - rely on manual testing
+- Use saved state files for regression testing
+- Download intermediate outputs for verification
+- Check Mermaid syntax in browser console if diagrams fail
+
+## Advanced MCP Tools Usage
+
+When working on complex tasks, leverage these MCP tools:
+
+- **Serena**: For codebase navigation, symbol analysis, multi-file refactoring
+- **Zen**: For deep analysis, debugging, test generation, architecture review
+- **Context7**: For React/TypeScript best practices and documentation
+
+These tools are particularly valuable for understanding the complex pipeline architecture and debugging cross-component data flow issues.
 
 ALWAYS CALL ME My Lord!!!
