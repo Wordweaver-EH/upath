@@ -459,31 +459,14 @@ const App: React.FC = () => {
             if (currentStepInfo.stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES) {
                 return { nextStepId: StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS, nextTranscriptIndex: 0 }; 
             } else if (currentStepInfo.stepId === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS) {
-                const allCoreGdus = genericAnalysisState.core_gdus_for_sync_analysis || [];
-                const justCompletedGdu = currentStepInfo.currentGduForP4S;
-                const staleProcessedGdus = genericAnalysisState.processed_gdus_for_p4s || [];
-                
-                // Predictive state: add the GDU that just finished to the list of processed GDUs
-                const prospectiveProcessedGdus = justCompletedGdu 
-                    ? Array.from(new Set([...staleProcessedGdus, justCompletedGdu]))
-                    : staleProcessedGdus;
-                
-                const allP4SBDone = allCoreGdus.length > 0 && allCoreGdus.every(gdu => prospectiveProcessedGdus.includes(gdu));
-
-                if (allP4SBDone || genericAnalysisState.isFullyProcessedGenericSynchronic) {
+                // Check if all GDUs have been processed (trust the state flag)
+                if (genericAnalysisState.isFullyProcessedGenericSynchronic) {
                     if (STEP_ORDER_PART_5_REFINEMENT.length > 0) return { nextStepId: STEP_ORDER_PART_5_REFINEMENT[0], nextTranscriptIndex: 0 };
                     if (STEP_ORDER_PART_7_CAUSAL_MODELING.length > 0) return { nextStepId: STEP_ORDER_PART_7_CAUSAL_MODELING[0], nextTranscriptIndex: 0 };
                     return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 };
                 } else {
-                    // Find the next GDU to process using the ACCURATE prospective list
-                    const nextGDU = allCoreGdus.find(gdu => !prospectiveProcessedGdus.includes(gdu));
-                    if (nextGDU) {
-                        return { nextStepId: StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, nextTranscriptIndex: 0 };
-                    }
-                    // This is a fallback case if something is wrong with the logic
-                    console.warn("[getNextStepDetails] P4S.1.B: All GDUs seem processed but 'isFullyProcessedGenericSynchronic' is false. Proceeding to P5.");
-                    if (STEP_ORDER_PART_5_REFINEMENT.length > 0) return { nextStepId: STEP_ORDER_PART_5_REFINEMENT[0], nextTranscriptIndex: 0 };
-                    return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 };
+                    // More GDUs to process - continue the P4S loop
+                    return { nextStepId: StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, nextTranscriptIndex: 0 };
                 }
             }
         }
