@@ -1,9 +1,11 @@
 # µ-PATH : Micro-Phenomenological Analytic Threader
+[License](LICENSE)
+Copyright (c) 2025 wordweaver.eh@gmail.com. All rights reserved.
 
-**Version:** 1.10.0 (Human-in-the-Loop Correction, State Save/Load, Mermaid.js Visualizations, IV-Centric & Causal Modeling, Inter-Rater Reliability)
+**Version:** 0.10.0 (Human-in-the-Loop Correction, State Save/Load, Mermaid.js Visualizations, IV-Centric & Causal Modeling, Inter-Rater Reliability)
 **Based on:**
 *   Valenzuela-Moguillansky, Camila, and Alejandra Vásquez-Rosati. "An analysis procedure for the micro-phenomenological interview." *Constructivist Foundations* 14.2 (2019): 123-145.
-*   Sheldrake, Kevin, and Zoltan Dienes. "Micro-phenomenological Interviews for Hypothesis Generation." (2025). *(Note: Adjust date/status as appropriate, e.g., "Forthcoming", "Working Paper")*
+*   Sheldrake, Kevin, and Zoltan Dienes. "Micro-phenomenological Interviews for Hypothesis Generation." (2025).
 
 ## 1. Overview
 

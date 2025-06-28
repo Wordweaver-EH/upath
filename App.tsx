@@ -40,7 +40,7 @@ import IRRModal from './components/IRRModal';
 import GduMappingModal from './components/GduMappingModal';
 
 
-const APP_VERSION = "1.9.1"; 
+const APP_VERSION = "0.10.0"; 
 
 const MoonIcon = (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
