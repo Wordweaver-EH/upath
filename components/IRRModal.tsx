@@ -8,6 +8,10 @@ interface IRRModalProps {
   onStateUpdate: (updates: Partial<IrrWorkflowState>) => void;
   onStartComparison: () => void;
   onDownloadDisagreementReport?: () => void;
+  primaryButtonClasses: string;
+  secondaryButtonClasses: string;
+  inputBaseClasses: string;
+  disabledButtonClasses: string;
 }
 
 const IRRModal: React.FC<IRRModalProps> = ({
@@ -16,7 +20,11 @@ const IRRModal: React.FC<IRRModalProps> = ({
   irrState,
   onStateUpdate,
   onStartComparison,
-  onDownloadDisagreementReport
+  onDownloadDisagreementReport,
+  primaryButtonClasses,
+  secondaryButtonClasses,
+  inputBaseClasses,
+  disabledButtonClasses
 }) => {
   const fileInputARef = useRef<HTMLInputElement>(null);
   const fileInputBRef = useRef<HTMLInputElement>(null);
@@ -86,7 +94,7 @@ const IRRModal: React.FC<IRRModalProps> = ({
     
     return (
       <div className="mb-4">
-        <label className="block text-sm font-medium mb-2">
+        <label className="block text-sm font-medium mb-2 text-light-text dark:text-dark-text">
           Load Run {run} State
         </label>
         <div className="flex items-center space-x-2">
@@ -95,16 +103,16 @@ const IRRModal: React.FC<IRRModalProps> = ({
             type="file"
             accept=".json"
             onChange={(e) => handleFileInputChange(e, run)}
-            className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+            className="block w-full text-sm text-light-sidenote dark:text-dark-sidenote file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-light-accent/10 dark:file:bg-dark-accent/10 file:text-light-accent dark:file:text-dark-accent hover:file:bg-light-accent/20 dark:hover:file:bg-dark-accent/20"
           />
           {isLoaded && (
-            <div className="text-green-600 text-sm">
+            <div className="text-green-600 dark:text-green-400 text-sm">
               ✓ Loaded ({state?.rawTranscripts?.length || 0} transcripts, {state?.genericAnalysisState?.p3_2_output?.identified_gdus?.length || 0} GDUs)
             </div>
           )}
         </div>
         {isLoaded && state && (
-          <div className="mt-2 text-xs text-gray-600">
+          <div className="mt-2 text-xs text-light-sidenote dark:text-dark-sidenote">
             File: {state.rawTranscripts?.[0]?.filename || 'Unknown'} (and {(state.rawTranscripts?.length || 1) - 1} more)
           </div>
         )}
@@ -121,8 +129,8 @@ const IRRModal: React.FC<IRRModalProps> = ({
     };
 
     return (
-      <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-        <h3 className="text-lg font-semibold mb-4">Inter-Rater Reliability Results</h3>
+      <div className="mt-6 p-4 bg-light-bg-alt dark:bg-dark-bg-alt rounded-lg">
+        <h3 className="text-lg font-semibold mb-4 text-light-text dark:text-dark-text">Inter-Rater Reliability Results</h3>
         
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div className="text-center">
@@ -134,7 +142,7 @@ const IRRModal: React.FC<IRRModalProps> = ({
             </div>
           </div>
           
-          <div className="text-sm space-y-1">
+          <div className="text-sm space-y-1 text-light-text dark:text-dark-text">
             <div>Total utterances: {results.total_utterances}</div>
             <div>Mapped GDUs: {results.mapped_gdus}</div>
             <div>Unmapped in Run A: {results.unmapped_gdus_run_a}</div>
@@ -142,15 +150,15 @@ const IRRModal: React.FC<IRRModalProps> = ({
           </div>
         </div>
 
-        <div className="text-xs text-gray-600 mb-4">
+        <div className="text-xs text-light-sidenote dark:text-dark-sidenote mb-4">
           <div>Observed disagreement: {results.observed_disagreement.toFixed(3)}</div>
           <div>Expected disagreement: {results.expected_disagreement.toFixed(3)}</div>
         </div>
 
         {results.matrix_validation.warnings.length > 0 && (
           <div className="mb-4">
-            <div className="text-sm font-medium text-yellow-600 mb-1">Warnings:</div>
-            <ul className="text-xs text-yellow-600 list-disc list-inside">
+            <div className="text-sm font-medium text-yellow-600 dark:text-yellow-400 mb-1">Warnings:</div>
+            <ul className="text-xs text-yellow-600 dark:text-yellow-400 list-disc list-inside">
               {results.matrix_validation.warnings.map((warning, i) => (
                 <li key={i}>{warning}</li>
               ))}
@@ -160,8 +168,8 @@ const IRRModal: React.FC<IRRModalProps> = ({
 
         {results.matrix_validation.errors.length > 0 && (
           <div className="mb-4">
-            <div className="text-sm font-medium text-red-600 mb-1">Errors:</div>
-            <ul className="text-xs text-red-600 list-disc list-inside">
+            <div className="text-sm font-medium text-red-600 dark:text-red-400 mb-1">Errors:</div>
+            <ul className="text-xs text-red-600 dark:text-red-400 list-disc list-inside">
               {results.matrix_validation.errors.map((error, i) => (
                 <li key={i}>{error}</li>
               ))}
@@ -173,7 +181,7 @@ const IRRModal: React.FC<IRRModalProps> = ({
           <div className="flex justify-end">
             <button
               onClick={onDownloadDisagreementReport}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+              className={`px-4 py-2 rounded text-sm ${primaryButtonClasses}`}
             >
               Download Disagreement Report
             </button>
@@ -184,23 +192,23 @@ const IRRModal: React.FC<IRRModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50">
+      <div className="bg-light-bg dark:bg-dark-bg rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-light-text dark:text-dark-text">
               Inter-Rater Reliability Analysis
             </h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl"
+              className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text text-2xl"
             >
               ×
             </button>
           </div>
 
           <div className="mb-6">
-            <p className="text-gray-600 text-sm mb-4">
+            <p className="text-light-sidenote dark:text-dark-sidenote text-sm mb-4">
               Compare two independent µ-PATH analysis runs to measure reliability of GDU assignments. 
               Load JSON state files from completed analyses below.
             </p>
@@ -221,23 +229,23 @@ const IRRModal: React.FC<IRRModalProps> = ({
             <div className="mb-6 text-center">
               <div className="inline-flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                <span className="text-gray-600">{getLoadingMessage()}</span>
+                <span className="text-light-sidenote dark:text-dark-sidenote">{getLoadingMessage()}</span>
               </div>
             </div>
           )}
 
           {/* Error message */}
           {irrState.loadingState === 'error' && irrState.errorMessage && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <div className="text-red-600 text-sm font-medium">Error</div>
-              <div className="text-red-600 text-sm">{irrState.errorMessage}</div>
+            <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+              <div className="text-red-600 dark:text-red-400 text-sm font-medium">Error</div>
+              <div className="text-red-600 dark:text-red-400 text-sm">{irrState.errorMessage}</div>
             </div>
           )}
 
           {/* Smart GDU check info */}
           {irrState.runA && irrState.runB && irrState.loadingState === 'idle' && (
-            <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="text-blue-800 text-sm">
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="text-blue-800 dark:text-blue-200 text-sm">
                 <div className="font-medium mb-1">GDU Comparison Preview:</div>
                 <div>Run A: {irrState.runA.genericAnalysisState.p3_2_output?.identified_gdus?.length || 0} GDUs</div>
                 <div>Run B: {irrState.runB.genericAnalysisState.p3_2_output?.identified_gdus?.length || 0} GDUs</div>
@@ -248,7 +256,7 @@ const IRRModal: React.FC<IRRModalProps> = ({
                   const areIdentical = runAGduIds.size === runBGduIds.size && intersection.size === runAGduIds.size;
                   
                   return (
-                    <div className={areIdentical ? 'text-green-700 font-medium' : 'text-orange-700'}>
+                    <div className={areIdentical ? 'text-green-700 dark:text-green-300 font-medium' : 'text-orange-700 dark:text-orange-300'}>
                       {areIdentical 
                         ? '✓ Identical GDU sets detected - mapping step will be skipped' 
                         : `${intersection.size} matching GDU IDs - semantic mapping will be required`
@@ -268,8 +276,8 @@ const IRRModal: React.FC<IRRModalProps> = ({
               disabled={!canStartComparison()}
               className={`px-6 py-3 rounded font-medium ${
                 canStartComparison()
-                  ? 'bg-blue-600 text-white hover:bg-blue-700'
-                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  ? primaryButtonClasses
+                  : `${disabledButtonClasses} bg-light-border dark:bg-dark-border text-light-sidenote dark:text-dark-sidenote cursor-not-allowed`
               }`}
             >
               Compare Analyses
@@ -280,11 +288,11 @@ const IRRModal: React.FC<IRRModalProps> = ({
           {irrState.results && renderResults(irrState.results)}
 
           {/* Footer */}
-          <div className="border-t pt-4 mt-6">
+          <div className="border-t border-light-border dark:border-dark-border pt-4 mt-6">
             <div className="flex justify-end space-x-3">
               <button
                 onClick={onClose}
-                className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
+                className={secondaryButtonClasses}
               >
                 Close
               </button>

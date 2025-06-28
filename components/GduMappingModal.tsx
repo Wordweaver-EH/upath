@@ -8,6 +8,10 @@ interface GduMappingModalProps {
   runAState: AppState;
   runBState: AppState;
   onConfirmMapping: (confirmedMapping: Record<string, string | null>) => void;
+  primaryButtonClasses: string;
+  secondaryButtonClasses: string;
+  inputBaseClasses: string;
+  disabledButtonClasses: string;
 }
 
 const GduMappingModal: React.FC<GduMappingModalProps> = ({
@@ -16,7 +20,11 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
   mappingProposal,
   runAState,
   runBState,
-  onConfirmMapping
+  onConfirmMapping,
+  primaryButtonClasses,
+  secondaryButtonClasses,
+  inputBaseClasses,
+  disabledButtonClasses
 }) => {
   const [userMappings, setUserMappings] = useState<Record<string, string | null>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -115,13 +123,13 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
     const selectedDetails = getSelectedGduDetails(item.runAGduId);
     
     return (
-      <tr className="bg-gray-50">
+      <tr className="bg-light-bg-alt dark:bg-dark-bg-alt">
         <td colSpan={6} className="px-4 py-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Run A Details */}
             <div>
-              <h4 className="font-medium text-gray-900 mb-2">Run A - {item.runAGduId}</h4>
-              <div className="text-sm text-gray-700 space-y-1">
+              <h4 className="font-medium text-light-text dark:text-dark-text mb-2">Run A - {item.runAGduId}</h4>
+              <div className="text-sm text-light-text dark:text-dark-text space-y-1">
                 <div><strong>Definition:</strong> {item.runADefinition}</div>
                 <div><strong>Contributing RDUs:</strong> {item.runAContributingRduCount}</div>
                 <div><strong>Transcripts:</strong> {item.runATranscriptCount}</div>
@@ -130,28 +138,28 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
             
             {/* Run B Details */}
             <div>
-              <h4 className="font-medium text-gray-900 mb-2">
+              <h4 className="font-medium text-light-text dark:text-dark-text mb-2">
                 Selected from Run B - {userMappings[item.runAGduId] || '[Unmatched]'}
               </h4>
               {selectedDetails ? (
-                <div className="text-sm text-gray-700 space-y-1">
+                <div className="text-sm text-light-text dark:text-dark-text space-y-1">
                   <div><strong>Definition:</strong> {selectedDetails.definition}</div>
                   <div><strong>Contributing RDUs:</strong> {selectedDetails.contributingRduCount}</div>
                   <div><strong>Transcripts:</strong> {selectedDetails.transcriptCount}</div>
                 </div>
               ) : (
-                <div className="text-sm text-gray-500 italic">No mapping selected</div>
+                <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">No mapping selected</div>
               )}
             </div>
           </div>
           
           {/* LLM Justification */}
           <div className="mt-4">
-            <h4 className="font-medium text-gray-900 mb-2">LLM Mapping Justification</h4>
-            <div className="text-sm text-gray-700 bg-white p-3 rounded border">
+            <h4 className="font-medium text-light-text dark:text-dark-text mb-2">LLM Mapping Justification</h4>
+            <div className="text-sm text-light-text dark:text-dark-text bg-light-bg dark:bg-dark-bg p-3 rounded border border-light-border dark:border-dark-border">
               {item.mappingJustification}
             </div>
-            <div className="text-xs text-gray-500 mt-1">
+            <div className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">
               Similarity Score: {(item.semanticSimilarityScore * 100).toFixed(1)}%
             </div>
           </div>
@@ -161,21 +169,21 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="p-6 border-b">
+    <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50">
+      <div className="bg-light-bg dark:bg-dark-bg rounded-lg shadow-xl max-w-7xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="p-6 border-b border-light-border dark:border-dark-border">
           <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-gray-900">
+            <h2 className="text-2xl font-bold text-light-text dark:text-dark-text">
               Validate GDU Mappings
             </h2>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl"
+              className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text text-2xl"
             >
               ×
             </button>
           </div>
-          <p className="text-gray-600 text-sm mt-2">
+          <p className="text-light-sidenote dark:text-dark-sidenote text-sm mt-2">
             Review and adjust the LLM-proposed mappings between Run A and Run B GDUs. 
             Click the expand button (↓) for full details and justification.
           </p>
@@ -183,43 +191,43 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
 
         <div className="flex-1 overflow-y-auto">
           <table className="w-full">
-            <thead className="bg-gray-100 sticky top-0">
+            <thead className="bg-light-bg-alt dark:bg-dark-bg-alt sticky top-0">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
                   
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
                   Run A GDU
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
                   Definition (Run A)
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
                   Context
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
                   Mapped to Run B
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
                   Confidence
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-light-bg dark:bg-dark-bg divide-y divide-light-border dark:divide-dark-border">
               {displayItems.map((item) => (
                 <React.Fragment key={item.runAGduId}>
-                  <tr className="hover:bg-gray-50">
+                  <tr className="hover:bg-light-bg-alt dark:hover:bg-dark-bg-alt">
                     <td className="px-4 py-4 whitespace-nowrap">
                       <button
                         onClick={() => toggleRowExpansion(item.runAGduId)}
-                        className="text-gray-400 hover:text-gray-600 text-lg"
+                        className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text text-lg"
                       >
                         {expandedRows.has(item.runAGduId) ? '↑' : '↓'}
                       </button>
                     </td>
                     
                     <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-light-text dark:text-dark-text">
                         {item.runAGduId}
                       </div>
                     </td>
@@ -228,7 +236,7 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
                       {renderDefinitionCell(item.runADefinition)}
                     </td>
                     
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-4 py-4 whitespace-nowrap text-sm text-light-sidenote dark:text-dark-sidenote">
                       <div>{item.runAContributingRduCount} RDUs</div>
                       <div>{item.runATranscriptCount} transcripts</div>
                     </td>
@@ -237,7 +245,7 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
                       <select
                         value={userMappings[item.runAGduId] || ''}
                         onChange={(e) => handleMappingChange(item.runAGduId, e.target.value || null)}
-                        className="w-full text-sm border border-gray-300 rounded px-2 py-1 focus:border-blue-500 focus:outline-none"
+                        className={`w-full text-sm rounded px-2 py-1 focus:outline-none ${inputBaseClasses}`}
                       >
                         <option value="">-- Unmatched --</option>
                         {item.availableRunBOptions.map(option => (
@@ -247,7 +255,7 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
                         ))}
                       </select>
                       {userMappings[item.runAGduId] && (
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">
                           {getSelectedGduDetails(item.runAGduId)?.definition.substring(0, 60)}...
                         </div>
                       )}
@@ -270,21 +278,21 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
           </table>
         </div>
 
-        <div className="border-t p-6">
+        <div className="border-t border-light-border dark:border-dark-border p-6">
           <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
               {Object.values(userMappings).filter(v => v !== null).length} of {displayItems.length} GDUs mapped
             </div>
             <div className="flex space-x-3">
               <button
                 onClick={onClose}
-                className="px-4 py-2 border border-gray-300 rounded text-gray-700 hover:bg-gray-50"
+                className={secondaryButtonClasses}
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirm}
-                className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
+                className={`px-6 py-2 rounded font-medium ${primaryButtonClasses}`}
               >
                 Confirm Mapping
               </button>

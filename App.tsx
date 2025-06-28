@@ -1979,6 +1979,10 @@ Based on this guidance, please re-attempt the original task. Your output MUST st
         onStateUpdate={handleIrrStateUpdate}
         onStartComparison={handleStartIrrComparison}
         onDownloadDisagreementReport={handleDownloadDisagreementReport}
+        primaryButtonClasses={primaryButtonClasses}
+        secondaryButtonClasses={secondaryButtonClasses}
+        inputBaseClasses={inputBaseClasses}
+        disabledButtonClasses={disabledButtonClasses}
       />
 
       {irrWorkflowState.mappingProposal && irrWorkflowState.runA && irrWorkflowState.runB && (
@@ -1989,6 +1993,10 @@ Based on this guidance, please re-attempt the original task. Your output MUST st
           runAState={irrWorkflowState.runA}
           runBState={irrWorkflowState.runB}
           onConfirmMapping={handleConfirmGduMapping}
+          primaryButtonClasses={primaryButtonClasses}
+          secondaryButtonClasses={secondaryButtonClasses}
+          inputBaseClasses={inputBaseClasses}
+          disabledButtonClasses={disabledButtonClasses}
         />
       )}
 
