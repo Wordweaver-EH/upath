@@ -22,7 +22,7 @@ import { downloadFile, generateTsvForPromptHistory, genericJsonToTsv, generateTs
 import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './utils/htmlHelper';
 import { buildCompleteUtteranceToGduMapping } from './utils/traceabilityHelper';
 import { calculateKrippendorffsAlpha, buildReliabilityMatrix, validateReliabilityMatrix } from './utils/statisticsHelper';
-import { generateDisagreementReport, disagreementReportToCsv, disagreementReportToMarkdown } from './utils/irrReportHelper';
+import { generateDisagreementReport, disagreementReportToCsv, disagreementReportToMarkdown, normalizeRunBData } from './utils/irrReportHelper';
 import { generateMarkdownReportProgrammatically, ReportData } from './utils/reportHelper';
 import {
     transformDiachronicToMermaid, transformSynchronicToMermaid,
@@ -1739,8 +1739,15 @@ Guidelines:
 
       try {
         // Build utterance-to-GDU mappings for both runs
-        const runAProcessedDataMap = new Map(irrWorkflowState.runA.processedDataArray);
-        const runBProcessedDataMap = new Map(irrWorkflowState.runB.processedDataArray);
+        const runAProcessedDataMap = new Map(irrWorkflowState.runA.processedDataArray) as Map<string, TranscriptProcessedData>;
+        const runBProcessedDataMapOriginal = new Map(irrWorkflowState.runB.processedDataArray) as Map<string, TranscriptProcessedData>;
+        
+        // Normalize Run B data to match Run A's transcript IDs
+        const { normalizedProcessedData: runBProcessedDataMap, normalizedGenericState } = normalizeRunBData(
+          runAProcessedDataMap,
+          runBProcessedDataMapOriginal,
+          irrWorkflowState.runB.genericAnalysisState
+        );
 
         const runAMappings = buildCompleteUtteranceToGduMapping(
           runAProcessedDataMap, 
@@ -1749,7 +1756,7 @@ Guidelines:
         
         const runBMappings = buildCompleteUtteranceToGduMapping(
           runBProcessedDataMap, 
-          irrWorkflowState.runB.genericAnalysisState.p3_2_output
+          normalizedGenericState.p3_2_output
         );
 
         // Build GDU mapping for the reliability matrix

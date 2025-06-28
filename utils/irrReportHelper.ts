@@ -1,6 +1,61 @@
-import { IrrResults, IrrWorkflowState } from '../types';
+import { IrrResults, IrrWorkflowState, TranscriptProcessedData, GenericAnalysisState } from '../types';
 import { buildCompleteUtteranceToGduMapping } from './traceabilityHelper';
 import { buildReliabilityMatrix } from './statisticsHelper';
+
+/**
+ * Normalizes Run B data to match Run A's transcript IDs based on filename.
+ * This ensures that the same transcripts are compared even if their internal IDs differ.
+ * @param runAData Map of transcript data for Run A
+ * @param runBData Map of transcript data for Run B
+ * @param runBGenericState Generic analysis state for Run B
+ * @returns Normalized data for Run B with matching transcript IDs
+ */
+export function normalizeRunBData(
+    runAData: Map<string, TranscriptProcessedData>,
+    runBData: Map<string, TranscriptProcessedData>,
+    runBGenericState: GenericAnalysisState
+): { 
+    normalizedProcessedData: Map<string, TranscriptProcessedData>,
+    normalizedGenericState: GenericAnalysisState 
+} {
+    // Build filename to Run A ID mapping
+    const filenameToRunAId = new Map<string, string>();
+    runAData.forEach((data, id) => {
+        filenameToRunAId.set(data.filename, id);
+    });
+
+    // Build Run B ID to Run A ID mapping
+    const runBtoRunAIdMap = new Map<string, string>();
+    runBData.forEach((dataB, runBId) => {
+        const runAId = filenameToRunAId.get(dataB.filename);
+        if (runAId) {
+            runBtoRunAIdMap.set(runBId, runAId);
+        }
+    });
+
+    // Deep clone and normalize processed data
+    const normalizedProcessedData = new Map<string, TranscriptProcessedData>();
+    runBData.forEach((dataB) => {
+        const runAId = filenameToRunAId.get(dataB.filename);
+        if (runAId) {
+            const normalizedData = { ...dataB, id: runAId };
+            normalizedProcessedData.set(runAId, normalizedData);
+        }
+    });
+
+    // Deep clone and normalize generic state (especially P3.2 output)
+    const normalizedGenericState = JSON.parse(JSON.stringify(runBGenericState));
+    if (normalizedGenericState.p3_2_output?.identified_gdus) {
+        normalizedGenericState.p3_2_output.identified_gdus.forEach(gdu => {
+            gdu.contributing_refined_du_ids = gdu.contributing_refined_du_ids.map(contrib => ({
+                ...contrib,
+                transcript_id: runBtoRunAIdMap.get(contrib.transcript_id) || contrib.transcript_id
+            }));
+        });
+    }
+
+    return { normalizedProcessedData, normalizedGenericState };
+}
 
 export interface DisagreementItem {
   utteranceId: string;
@@ -43,7 +98,14 @@ export function generateDisagreementReport(
 
   // Build utterance-to-GDU mappings
   const runAProcessedDataMap = new Map(irrState.runA.processedDataArray);
-  const runBProcessedDataMap = new Map(irrState.runB.processedDataArray);
+  const runBProcessedDataMapOriginal = new Map(irrState.runB.processedDataArray);
+  
+  // Normalize Run B data to match Run A's transcript IDs
+  const { normalizedProcessedData: runBProcessedDataMap, normalizedGenericState } = normalizeRunBData(
+    runAProcessedDataMap,
+    runBProcessedDataMapOriginal,
+    irrState.runB.genericAnalysisState
+  );
 
   const runAMappings = buildCompleteUtteranceToGduMapping(
     runAProcessedDataMap, 
@@ -52,7 +114,7 @@ export function generateDisagreementReport(
   
   const runBMappings = buildCompleteUtteranceToGduMapping(
     runBProcessedDataMap, 
-    irrState.runB.genericAnalysisState.p3_2_output
+    normalizedGenericState.p3_2_output
   );
 
   // Build GDU mapping for transformations
