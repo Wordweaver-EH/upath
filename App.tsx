@@ -32,15 +32,23 @@ import {
 import CollapsibleSection from './components/CollapsibleSection';
 import MermaidDiagram from './components/MermaidDiagram';
 import SettingsPanel from './components/SettingsPanel';
+import SettingsPanelZustand from './components/SettingsPanelZustand';
 import ControlsPanel from './components/ControlsPanel';
+import ControlsPanelZustand from './components/ControlsPanelZustand';
 import StatusDisplay from './components/StatusDisplay';
+import StatusDisplayZustand from './components/StatusDisplayZustand';
 import HilModal from './components/HilModal';
+import HilModalZustand from './components/HilModalZustand';
 import PipelineOverview, { PipelineStepNode } from './components/PipelineOverview';
 import IRRModal from './components/IRRModal';
+import IRRModalZustand from './components/IRRModalZustand';
 import GduMappingModal from './components/GduMappingModal';
+import GduMappingModalZustand from './components/GduMappingModalZustand';
+import { AutorunManager } from './components/AutorunManager';
+import { useZustand } from './hooks/useZustand';
 
 
-const APP_VERSION = "0.10.0"; 
+const APP_VERSION = '0.10.0'; // Version from package.json 
 
 const MoonIcon = (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -54,33 +62,8 @@ const SunIcon = (
   </svg>
 );
 
-const stepIdToDataKeyPrefix: Partial<Record<StepId, keyof GenericAnalysisState | keyof TranscriptProcessedData | keyof P2SPhaseData>> = {
-  [StepId.P_NEG1_1_VARIABLE_IDENTIFICATION]: "p_neg1_1_output",
-  [StepId.P0_1_TRANSCRIPTION_ADHERENCE]: "p0_1_output",
-  [StepId.P0_2_REFINE_DATA_TYPES]: "p0_2_output",
-  [StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]: "p0_3_output",
-  [StepId.P1_1_INITIAL_SEGMENTATION]: "p1_1_output",
-  [StepId.P1_2_DIACHRONIC_UNIT_ID]: "p1_2_output",
-  [StepId.P1_3_REFINE_DIACHRONIC_UNITS]: "p1_3_output",
-  [StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "p1_4_output",
-  [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "p2s_1_output",
-  [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "p2s_2_output",
-  [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "p2s_3_output",
-  [StepId.P3_1_ALIGN_STRUCTURES]: "p3_1_output",
-  [StepId.P3_2_IDENTIFY_GDUS]: "p3_2_output",
-  [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "p3_3_output",
-  [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES]: "p4s_1_a_outputs_by_gdu",
-  [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: "p4s_outputs_by_gdu",
-  [StepId.P5_1_IV_COMPARATIVE_ANALYSIS]: "p5_1_output",
-  [StepId.P5_2_HOLISTIC_REFINEMENT]: "p5_2_output",
-  [StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION]: "p7_1_output",
-  [StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS]: "p7_2_output",
-  [StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS]: "p7_3_output",
-  [StepId.P7_3B_VALIDATE_AND_CLEAN_DAG]: "p7_3b_output",
-  [StepId.P7_4_ANALYZE_PATHS_AND_BIASES]: "p7_4_output",
-  [StepId.P7_5_GENERATE_FORMAL_HYPOTHESES]: "p7_5_output",
-  [StepId.P6_1_GENERATE_MARKDOWN_REPORT]: "p6_1_output",
-};
+// Moved to src/utils/stepIdToDataKeyPrefix.ts
+import { stepIdToDataKeyPrefix } from './src/utils/stepIdToDataKeyPrefix';
 
 interface ReportRendererProps {
   markdown: string;
@@ -151,6 +134,12 @@ interface PreviousStepResult {
 
 
 const App: React.FC = () => { 
+  const isUsingZustand = useZustand();
+  
+  // Use Zustand stores when flag is enabled
+  const zustandTheme = isUsingZustand ? useUIStore((state) => state.theme) : undefined;
+  const zustandToggleTheme = isUsingZustand ? useUIStore((state) => state.toggleTheme) : undefined;
+  
   const [rawTranscripts, setRawTranscripts] = useState<RawTranscript[]>([]);
   const [processedData, setProcessedData] = useState<Map<string, TranscriptProcessedData>>(new Map());
   const [genericAnalysisState, setGenericAnalysisState] = useState<GenericAnalysisState>({
@@ -211,8 +200,8 @@ const App: React.FC = () => {
   });
 
   const outputDisplayRef = useRef<HTMLDivElement | null>(null);
-  const loadStateInputRef = useRef<HTMLInputElement>(null);
-  const fileUploadInputRef = useRef<HTMLInputElement>(null);
+  const loadStateInputRef = useRef<HTMLInputElement>(null!);
+  const fileUploadInputRef = useRef<HTMLInputElement>(null!);
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined') {
@@ -1325,12 +1314,10 @@ const App: React.FC = () => {
       let effectiveStepToRun = currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length > 0 
                               ? STEP_ORDER_PART_NEG1[0] 
                               : currentStepInfo.stepId;
-      let effectiveTranscriptIndex = activeTranscriptIndex;
-      let txIdToProcessRun = rawTranscripts[activeTranscriptIndex]?.id;
+      let txIdToProcessRun: string | undefined = rawTranscripts[activeTranscriptIndex]?.id;
 
       if (currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length > 0) {
         effectiveStepToRun = STEP_ORDER_PART_NEG1[0];
-        effectiveTranscriptIndex = 0;
         txIdToProcessRun = rawTranscripts[0]?.id;
         setActiveTranscriptIndex(0);
       }
@@ -1911,66 +1898,165 @@ Based on this guidance, please re-attempt the original task. Your output MUST st
   };
 
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-dark-bg text-dark-text' : 'bg-light-bg text-light-text'} font-serif transition-colors duration-300`}>
+    <div className={`min-h-screen ${(isUsingZustand ? zustandTheme : theme) === 'dark' ? 'dark bg-dark-bg text-dark-text' : 'bg-light-bg text-light-text'} font-serif transition-colors duration-300`}>
       <header className="p-4 flex justify-between items-center border-b border-light-border dark:border-dark-border bg-light-bg-alt dark:bg-dark-bg-alt sticky top-0 z-40">
         <h1 className="text-xl font-bold text-light-accent dark:text-dark-accent">
           <span style={{ fontFamily: "'Times New Roman', serif" }}>µ</span>-<span className="font-logoP">P</span>ATH: Micro-Phenomenological Analysis Threader
           <span className="text-xs text-light-sidenote dark:text-dark-sidenote align-middle ml-1">v{APP_VERSION}</span>
         </h1>
-        <button onClick={toggleTheme} className={`${secondaryButtonClasses} p-2`} aria-label="Toggle theme">
-          {theme === 'light' ? MoonIcon : SunIcon}
+        <button onClick={isUsingZustand ? zustandToggleTheme : toggleTheme} className={`${secondaryButtonClasses} p-2`} aria-label="Toggle theme">
+          {(isUsingZustand ? zustandTheme : theme) === 'light' ? MoonIcon : SunIcon}
         </button>
       </header>
 
       <main className="md:grid md:grid-cols-3 gap-4 p-4">
-        <SettingsPanel
-          apiKeyPresent={apiKeyPresent} dvFocusInput={dvFocusInput} onDvFocusInputChange={setDvFocusInput} dvFocusError={dvFocusError}
-          temperature={temperature} onTemperatureChange={setTemperature} seedInput={seedInput} onSeedInputChange={setSeedInput}
-          outputDirectory={outputDirectory} onOutputDirectoryChange={setOutputDirectory} autoDownloadResults={autoDownloadResults} onAutoDownloadResultsChange={setAutoDownloadResults}
-          onSaveState={handleSaveState} onLoadStateFileChange={handleLoadStateFileChange} loadStateInputRef={loadStateInputRef}
-          onFileUpload={handleRegularFileUpload} fileUploadInputRef={fileUploadInputRef}
-          isDraggingOver={isDraggingOver} onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-          rawTranscripts={rawTranscripts} activeTranscriptIndex={activeTranscriptIndex} isGlobalStep={isGlobalStep} currentStepInfo={currentStepInfo}
-          onTranscriptItemClick={handleTranscriptItemClick} getTranscriptStatusDisplay={getTranscriptStatusDisplay}
-          PipelineOverviewComponent={
-            <PipelineOverview
-              allPipelineParts={allPipelinePartsInOrder} STEP_CONFIGS={STEP_CONFIGS} currentStepInfo={currentStepInfo}
-              getStepStatusForPipelineView={getStepStatusForPipelineView} handlePipelineStepClick={handlePipelineStepClick}
-              PipelineStepNodeComponent={PipelineStepNode}
-            />
-          }
-          inputBaseClasses={inputBaseClasses} secondaryButtonClasses={secondaryButtonClasses} disabledButtonClasses={disabledButtonClasses}
-        />
+        {isUsingZustand ? (
+          <SettingsPanelZustand
+            onSaveState={handleSaveState}
+            onLoadStateFileChange={handleLoadStateFileChange}
+            loadStateInputRef={loadStateInputRef}
+            onFileUpload={handleRegularFileUpload}
+            fileUploadInputRef={fileUploadInputRef}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            isGlobalStep={isGlobalStep}
+            onTranscriptItemClick={handleTranscriptItemClick}
+            getTranscriptStatusDisplay={getTranscriptStatusDisplay}
+            PipelineOverviewComponent={
+              <PipelineOverview
+                allPipelineParts={allPipelinePartsInOrder}
+                STEP_CONFIGS={STEP_CONFIGS}
+                currentStepInfo={currentStepInfo}
+                getStepStatusForPipelineView={getStepStatusForPipelineView}
+                handlePipelineStepClick={handlePipelineStepClick}
+                PipelineStepNodeComponent={PipelineStepNode}
+              />
+            }
+            inputBaseClasses={inputBaseClasses}
+            secondaryButtonClasses={secondaryButtonClasses}
+            disabledButtonClasses={disabledButtonClasses}
+          />
+        ) : (
+          <SettingsPanel
+            apiKeyPresent={apiKeyPresent}
+            dvFocusInput={dvFocusInput}
+            onDvFocusInputChange={setDvFocusInput}
+            dvFocusError={dvFocusError}
+            temperature={temperature}
+            onTemperatureChange={setTemperature}
+            seedInput={seedInput}
+            onSeedInputChange={setSeedInput}
+            outputDirectory={outputDirectory}
+            onOutputDirectoryChange={setOutputDirectory}
+            autoDownloadResults={autoDownloadResults}
+            onAutoDownloadResultsChange={setAutoDownloadResults}
+            onSaveState={handleSaveState}
+            onLoadStateFileChange={handleLoadStateFileChange}
+            loadStateInputRef={loadStateInputRef}
+            onFileUpload={handleRegularFileUpload}
+            fileUploadInputRef={fileUploadInputRef}
+            isDraggingOver={isDraggingOver}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            rawTranscripts={rawTranscripts}
+            activeTranscriptIndex={activeTranscriptIndex}
+            isGlobalStep={isGlobalStep}
+            currentStepInfo={currentStepInfo}
+            onTranscriptItemClick={handleTranscriptItemClick}
+            getTranscriptStatusDisplay={getTranscriptStatusDisplay}
+            PipelineOverviewComponent={
+              <PipelineOverview
+                allPipelineParts={allPipelinePartsInOrder}
+                STEP_CONFIGS={STEP_CONFIGS}
+                currentStepInfo={currentStepInfo}
+                getStepStatusForPipelineView={getStepStatusForPipelineView}
+                handlePipelineStepClick={handlePipelineStepClick}
+                PipelineStepNodeComponent={PipelineStepNode}
+              />
+            }
+            inputBaseClasses={inputBaseClasses}
+            secondaryButtonClasses={secondaryButtonClasses}
+            disabledButtonClasses={disabledButtonClasses}
+          />
+        )}
 
         <div className="md:col-span-2 space-y-4">
           <div className="space-y-2">
-            <ControlsPanel
-              isAutorunning={isAutorunning} onToggleAutorun={toggleAutorun}
-              isAutorunPauseButtonEffectivelyDisabled={!apiKeyPresent || !!dvFocusError || (rawTranscripts.length === 0 && currentStepInfo.stepId === StepId.IDLE) || currentStepInfo.stepId === StepId.COMPLETE}
-              onPreviousStep={handlePreviousStep} isPreviousStepDisabled={currentStepInfo.status === StepStatus.Loading || !getPreviousStepDetails()}
-              onNextStep={handleNextStep} isNextStepDisabled={currentStepInfo.status === StepStatus.Loading || (!getNextStepDetails() && currentStepInfo.stepId !== StepId.COMPLETE && !genericAnalysisState.isReportGenerated)}
-              onRunStep={handleRunStep} isRunStepDisabled={currentStepInfo.stepId === StepId.IDLE || currentStepInfo.status === StepStatus.Loading || currentStepInfo.stepId === StepId.COMPLETE || (!apiKeyPresent && currentStepInfo.stepId !== StepId.P6_1_GENERATE_MARKDOWN_REPORT) || !!dvFocusError}
-              onOpenHilModal={handleOpenHilModal}
-              isHilModalDisabled={currentStepInfo.stepId === StepId.IDLE || currentStepInfo.status === StepStatus.Loading || currentStepInfo.stepId === StepId.COMPLETE || !currentStepInfo.inputData || (!currentStepInfo.outputData && !currentStepInfo.error) }
-              onDownloadOutput={() => handleDownloadOutput()}
-              isDownloadOutputDisabled={currentStepInfo.stepId === StepId.IDLE || (!currentStepInfo.outputData && !genericAnalysisState.p6_1_output) || (currentStepInfo.stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT && !genericAnalysisState.p6_1_output)}
-              onDownloadHistory={handleDownloadHistory} isDownloadHistoryDisabled={promptHistory.length === 0}
-              onGenerateAppendix={() => handleGenerateAppendix('markdown')}
-              isAppendixDataAvailable={rawTranscripts.length > 0 && genericAnalysisState.isReportGenerated}
-              onGenerateHtmlAppendix={() => handleGenerateAppendix('html')}
-              onOpenIrrModal={() => handleIrrStateUpdate({ isIrrModalOpen: true })}
-              isIrrButtonDisabled={false}
-              showRetryWithNewSeedUI={currentStepInfo.status === StepStatus.Error && !!currentStepInfo.error?.match(/parse JSON/i)}
-              retrySeedInput={retrySeedInput} onRetrySeedInputChange={setRetrySeedInput} onRetryWithUserSeed={handleRetryWithUserSeed}
-              inputBaseClasses={inputBaseClasses} primaryButtonClasses={primaryButtonClasses} secondaryButtonClasses={secondaryButtonClasses} disabledButtonClasses={disabledButtonClasses}
-            />
+            {isUsingZustand ? (
+              <ControlsPanelZustand
+                onPreviousStep={handlePreviousStep} 
+                isPreviousStepDisabled={currentStepInfo.status === StepStatus.Loading || !getPreviousStepDetails()}
+                onNextStep={handleNextStep} 
+                isNextStepDisabled={currentStepInfo.status === StepStatus.Loading || (!getNextStepDetails() && currentStepInfo.stepId !== StepId.COMPLETE && !genericAnalysisState.isReportGenerated)}
+                onRunStep={handleRunStep} 
+                isRunStepDisabled={currentStepInfo.stepId === StepId.IDLE || currentStepInfo.status === StepStatus.Loading || currentStepInfo.stepId === StepId.COMPLETE || (!apiKeyPresent && currentStepInfo.stepId !== StepId.P6_1_GENERATE_MARKDOWN_REPORT) || !!dvFocusError}
+                isHilModalDisabled={currentStepInfo.stepId === StepId.IDLE || currentStepInfo.status === StepStatus.Loading || currentStepInfo.stepId === StepId.COMPLETE || !currentStepInfo.inputData || (!currentStepInfo.outputData && !currentStepInfo.error) }
+                onDownloadOutput={() => handleDownloadOutput()}
+                isDownloadOutputDisabled={currentStepInfo.stepId === StepId.IDLE || (!currentStepInfo.outputData && !genericAnalysisState.p6_1_output) || (currentStepInfo.stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT && !genericAnalysisState.p6_1_output)}
+                onDownloadHistory={handleDownloadHistory} 
+                isDownloadHistoryDisabled={promptHistory.length === 0}
+                onGenerateAppendix={() => handleGenerateAppendix('markdown')}
+                isAppendixDataAvailable={rawTranscripts.length > 0 && genericAnalysisState.isReportGenerated}
+                onGenerateHtmlAppendix={() => handleGenerateAppendix('html')}
+                showRetryWithNewSeedUI={currentStepInfo.status === StepStatus.Error && !!currentStepInfo.error?.match(/parse JSON/i)}
+                retrySeedInput={retrySeedInput} 
+                onRetrySeedInputChange={setRetrySeedInput} 
+                onRetryWithUserSeed={handleRetryWithUserSeed}
+                inputBaseClasses={inputBaseClasses} 
+                primaryButtonClasses={primaryButtonClasses} 
+                secondaryButtonClasses={secondaryButtonClasses} 
+                disabledButtonClasses={disabledButtonClasses}
+              />
+            ) : (
+              <ControlsPanel
+                isAutorunning={isAutorunning} 
+                onToggleAutorun={toggleAutorun}
+                isAutorunPauseButtonEffectivelyDisabled={!apiKeyPresent || !!dvFocusError || (rawTranscripts.length === 0 && currentStepInfo.stepId === StepId.IDLE) || currentStepInfo.stepId === StepId.COMPLETE}
+                onPreviousStep={handlePreviousStep} 
+                isPreviousStepDisabled={currentStepInfo.status === StepStatus.Loading || !getPreviousStepDetails()}
+                onNextStep={handleNextStep} 
+                isNextStepDisabled={currentStepInfo.status === StepStatus.Loading || (!getNextStepDetails() && currentStepInfo.stepId !== StepId.COMPLETE && !genericAnalysisState.isReportGenerated)}
+                onRunStep={handleRunStep} 
+                isRunStepDisabled={currentStepInfo.stepId === StepId.IDLE || currentStepInfo.status === StepStatus.Loading || currentStepInfo.stepId === StepId.COMPLETE || (!apiKeyPresent && currentStepInfo.stepId !== StepId.P6_1_GENERATE_MARKDOWN_REPORT) || !!dvFocusError}
+                onOpenHilModal={handleOpenHilModal}
+                isHilModalDisabled={currentStepInfo.stepId === StepId.IDLE || currentStepInfo.status === StepStatus.Loading || currentStepInfo.stepId === StepId.COMPLETE || !currentStepInfo.inputData || (!currentStepInfo.outputData && !currentStepInfo.error) }
+                onDownloadOutput={() => handleDownloadOutput()}
+                isDownloadOutputDisabled={currentStepInfo.stepId === StepId.IDLE || (!currentStepInfo.outputData && !genericAnalysisState.p6_1_output) || (currentStepInfo.stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT && !genericAnalysisState.p6_1_output)}
+                onDownloadHistory={handleDownloadHistory} 
+                isDownloadHistoryDisabled={promptHistory.length === 0}
+                onGenerateAppendix={() => handleGenerateAppendix('markdown')}
+                isAppendixDataAvailable={rawTranscripts.length > 0 && genericAnalysisState.isReportGenerated}
+                onGenerateHtmlAppendix={() => handleGenerateAppendix('html')}
+                onOpenIrrModal={() => handleIrrStateUpdate({ isIrrModalOpen: true })}
+                isIrrButtonDisabled={false}
+                showRetryWithNewSeedUI={currentStepInfo.status === StepStatus.Error && !!currentStepInfo.error?.match(/parse JSON/i)}
+                retrySeedInput={retrySeedInput} 
+                onRetrySeedInputChange={setRetrySeedInput} 
+                onRetryWithUserSeed={handleRetryWithUserSeed}
+                inputBaseClasses={inputBaseClasses} 
+                primaryButtonClasses={primaryButtonClasses} 
+                secondaryButtonClasses={secondaryButtonClasses} 
+                disabledButtonClasses={disabledButtonClasses}
+              />
+            )}
           </div>
           
-          <StatusDisplay
-            currentStepInfo={currentStepInfo} STEP_CONFIGS={STEP_CONFIGS} processedData={processedData}
-            totalInputTokens={totalInputTokens} totalOutputTokens={totalOutputTokens}
-            processStartTime={processStartTime} elapsedTime={elapsedTime} formatElapsedTime={formatElapsedTime}
-          />
+          {isUsingZustand ? (
+            <StatusDisplayZustand formatElapsedTime={formatElapsedTime} />
+          ) : (
+            <StatusDisplay
+              currentStepInfo={currentStepInfo} 
+              STEP_CONFIGS={STEP_CONFIGS} 
+              processedData={processedData}
+              totalInputTokens={totalInputTokens} 
+              totalOutputTokens={totalOutputTokens}
+              processStartTime={processStartTime} 
+              elapsedTime={elapsedTime} 
+              formatElapsedTime={formatElapsedTime}
+            />
+          )}
 
           <div ref={outputDisplayRef} className="output-display p-4 bg-light-bg dark:bg-dark-bg border border-light-border dark:border-dark-border rounded-lg shadow min-h-[200px] max-h-[calc(100vh-400px)] overflow-y-auto">
             {renderOutput()} 
@@ -1979,42 +2065,73 @@ Based on this guidance, please re-attempt the original task. Your output MUST st
       </main>
 
       {/* IRR Analysis Modals */}
-      <IRRModal
-        isOpen={irrWorkflowState.isIrrModalOpen}
-        onClose={() => handleIrrStateUpdate({ isIrrModalOpen: false })}
-        irrState={irrWorkflowState}
-        onStateUpdate={handleIrrStateUpdate}
-        onStartComparison={handleStartIrrComparison}
-        onDownloadDisagreementReport={handleDownloadDisagreementReport}
-        primaryButtonClasses={primaryButtonClasses}
-        secondaryButtonClasses={secondaryButtonClasses}
-        inputBaseClasses={inputBaseClasses}
-        disabledButtonClasses={disabledButtonClasses}
-      />
+      {isUsingZustand && <AutorunManager />}
+      
+      {isUsingZustand ? (
+        <>
+          <IRRModalZustand
+            onDownloadDisagreementReport={handleDownloadDisagreementReport}
+            primaryButtonClasses={primaryButtonClasses}
+            secondaryButtonClasses={secondaryButtonClasses}
+            inputBaseClasses={inputBaseClasses}
+            disabledButtonClasses={disabledButtonClasses}
+          />
+          <GduMappingModalZustand
+            onConfirmMapping={handleConfirmGduMapping}
+            primaryButtonClasses={primaryButtonClasses}
+            secondaryButtonClasses={secondaryButtonClasses}
+            inputBaseClasses={inputBaseClasses}
+            disabledButtonClasses={disabledButtonClasses}
+          />
+          <HilModalZustand
+            onSubmit={handleHilSubmit}
+            getHilPreviousResponseDisplay={getHilPreviousResponseDisplay}
+            inputBaseClasses={inputBaseClasses}
+            secondaryButtonClasses={secondaryButtonClasses}
+            primaryButtonClasses={primaryButtonClasses}
+            disabledButtonClasses={disabledButtonClasses}
+          />
+        </>
+      ) : (
+        <>
+          <IRRModal
+            isOpen={irrWorkflowState.isIrrModalOpen}
+            onClose={() => handleIrrStateUpdate({ isIrrModalOpen: false })}
+            irrState={irrWorkflowState}
+            onStateUpdate={handleIrrStateUpdate}
+            onStartComparison={handleStartIrrComparison}
+            onDownloadDisagreementReport={handleDownloadDisagreementReport}
+            primaryButtonClasses={primaryButtonClasses}
+            secondaryButtonClasses={secondaryButtonClasses}
+            inputBaseClasses={inputBaseClasses}
+            disabledButtonClasses={disabledButtonClasses}
+          />
 
-      {irrWorkflowState.mappingProposal && irrWorkflowState.runA && irrWorkflowState.runB && (
-        <GduMappingModal
-          isOpen={irrWorkflowState.isMappingModalOpen}
-          onClose={() => handleIrrStateUpdate({ isMappingModalOpen: false })}
-          mappingProposal={irrWorkflowState.mappingProposal}
-          runAState={irrWorkflowState.runA}
-          runBState={irrWorkflowState.runB}
-          onConfirmMapping={handleConfirmGduMapping}
-          primaryButtonClasses={primaryButtonClasses}
-          secondaryButtonClasses={secondaryButtonClasses}
-          inputBaseClasses={inputBaseClasses}
-          disabledButtonClasses={disabledButtonClasses}
-        />
+          {irrWorkflowState.mappingProposal && irrWorkflowState.runA && irrWorkflowState.runB && (
+            <GduMappingModal
+              isOpen={irrWorkflowState.isMappingModalOpen}
+              onClose={() => handleIrrStateUpdate({ isMappingModalOpen: false })}
+              mappingProposal={irrWorkflowState.mappingProposal}
+              runAState={irrWorkflowState.runA}
+              runBState={irrWorkflowState.runB}
+              onConfirmMapping={handleConfirmGduMapping}
+              primaryButtonClasses={primaryButtonClasses}
+              secondaryButtonClasses={secondaryButtonClasses}
+              inputBaseClasses={inputBaseClasses}
+              disabledButtonClasses={disabledButtonClasses}
+            />
+          )}
+
+          <HilModal
+            isOpen={isHilModalOpen} onClose={() => setIsHilModalOpen(false)} hilContext={hilContext}
+            STEP_CONFIGS={STEP_CONFIGS} processedData={processedData}
+            hilUserGuidance={hilUserGuidance} onHilUserGuidanceChange={setHilUserGuidance} onSubmit={handleHilSubmit}
+            getHilPreviousResponseDisplay={getHilPreviousResponseDisplay}
+            inputBaseClasses={inputBaseClasses} secondaryButtonClasses={secondaryButtonClasses} primaryButtonClasses={primaryButtonClasses} disabledButtonClasses={disabledButtonClasses}
+            CollapsibleSectionComponent={CollapsibleSection}
+          />
+        </>
       )}
-
-      <HilModal
-        isOpen={isHilModalOpen} onClose={() => setIsHilModalOpen(false)} hilContext={hilContext}
-        STEP_CONFIGS={STEP_CONFIGS} processedData={processedData}
-        hilUserGuidance={hilUserGuidance} onHilUserGuidanceChange={setHilUserGuidance} onSubmit={handleHilSubmit}
-        getHilPreviousResponseDisplay={getHilPreviousResponseDisplay}
-        inputBaseClasses={inputBaseClasses} secondaryButtonClasses={secondaryButtonClasses} primaryButtonClasses={primaryButtonClasses} disabledButtonClasses={disabledButtonClasses}
-        CollapsibleSectionComponent={CollapsibleSection}
-      />
     </div>
   );
 };
