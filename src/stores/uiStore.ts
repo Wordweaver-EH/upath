@@ -74,7 +74,6 @@ interface UIActions {
 interface UISelectors {
   // Derived state selectors
   isAutorunDisabled: () => boolean
-  getStepStatusForPipelineView: (stepId: StepId) => { status: StepStatus; error?: string }
 }
 
 type UIStore = UIState & UIActions & UISelectors
@@ -315,76 +314,6 @@ export const useUIStore = create<UIStore>()(
       
       // Basic UI-level checks - pipeline-specific checks moved to component level
       return currentStepInfo.stepId === StepId.COMPLETE
-    },
-
-    getStepStatusForPipelineView: (stepId: StepId): { status: StepStatus; error?: string } => {
-      // This function needs access to other stores, so it will use the store pattern
-      // We'll access other stores through their state getters
-      const { usePipelineStore } = require('./index')
-      const { currentStepInfo, activeTranscriptIndex } = get()
-      
-      const { 
-        rawTranscripts, 
-        processedData, 
-        genericAnalysisState 
-      } = usePipelineStore.getState()
-      
-      const isStepGlobal = isGlobalStep(stepId)
-      let status = StepStatus.Idle
-      let error: string | undefined
-
-      if (isStepGlobal) {
-        if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(stepId)) {
-          if (genericAnalysisState.isFullyProcessedGenericSynchronic) status = StepStatus.Success
-          else if ((genericAnalysisState.processed_gdus_for_p4s?.length || 0) > 0) status = StepStatus.Loading
-          
-          // Check for specific P4S_A or P4S_B error
-          if (stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES && genericAnalysisState.p4s_1_a_error) {
-            error = genericAnalysisState.p4s_1_a_error
-          }
-          if (stepId === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS && genericAnalysisState.p4s_1_b_error) {
-            error = genericAnalysisState.p4s_1_b_error
-          }
-        } else {
-          const keyPrefix = stepIdToDataKeyPrefix[stepId] as keyof typeof genericAnalysisState
-          if (genericAnalysisState[keyPrefix]) status = StepStatus.Success
-          error = genericAnalysisState[`${String(keyPrefix).replace('_output', '_error')}` as keyof typeof genericAnalysisState] as string | undefined
-          if (error) status = StepStatus.Error
-        }
-      } else {
-        const currentTId = rawTranscripts[activeTranscriptIndex]?.id
-        if (currentTId) {
-          const tData = processedData.get(currentTId)
-          if (tData) {
-            const { STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC } = require('../../constants')
-            if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)) {
-              if (tData.isFullyProcessedSpecificSynchronic) status = StepStatus.Success
-              else if ((tData.processed_phases_for_p2s?.length || 0) > 0) status = StepStatus.Loading
-              if (currentStepInfo.stepId === stepId && currentStepInfo.transcriptId === currentTId && currentStepInfo.error) {
-                error = currentStepInfo.error
-              }
-            } else {
-              const keyPrefix = stepIdToDataKeyPrefix[stepId] as keyof typeof tData
-              if (tData[keyPrefix]) status = StepStatus.Success
-              error = tData[`${String(keyPrefix).replace('_output', '_error')}` as keyof typeof tData] as string | undefined
-              if (error) status = StepStatus.Error
-            }
-          }
-        }
-      }
-
-      if (currentStepInfo.stepId === stepId) {
-        if (isStepGlobal || currentStepInfo.transcriptId === rawTranscripts[activeTranscriptIndex]?.id) {
-          if (currentStepInfo.status === StepStatus.Loading) status = StepStatus.Loading
-          else if (currentStepInfo.status === StepStatus.Error) { 
-            status = StepStatus.Error
-            error = currentStepInfo.error
-          }
-          else if (currentStepInfo.status === StepStatus.Success) status = StepStatus.Success
-        }
-      }
-
-      return { status, error }
     }
   }))
 )

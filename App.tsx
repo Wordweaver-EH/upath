@@ -138,7 +138,7 @@ const App: React.FC = () => {
   const openHilModal = useUIStore(state => state.openHilModal);
   const closeHilModal = useUIStore(state => state.closeHilModal);
   const setHilUserGuidance = useUIStore(state => state.setHilUserGuidance);
-  const getStepStatusForPipelineView = useUIStore(state => state.getStepStatusForPipelineView);
+  const getStepStatusForPipelineView = usePipelineStore(state => state.getStepStatusForPipelineView);
   const setCurrentStepInfo = useUIStore(state => state.setCurrentStepInfo);
   
   // Pipeline Store state and actions

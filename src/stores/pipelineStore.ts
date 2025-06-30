@@ -9,7 +9,8 @@ import {
   StepId,
   StepStatus,
   SavedState,
-  P2SPhaseData
+  P2SPhaseData,
+  CurrentStepInfo
 } from '../../types'
 import { 
   STEP_CONFIGS, 
@@ -132,6 +133,7 @@ interface PipelineSelectors {
   isDownloadHistoryDisabled: () => boolean
   isAppendixDataAvailable: () => boolean
   loadStepData: (stepIdToLoad: StepId, transcriptId?: string, phaseName?: string, gduId?: string) => { inputData?: any, outputData?: any, error?: string, groundingSources?: any[] }
+  getStepStatusForPipelineView: (stepId: StepId, uiState?: { currentStepInfo: CurrentStepInfo; activeTranscriptIndex: number }) => { status: StepStatus; error?: string }
 }
 
 type PipelineState = TranscriptSlice & GenericAnalysisSlice & PromptSlice
@@ -1722,6 +1724,92 @@ export const usePipelineStore = create<PipelineStore>()(
         }
         
         return { outputData: output, error: error, inputData: currentInputData, groundingSources: currentGroundingSources }
+      },
+
+      getStepStatusForPipelineView: (stepId: StepId, uiState?: { currentStepInfo: CurrentStepInfo; activeTranscriptIndex: number }): { status: StepStatus; error?: string } => {
+        const { processedData, genericAnalysisState, rawTranscripts } = get()
+        
+        // If UI state not provided, try to get it safely
+        if (!uiState && typeof window !== 'undefined' && (window as any).__uiStore) {
+          try {
+            const uiStore = (window as any).__uiStore.getState()
+            uiState = {
+              currentStepInfo: uiStore.currentStepInfo,
+              activeTranscriptIndex: uiStore.activeTranscriptIndex
+            }
+          } catch (e) {
+            // Fallback to safe defaults
+            uiState = {
+              currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle },
+              activeTranscriptIndex: 0
+            }
+          }
+        }
+        
+        // Final fallback
+        if (!uiState) {
+          uiState = {
+            currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle },
+            activeTranscriptIndex: 0
+          }
+        }
+        
+        const { currentStepInfo, activeTranscriptIndex } = uiState
+        const isStepGlobal = isGlobalStep(stepId)
+        let status = StepStatus.Idle
+        let error: string | undefined
+
+        if (isStepGlobal) {
+          if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(stepId)) {
+            if (genericAnalysisState.isFullyProcessedGenericSynchronic) status = StepStatus.Success
+            else if ((genericAnalysisState.processed_gdus_for_p4s?.length || 0) > 0) status = StepStatus.Loading
+            
+            // Check for specific P4S_A or P4S_B error
+            if (stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES && genericAnalysisState.p4s_1_a_error) {
+              error = genericAnalysisState.p4s_1_a_error
+            }
+            if (stepId === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS && genericAnalysisState.p4s_1_b_error) {
+              error = genericAnalysisState.p4s_1_b_error
+            }
+          } else {
+            const keyPrefix = stepIdToDataKeyPrefix[stepId] as keyof GenericAnalysisState
+            if (genericAnalysisState[keyPrefix]) status = StepStatus.Success
+            error = genericAnalysisState[`${String(keyPrefix).replace('_output', '_error')}` as keyof GenericAnalysisState] as string | undefined
+            if (error) status = StepStatus.Error
+          }
+        } else {
+          const currentTId = rawTranscripts[activeTranscriptIndex]?.id
+          if (currentTId) {
+            const tData = processedData.get(currentTId)
+            if (tData) {
+              if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)) {
+                if (tData.isFullyProcessedSpecificSynchronic) status = StepStatus.Success
+                else if ((tData.processed_phases_for_p2s?.length || 0) > 0) status = StepStatus.Loading
+                if (currentStepInfo.stepId === stepId && currentStepInfo.transcriptId === currentTId && currentStepInfo.error) {
+                  error = currentStepInfo.error
+                }
+              } else {
+                const keyPrefix = stepIdToDataKeyPrefix[stepId] as keyof TranscriptProcessedData
+                if (tData[keyPrefix]) status = StepStatus.Success
+                error = tData[`${String(keyPrefix).replace('_output', '_error')}` as keyof TranscriptProcessedData] as string | undefined
+                if (error) status = StepStatus.Error
+              }
+            }
+          }
+        }
+
+        if (currentStepInfo.stepId === stepId) {
+          if (isStepGlobal || currentStepInfo.transcriptId === rawTranscripts[activeTranscriptIndex]?.id) {
+            if (currentStepInfo.status === StepStatus.Loading) status = StepStatus.Loading
+            else if (currentStepInfo.status === StepStatus.Error) { 
+              status = StepStatus.Error
+              error = currentStepInfo.error
+            }
+            else if (currentStepInfo.status === StepStatus.Success) status = StepStatus.Success
+          }
+        }
+
+        return { status, error }
       }
     })),
     {
