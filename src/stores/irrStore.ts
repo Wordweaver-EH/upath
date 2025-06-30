@@ -1,5 +1,12 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
+import { IrrWorkflowState, SavedState, P9_1_SemanticGduMapping } from '../types'
+import { callGeminiAPI } from '../services/geminiService'
+import { calculateKrippendorffsAlpha } from '../utils/statisticsHelper'
+import { generateDisagreementReport, disagreementReportToCsv, disagreementReportToMarkdown } from '../../utils/irrReportHelper'
+import { downloadFile } from '../../utils/tsvHelper'
+import { STEP_CONFIGS, STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC, STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC, STEP_ORDER_PART_3_GENERIC_DIACHRONIC, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC } from '../constants'
+import { immer } from 'zustand/middleware/immer'
 import { IrrWorkflowState, SavedState, P9_1_SemanticGduMapping } from '../../types'
 import { calculateKrippendorffsAlpha } from '../../utils/statisticsHelper'
 import { callGeminiAPI } from '../../services/geminiService'
@@ -33,7 +40,14 @@ interface IRRActions {
   // Utils
   resetIrrWorkflow: () => void
   setLoadingState: (state: 'idle' | 'loading-files' | 'calling-llm' | 'calculating' | 'complete' | 'error') => void
+  
+  // Handler methods
+  handleStateUpdate: (updates: Partial<IrrWorkflowState>) => void
+  handleStartComparison: () => Promise<void>
+  handleConfirmMapping: (confirmedMapping: Record<string, string | null>) => Promise<void>
+  handleDownloadDisagreementReport: () => void
 }
+
 
 type IRRStore = IRRState & IRRActions
 
@@ -248,6 +262,81 @@ Provide your response as a JSON object with this structure:
       set((state) => {
         state.irrWorkflowState.loadingState = loadingState
       })
+    },
+    
+    // Handler methods moved from App.tsx
+    handleStateUpdate: (updates: Partial<IrrWorkflowState>) => {
+      if (updates.loadingState) get().setLoadingState(updates.loadingState)
+      if (updates.errorMessage) get().setErrorMessage(updates.errorMessage)
+    },
+    
+    handleStartComparison: async () => {
+      const state = get().irrWorkflowState
+      if (!state.runA || !state.runB) {
+        get().setLoadingState('error')
+        get().setErrorMessage('Both Run A and Run B must be loaded')
+        return
+      }
+      
+      try {
+        // Check if GDU sets are identical (skip mapping step)
+        const runAGduIds = new Set(state.runA.genericAnalysisState.p3_2_output?.identified_gdus?.map(g => g.gdu_id) || [])
+        const runBGduIds = new Set(state.runB.genericAnalysisState.p3_2_output?.identified_gdus?.map(g => g.gdu_id) || [])
+        
+        const areGduSetsIdentical = 
+          runAGduIds.size === runBGduIds.size && 
+          [...runAGduIds].every(id => runBGduIds.has(id))
+        
+        if (areGduSetsIdentical) {
+          // Create automatic 1:1 mapping
+          const autoMapping: P9_1_SemanticGduMapping = {
+            gdu_mappings: [...runAGduIds].map(gduId => ({
+              run_a_gdu: gduId,
+              run_b_gdu: gduId,
+              semantic_similarity: 1.0,
+              mapping_justification: "Identical GDU IDs - automatic 1:1 mapping"
+            }))
+          }
+          get().confirmMapping(autoMapping)
+          get().setLoadingState('calculating')
+          get().calculateResults()
+        } else {
+          // Need semantic mapping
+          await get().generateSemanticMapping()
+        }
+      } catch (error) {
+        console.error('Error starting comparison:', error)
+        get().setLoadingState('error')
+        get().setErrorMessage('Failed to start comparison')
+      }
+    },
+    
+    handleConfirmMapping: async (confirmedMapping: Record<string, string | null>) => {
+      get().setLoadingState('calculating')
+      get().calculateResults()
+    },
+    
+    handleDownloadDisagreementReport: () => {
+      const { results, runA, runB, confirmedMapping } = get().irrWorkflowState
+      if (!results || !runA || !runB || !confirmedMapping) {
+        alert('Cannot generate disagreement report: IRR analysis must be completed first')
+        return
+      }
+      
+      try {
+        const disagreementReport = generateDisagreementReport(get().irrWorkflowState, results)
+        
+        // Generate both CSV and Markdown versions
+        const csvContent = disagreementReportToCsv(disagreementReport)
+        const markdownContent = disagreementReportToMarkdown(disagreementReport)
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+        downloadFile(csvContent, `irr-disagreement-report-${timestamp}.csv`, 'text/csv')
+        downloadFile(markdownContent, `irr-disagreement-report-${timestamp}.md`, 'text/markdown')
+      } catch (error) {
+        console.error('Failed to generate disagreement report:', error)
+        alert('Failed to generate disagreement report')
+      }
     }
   }))
 )

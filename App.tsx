@@ -17,8 +17,7 @@ import {
 } from './constants';
 import { buildCompleteUtteranceToGduMapping } from './utils/traceabilityHelper';
 import { calculateKrippendorffsAlpha, buildReliabilityMatrix, validateReliabilityMatrix } from './utils/statisticsHelper';
-import { generateDisagreementReport, disagreementReportToCsv, disagreementReportToMarkdown, normalizeRunBData } from './utils/irrReportHelper';
-import { downloadFile, generateTsvForPromptHistory } from './utils/tsvHelper';
+import { generateTsvForPromptHistory } from './utils/tsvHelper';
 import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './utils/htmlHelper';
 import { callGeminiAPI } from './services/geminiService';
 import { stepIdToDataKeyPrefix } from './src/utils/stepIdToDataKeyPrefix';
@@ -120,96 +119,68 @@ const App: React.FC = () => {
 
   // Migration to Zustand is now complete - no longer need feature flag
 
-  // Get theme from store - this is the main architectural improvement
-  const theme = useUIStore(state => state.theme);
-  const toggleTheme = useUIStore(state => state.toggleTheme);
+  // UI Store - consolidated selector for better performance
+  const {
+    theme,
+    toggleTheme,
+    currentStepInfo,
+    activeTranscriptIndex,
+    isAutorunning,
+    processStartTime,
+    elapsedTime,
+    hilUserGuidance,
+    hilContext,
+    setAutorunning,
+    openHilModal,
+    closeHilModal,
+    setHilUserGuidance,
+    setCurrentStepInfo
+  } = useUIStore();
   
-  // Phase 4: All state now managed by Zustand stores
+  // Pipeline Store - consolidated selector
+  const {
+    rawTranscripts,
+    processedData,
+    genericAnalysisState,
+    promptHistory,
+    totalInputTokens,
+    totalOutputTokens,
+    isGlobalStep,
+    processSingleStep,
+    loadStepData,
+    getStepStatusForPipelineView
+  } = usePipelineStore();
   
-  // UI Store state
-  const currentStepInfo = useUIStore(state => state.currentStepInfo);
-  const activeTranscriptIndex = useUIStore(state => state.activeTranscriptIndex);
-  const isAutorunning = useUIStore(state => state.isAutorunning);
-  const processStartTime = useUIStore(state => state.processStartTime);
-  const elapsedTime = useUIStore(state => state.elapsedTime);
-  const hilUserGuidance = useUIStore(state => state.hilUserGuidance);
-  const hilContext = useUIStore(state => state.hilContext);
-  const setAutorunning = useUIStore(state => state.setAutorunning);
-  const openHilModal = useUIStore(state => state.openHilModal);
-  const closeHilModal = useUIStore(state => state.closeHilModal);
-  const setHilUserGuidance = useUIStore(state => state.setHilUserGuidance);
-  const getStepStatusForPipelineView = usePipelineStore(state => state.getStepStatusForPipelineView);
-  const setCurrentStepInfo = useUIStore(state => state.setCurrentStepInfo);
+  // Settings Store - consolidated selector
+  const {
+    userDvFocus,
+    outputDirectory,
+    temperature,
+    seed
+  } = useSettingsStore();
   
-  // Pipeline Store state and actions
-  const rawTranscripts = usePipelineStore(state => state.rawTranscripts);
-  const processedData = usePipelineStore(state => state.processedData);
-  const genericAnalysisState = usePipelineStore(state => state.genericAnalysisState);
-  const promptHistory = usePipelineStore(state => state.promptHistory);
-  const totalInputTokens = usePipelineStore(state => state.totalInputTokens);
-  const totalOutputTokens = usePipelineStore(state => state.totalOutputTokens);
-  const isGlobalStep = usePipelineStore(state => state.isGlobalStep);
-  const processSingleStep = usePipelineStore(state => state.processSingleStep);
-  const loadStepData = usePipelineStore(state => state.loadStepData);
-  
-  // Settings Store state
-  const userDvFocus = useSettingsStore(state => state.userDvFocus);
-  const outputDirectory = useSettingsStore(state => state.outputDirectory);
-  const temperature = useSettingsStore(state => state.temperature);
-  const seed = useSettingsStore(state => state.seed);
-  
-  // IRR Store state and actions
-  const irrWorkflowState = useIRRStore(state => state.irrWorkflowState);
-  const openIrrModal = useIRRStore(state => state.openIrrModal);
-  const closeIrrModal = useIRRStore(state => state.closeIrrModal);
-  const setErrorMessage = useIRRStore(state => state.setErrorMessage);
-  const setLoadingState = useIRRStore(state => state.setLoadingState);
-  const generateSemanticMapping = useIRRStore(state => state.generateSemanticMapping);
-  const calculateResults = useIRRStore(state => state.calculateResults);
+  // IRR Store - consolidated selector
+  const {
+    irrWorkflowState,
+    openIrrModal,
+    closeIrrModal,
+    setErrorMessage
+  } = useIRRStore();
+
 
   const outputDisplayRef = useRef<HTMLDivElement | null>(null);
-
-  // Legacy handlers removed - these are now handled by stores
-  
-  // loadStepData function now managed by usePipelineStore
-
 
   // Autorun logic extracted to custom hook for better separation of concerns
   useAutorunManager();
 
 
 
-  const handlePipelineStepClick = (clickedStepId: StepId) => {
-    if (isAutorunning) setAutorunning(false);
-    let txIdNav:string|undefined=undefined; let phaseNav:string|undefined=undefined; let gduNav:string|undefined=undefined;
-    const stepConfig = STEP_CONFIGS[clickedStepId]; if (!stepConfig) return;
-
-    if (STEP_ORDER_PART_NEG1.includes(clickedStepId) || STEP_ORDER_PART_0.includes(clickedStepId) || STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.includes(clickedStepId)) txIdNav = rawTranscripts[activeTranscriptIndex]?.id;
-    else if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(clickedStepId)) {
-        txIdNav = rawTranscripts[activeTranscriptIndex]?.id;
-        const tData = txIdNav ? processedData.get(txIdNav) : undefined;
-        phaseNav = tData?.current_phase_for_p2s_processing || tData?.phases_for_p2s_processing?.[0];
-        if (!phaseNav && (tData?.processed_phases_for_p2s?.length || 0) > 0) phaseNav = tData?.processed_phases_for_p2s?.[tData.processed_phases_for_p2s.length-1];
-    } else if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(clickedStepId)) {
-        gduNav = genericAnalysisState.current_gdu_for_p4s_processing || genericAnalysisState.core_gdus_for_sync_analysis?.[0];
-        if (!gduNav && (genericAnalysisState.processed_gdus_for_p4s?.length || 0) > 0) gduNav = genericAnalysisState.processed_gdus_for_p4s?.[genericAnalysisState.processed_gdus_for_p4s?.length - 1];
-    }
-    const data = loadStepData(clickedStepId, txIdNav, phaseNav, gduNav);
-    setCurrentStepInfo({ stepId:clickedStepId, transcriptId:txIdNav, currentPhaseForP2S:phaseNav, currentGduForP4S:gduNav, status:data.error?StepStatus.Error:(data.outputData?StepStatus.Success:StepStatus.Idle), inputData:data.inputData, outputData:data.outputData, error:data.error, groundingSources:data.groundingSources });
-  };
+  const handlePipelineStepClick = usePipelineStore(state => state.handlePipelineStepClick);
 
 
 
 
   
-
-
-
-  // getStepStatusForPipelineView function now managed by useUIStore
-
-
-
-
 
   const inputBaseClasses = "block w-full text-sm rounded-md shadow-sm bg-light-input-bg dark:bg-dark-input-bg text-light-text dark:text-dark-text placeholder-light-sidenote dark:placeholder-dark-sidenote focus:ring-light-accent dark:focus:ring-dark-accent focus:border-light-accent dark:focus:border-dark-accent";
   const baseButtonClasses = "inline-flex items-center justify-center space-x-2 px-3 py-1.5 text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-light-bg-alt dark:focus:ring-offset-dark-bg-alt transition-colors duration-150";
@@ -239,106 +210,17 @@ const App: React.FC = () => {
     };
 
     // IRR Workflow Handlers - now use store actions
-    const handleIrrStateUpdate = (updates: Partial<IrrWorkflowState>) => {
-      if (updates.loadingState) setLoadingState(updates.loadingState);
-      if (updates.errorMessage) setErrorMessage(updates.errorMessage);
-    };
+    const handleIrrStateUpdate = useIRRStore(state => state.handleStateUpdate);
 
-    const handleStartIrrComparison = async () => {
-      if (!irrWorkflowState.runA || !irrWorkflowState.runB) {
-        setLoadingState('error');
-        setErrorMessage('Both Run A and Run B must be loaded');
-        return;
-      }
+    const handleStartIrrComparison = useIRRStore(state => state.handleStartComparison);
 
-      try {
-        // Check if GDU sets are identical (skip mapping step)
-        const runAGduIds = new Set(irrWorkflowState.runA.genericAnalysisState.p3_2_output?.identified_gdus?.map(g => g.gdu_id) || []);
-        const runBGduIds = new Set(irrWorkflowState.runB.genericAnalysisState.p3_2_output?.identified_gdus?.map(g => g.gdu_id) || []);
-        const intersection = new Set([...runAGduIds].filter(id => runBGduIds.has(id)));
-        const areIdentical = runAGduIds.size === runBGduIds.size && intersection.size === runAGduIds.size;
-
-        if (areIdentical) {
-          // Skip mapping step, proceed directly to calculation
-          const confirmedMapping: Record<string, string | null> = {};
-          runAGduIds.forEach(gduId => {
-            confirmedMapping[gduId] = gduId; // Identity mapping
-          });
-          
-          setLoadingState('calculating');
-          calculateResults();
-        } else {
-          // Need semantic mapping via LLM
-          setLoadingState('calling-llm');
-          await generateSemanticMapping();
-        }
-      } catch (error) {
-        setLoadingState('error');
-        setErrorMessage(`Failed to start comparison: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    };
-
-    // generateSemanticGduMapping is now handled by the IRR store
-
-    const handleConfirmGduMapping = async (confirmedMapping: Record<string, string | null>) => {
-      setLoadingState('calculating');
-      calculateResults();
-    };
+    const handleConfirmGduMapping = useIRRStore(state => state.handleConfirmMapping);
 
     // calculateIrrResults is now handled by the IRR store
 
-    const handleDownloadDisagreementReport = () => {
-      if (!irrWorkflowState.results || !irrWorkflowState.runA || !irrWorkflowState.runB || !irrWorkflowState.confirmedMapping) {
-        alert('Cannot generate disagreement report: IRR analysis must be completed first');
-        return;
-      }
+    const handleDownloadDisagreementReport = useIRRStore(state => state.handleDownloadDisagreementReport);
 
-      try {
-        const disagreementReport = generateDisagreementReport(irrWorkflowState, irrWorkflowState.results);
-        
-        // Generate both CSV and Markdown versions
-        const csvContent = disagreementReportToCsv(disagreementReport);
-        const markdownContent = disagreementReportToMarkdown(disagreementReport);
-        
-        // Download both files
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-        downloadFile(csvContent, `${outputDirectory}/irr_disagreement_report_${timestamp}.csv`, 'text/csv;charset=utf-8');
-        downloadFile(markdownContent, `${outputDirectory}/irr_disagreement_report_${timestamp}.md`, 'text/markdown;charset=utf-8');
-        
-        alert(`Disagreement report downloaded in both CSV and Markdown formats!\n\nSummary:\n- Total utterances: ${disagreementReport.summary.totalUtterances}\n- Disagreements: ${disagreementReport.summary.disagreements}\n- Agreement rate: ${(disagreementReport.summary.agreementRate * 100).toFixed(1)}%`);
-      } catch (error) {
-        alert(`Failed to generate disagreement report: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      }
-    };
-
-    const handleHilSubmit = () => {
-      if (hilContext && hilUserGuidance.trim()) {
-        const { stepInfo, originalPrompt } = hilContext;
-        const config = STEP_CONFIGS[stepInfo.stepId];
-        if (config) {
-          const metaPrompt = `The original prompt was:
---- ORIGINAL PROMPT START ---
-${originalPrompt}
---- ORIGINAL PROMPT END ---
-
-The AI's previous response was problematic. User guidance for correction:
---- USER GUIDANCE START ---
-${hilUserGuidance}
---- USER GUIDANCE END ---
-
-Based on this guidance, please re-attempt the original task. Your output MUST strictly follow the JSON schema or format requested in the ORIGINAL prompt. Do not add explanations unless the original prompt asked for them. If the original prompt asked for JSON, output ONLY the JSON.`;
-          
-          let txIdToRun: string | undefined;
-          const stepIsGlobal = isGlobalStep(stepInfo.stepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(stepInfo.stepId);
-          if (!stepIsGlobal && stepInfo.transcriptId) {
-            txIdToRun = stepInfo.transcriptId;
-          }
-          
-          processSingleStep({ stepId: stepInfo.stepId, transcriptIdToProcess: txIdToRun, hilMetaPrompt: metaPrompt });
-          closeHilModal();
-        }
-      }
-    };
+    const handleHilSubmit = useUIStore(state => state.handleHilSubmit);
 
   const renderOutput = () => {
     if (currentStepInfo.status === StepStatus.Loading) {

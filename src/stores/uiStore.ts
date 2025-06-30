@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { STEP_CONFIGS } from '../constants'
 import { subscribeWithSelector } from 'zustand/middleware'
 import { StepId, StepStatus, CurrentStepInfo, HilContext } from '../../types'
 import { ALL_PIPELINE_STEP_IDS_IN_ORDER, STEP_CONFIGS, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC } from '../../constants'
@@ -55,6 +56,7 @@ interface UIActions {
   openHilModalWithContext: () => void
   closeHilModal: () => void
   setHilUserGuidance: (guidance: string) => void
+  handleHilSubmit: () => Promise<void>
   
   // Retry UI
   setRetrySeedInput: (value: string) => void
@@ -69,6 +71,7 @@ interface UIActions {
   // Utils
   resetUIState: () => void
 }
+
 
 
 interface UISelectors {
@@ -292,6 +295,43 @@ export const useUIStore = create<UIStore>()(
             }
           }
         },
+    
+    handleHilSubmit: async () => {
+      const { hilContext, hilUserGuidance } = get()
+      if (!hilContext || !hilUserGuidance.trim()) return
+      
+      const { stepInfo, originalPrompt } = hilContext
+      const config = STEP_CONFIGS[stepInfo.stepId]
+      if (config) {
+        const metaPrompt = `The original prompt was:
+--- ORIGINAL PROMPT START ---
+${originalPrompt}
+--- ORIGINAL PROMPT END ---
+
+The AI's previous response was problematic. User guidance for correction:
+--- USER GUIDANCE START ---
+${hilUserGuidance}
+--- USER GUIDANCE END ---
+
+Please provide a corrected response addressing the user's feedback.`
+        
+        // Import pipelineStore dynamically to avoid circular dependency
+        const { usePipelineStore } = await import('./pipelineStore')
+        const { processSingleStep } = usePipelineStore.getState()
+        
+        get().closeHilModal()
+        
+        // Process with the correction
+        await processSingleStep(
+          stepInfo.stepId,
+          stepInfo.transcriptId,
+          stepInfo.phaseId,
+          stepInfo.gduId,
+          true,
+          metaPrompt
+        )
+      }
+    },
     
     resetUIState: () => {
       set({

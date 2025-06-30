@@ -118,6 +118,9 @@ interface PipelineActions {
   setActiveTranscriptByIndex: (index: number) => void
   getTranscriptStatusDisplay: (transcriptId: string) => string
   isGlobalStep: (stepId: StepId) => boolean
+  loadStepData: (stepId: StepId, transcriptId?: string, phaseId?: string, gduId?: string) => any
+  getStepStatusForPipelineView: (stepId: StepId, transcriptId?: string, phaseId?: string, gduId?: string) => StepStatus
+  handlePipelineStepClick: (clickedStepId: StepId) => void
 }
 
 
@@ -1810,6 +1813,53 @@ export const usePipelineStore = create<PipelineStore>()(
         }
 
         return { status, error }
+      },
+      
+      handlePipelineStepClick: (clickedStepId: StepId) => {
+        const { rawTranscripts, processedData } = get()
+        
+        // Get UI store synchronously
+        const uiStore = getUIStoreSync()
+        if (!uiStore) return
+        
+        const { isAutorunning, setAutorunning, activeTranscriptIndex, setCurrentStepInfo } = uiStore
+        
+        if (isAutorunning) setAutorunning(false)
+        
+        let txIdNav: string | undefined = undefined
+        let phaseNav: string | undefined = undefined
+        let gduNav: string | undefined = undefined
+        
+        const stepConfig = STEP_CONFIGS[clickedStepId]
+        if (!stepConfig) return
+        
+        if (STEP_ORDER_PART_NEG1.includes(clickedStepId) || 
+            STEP_ORDER_PART_0.includes(clickedStepId) || 
+            STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.includes(clickedStepId)) {
+          txIdNav = rawTranscripts[activeTranscriptIndex]?.id
+        } else if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(clickedStepId)) {
+          txIdNav = rawTranscripts[activeTranscriptIndex]?.id
+          const tData = txIdNav ? processedData.get(txIdNav) : undefined
+          phaseNav = tData?.current_phase_for_p2s_processing || tData?.phases_for_p2s_processing?.[0]
+          if (!phaseNav && (tData?.processed_phases_for_p2s?.length || 0) > 0) {
+            phaseNav = tData?.processed_phases_for_p2s?.[tData.processed_phases_for_p2s.length - 1]
+          }
+        } else if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(clickedStepId)) {
+          const { genericAnalysisState } = get()
+          const gduIds = genericAnalysisState.p3_2_output?.identified_gdus?.map(g => g.gdu_id) || []
+          gduNav = genericAnalysisState.current_gdu_for_p4s_processing || gduIds[0] || undefined
+        }
+        
+        const data = get().loadStepData(clickedStepId, txIdNav, phaseNav, gduNav)
+        
+        setCurrentStepInfo({
+          stepId: clickedStepId,
+          transcriptId: txIdNav,
+          phaseId: phaseNav,
+          gduId: gduNav,
+          status: data.error ? StepStatus.Error : (data.outputData ? StepStatus.Success : StepStatus.Idle),
+          error: data.error
+        })
       }
     })),
     {
