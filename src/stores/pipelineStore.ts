@@ -113,10 +113,12 @@ interface PipelineActions {
   saveStateToFile: () => void
   loadStateFromFile: (event: React.ChangeEvent<HTMLInputElement>) => void
   uploadTranscripts: (event: React.ChangeEvent<HTMLInputElement>) => void
+  handleDroppedFiles: (files: File[]) => Promise<void>
   setActiveTranscriptByIndex: (index: number) => void
   getTranscriptStatusDisplay: (transcriptId: string) => string
   isGlobalStep: (stepId: StepId) => boolean
 }
+
 
 
 // Pipeline selectors for derived state
@@ -134,6 +136,22 @@ interface PipelineSelectors {
 type PipelineState = TranscriptSlice & GenericAnalysisSlice & PromptSlice
 type PipelineStore = PipelineState & PipelineActions & PipelineSelectors
 
+      // Helper function to avoid circular dependency
+      const getUIStore = () => {
+        // Dynamic import to break circular dependency
+        return import('./uiStore').then(module => module.useUIStore.getState())
+      }
+      
+      // Synchronous version for use in actions (temporary bridge until better architecture)
+      const getUIStoreSync = () => {
+        // This requires the store to be initialized first via initializeStores()
+        // For now, we'll use a workaround with global access
+        if (typeof window !== 'undefined' && (window as any).__uiStore) {
+          return (window as any).__uiStore
+        }
+        // Fallback - dynamic import (will be async)
+        throw new Error('UI Store not available - make sure initializeStores() was called')
+      }
 // Helper function to process file content
 const processFileContent = async (file: File): Promise<RawTranscript> => {
   const text = await file.text()
@@ -288,12 +306,8 @@ export const usePipelineStore = create<PipelineStore>()(
         const config = STEP_CONFIGS[stepId]
         if (!config) {
           setTimeout(() => {
-            uiStore.setCurrentStepInfo({ 
-              stepId, 
-              status: StepStatus.Error, 
-              error: `Config for ${stepId} not found.` 
-            })
-            uiStore.setAutorunning(false)
+            setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+            setTimeout(() => { uiStore.setAutorunning($1) }, 0)
           }, 0)
           return
         }
@@ -325,13 +339,8 @@ export const usePipelineStore = create<PipelineStore>()(
             }
             if (!currentPhase && (tData.phases_for_p2s_processing?.length || 0) > 0 && !tData.isFullyProcessedSpecificSynchronic) {
               setTimeout(() => {
-                uiStore.setCurrentStepInfo({ 
-                  stepId, 
-                  transcriptId: transcriptIdToProcess, 
-                  status: StepStatus.Error, 
-                  error: `P2S Error: Current phase not set for ${transcriptIdToProcess}` 
-                })
-                uiStore.setAutorunning(false)
+                setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+                setTimeout(() => { uiStore.setAutorunning($1) }, 0)
               }, 0)
               return
             }
@@ -360,26 +369,16 @@ export const usePipelineStore = create<PipelineStore>()(
               })
             } else if (!tempGenericState.isFullyProcessedGenericSynchronic) {
               setTimeout(() => {
-                uiStore.setCurrentStepInfo({
-                  stepId,
-                  status: StepStatus.Error,
-                  error: "P4S.1.A: All GDUs processed but P4S not complete.",
-                  currentGduForP4S: currentGDU
-                })
-                uiStore.setAutorunning(false)
+                setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+                setTimeout(() => { uiStore.setAutorunning($1) }, 0)
               }, 0)
               return
             }
           }
           if (!currentGDU && (tempGenericState.core_gdus_for_sync_analysis || []).length > 0 && !tempGenericState.isFullyProcessedGenericSynchronic) {
             setTimeout(() => {
-              uiStore.setCurrentStepInfo({
-                stepId,
-                status: StepStatus.Error,
-                error: `P4S Error: No GDU to process for ${stepId}, but P4S not complete.`,
-                currentGduForP4S: currentGDU
-              })
-              uiStore.setAutorunning(false)
+              setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+              setTimeout(() => { uiStore.setAutorunning($1) }, 0)
             }, 0)
             return
           }
@@ -400,15 +399,8 @@ export const usePipelineStore = create<PipelineStore>()(
         if (inputResult === null || inputResult?.error) {
           const errText = `Input error for ${stepId}: ${inputResult?.error || 'Input null'}`
           setTimeout(() => {
-            uiStore.setCurrentStepInfo({ 
-              stepId, 
-              transcriptId: transcriptIdToProcess, 
-              status: StepStatus.Error, 
-              error: errText, 
-              currentGduForP4S: currentGDU, 
-              currentPhaseForP2S: currentPhase 
-            })
-            uiStore.setAutorunning(false)
+            setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+            setTimeout(() => { uiStore.setAutorunning($1) }, 0)
           }, 0)
           
           if (stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES) {
@@ -422,14 +414,7 @@ export const usePipelineStore = create<PipelineStore>()(
         
         const inputData = inputResult.data
         setTimeout(() => {
-          uiStore.setCurrentStepInfo({ 
-            stepId, 
-            transcriptId: transcriptIdToProcess, 
-            status: StepStatus.Loading, 
-            inputData, 
-            currentGduForP4S: currentGDU, 
-            currentPhaseForP2S: currentPhase 
-          })
+          setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
         }, 0)
         
         // Process the step
@@ -542,17 +527,7 @@ export const usePipelineStore = create<PipelineStore>()(
       ) => {
         const uiStore = useUIStore.getState()
         setTimeout(() => {
-          uiStore.setCurrentStepInfo({ 
-            stepId, 
-            transcriptId: transcriptIdToProcess, 
-            status: StepStatus.Error, 
-            error: apiError, 
-            inputData, 
-            outputData: output, 
-            groundingSources, 
-            currentGduForP4S: currentGDU, 
-            currentPhaseForP2S: currentPhase 
-          })
+          setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
         }, 0)
         
         const key = stepIdToDataKeyPrefix[stepId]
@@ -605,7 +580,7 @@ export const usePipelineStore = create<PipelineStore>()(
         }
         
         setTimeout(() => {
-          uiStore.setAutorunning(false)
+          setTimeout(() => { uiStore.setAutorunning($1) }, 0)
         }, 0)
       },
 
@@ -619,21 +594,12 @@ export const usePipelineStore = create<PipelineStore>()(
           })
           
           setTimeout(() => {
-            uiStore.setCurrentStepInfo({ 
-              stepId: StepId.P6_1_GENERATE_MARKDOWN_REPORT, 
-              status: StepStatus.Success, 
-              outputData: output 
-            })
+            setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
           }, 0)
         } else {
           const rptErr = "Report generation resulted in empty/invalid content."
           setTimeout(() => {
-            uiStore.setCurrentStepInfo({
-              stepId: StepId.P6_1_GENERATE_MARKDOWN_REPORT,
-              status: StepStatus.Error,
-              error: rptErr,
-              outputData: output
-            })
+            setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
           }, 0)
           
           set((state: any) => {
@@ -643,7 +609,7 @@ export const usePipelineStore = create<PipelineStore>()(
           })
           
           setTimeout(() => {
-            uiStore.setAutorunning(false)
+            setTimeout(() => { uiStore.setAutorunning($1) }, 0)
           }, 0)
         }
       },
@@ -660,16 +626,7 @@ export const usePipelineStore = create<PipelineStore>()(
       ) => {
         const uiStore = useUIStore.getState()
         setTimeout(() => {
-          uiStore.setCurrentStepInfo({ 
-            stepId, 
-            transcriptId: transcriptIdToProcess, 
-            status: StepStatus.Success, 
-            inputData, 
-            outputData: output, 
-            groundingSources, 
-            currentGduForP4S: currentGDU, 
-            currentPhaseForP2S: currentPhase 
-          })
+          setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
         }, 0)
         
         const key = stepIdToDataKeyPrefix[stepId]
@@ -883,14 +840,8 @@ export const usePipelineStore = create<PipelineStore>()(
             const noValidGroupsError = `No valid cross-transcript groups created for GDU ${currentGDU}. All groups failed the minimum 2-transcript requirement.`
             console.error(`[P4S.1.A Processing] ${noValidGroupsError}`)
             setTimeout(() => {
-              uiStore.setCurrentStepInfo({ 
-                stepId, 
-                transcriptId: transcriptIdToProcess, 
-                status: StepStatus.Error, 
-                error: noValidGroupsError,
-                currentGduForP4S: currentGDU
-              })
-              uiStore.setAutorunning(false)
+              setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+              setTimeout(() => { uiStore.setAutorunning($1) }, 0)
             }, 0)
             set((state: any) => { state.genericAnalysisState.p4s_1_a_error = noValidGroupsError })
             return
@@ -1331,31 +1282,23 @@ export const usePipelineStore = create<PipelineStore>()(
           if (uiStore.currentStepInfo.stepId !== StepId.COMPLETE && genericAnalysisState.isReportGenerated) {
             const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All processing complete."
             setTimeout(() => {
-              uiStore.setCurrentStepInfo({ 
-                stepId: StepId.COMPLETE, 
-                status: StepStatus.Success, 
-                outputData: report 
-              })
-              uiStore.setAutorunning(false)
+              setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+              setTimeout(() => { uiStore.setAutorunning($1) }, 0)
             }, 0)
           }
           return
         }
         
         setTimeout(() => {
-          uiStore.setActiveTranscript(details.nextTranscriptIndex)
+          setTimeout(() => { uiStore.setActiveTranscript($1) }, 0)
         }, 0)
         
         if (details.nextStepId === StepId.COMPLETE) {
           const { genericAnalysisState } = get()
           const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "Processing complete."
           setTimeout(() => {
-            uiStore.setCurrentStepInfo({ 
-              stepId: StepId.COMPLETE, 
-              status: StepStatus.Success, 
-              outputData: report 
-            })
-            uiStore.setAutorunning(false)
+            setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+            setTimeout(() => { uiStore.setAutorunning($1) }, 0)
           }, 0)
         } else {
           const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId)
@@ -1419,7 +1362,7 @@ export const usePipelineStore = create<PipelineStore>()(
         // Update UI state
         const uiStore = useUIStore.getState()
         setTimeout(() => {
-          uiStore.setActiveTranscript(savedState.activeTranscriptIndex)
+          setTimeout(() => { uiStore.setActiveTranscript($1) }, 0)
         }, 0)
         // Note: currentStepInfo is not restored from saved state
       },
@@ -1656,11 +1599,7 @@ export const usePipelineStore = create<PipelineStore>()(
           const uiStore = useUIStore.getState()
           if (uiStore.currentStepInfo.stepId === StepId.IDLE) {
             setTimeout(() => {
-              uiStore.setCurrentStepInfo({
-                stepId: StepId.IDLE,
-                status: StepStatus.Idle,
-                transcriptId: undefined
-              })
+              setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
             }, 0)
           }
         } catch (error) {
@@ -1668,11 +1607,31 @@ export const usePipelineStore = create<PipelineStore>()(
           alert('Failed to upload transcripts. Please try again.')
         }
       },
-
+      
+            
+            // Handle files dropped from UI store (avoids circular dependency)
+            handleDroppedFiles: async (files: File[]) => {
+              if (files.length === 0) return
+      
+              try {
+                await get().addTranscripts(files)
+                
+                // Update UI state
+                const uiStore = useUIStore.getState()
+                if (uiStore.currentStepInfo.stepId === StepId.IDLE) {
+                  setTimeout(() => {
+                    setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+                  }, 0)
+                }
+              } catch (error) {
+                console.error('Failed to handle dropped files:', error)
+                alert('Failed to upload files. Please try again.')
+              }
+            },
       setActiveTranscriptByIndex: (index: number) => {
         const uiStore = useUIStore.getState()
         setTimeout(() => {
-          uiStore.setActiveTranscript(index)
+          setTimeout(() => { uiStore.setActiveTranscript($1) }, 0)
         }, 0)
       },
 

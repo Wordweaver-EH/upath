@@ -25,11 +25,15 @@ interface UIState {
   theme: 'light' | 'dark'
   isDraggingOver: boolean
   
-  // Drag & Drop
+  // Drag & Drop - now uses callback pattern to avoid circular dependency
   handleDragOver: (event: React.DragEvent<HTMLDivElement>) => void
   handleDragLeave: (event: React.DragEvent<HTMLDivElement>) => void
   handleDrop: (event: React.DragEvent<HTMLDivElement>) => void
+  
+  // Callback for file upload - injected by pipeline store
+  onFilesDropped?: (files: File[]) => void
 }
+
 
 interface UIActions {
   // Navigation
@@ -58,9 +62,13 @@ interface UIActions {
   toggleTheme: () => void
   setIsDraggingOver: (isDragging: boolean) => void
   
+  // Dependency injection
+  setFileDropCallback: (callback: (files: File[]) => void) => void
+  
   // Utils
   resetUIState: () => void
 }
+
 
 interface UISelectors {
   // Derived state selectors
@@ -225,6 +233,10 @@ export const useUIStore = create<UIStore>()(
       set({ retrySeedInput: value })
     },
     
+        // Dependency injection
+        setFileDropCallback: (callback: (files: File[]) => void) => {
+          set({ onFilesDropped: callback })
+        },    
     toggleTheme: () => {
       set((state) => {
         const newTheme = state.theme === 'light' ? 'dark' : 'light'
@@ -264,30 +276,21 @@ export const useUIStore = create<UIStore>()(
     },
 
     handleDrop: (event: React.DragEvent<HTMLDivElement>) => {
-      event.preventDefault()
-      set({ isDraggingOver: false })
-      
-      const files = Array.from(event.dataTransfer.files).filter(file => 
-        file.name.endsWith('.txt') || file.type === 'text/plain'
-      )
-      
-      if (files.length > 0) {
-        // Create a synthetic event to pass to uploadTranscripts
-        const syntheticEvent = {
-          target: { files, value: '' },
-          currentTarget: { files, value: '' }
-        } as React.ChangeEvent<HTMLInputElement>
-        
-        // Async call to avoid circular dependency
-        setTimeout(() => {
-          // Import dynamically to avoid circular dependency
-          import('./pipelineStore').then(({ usePipelineStore }) => {
-            const pipelineStore = usePipelineStore.getState()
-            pipelineStore.uploadTranscripts(syntheticEvent)
-          })
-        }, 0)
-      }
-    },
+          event.preventDefault()
+          set({ isDraggingOver: false })
+          
+          const files = Array.from(event.dataTransfer.files).filter(file => 
+            file.name.endsWith('.txt') || file.type === 'text/plain'
+          )
+          
+          if (files.length > 0) {
+            // Use callback pattern instead of circular import
+            const { onFilesDropped } = get()
+            if (onFilesDropped) {
+              onFilesDropped(files)
+            }
+          }
+        },
     
     resetUIState: () => {
       set({

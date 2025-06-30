@@ -32,10 +32,7 @@ import PipelineOverview, { PipelineStepNode } from './components/PipelineOvervie
 import IRRModal from './components/IRRModal';
 import GduMappingModal from './components/GduMappingModal';
 import { AutorunManager } from './components/AutorunManager';
-import { useUIStore } from './src/stores/uiStore';
-import { useSettingsStore } from './src/stores/settingsStore';
-import { usePipelineStore } from './src/stores/pipelineStore';
-import { useIRRStore } from './src/stores/irrStore';
+import { useUIStore, useSettingsStore, usePipelineStore, useIRRStore, initializeStores } from './src/stores';
 
 
 const APP_VERSION = '0.10.0'; // Version from package.json 
@@ -115,6 +112,11 @@ const ReportRenderer: React.FC<ReportRendererProps> = ({ markdown, theme }) => {
 
 
 const App: React.FC = () => { 
+  // Initialize stores with dependency injection to avoid circular dependencies
+  useEffect(() => {
+    initializeStores()
+  }, [])
+
   // Migration to Zustand is now complete - no longer need feature flag
 
   // Get theme from store - this is the main architectural improvement
