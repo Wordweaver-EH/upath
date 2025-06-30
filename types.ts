@@ -771,6 +771,11 @@ export interface IrrResults {
     warnings: string[];
     errors: string[];
   };
+  // Cohen's Kappa statistics
+  cohens_kappa: number; // Cohen's Kappa coefficient
+  kappa_interpretation: string; // Interpretation of Kappa value
+  kappa_observed_agreement: number; // Observed agreement for Kappa
+  kappa_expected_agreement: number; // Expected agreement for Kappa
 }
 
 /**
@@ -784,6 +789,7 @@ export interface IrrWorkflowState {
   mappingProposal: P9_1_SemanticGduMapping | null; // LLM-proposed GDU mappings
   confirmedMapping: Record<string, string | null> | null; // User-confirmed mappings (RunA_GDU_ID -> RunB_GDU_ID)
   results: IrrResults | null; // Final IRR calculation results
+  kappaResults?: any; // Full Kappa results including contingency table
   loadingState: 'idle' | 'loading-files' | 'calling-llm' | 'calculating' | 'complete' | 'error';
   errorMessage?: string;
 }

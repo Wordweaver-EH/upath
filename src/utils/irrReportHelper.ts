@@ -57,7 +57,7 @@ export function normalizeRunBData(
     return { normalizedProcessedData, normalizedGenericState };
 }
 
-export interface DisagreementItem {
+export interface CodingMatrixItem {
   utteranceId: string;
   transcriptId: string;
   lineNumber: string;
@@ -75,14 +75,23 @@ export interface DisagreementReport {
     disagreements: number;
     agreementRate: number;
     krippendorffsAlpha: number;
+    observedDisagreement: number;
+    expectedDisagreement: number;
+    cohensKappa: number;
+    kappaObservedAgreement: number;
+    kappaExpectedAgreement: number;
   };
   disagreementsByType: {
     assignment_count: number;
     partial_overlap: number;
     no_overlap: number;
   };
-  detailedDisagreements: DisagreementItem[];
+  detailedCodingMatrix: CodingMatrixItem[];
   gduMappingUsed: Record<string, string | null>;
+  contingencyTable?: {
+    categories: string[];
+    matrix: Map<string, Map<string, number>>;
+  };
 }
 
 /**
@@ -128,7 +137,7 @@ export function generateDisagreementReport(
   runAMappings.forEach((_, id) => allUtteranceIds.add(id));
   runBMappings.forEach((_, id) => allUtteranceIds.add(id));
 
-  const detailedDisagreements: DisagreementItem[] = [];
+  const detailedCodingMatrix: CodingMatrixItem[] = [];
   const disagreementsByType = {
     assignment_count: 0,
     partial_overlap: 0,
@@ -152,7 +161,7 @@ export function generateDisagreementReport(
 
     // Determine disagreement type
     let isDisagreement = false;
-    let disagreementType: DisagreementItem['disagreementType'] = 'no_overlap';
+    let disagreementType: CodingMatrixItem['disagreementType'] = 'no_overlap';
 
     if (runAGdus.length !== runBGdus.length) {
       isDisagreement = true;
@@ -186,9 +195,8 @@ export function generateDisagreementReport(
       disagreementsByType[disagreementType]++;
     }
 
-    // Add to detailed list if there's a disagreement or if we want full reporting
-    if (isDisagreement) {
-      detailedDisagreements.push({
+    // Add to detailed coding matrix (all utterances, not just disagreements)
+    detailedCodingMatrix.push({
         utteranceId,
         transcriptId,
         lineNumber,
@@ -199,23 +207,38 @@ export function generateDisagreementReport(
         isDisagreement,
         disagreementType
       });
-    }
   }
 
   const totalUtterances = allUtteranceIds.size;
-  const totalDisagreements = detailedDisagreements.length;
+  const totalDisagreements = detailedCodingMatrix.filter(item => item.isDisagreement).length;
   const agreementRate = totalUtterances > 0 ? (totalUtterances - totalDisagreements) / totalUtterances : 0;
+
+  // Extract contingency table if available
+  let contingencyTable = undefined;
+  if (irrState.kappaResults?.contingencyTable) {
+    const categories = Array.from(irrState.kappaResults.contingencyTable.keys()).sort();
+    contingencyTable = {
+      categories,
+      matrix: irrState.kappaResults.contingencyTable
+    };
+  }
 
   return {
     summary: {
       totalUtterances,
       disagreements: totalDisagreements,
       agreementRate,
-      krippendorffsAlpha: irrResults.alpha_score
+      krippendorffsAlpha: irrResults.alpha_score,
+      observedDisagreement: irrResults.observed_disagreement,
+      expectedDisagreement: irrResults.expected_disagreement,
+      cohensKappa: irrResults.cohens_kappa,
+      kappaObservedAgreement: irrResults.kappa_observed_agreement,
+      kappaExpectedAgreement: irrResults.kappa_expected_agreement
     },
     disagreementsByType,
-    detailedDisagreements,
-    gduMappingUsed: irrState.confirmedMapping
+    detailedCodingMatrix,
+    gduMappingUsed: irrState.confirmedMapping,
+    contingencyTable
   };
 }
 
@@ -245,7 +268,7 @@ export function disagreementReportToCsv(report: DisagreementReport): string {
   const lines: string[] = [];
   
   // Header
-  lines.push('# Inter-Rater Reliability Disagreement Report');
+  lines.push('# Inter-Rater Reliability Full Coding Matrix Report');
   lines.push('');
   
   // Summary
@@ -253,7 +276,14 @@ export function disagreementReportToCsv(report: DisagreementReport): string {
   lines.push(`Total Utterances,${report.summary.totalUtterances}`);
   lines.push(`Disagreements,${report.summary.disagreements}`);
   lines.push(`Agreement Rate,${(report.summary.agreementRate * 100).toFixed(1)}%`);
+  lines.push('');
+  lines.push(`## Reliability Metrics`);
   lines.push(`Krippendorff's Alpha,${report.summary.krippendorffsAlpha.toFixed(3)}`);
+  lines.push(`Alpha Observed Disagreement,${report.summary.observedDisagreement.toFixed(3)}`);
+  lines.push(`Alpha Expected Disagreement,${report.summary.expectedDisagreement.toFixed(3)}`);
+  lines.push(`Cohen's Kappa,${report.summary.cohensKappa.toFixed(3)}`);
+  lines.push(`Kappa Observed Agreement,${report.summary.kappaObservedAgreement.toFixed(3)}`);
+  lines.push(`Kappa Expected Agreement,${report.summary.kappaExpectedAgreement.toFixed(3)}`);
   lines.push('');
   
   // Disagreement types
@@ -264,11 +294,11 @@ export function disagreementReportToCsv(report: DisagreementReport): string {
   lines.push(`No Overlap,${report.disagreementsByType.no_overlap}`);
   lines.push('');
   
-  // Detailed disagreements
-  lines.push('## Detailed Disagreements');
-  lines.push('Transcript ID,Line Number,Utterance Text,Run A GDUs,Run B GDUs,Mapped Run A GDUs,Disagreement Type');
+  // Full coding matrix
+  lines.push('## Full Coding Matrix');
+  lines.push('Transcript ID,Line Number,Utterance Text,Run A GDUs,Run B GDUs,Mapped Run A GDUs,Agreement Status,Disagreement Type');
   
-  report.detailedDisagreements.forEach(item => {
+  report.detailedCodingMatrix.forEach(item => {
     const row = [
       item.transcriptId,
       item.lineNumber,
@@ -276,10 +306,31 @@ export function disagreementReportToCsv(report: DisagreementReport): string {
       `"${item.runAGdus.join('; ')}"`,
       `"${item.runBGdus.join('; ')}"`,
       `"${item.mappedRunAGdus.filter(g => g !== null).join('; ')}"`,
-      item.disagreementType
+      item.isDisagreement ? 'Disagreement' : 'Agreement',
+      item.isDisagreement ? item.disagreementType : 'N/A'
     ];
     lines.push(row.join(','));
   });
+  
+  // Add contingency table if available
+  if (report.contingencyTable) {
+    lines.push('');
+    lines.push('## Contingency Table (Cohen\'s Kappa)');
+    
+    // Header row with Run B categories
+    const headerRow = ['Run A \\ Run B', ...report.contingencyTable.categories];
+    lines.push(headerRow.join(','));
+    
+    // Data rows
+    report.contingencyTable.categories.forEach(runACategory => {
+      const row = [runACategory];
+      report.contingencyTable.categories.forEach(runBCategory => {
+        const count = report.contingencyTable!.matrix.get(runACategory)?.get(runBCategory) || 0;
+        row.push(count.toString());
+      });
+      lines.push(row.join(','));
+    });
+  }
   
   return lines.join('\n');
 }
@@ -290,7 +341,7 @@ export function disagreementReportToCsv(report: DisagreementReport): string {
 export function disagreementReportToMarkdown(report: DisagreementReport): string {
   const lines: string[] = [];
   
-  lines.push('# Inter-Rater Reliability Disagreement Report');
+  lines.push('# Inter-Rater Reliability Full Coding Matrix Report');
   lines.push('');
   
   // Summary
@@ -301,7 +352,17 @@ export function disagreementReportToMarkdown(report: DisagreementReport): string
   lines.push(`| Total Utterances | ${report.summary.totalUtterances} |`);
   lines.push(`| Disagreements | ${report.summary.disagreements} |`);
   lines.push(`| Agreement Rate | ${(report.summary.agreementRate * 100).toFixed(1)}% |`);
-  lines.push(`| Krippendorff's Alpha | ${report.summary.krippendorffsAlpha.toFixed(3)} |`);
+  lines.push('');
+  lines.push('## Reliability Metrics');
+  lines.push('');
+  lines.push('| Metric | Value |');
+  lines.push('|--------|-------|');
+  lines.push(`| Krippendorff's Alpha (α) | ${report.summary.krippendorffsAlpha.toFixed(3)} |`);
+  lines.push(`| α Observed Disagreement | ${report.summary.observedDisagreement.toFixed(3)} |`);
+  lines.push(`| α Expected Disagreement | ${report.summary.expectedDisagreement.toFixed(3)} |`);
+  lines.push(`| Cohen's Kappa (κ) | ${report.summary.cohensKappa.toFixed(3)} |`);
+  lines.push(`| κ Observed Agreement | ${report.summary.kappaObservedAgreement.toFixed(3)} |`);
+  lines.push(`| κ Expected Agreement | ${report.summary.kappaExpectedAgreement.toFixed(3)} |`);
   lines.push('');
   
   // Disagreement types
@@ -319,30 +380,109 @@ export function disagreementReportToMarkdown(report: DisagreementReport): string
   lines.push('');
   lines.push('| Run A GDU | Run B GDU |');
   lines.push('|-----------|-----------|');
-  Object.entries(report.gduMappingUsed).forEach(([runA, runB]) => {
-    lines.push(`| ${runA} | ${runB || 'No match'} |`);
-  });
+  if (report.gduMappingUsed && typeof report.gduMappingUsed === 'object') {
+    Object.entries(report.gduMappingUsed).forEach(([runA, runB]) => {
+      lines.push(`| ${runA} | ${runB || 'No match'} |`);
+    });
+  }
   lines.push('');
   
-  // Detailed disagreements
-  if (report.detailedDisagreements.length > 0) {
-    lines.push('## Detailed Disagreements');
+  // Full coding matrix
+  if (report.detailedCodingMatrix.length > 0) {
+    lines.push('## Full Coding Matrix');
     lines.push('');
-    lines.push('| Transcript | Line | Utterance | Run A GDUs | Run B GDUs | Mapped Run A | Type |');
-    lines.push('|------------|------|-----------|------------|------------|--------------|------|');
+    lines.push('| Transcript | Line | Utterance | Run A GDUs | Run B GDUs | Mapped Run A | Agreement | Type |');
+    lines.push('|------------|------|-----------|------------|------------|--------------|-----------|------|');
     
-    report.detailedDisagreements.slice(0, 100).forEach(item => { // Limit for readability
+    report.detailedCodingMatrix.slice(0, 200).forEach(item => { // Increased limit for full matrix
       const utterancePreview = item.utteranceText.length > 50 
         ? item.utteranceText.substring(0, 50) + '...' 
         : item.utteranceText;
       
-      lines.push(`| ${item.transcriptId} | ${item.lineNumber} | ${utterancePreview} | ${item.runAGdus.join(', ')} | ${item.runBGdus.join(', ')} | ${item.mappedRunAGdus.filter(g => g !== null).join(', ')} | ${item.disagreementType} |`);
+      lines.push(`| ${item.transcriptId} | ${item.lineNumber} | ${utterancePreview} | ${item.runAGdus.join(', ')} | ${item.runBGdus.join(', ')} | ${item.mappedRunAGdus.filter(g => g !== null).join(', ')} | ${item.isDisagreement ? 'Disagree' : 'Agree'} | ${item.isDisagreement ? item.disagreementType : 'N/A'} |`);
     });
     
-    if (report.detailedDisagreements.length > 100) {
+    if (report.detailedCodingMatrix.length > 200) {
       lines.push('');
-      lines.push(`*Note: Showing first 100 disagreements out of ${report.detailedDisagreements.length} total.*`);
+      lines.push(`*Note: Showing first 200 utterances out of ${report.detailedCodingMatrix.length} total.*`);
     }
+    
+    // Add disagreements-only section for convenience
+    const disagreements = report.detailedCodingMatrix.filter(item => item.isDisagreement);
+    if (disagreements.length > 0) {
+      lines.push('');
+      lines.push('## Disagreements Only');
+      lines.push('');
+      lines.push(`Total disagreements: ${disagreements.length}`);
+      lines.push('');
+      lines.push('| Transcript | Line | Utterance | Run A GDUs | Run B GDUs | Type |');
+      lines.push('|------------|------|-----------|------------|------------|------|');
+      
+      disagreements.slice(0, 50).forEach(item => {
+        const utterancePreview = item.utteranceText.length > 50 
+          ? item.utteranceText.substring(0, 50) + '...' 
+          : item.utteranceText;
+        
+        lines.push(`| ${item.transcriptId} | ${item.lineNumber} | ${utterancePreview} | ${item.runAGdus.join(', ')} | ${item.runBGdus.join(', ')} | ${item.disagreementType} |`);
+      });
+      
+      if (disagreements.length > 50) {
+        lines.push('');
+        lines.push(`*Note: Showing first 50 disagreements out of ${disagreements.length} total.*`);
+      }
+    }
+  }
+  
+  // Add contingency table if available
+  if (report.contingencyTable && report.contingencyTable.categories.length > 0) {
+    lines.push('');
+    lines.push('## Contingency Table (Cohen\'s Kappa)');
+    lines.push('');
+    
+    // Create header row
+    const headers = ['Run A \\ Run B', ...report.contingencyTable.categories];
+    lines.push('| ' + headers.join(' | ') + ' |');
+    lines.push('|' + headers.map(() => '---').join('|') + '|');
+    
+    // Create data rows
+    report.contingencyTable.categories.forEach(runACategory => {
+      const cells = [runACategory];
+      report.contingencyTable.categories.forEach(runBCategory => {
+        const count = report.contingencyTable!.matrix.get(runACategory)?.get(runBCategory) || 0;
+        cells.push(count.toString());
+      });
+      lines.push('| ' + cells.join(' | ') + ' |');
+    });
+    
+    lines.push('');
+    
+    // Add row and column totals for context
+    lines.push('### Marginal Totals');
+    lines.push('');
+    lines.push('| Category | Run A Total | Run B Total |');
+    lines.push('|----------|-------------|-------------|');
+    
+    let grandTotal = 0;
+    report.contingencyTable.categories.forEach(category => {
+      let runATotal = 0;
+      let runBTotal = 0;
+      
+      // Run A total (sum of row)
+      report.contingencyTable.categories.forEach(runBCat => {
+        runATotal += report.contingencyTable!.matrix.get(category)?.get(runBCat) || 0;
+      });
+      
+      // Run B total (sum of column) 
+      report.contingencyTable.categories.forEach(runACat => {
+        runBTotal += report.contingencyTable!.matrix.get(runACat)?.get(category) || 0;
+      });
+      
+      grandTotal += runATotal;
+      lines.push(`| ${category} | ${runATotal} | ${runBTotal} |`);
+    });
+    
+    lines.push(`| **Total** | ${grandTotal} | ${grandTotal} |`);
+    lines.push('');
   }
   
   return lines.join('\n');

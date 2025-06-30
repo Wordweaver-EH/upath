@@ -108,7 +108,8 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
     return item?.availableRunBOptions.find(opt => opt.gduId === selectedId);
   };
 
-  const renderDefinitionCell = (definition: string, maxLength: number = 80) => {
+  const renderDefinitionCell = (definition: string | null | undefined, maxLength: number = 80) => {
+    if (!definition) return <div className="text-sm text-light-sidenote dark:text-dark-sidenote">No definition</div>;
     const truncated = definition.length > maxLength ? definition.substring(0, maxLength) + '...' : definition;
     
     return (

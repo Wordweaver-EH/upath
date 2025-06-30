@@ -1,9 +1,10 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import { IrrWorkflowState, SavedState, P9_1_SemanticGduMapping } from '../../types'
+import { IrrWorkflowState, SavedState, P9_1_SemanticGduMapping, IrrResults } from '../../types'
 import { callGeminiAPI } from '../../services/geminiService'
-import { calculateKrippendorffsAlpha } from '../utils/statisticsHelper'
-import { generateDisagreementReport, disagreementReportToCsv, disagreementReportToMarkdown } from '../utils/irrReportHelper'
+import { calculateKrippendorffsAlpha, calculateCohensKappa, buildReliabilityMatrix } from '../utils/statisticsHelper'
+import { buildCompleteUtteranceToGduMapping } from '../utils/traceabilityHelper'
+import { generateDisagreementReport, disagreementReportToCsv, disagreementReportToMarkdown, normalizeRunBData } from '../utils/irrReportHelper'
 import { downloadFile } from '../utils/tsvHelper'
 import { STEP_CONFIGS, STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC, STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC, STEP_ORDER_PART_3_GENERIC_DIACHRONIC, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, GEMINI_MODEL_TEXT } from '../../constants'
 
@@ -54,6 +55,7 @@ const initialIrrState: IrrWorkflowState = {
   mappingProposal: null,
   confirmedMapping: null,
   results: null,
+  kappaResults: undefined,
   loadingState: 'idle'
 }
 
@@ -171,11 +173,11 @@ Provide your response as a JSON object with this structure:
 
         const response = await callGeminiAPI(
           prompt,
-          1,  // maxRetries
           true, // isJsonOutput
           false, // useGrounding
           temperature,
-          seed
+          seed,
+          1  // attempt
         )
         
         if (response.error) {
@@ -183,14 +185,33 @@ Provide your response as a JSON object with this structure:
         }
         
         // Parse and validate the mapping response
-        let mappingProposal: P9_1_SemanticGduMapping
+        let rawMappingProposal: any
         try {
-          mappingProposal = response.parsedJson
-          if (!mappingProposal.gdu_mappings || !Array.isArray(mappingProposal.gdu_mappings)) {
+          rawMappingProposal = response.parsedJson
+          if (!rawMappingProposal.gdu_mappings || !Array.isArray(rawMappingProposal.gdu_mappings)) {
             throw new Error('Invalid mapping structure')
           }
         } catch (parseError) {
           throw new Error(`Failed to parse mapping response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`)
+        }
+        
+        // Transform the LLM response to match our expected structure
+        const mappingProposal: P9_1_SemanticGduMapping = {
+          gdu_mappings: rawMappingProposal.gdu_mappings.map((mapping: any) => {
+            const gduA = mapping.run_a_gdu ? gdusA.find(g => g.gdu_id === mapping.run_a_gdu) : null
+            const gduB = mapping.run_b_gdu ? gdusB.find(g => g.gdu_id === mapping.run_b_gdu) : null
+            
+            return {
+              run_a_gdu_id: mapping.run_a_gdu || '',
+              run_a_definition: gduA?.definition || '',
+              run_a_contributing_rdu_count: gduA?.contributing_refined_du_ids.length || 0,
+              run_b_gdu_id: mapping.run_b_gdu,
+              run_b_definition: gduB?.definition || null,
+              run_b_contributing_rdu_count: gduB?.contributing_refined_du_ids.length || 0,
+              semantic_similarity_score: mapping.semantic_similarity || 0,
+              mapping_justification: mapping.mapping_justification || ''
+            }
+          })
         }
         
         set((state) => {
@@ -200,25 +221,52 @@ Provide your response as a JSON object with this structure:
         })
       } catch (error) {
         console.error('Failed to generate semantic mapping:', error)
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         set((state) => {
           state.irrWorkflowState.loadingState = 'idle'
+          state.irrWorkflowState.errorMessage = `Failed to generate semantic mapping: ${errorMessage}`
         })
       }
     },
     
     confirmMapping: (mapping: P9_1_SemanticGduMapping) => {
+      console.log('confirmMapping called with:', mapping)
+      
+      // Convert P9_1_SemanticGduMapping to simple Record<string, string | null>
+      const simpleMappingDict: Record<string, string | null> = {}
+      mapping.gdu_mappings.forEach(m => {
+        if (m.run_a_gdu_id) {
+          simpleMappingDict[m.run_a_gdu_id] = m.run_b_gdu_id || null
+        }
+      })
+      
+      console.log('Converted to simple mapping:', simpleMappingDict)
+      
       set((state) => {
-        state.irrWorkflowState.confirmedMapping = mapping
+        state.irrWorkflowState.confirmedMapping = simpleMappingDict
         state.irrWorkflowState.isMappingModalOpen = false
         state.irrWorkflowState.mappingProposal = null
       })
+      
+      console.log('State after confirmMapping:', get().irrWorkflowState)
+      
+      // Automatically trigger the IRR calculation after confirming mapping
+      setTimeout(() => {
+        console.log('Triggering calculateResults...')
+        get().calculateResults()
+      }, 100)
     },
     
     calculateResults: () => {
+      console.log('calculateResults called')
       const { runA, runB, confirmedMapping } = get().irrWorkflowState
       
+      console.log('calculateResults - runA exists:', !!runA)
+      console.log('calculateResults - runB exists:', !!runB)
+      console.log('calculateResults - confirmedMapping exists:', !!confirmedMapping)
+      
       if (!runA || !runB || !confirmedMapping) {
-        console.error('Cannot calculate results without runs and mapping')
+        console.error('Cannot calculate results without runs and mapping', { runA: !!runA, runB: !!runB, confirmedMapping: !!confirmedMapping })
         return
       }
       
@@ -227,16 +275,92 @@ Provide your response as a JSON object with this structure:
       })
       
       try {
-        const results = calculateKrippendorffsAlpha(runA, runB, confirmedMapping)
+        // Build the utterance-to-GDU mappings for both runs
+        const runAProcessedDataMap = new Map(runA.processedDataArray)
+        const runBProcessedDataMapOriginal = new Map(runB.processedDataArray)
         
+        // Normalize Run B data to match Run A's transcript IDs
+        const { normalizedProcessedData: runBProcessedDataMap, normalizedGenericState } = normalizeRunBData(
+          runAProcessedDataMap,
+          runBProcessedDataMapOriginal,
+          runB.genericAnalysisState
+        )
+        
+        const runAMappings = buildCompleteUtteranceToGduMapping(
+          runAProcessedDataMap,
+          runA.genericAnalysisState.p3_2_output
+        )
+        
+        const runBMappings = buildCompleteUtteranceToGduMapping(
+          runBProcessedDataMap,
+          normalizedGenericState.p3_2_output
+        )
+        
+        // Convert confirmedMapping to Map format for buildReliabilityMatrix
+        const gduMappingMap = new Map<string, string | null>(Object.entries(confirmedMapping))
+        
+        // Build the reliability matrix
+        const reliabilityMatrix = buildReliabilityMatrix(runAMappings, runBMappings, gduMappingMap)
+        
+        console.log('Reliability matrix built:', {
+          matrixLength: reliabilityMatrix.length,
+          runAMappingsSize: runAMappings.size,
+          runBMappingsSize: runBMappings.size,
+          sample: reliabilityMatrix.slice(0, 5)
+        })
+        
+        // Calculate Krippendorff's Alpha
+        const alphaResults = calculateKrippendorffsAlpha(reliabilityMatrix)
+        
+        // Calculate Cohen's Kappa  
+        const kappaResults = calculateCohensKappa(reliabilityMatrix)
+        
+        // Calculate unique utterances count (not matrix rows)
+        const allUtteranceIds = new Set<string>()
+        runAMappings.forEach((_, id) => allUtteranceIds.add(id))
+        runBMappings.forEach((_, id) => allUtteranceIds.add(id))
+        
+        // Calculate unmapped GDUs
+        const runAAllGdus = runA.genericAnalysisState.p3_2_output?.identified_gdus || []
+        const runBAllGdus = runB.genericAnalysisState.p3_2_output?.identified_gdus || []
+        const runAGduIds = new Set(runAAllGdus.map(g => g.gdu_id))
+        const runBGduIds = new Set(runBAllGdus.map(g => g.gdu_id))
+        const mappedRunAGdus = new Set(Object.keys(confirmedMapping))
+        const mappedRunBGdus = new Set(Object.values(confirmedMapping).filter(v => v !== null) as string[])
+        
+        // Transform results to IrrResults format
+        const irrResults: IrrResults = {
+          alpha_score: alphaResults.alpha,
+          interpretation: alphaResults.interpretation,
+          total_utterances: allUtteranceIds.size,  // Use unique utterance count, not matrix rows
+          mapped_gdus: gduMappingMap.size,
+          unmapped_gdus_run_a: runAGduIds.size - mappedRunAGdus.size,
+          unmapped_gdus_run_b: runBGduIds.size - mappedRunBGdus.size,
+          observed_disagreement: alphaResults.observedDisagreement,
+          expected_disagreement: alphaResults.expectedDisagreement,
+          matrix_validation: {
+            isValid: true,
+            warnings: [],
+            errors: []
+          },
+          // Cohen's Kappa statistics
+          cohens_kappa: kappaResults.kappa,
+          kappa_interpretation: kappaResults.interpretation,
+          kappa_observed_agreement: kappaResults.observedAgreement,
+          kappa_expected_agreement: kappaResults.expectedAgreement
+        }
+        
+        // Store Kappa results including contingency table for report generation
         set((state) => {
-          state.irrWorkflowState.results = results
+          state.irrWorkflowState.results = irrResults
+          state.irrWorkflowState.kappaResults = kappaResults
           state.irrWorkflowState.loadingState = 'idle'
         })
       } catch (error) {
         console.error('Failed to calculate results:', error)
         set((state) => {
           state.irrWorkflowState.loadingState = 'idle'
+          state.irrWorkflowState.errorMessage = error instanceof Error ? error.message : 'Failed to calculate IRR results'
         })
       }
     },
@@ -306,9 +430,33 @@ Provide your response as a JSON object with this structure:
       }
     },
     
-    handleConfirmMapping: async (confirmedMapping: Record<string, string | null>) => {
-      get().setLoadingState('calculating')
-      get().calculateResults()
+    handleConfirmMapping: async (userMappingDict: Record<string, string | null>) => {
+      console.log('handleConfirmMapping called with:', userMappingDict)
+      
+      // Transform the user mapping dictionary into the expected P9_1_SemanticGduMapping format
+      const mappingProposal = get().irrWorkflowState.mappingProposal
+      if (!mappingProposal) {
+        console.error('No mapping proposal found')
+        return
+      }
+      
+      // Update the mapping proposal with user selections
+      const updatedMapping: P9_1_SemanticGduMapping = {
+        gdu_mappings: mappingProposal.gdu_mappings.map(mapping => ({
+          ...mapping,
+          run_b_gdu_id: userMappingDict[mapping.run_a_gdu_id] || null,
+          // Update other fields if the user changed the mapping
+          run_b_definition: userMappingDict[mapping.run_a_gdu_id] 
+            ? mappingProposal.gdu_mappings.find(m => m.run_b_gdu_id === userMappingDict[mapping.run_a_gdu_id])?.run_b_definition || null
+            : null,
+          run_b_contributing_rdu_count: userMappingDict[mapping.run_a_gdu_id]
+            ? mappingProposal.gdu_mappings.find(m => m.run_b_gdu_id === userMappingDict[mapping.run_a_gdu_id])?.run_b_contributing_rdu_count || 0
+            : 0
+        }))
+      }
+      
+      // Call the confirmMapping action with the properly formatted data
+      get().confirmMapping(updatedMapping)
     },
     
     handleDownloadDisagreementReport: () => {
@@ -326,8 +474,8 @@ Provide your response as a JSON object with this structure:
         const markdownContent = disagreementReportToMarkdown(disagreementReport)
         
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-        downloadFile(csvContent, `irr-disagreement-report-${timestamp}.csv`, 'text/csv')
-        downloadFile(markdownContent, `irr-disagreement-report-${timestamp}.md`, 'text/markdown')
+        downloadFile(csvContent, `irr-full-coding-matrix-${timestamp}.csv`, 'text/csv')
+        downloadFile(markdownContent, `irr-full-coding-matrix-${timestamp}.md`, 'text/markdown')
       } catch (error) {
         console.error('Failed to generate disagreement report:', error)
         alert('Failed to generate disagreement report')

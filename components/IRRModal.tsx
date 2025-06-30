@@ -138,12 +138,30 @@ const IRRModal: React.FC<IRRModalProps> = ({
         <h3 className="text-lg font-semibold mb-4 text-light-text dark:text-dark-text">Inter-Rater Reliability Results</h3>
         
         <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="text-center">
-            <div className={`text-3xl font-bold ${getReliabilityColor(results.alpha_score)}`}>
-              α = {results.alpha_score.toFixed(3)}
+          <div>
+            <div className="text-center mb-3">
+              <div className={`text-3xl font-bold ${getReliabilityColor(results.alpha_score)}`}>
+                α = {results.alpha_score.toFixed(3)}
+              </div>
+              <div className={`text-sm ${getReliabilityColor(results.alpha_score)}`}>
+                {results.interpretation}
+              </div>
+              <div className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">
+                <div>Obs. disagr.: {results.observed_disagreement.toFixed(3)}</div>
+                <div>Exp. disagr.: {results.expected_disagreement.toFixed(3)}</div>
+              </div>
             </div>
-            <div className={`text-sm ${getReliabilityColor(results.alpha_score)}`}>
-              {results.interpretation}
+            <div className="text-center">
+              <div className={`text-2xl font-bold ${getReliabilityColor(results.cohens_kappa)}`}>
+                κ = {results.cohens_kappa.toFixed(3)}
+              </div>
+              <div className={`text-sm ${getReliabilityColor(results.cohens_kappa)}`}>
+                {results.kappa_interpretation}
+              </div>
+              <div className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">
+                <div>Obs. agr.: {results.kappa_observed_agreement.toFixed(3)}</div>
+                <div>Exp. agr.: {results.kappa_expected_agreement.toFixed(3)}</div>
+              </div>
             </div>
           </div>
           
@@ -153,11 +171,6 @@ const IRRModal: React.FC<IRRModalProps> = ({
             <div>Unmapped in Run A: {results.unmapped_gdus_run_a}</div>
             <div>Unmapped in Run B: {results.unmapped_gdus_run_b}</div>
           </div>
-        </div>
-
-        <div className="text-xs text-light-sidenote dark:text-dark-sidenote mb-4">
-          <div>Observed disagreement: {results.observed_disagreement.toFixed(3)}</div>
-          <div>Expected disagreement: {results.expected_disagreement.toFixed(3)}</div>
         </div>
 
         {results.matrix_validation.warnings.length > 0 && (
@@ -188,7 +201,7 @@ const IRRModal: React.FC<IRRModalProps> = ({
               onClick={onDownloadDisagreementReport}
               className={`px-4 py-2 rounded text-sm ${primaryButtonClasses}`}
             >
-              Download Disagreement Report
+              Download Full Coding Matrix Report
             </button>
           </div>
         )}

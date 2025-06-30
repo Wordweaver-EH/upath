@@ -29,6 +29,19 @@ export interface AlphaResult {
 }
 
 /**
+ * Result of Cohen's Kappa calculation with interpretation.
+ */
+export interface KappaResult {
+    kappa: number;
+    interpretation: string;
+    observedAgreement: number;
+    expectedAgreement: number;
+    totalPairs: number;
+    categoryCount: number;
+    contingencyTable: Map<string, Map<string, number>>;
+}
+
+/**
  * Calculates Krippendorff's Alpha coefficient for nominal data.
  * 
  * Formula: α = 1 - (Do / De)
@@ -324,4 +337,155 @@ export function validateReliabilityMatrix(matrix: ReliabilityMatrix): {
     }
 
     return { isValid, warnings, errors };
+}
+
+/**
+ * Calculates Cohen's Kappa coefficient for nominal data.
+ * 
+ * Formula: κ = (Po - Pe) / (1 - Pe)
+ * Where:
+ * - Po = Observed agreement (proportion of cases where raters agree)
+ * - Pe = Expected agreement by chance
+ * 
+ * This implementation handles cases where raters use different sets of categories
+ * by creating a union of all categories and treating missing categories as having 0 assignments.
+ * 
+ * @param matrix Reliability matrix where rows = utterances, columns = raters (exactly 2 columns)
+ * @returns KappaResult with coefficient and diagnostic information
+ */
+export function calculateCohensKappa(matrix: ReliabilityMatrix): KappaResult {
+    if (matrix.length === 0) {
+        return {
+            kappa: 0,
+            interpretation: "No data",
+            observedAgreement: 0,
+            expectedAgreement: 0,
+            totalPairs: 0,
+            categoryCount: 0,
+            contingencyTable: new Map()
+        };
+    }
+
+    // Filter to only rows where both raters made assignments (complete pairs)
+    const completePairs = matrix.filter(row => row[0] !== null && row[1] !== null);
+    
+    if (completePairs.length === 0) {
+        return {
+            kappa: 0,
+            interpretation: "No complete pairs",
+            observedAgreement: 0,
+            expectedAgreement: 0,
+            totalPairs: 0,
+            categoryCount: 0,
+            contingencyTable: new Map()
+        };
+    }
+
+    // Get all unique categories from both raters
+    const allCategories = new Set<string>();
+    completePairs.forEach(([rater1, rater2]) => {
+        if (rater1) allCategories.add(rater1);
+        if (rater2) allCategories.add(rater2);
+    });
+    
+    const categories = Array.from(allCategories).sort();
+    
+    // Build contingency table
+    const contingencyTable = new Map<string, Map<string, number>>();
+    categories.forEach(cat1 => {
+        const row = new Map<string, number>();
+        categories.forEach(cat2 => row.set(cat2, 0));
+        contingencyTable.set(cat1, row);
+    });
+    
+    // Populate contingency table
+    completePairs.forEach(([rater1, rater2]) => {
+        if (rater1 && rater2) {
+            const row = contingencyTable.get(rater1)!;
+            row.set(rater2, (row.get(rater2) || 0) + 1);
+        }
+    });
+    
+    const totalPairs = completePairs.length;
+    
+    // Calculate observed agreement (sum of diagonal)
+    let agreedPairs = 0;
+    categories.forEach(category => {
+        agreedPairs += contingencyTable.get(category)!.get(category) || 0;
+    });
+    const observedAgreement = agreedPairs / totalPairs;
+    
+    // Calculate expected agreement
+    // For each category, calculate marginal probabilities
+    const rater1Marginals = new Map<string, number>();
+    const rater2Marginals = new Map<string, number>();
+    
+    categories.forEach(category => {
+        // Rater 1 marginal (sum of row)
+        let rater1Sum = 0;
+        contingencyTable.get(category)!.forEach(count => rater1Sum += count);
+        rater1Marginals.set(category, rater1Sum / totalPairs);
+        
+        // Rater 2 marginal (sum of column)
+        let rater2Sum = 0;
+        contingencyTable.forEach(row => {
+            rater2Sum += row.get(category) || 0;
+        });
+        rater2Marginals.set(category, rater2Sum / totalPairs);
+    });
+    
+    // Expected agreement is sum of products of marginal probabilities
+    let expectedAgreement = 0;
+    categories.forEach(category => {
+        const p1 = rater1Marginals.get(category) || 0;
+        const p2 = rater2Marginals.get(category) || 0;
+        expectedAgreement += p1 * p2;
+    });
+    
+    // Calculate kappa
+    let kappa: number;
+    if (expectedAgreement === 1) {
+        // Perfect expected agreement (shouldn't happen in practice)
+        kappa = observedAgreement === 1 ? 1 : 0;
+    } else {
+        kappa = (observedAgreement - expectedAgreement) / (1 - expectedAgreement);
+    }
+    
+    // Handle edge cases
+    if (isNaN(kappa)) kappa = 0;
+    
+    // Interpret the result
+    const interpretation = interpretKappa(kappa);
+    
+    return {
+        kappa,
+        interpretation,
+        observedAgreement,
+        expectedAgreement,
+        totalPairs,
+        categoryCount: categories.length,
+        contingencyTable
+    };
+}
+
+/**
+ * Provides qualitative interpretation of Cohen's Kappa values.
+ * Based on Landis & Koch (1977) benchmarks.
+ */
+function interpretKappa(kappa: number): string {
+    if (kappa < 0) {
+        return "Less than chance agreement";
+    } else if (kappa >= 0 && kappa <= 0.20) {
+        return "Slight agreement";
+    } else if (kappa > 0.20 && kappa <= 0.40) {
+        return "Fair agreement";
+    } else if (kappa > 0.40 && kappa <= 0.60) {
+        return "Moderate agreement";
+    } else if (kappa > 0.60 && kappa <= 0.80) {
+        return "Substantial agreement";
+    } else if (kappa > 0.80 && kappa < 1) {
+        return "Almost perfect agreement";
+    } else { // kappa === 1
+        return "Perfect agreement";
+    }
 }
