@@ -1,23 +1,13 @@
 
-import React, { useEffect } from 'react';
-import { RawTranscript, StepId, CurrentStepInfo, StepStatus } from '../types';
+import React, { useEffect, useRef } from 'react';
+import { StepId, StepStatus } from '../types';
 import { UploadIcon, FileTextIcon, SaveIcon, LoadIcon, InfoIcon } from '../constants';
 import { useSettingsStore } from '../src/stores/settingsStore';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
 
+// No props needed - component gets all data from stores
 interface SettingsPanelProps {
-  onSaveState: () => void;
-  onLoadStateFileChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  loadStateInputRef: React.RefObject<HTMLInputElement>;
-  onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  fileUploadInputRef: React.RefObject<HTMLInputElement>;
-  onDragOver: (event: React.DragEvent<HTMLDivElement>) => void;
-  onDragLeave: (event: React.DragEvent<HTMLDivElement>) => void;
-  onDrop: (event: React.DragEvent<HTMLDivElement>) => void;
-  isGlobalStep: (stepId: StepId) => boolean;
-  onTranscriptItemClick: (index: number) => void;
-  getTranscriptStatusDisplay: (transcriptId: string) => string;
   PipelineOverviewComponent: React.ReactNode;
   inputBaseClasses: string;
   secondaryButtonClasses: string;
@@ -25,11 +15,11 @@ interface SettingsPanelProps {
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
-  onSaveState, onLoadStateFileChange, loadStateInputRef,
-  onFileUpload, fileUploadInputRef, onDragOver, onDragLeave, onDrop,
-  isGlobalStep, onTranscriptItemClick, getTranscriptStatusDisplay,
   PipelineOverviewComponent, inputBaseClasses, secondaryButtonClasses, disabledButtonClasses
 }) => {
+  // Create refs for file inputs
+  const loadStateInputRef = useRef<HTMLInputElement>(null)
+  const fileUploadInputRef = useRef<HTMLInputElement>(null)
   // Settings store
   const apiKeyPresent = useSettingsStore(state => state.apiKeyPresent)
   const dvFocusInput = useSettingsStore(state => state.dvFocusInput)
@@ -46,13 +36,22 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const updateSettings = useSettingsStore(state => state.updateSettings)
   const checkApiKey = useSettingsStore(state => state.checkApiKey)
 
-  // UI store
+  // UI store - state and actions
   const currentStepInfo = useUIStore(state => state.currentStepInfo)
   const activeTranscriptIndex = useUIStore(state => state.activeTranscriptIndex)
   const isDraggingOver = useUIStore(state => state.isDraggingOver)
+  const handleDragOver = useUIStore(state => state.handleDragOver)
+  const handleDragLeave = useUIStore(state => state.handleDragLeave)
+  const handleDrop = useUIStore(state => state.handleDrop)
 
-  // Pipeline store  
+  // Pipeline store - state and actions
   const rawTranscripts = usePipelineStore(state => state.rawTranscripts)
+  const saveStateToFile = usePipelineStore(state => state.saveStateToFile)
+  const loadStateFromFile = usePipelineStore(state => state.loadStateFromFile)
+  const uploadTranscripts = usePipelineStore(state => state.uploadTranscripts)
+  const setActiveTranscriptByIndex = usePipelineStore(state => state.setActiveTranscriptByIndex)
+  const getTranscriptStatusDisplay = usePipelineStore(state => state.getTranscriptStatusDisplay)
+  const isGlobalStep = usePipelineStore(state => state.isGlobalStep)
 
   // Check API key on component mount
   useEffect(() => {
@@ -68,16 +67,16 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       <div> <label htmlFor="outputDir" className="block text-sm font-medium text-light-sidenote dark:text-dark-sidenote mb-1">Output Directory Name</label> <input type="text" id="outputDir" value={outputDirectory} onChange={(e) => setOutputDirectory(e.target.value)} className={`${inputBaseClasses} border-light-border dark:border-dark-border`} placeholder="e.g., MyProject_Outputs" /> <p className="mt-1 text-xs text-light-sidenote dark:text-dark-sidenote">Prefixes filenames. Browser handles save location.</p> </div>
       <div className="flex items-center"> <input id="autoDownload" type="checkbox" checked={autoDownloadResults} onChange={(e) => updateSettings({ autoDownloadResults: e.target.checked })} className="h-4 w-4 rounded border-light-border dark:border-dark-border text-light-accent dark:text-dark-accent focus:ring-light-accent dark:focus:ring-dark-accent bg-light-input-bg dark:bg-dark-input-bg" /> <label htmlFor="autoDownload" className="ml-2 block text-sm text-light-text dark:text-dark-text">Autodownload essential results</label> </div>
       <div className="grid grid-cols-2 gap-2">
-          <button onClick={onSaveState} disabled={rawTranscripts.length === 0 && currentStepInfo.stepId === StepId.IDLE} className={`${secondaryButtonClasses} w-full ${ (rawTranscripts.length === 0 && currentStepInfo.stepId === StepId.IDLE) ? disabledButtonClasses : ''}`}> {SaveIcon} <span>Save State</span> </button>
-          <div> <label htmlFor="loadStateFile" className={`${secondaryButtonClasses} w-full cursor-pointer`}> {LoadIcon} <span>Load State</span> </label> <input id="loadStateFile" type="file" accept=".json" onChange={onLoadStateFileChange} className="hidden" ref={loadStateInputRef} /> </div>
+          <button onClick={saveStateToFile} disabled={rawTranscripts.length === 0 && currentStepInfo.stepId === StepId.IDLE} className={`${secondaryButtonClasses} w-full ${ (rawTranscripts.length === 0 && currentStepInfo.stepId === StepId.IDLE) ? disabledButtonClasses : ''}`}> {SaveIcon} <span>Save State</span> </button>
+          <div> <label htmlFor="loadStateFile" className={`${secondaryButtonClasses} w-full cursor-pointer`}> {LoadIcon} <span>Load State</span> </label> <input id="loadStateFile" type="file" accept=".json" onChange={loadStateFromFile} className="hidden" ref={loadStateInputRef} /> </div>
       </div>
        <div
-          onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop}
+          onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
           className={`px-1 py-[1px] border-2 border-dashed rounded-md text-center ${isDraggingOver ? 'border-light-accent dark:border-dark-accent bg-light-accent/10 dark:bg-dark-accent/10' : 'border-light-border dark:border-dark-border hover:border-light-accent/50 dark:hover:border-dark-accent/50'} ${(!apiKeyPresent || !!dvFocusError) ? disabledButtonClasses : 'cursor-pointer'} transition-colors duration-150`}
           role="button" aria-label="File upload area"
       >
           <label htmlFor="fileUpload" className={`w-full flex flex-col items-center justify-center space-y-0 ${(!apiKeyPresent || !!dvFocusError) ? 'cursor-not-allowed' : 'cursor-pointer'}`}> {UploadIcon} <span className="text-sm">{isDraggingOver ? 'Drop files here' : 'Upload or Drag & Drop .txt Files'}</span> </label>
-          <input id="fileUpload" type="file" multiple accept=".txt" onChange={onFileUpload} className="hidden" disabled={!apiKeyPresent || !!dvFocusError} ref={fileUploadInputRef} />
+          <input id="fileUpload" type="file" multiple accept=".txt" onChange={uploadTranscripts} className="hidden" disabled={!apiKeyPresent || !!dvFocusError} ref={fileUploadInputRef} />
       </div>
       {rawTranscripts.length > 0 && (
         <div className="mt-4">
@@ -87,7 +86,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <li 
                   key={transcript.id} 
                   className={`p-2 rounded-md text-sm flex items-center justify-between transition-colors duration-150 ${activeTranscriptIndex === index && !isGlobalStep(currentStepInfo.stepId) ? 'border-b-2 border-light-accent dark:border-dark-accent text-light-accent dark:text-dark-accent' : 'border-b-2 border-transparent hover:bg-light-border dark:hover:bg-dark-border'} ${currentStepInfo.status === StepStatus.Loading && currentStepInfo.transcriptId === transcript.id ? 'ephemeral-border' : ''}`}
-                  onClick={() => onTranscriptItemClick(index)} role="button" tabIndex={0} onKeyPress={(e) => e.key === 'Enter' && onTranscriptItemClick(index)} aria-current={activeTranscriptIndex === index && !isGlobalStep(currentStepInfo.stepId)}
+                  onClick={() => setActiveTranscriptByIndex(index)} role="button" tabIndex={0} onKeyPress={(e) => e.key === 'Enter' && setActiveTranscriptByIndex(index)} aria-current={activeTranscriptIndex === index && !isGlobalStep(currentStepInfo.stepId)}
               >
                 <span className="flex items-center space-x-2 truncate"> {FileTextIcon} <span className="truncate" title={transcript.filename}>{transcript.filename}</span> </span>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${getTranscriptStatusDisplay(transcript.id).includes("Done") ? 'bg-light-accent-subtle/20 text-light-accent-subtle dark:bg-dark-accent-subtle/20 dark:text-dark-accent-subtle' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-100'} whitespace-nowrap`}> {getTranscriptStatusDisplay(transcript.id)} </span>

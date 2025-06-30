@@ -235,6 +235,42 @@ export const useUIStore = create<UIStore>()(
     setIsDraggingOver: (isDragging: boolean) => {
       set({ isDraggingOver: isDragging })
     },
+
+    handleDragOver: (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      set({ isDraggingOver: true })
+    },
+
+    handleDragLeave: (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      set({ isDraggingOver: false })
+    },
+
+    handleDrop: (event: React.DragEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      set({ isDraggingOver: false })
+      
+      const files = Array.from(event.dataTransfer.files).filter(file => 
+        file.name.endsWith('.txt') || file.type === 'text/plain'
+      )
+      
+      if (files.length > 0) {
+        // Create a synthetic event to pass to uploadTranscripts
+        const syntheticEvent = {
+          target: { files, value: '' },
+          currentTarget: { files, value: '' }
+        } as React.ChangeEvent<HTMLInputElement>
+        
+        // Async call to avoid circular dependency
+        setTimeout(() => {
+          // Import dynamically to avoid circular dependency
+          import('./pipelineStore').then(({ usePipelineStore }) => {
+            const pipelineStore = usePipelineStore.getState()
+            pipelineStore.uploadTranscripts(syntheticEvent)
+          })
+        }, 0)
+      }
+    },
     
     resetUIState: () => {
       set({

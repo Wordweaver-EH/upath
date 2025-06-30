@@ -85,6 +85,7 @@ interface PipelineActions {
   uploadTranscripts: (event: React.ChangeEvent<HTMLInputElement>) => void
   setActiveTranscriptByIndex: (index: number) => void
   getTranscriptStatusDisplay: (transcriptId: string) => string
+  isGlobalStep: (stepId: StepId) => boolean
 }
 
 
@@ -895,6 +896,10 @@ export const usePipelineStore = create<PipelineStore>()(
         }
         
         return 'Pending'
+      },
+
+      isGlobalStep: (stepId: StepId): boolean => {
+        return isGlobalStep(stepId)
       }
     })),
     {
