@@ -38,8 +38,9 @@ import PipelineOverview, { PipelineStepNode } from './components/PipelineOvervie
 import IRRModal from './components/IRRModal';
 import GduMappingModal from './components/GduMappingModal';
 import { AutorunManager } from './components/AutorunManager';
-import { isZustandEnabled } from './src/utils/featureFlags';
 import { useUIStore } from './src/stores/uiStore';
+import { useSettingsStore } from './src/stores/settingsStore';
+import { usePipelineStore } from './src/stores/pipelineStore';
 
 
 const APP_VERSION = '0.10.0'; // Version from package.json 
@@ -128,12 +129,13 @@ interface PreviousStepResult {
 
 
 const App: React.FC = () => { 
-  const isUsingZustand = isZustandEnabled();
+  // Migration to Zustand is now complete - no longer need feature flag
+
+  // Get theme from store - this is the main architectural improvement
+  const theme = useUIStore(state => state.theme);
+  const toggleTheme = useUIStore(state => state.toggleTheme);
   
-  // Use Zustand stores when flag is enabled
-  const zustandTheme = isUsingZustand ? useUIStore((state) => state.theme) : undefined;
-  const zustandToggleTheme = isUsingZustand ? useUIStore((state) => state.toggleTheme) : undefined;
-  
+  // Keep legacy state temporarily - will be migrated in Phase 4
   const [rawTranscripts, setRawTranscripts] = useState<RawTranscript[]>([]);
   const [processedData, setProcessedData] = useState<Map<string, TranscriptProcessedData>>(new Map());
   const [genericAnalysisState, setGenericAnalysisState] = useState<GenericAnalysisState>({
@@ -197,140 +199,7 @@ const App: React.FC = () => {
   const loadStateInputRef = useRef<HTMLInputElement>(null!);
   const fileUploadInputRef = useRef<HTMLInputElement>(null!);
 
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined') {
-      const storedTheme = localStorage.getItem('app-theme');
-      if (storedTheme === 'light' || storedTheme === 'dark') return storedTheme;
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return 'light'; 
-  });
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const root = window.document.documentElement;
-      const body = window.document.body;
-      root.classList.remove(theme === 'light' ? 'dark' : 'light');
-      root.classList.add(theme);
-      body.classList.remove(theme === 'light' ? 'dark' : 'light');
-      body.classList.add(theme);
-      localStorage.setItem('app-theme', theme);
-      if (window.reinitializeMermaidTheme) window.reinitializeMermaidTheme();
-    }
-  }, [theme]);
-
-  const toggleTheme = () => setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
-
-  useEffect(() => setApiKeyPresent(isApiKeySet()), []);
-
-  useEffect(() => {
-    const focuses = dvFocusInput.split(',').map(focus => focus.trim()).filter(focus => focus.length > 0);
-    if (dvFocusInput.trim() === '') setDvFocusError("DV Focus is required.");
-    else if (focuses.length === 0) setDvFocusError("No valid DVs found.");
-    else { setUserDvFocus({ dv_focus: focuses }); setDvFocusError(''); }
-  }, [dvFocusInput]);
-
-  useEffect(() => {
-    const num = parseInt(seedInput, 10);
-    if (!isNaN(num) && num > 0) { setSeed(num); setRetrySeedInput(seedInput); }
-    else { setSeed(undefined); setRetrySeedInput(''); }
-  }, [seedInput]);
-
-  useEffect(() => {
-    let timerInterval: number | undefined;
-    const timerIsActive = (isAutorunning || currentStepInfo.status === StepStatus.Loading) && processStartTime !== null;
-    if (timerIsActive) {
-      timerInterval = setInterval(() => {
-        if (processStartTime) setElapsedTime(Math.floor((Date.now() - processStartTime) / 1000));
-      }, 1000) as any;
-    } else if (processStartTime) {
-      setElapsedTime(Math.floor((Date.now() - processStartTime) / 1000));
-    }
-    return () => { if (timerInterval) clearInterval(timerInterval); };
-  }, [isAutorunning, currentStepInfo.status, processStartTime]);
-
-  const resetAllStateForLoadOrNew = () => {
-    setRawTranscripts([]); setProcessedData(new Map());
-    setGenericAnalysisState({
-        isFullyProcessedGenericDiachronic: false, p3_1_output: undefined, p3_1_error: undefined,
-        p3_2_output: undefined, p3_2_error: undefined, p3_3_output: undefined, p3_3_mermaid_syntax: undefined, p3_3_error: undefined,
-        
-        p4s_1_a_outputs_by_gdu: {}, 
-        p4s_1_a_error: undefined,
-        p4s_outputs_by_gdu: {}, 
-        p4s_mermaid_syntax_by_gdu: {}, 
-        p4s_1_b_error: undefined,
-        current_gdu_for_p4s_processing: undefined,
-        core_gdus_for_sync_analysis: [], 
-        processed_gdus_for_p4s: [], 
-        isFullyProcessedGenericSynchronic: false,
-    
-        p5_1_output: undefined, p5_1_error: undefined, isRefinementDone: false,
-        p7_1_output: undefined, p7_1_error: undefined, p7_2_output: undefined, p7_2_error: undefined,
-        p7_3_output: undefined, p7_3_mermaid_syntax_dag: undefined, p7_3_error: undefined,
-        p7_3b_output: undefined, p7_3b_mermaid_syntax_dag: undefined, p7_3b_error: undefined,
-        p7_4_output: undefined, p7_4_error: undefined, p7_5_output: undefined, p7_5_error: undefined, isCausalModelingDone: false,
-        p6_1_output: undefined, p6_1_error: undefined, isReportGenerated: false,
-    });
-    setCurrentStepInfo({ stepId: StepId.IDLE, status: StepStatus.Idle });
-    setPromptHistory([]); setActiveTranscriptIndex(0);
-    setTotalInputTokens(0); setTotalOutputTokens(0);
-    setProcessStartTime(null); setElapsedTime(0); setIsAutorunning(false);
-  };
-
-  const processFiles = useCallback((files: FileList | null) => {
-    if (files && files.length > 0) {
-        resetAllStateForLoadOrNew();
-        const newTranscripts: RawTranscript[] = Array.from(files).map((file, index) => ({
-            id: `transcript_${Date.now()}_${index}`, filename: file.name, content: '',
-        }));
-        const filesArray = Array.from(files);
-        newTranscripts.forEach(transcript => {
-            const currentFile = filesArray.find(f => f.name === transcript.filename);
-            if (currentFile) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const content = e.target?.result as string;
-                    setRawTranscripts(prev => prev.map(t => t.id === transcript.id ? { ...t, content } : t));
-                    setProcessedData(prevMap => new Map(prevMap).set(transcript.id, {
-                        id: transcript.id, filename: transcript.filename, isFullyProcessedSpecificDiachronic: false,
-                        p2s_outputs_by_phase: {}, phases_for_p2s_processing: [], current_phase_for_p2s_processing: undefined,
-                        processed_phases_for_p2s: [], isFullyProcessedSpecificSynchronic: false,
-                    }));
-                };
-                reader.readAsText(currentFile);
-            }
-        });
-        setRawTranscripts(newTranscripts);
-    }
-  }, []);
-
-  const handleRegularFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    processFiles(event.target.files);
-    if (fileUploadInputRef.current) fileUploadInputRef.current.value = "";
-  };
-
-  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault(); event.stopPropagation();
-    if (!apiKeyPresent || !!dvFocusError) return;
-    setIsDraggingOver(true);
-  };
-  const handleDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault(); event.stopPropagation(); setIsDraggingOver(false);
-  };
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault(); event.stopPropagation(); setIsDraggingOver(false);
-    if (!apiKeyPresent || !!dvFocusError) return;
-    const files = event.dataTransfer.files;
-    if (files && files.length > 0) {
-      const textFiles = Array.from(files).filter(file => file.type === "text/plain" || file.name.endsWith(".txt"));
-      if (textFiles.length > 0) {
-        const dataTransfer = new DataTransfer();
-        textFiles.forEach(file => dataTransfer.items.add(file));
-        processFiles(dataTransfer.files);
-      } else alert("Please drop .txt files only.");
-    }
-  };
+  // Legacy handlers removed - these are now handled by stores
   
   const isGlobalStep = (stepId: StepId) => STEP_ORDER_PART_3_GENERIC_DIACHRONIC.includes(stepId) ||
     STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(stepId) || STEP_ORDER_PART_5_REFINEMENT.includes(stepId) ||
@@ -1789,30 +1658,19 @@ Based on this guidance, please re-attempt the original task. Your output MUST st
   };
 
   return (
-    <div className={`min-h-screen ${(isUsingZustand ? zustandTheme : theme) === 'dark' ? 'dark bg-dark-bg text-dark-text' : 'bg-light-bg text-light-text'} font-serif transition-colors duration-300`}>
+    <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-dark-bg text-dark-text' : 'bg-light-bg text-light-text'} font-serif transition-colors duration-300`}>
       <header className="p-4 flex justify-between items-center border-b border-light-border dark:border-dark-border bg-light-bg-alt dark:bg-dark-bg-alt sticky top-0 z-40">
         <h1 className="text-xl font-bold text-light-accent dark:text-dark-accent">
           <span style={{ fontFamily: "'Times New Roman', serif" }}>µ</span>-<span className="font-logoP">P</span>ATH: Micro-Phenomenological Analysis Threader
           <span className="text-xs text-light-sidenote dark:text-dark-sidenote align-middle ml-1">v{APP_VERSION}</span>
         </h1>
-        <button onClick={isUsingZustand ? zustandToggleTheme : toggleTheme} className={`${secondaryButtonClasses} p-2`} aria-label="Toggle theme">
-          {(isUsingZustand ? zustandTheme : theme) === 'light' ? MoonIcon : SunIcon}
+        <button onClick={toggleTheme} className={`${secondaryButtonClasses} p-2`} aria-label="Toggle theme">
+          {theme === 'light' ? MoonIcon : SunIcon}
         </button>
       </header>
 
       <main className="md:grid md:grid-cols-3 gap-4 p-4">
         <SettingsPanel
-          onSaveState={handleSaveState}
-          onLoadStateFileChange={handleLoadStateFileChange}
-          loadStateInputRef={loadStateInputRef}
-          onFileUpload={handleRegularFileUpload}
-          fileUploadInputRef={fileUploadInputRef}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          isGlobalStep={isGlobalStep}
-          onTranscriptItemClick={handleTranscriptItemClick}
-          getTranscriptStatusDisplay={getTranscriptStatusDisplay}
           PipelineOverviewComponent={
             <PipelineOverview
               allPipelineParts={allPipelinePartsInOrder}
@@ -1842,7 +1700,7 @@ Based on this guidance, please re-attempt the original task. Your output MUST st
             />
           </div>
           
-          <StatusDisplay formatElapsedTime={formatElapsedTime} />
+          <StatusDisplay />
 
           <div ref={outputDisplayRef} className="output-display p-4 bg-light-bg dark:bg-dark-bg border border-light-border dark:border-dark-border rounded-lg shadow min-h-[200px] max-h-[calc(100vh-400px)] overflow-y-auto">
             {renderOutput()} 
@@ -1851,7 +1709,7 @@ Based on this guidance, please re-attempt the original task. Your output MUST st
       </main>
 
       {/* IRR Analysis Modals */}
-      {isUsingZustand && <AutorunManager />}
+      <AutorunManager />
       
       {/* Unified modals using Zustand stores */}
       <IRRModal
