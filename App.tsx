@@ -33,6 +33,7 @@ import IRRModal from './components/IRRModal';
 import GduMappingModal from './components/GduMappingModal';
 import { AutorunManager } from './components/AutorunManager';
 import { useUIStore, useSettingsStore, usePipelineStore, useIRRStore, initializeStores } from './src/stores';
+import { useAutorunManager } from './src/hooks/useAutorunManager';
 
 
 const APP_VERSION = '0.10.0'; // Version from package.json 
@@ -133,11 +134,7 @@ const App: React.FC = () => {
   const elapsedTime = useUIStore(state => state.elapsedTime);
   const hilUserGuidance = useUIStore(state => state.hilUserGuidance);
   const hilContext = useUIStore(state => state.hilContext);
-  const setActiveTranscript = useUIStore(state => state.setActiveTranscript);
-  const setCurrentStepInfo = useUIStore(state => state.setCurrentStepInfo);
   const setAutorunning = useUIStore(state => state.setAutorunning);
-  const updateElapsedTime = useUIStore(state => state.updateElapsedTime);
-  const setProcessStartTime = useUIStore(state => state.setProcessStartTime);
   const openHilModal = useUIStore(state => state.openHilModal);
   const closeHilModal = useUIStore(state => state.closeHilModal);
   const setHilUserGuidance = useUIStore(state => state.setHilUserGuidance);
@@ -149,15 +146,12 @@ const App: React.FC = () => {
   const promptHistory = usePipelineStore(state => state.promptHistory);
   const totalInputTokens = usePipelineStore(state => state.totalInputTokens);
   const totalOutputTokens = usePipelineStore(state => state.totalOutputTokens);
-  const getNextStepDetails = usePipelineStore(state => state.getNextStepDetails);
-  const downloadOutput = usePipelineStore(state => state.downloadOutput);
   const isGlobalStep = usePipelineStore(state => state.isGlobalStep);
   const processSingleStep = usePipelineStore(state => state.processSingleStep);
   
   // Settings Store state
   const userDvFocus = useSettingsStore(state => state.userDvFocus);
   const outputDirectory = useSettingsStore(state => state.outputDirectory);
-  const autoDownloadResults = useSettingsStore(state => state.autoDownloadResults);
   const temperature = useSettingsStore(state => state.temperature);
   const seed = useSettingsStore(state => state.seed);
   
@@ -216,33 +210,8 @@ const App: React.FC = () => {
   };
 
 
-  useEffect(() => { 
-    if (isAutorunning && currentStepInfo.status === StepStatus.Success) {
-      const details = getNextStepDetails();
-      if (details) {
-        setActiveTranscript(details.nextTranscriptIndex); 
-        if (details.nextStepId === StepId.COMPLETE) {
-            const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "Processing complete.";
-            setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData:report }); setAutorunning(false); 
-            if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
-            if (autoDownloadResults && report!=="Processing complete." && ESSENTIAL_STEPS_FOR_AUTODOWNLOAD.includes(StepId.P6_1_GENERATE_MARKDOWN_REPORT)) downloadOutput(StepId.COMPLETE, "final_analysis_report", report);
-        } else {
-            const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId);
-            const nextTxId = isNextGlobal ? undefined : rawTranscripts[details.nextTranscriptIndex]?.id;
-            processSingleStep({ stepId: details.nextStepId, transcriptIdToProcess: nextTxId });
-        }
-      } else if (currentStepInfo.stepId !== StepId.COMPLETE && genericAnalysisState.isReportGenerated) { 
-        const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All processing complete.";
-        setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData:report }); setAutorunning(false); 
-        if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
-      } else if (currentStepInfo.stepId !== StepId.COMPLETE && !details) { 
-         if (genericAnalysisState.isReportGenerated) setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData: typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All complete." });
-         setAutorunning(false); if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
-      }
-    } else if (isAutorunning && currentStepInfo.status === StepStatus.Error) {
-      setAutorunning(false); if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
-    }
-  }, [isAutorunning, currentStepInfo, genericAnalysisState, getNextStepDetails, rawTranscripts, processSingleStep, downloadOutput, autoDownloadResults, processStartTime, updateElapsedTime, setProcessStartTime, setCurrentStepInfo, setAutorunning, setActiveTranscript]);
+  // Autorun logic extracted to custom hook for better separation of concerns
+  useAutorunManager();
 
 
 
