@@ -30,7 +30,7 @@ import HilModal from './components/HilModal';
 import PipelineOverview, { PipelineStepNode } from './components/PipelineOverview';
 import IRRModal from './components/IRRModal';
 import GduMappingModal from './components/GduMappingModal';
-import { AutorunManager } from './components/AutorunManager';
+
 import { useUIStore, useSettingsStore, usePipelineStore, useIRRStore, initializeStores } from './src/stores';
 import { useAutorunManager } from './src/hooks/useAutorunManager';
 
@@ -318,7 +318,7 @@ const App: React.FC = () => {
       </main>
 
       {/* IRR Analysis Modals */}
-      <AutorunManager />
+
       
       {/* Unified modals using Zustand stores */}
       <IRRModal
