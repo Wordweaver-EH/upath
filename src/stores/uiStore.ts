@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import { StepId, StepStatus, CurrentStepInfo, HilContext } from '../../types'
-import { ALL_PIPELINE_STEP_IDS_IN_ORDER } from '../../constants'
+import { ALL_PIPELINE_STEP_IDS_IN_ORDER, STEP_CONFIGS } from '../../constants'
 
 interface UIState {
   // Navigation
@@ -39,6 +39,7 @@ interface UIActions {
   
   // HIL Modal
   openHilModal: (context: HilContext) => void
+  openHilModalWithContext: () => void
   closeHilModal: () => void
   setHilUserGuidance: (guidance: string) => void
   
@@ -50,7 +51,12 @@ interface UIActions {
   resetUIState: () => void
 }
 
-type UIStore = UIState & UIActions
+interface UISelectors {
+  // Derived state selectors
+  isAutorunDisabled: () => boolean
+}
+
+type UIStore = UIState & UIActions & UISelectors
 
 // Helper to get initial theme
 const getInitialTheme = (): 'light' | 'dark' => {
@@ -163,6 +169,32 @@ export const useUIStore = create<UIStore>()(
         hilUserGuidance: '' 
       })
     },
+
+    openHilModalWithContext: () => {
+      const { currentStepInfo } = get()
+      
+      if (currentStepInfo.inputData && (currentStepInfo.outputData || currentStepInfo.error)) {
+        const config = STEP_CONFIGS[currentStepInfo.stepId]
+        if (config) {
+          const originalPrompt = config.generatePrompt(currentStepInfo.inputData)
+          const previousResponse = currentStepInfo.outputData ? 
+            (typeof currentStepInfo.outputData === 'string' ? 
+              currentStepInfo.outputData : 
+              JSON.stringify(currentStepInfo.outputData, null, 2)) : 
+            (currentStepInfo.error || "No previous response data.")
+          
+          set({ 
+            isHilModalOpen: true,
+            hilContext: {
+              stepInfo: currentStepInfo,
+              originalPrompt,
+              previousResponse
+            },
+            hilUserGuidance: '' 
+          })
+        }
+      }
+    },
     
     closeHilModal: () => {
       set({ 
@@ -217,28 +249,15 @@ export const useUIStore = create<UIStore>()(
         isDraggingOver: false
         // Note: theme is not reset
       })
+    },
+    
+    // Selectors
+    isAutorunDisabled: () => {
+      const { currentStepInfo } = get()
+      
+      // Basic UI-level checks - pipeline-specific checks moved to component level
+      return currentStepInfo.stepId === StepId.COMPLETE
     }
   }))
 )
 
-// Set up elapsed time interval
-if (typeof window !== 'undefined') {
-  let interval: NodeJS.Timeout | null = null
-  
-  useUIStore.subscribe(
-    (state) => ({ isAutorunning: state.isAutorunning, processStartTime: state.processStartTime }),
-    ({ isAutorunning, processStartTime }) => {
-      if (isAutorunning && processStartTime) {
-        if (interval) clearInterval(interval)
-        interval = setInterval(() => {
-          useUIStore.getState().updateElapsedTime()
-        }, 1000)
-      } else {
-        if (interval) {
-          clearInterval(interval)
-          interval = null
-        }
-      }
-    }
-  )
-}

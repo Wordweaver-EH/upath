@@ -53,10 +53,8 @@ const ControlsPanelZustand: React.FC<ControlsPanelProps> = (props) => {
   // Get state from stores
   const isAutorunning = useUIStore(state => state.isAutorunning);
   const toggleAutorun = useUIStore(state => state.toggleAutorun);
-  const { apiKeyPresent, dvFocusError } = useSettingsStore(state => ({ 
-    apiKeyPresent: state.apiKeyPresent, 
-    dvFocusError: state.dvFocusError 
-  }));
+  const apiKeyPresent = useSettingsStore(state => state.apiKeyPresent);
+  const dvFocusError = useSettingsStore(state => state.dvFocusError);
   const rawTranscripts = usePipelineStore(state => state.rawTranscripts);
   const currentStepInfo = useUIStore(state => state.currentStepInfo);
   const openIrrModal = useIRRStore(state => () => state.startComparison);

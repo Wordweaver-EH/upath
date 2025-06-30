@@ -625,6 +625,12 @@ export interface CurrentStepInfo {
   currentPhaseForP2S?: string; // phase_name
 }
 
+export interface HilContext {
+  stepInfo: CurrentStepInfo;
+  originalPrompt: string;
+  previousResponse: string;
+}
+
 export interface GroundingChunkWeb {
   uri: string;
   title: string;
@@ -701,6 +707,8 @@ export type SynchronicStructureType = SynchronicStructureP2S | SynchronicStructu
 
 
 // AppState for Saving/Loading
+export type SavedState = AppState;
+
 export interface AppState {
   version: string;
   rawTranscripts: RawTranscript[];

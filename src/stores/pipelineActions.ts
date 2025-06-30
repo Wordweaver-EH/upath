@@ -1,11 +1,9 @@
-import { StepId, StepStatus, TranscriptProcessedData, GenericAnalysisState, P1_4_Output, P2S_3_Output, P3_3_Output, P4S_1_A_Output, P4S_1_Output, SSSNodeGroup, P6_1_Output, PromptHistoryEntry, P2SPhaseData, P3_2_Output, P7_3_Output, P7_3b_Output } from '../../types'
+import { RawTranscript, StepId, StepStatus, TranscriptProcessedData, GenericAnalysisState, P1_4_Output, P2S_3_Output, P3_3_Output, P4S_1_A_Output, P4S_1_Output, SSSNodeGroup, P6_1_Output, PromptHistoryEntry, P2SPhaseData, P3_2_Output, P7_3_Output, P7_3b_Output } from '../../types'
 import { STEP_CONFIGS, STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, ALL_PIPELINE_STEP_IDS_IN_ORDER, STEP_ORDER_PART_NEG1, STEP_ORDER_PART_0, STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC, P3_2_APPROACH } from '../../constants'
 import { stepIdToDataKeyPrefix, isGlobalStep } from '../utils/stepIdToDataKeyPrefix'
 import { callGeminiAPI } from '../../services/geminiService'
 import { generateMarkdownReportProgrammatically, ReportData } from '../../utils/reportHelper'
 import { transformDiachronicToMermaid, transformSynchronicToMermaid, transformGenericDiachronicToMermaid, transformDagToMermaid } from '../../utils/visualizationHelper'
-import { useUIStore } from './uiStore'
-import { useSettingsStore } from './settingsStore'
 import { WritableDraft } from 'immer'
 
 export interface ProcessSingleStepParams {
@@ -16,11 +14,13 @@ export interface ProcessSingleStepParams {
 }
 
 export interface ProcessSingleStepContext {
-  rawTranscripts: any[]
+  rawTranscripts: RawTranscript[]
   processedData: Map<string, TranscriptProcessedData>
   genericAnalysisState: GenericAnalysisState
   set: (fn: (state: any) => void) => void
   get: () => any
+  uiStore: any
+  settingsStore: any
 }
 
 export const processSingleStepImplementation = async (
@@ -28,22 +28,22 @@ export const processSingleStepImplementation = async (
   context: ProcessSingleStepContext
 ) => {
   const { stepId, transcriptIdToProcess, overrideSeed, hilMetaPrompt } = params
-  const { rawTranscripts, processedData, genericAnalysisState, set, get } = context
+  const { rawTranscripts, processedData, genericAnalysisState, set, get, uiStore, settingsStore } = context
   
   const isReportStepForThisCall = stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT
-  const uiStore = useUIStore.getState()
-  const settingsStore = useSettingsStore.getState()
   const { apiKeyPresent, userDvFocus, dvFocusError, temperature, seed } = settingsStore
   
   // Get step config
   const config = STEP_CONFIGS[stepId]
   if (!config) {
-    uiStore.setCurrentStepInfo({ 
-      stepId, 
-      status: StepStatus.Error, 
-      error: `Config for ${stepId} not found.` 
-    })
-    uiStore.setAutorunning(false)
+    setTimeout(() => {
+      uiStore.setCurrentStepInfo({ 
+        stepId, 
+        status: StepStatus.Error, 
+        error: `Config for ${stepId} not found.` 
+      })
+      uiStore.setAutorunning(false)
+    }, 0)
     return
   }
   
@@ -73,13 +73,15 @@ export const processSingleStepImplementation = async (
         })
       }
       if (!currentPhase && (tData.phases_for_p2s_processing?.length || 0) > 0 && !tData.isFullyProcessedSpecificSynchronic) {
-        uiStore.setCurrentStepInfo({ 
-          stepId, 
-          transcriptId: transcriptIdToProcess, 
-          status: StepStatus.Error, 
-          error: `P2S Error: Current phase not set for ${transcriptIdToProcess}` 
-        })
-        uiStore.setAutorunning(false)
+        setTimeout(() => {
+          uiStore.setCurrentStepInfo({ 
+            stepId, 
+            transcriptId: transcriptIdToProcess, 
+            status: StepStatus.Error, 
+            error: `P2S Error: Current phase not set for ${transcriptIdToProcess}` 
+          })
+          uiStore.setAutorunning(false)
+        }, 0)
         return
       }
     }
@@ -106,24 +108,28 @@ export const processSingleStepImplementation = async (
           state.genericAnalysisState.p4s_1_b_error = undefined
         })
       } else if (!tempGenericState.isFullyProcessedGenericSynchronic) {
-        uiStore.setCurrentStepInfo({
-          stepId,
-          status: StepStatus.Error,
-          error: "P4S.1.A: All GDUs processed but P4S not complete.",
-          currentGduForP4S: currentGDU
-        })
-        uiStore.setAutorunning(false)
+        setTimeout(() => {
+          uiStore.setCurrentStepInfo({
+            stepId,
+            status: StepStatus.Error,
+            error: "P4S.1.A: All GDUs processed but P4S not complete.",
+            currentGduForP4S: currentGDU
+          })
+          uiStore.setAutorunning(false)
+        }, 0)
         return
       }
     }
     if (!currentGDU && (tempGenericState.core_gdus_for_sync_analysis || []).length > 0 && !tempGenericState.isFullyProcessedGenericSynchronic) {
-      uiStore.setCurrentStepInfo({
-        stepId,
-        status: StepStatus.Error,
-        error: `P4S Error: No GDU to process for ${stepId}, but P4S not complete.`,
-        currentGduForP4S: currentGDU
-      })
-      uiStore.setAutorunning(false)
+      setTimeout(() => {
+        uiStore.setCurrentStepInfo({
+          stepId,
+          status: StepStatus.Error,
+          error: `P4S Error: No GDU to process for ${stepId}, but P4S not complete.`,
+          currentGduForP4S: currentGDU
+        })
+        uiStore.setAutorunning(false)
+      }, 0)
       return
     }
   }
@@ -142,14 +148,17 @@ export const processSingleStepImplementation = async (
   
   if (inputResult === null || inputResult?.error) {
     const errText = `Input error for ${stepId}: ${inputResult?.error || 'Input null'}`
-    uiStore.setCurrentStepInfo({ 
-      stepId, 
-      transcriptId: transcriptIdToProcess, 
-      status: StepStatus.Error, 
-      error: errText, 
-      currentGduForP4S: currentGDU, 
-      currentPhaseForP2S: currentPhase 
-    })
+    setTimeout(() => {
+      uiStore.setCurrentStepInfo({ 
+        stepId, 
+        transcriptId: transcriptIdToProcess, 
+        status: StepStatus.Error, 
+        error: errText, 
+        currentGduForP4S: currentGDU, 
+        currentPhaseForP2S: currentPhase 
+      })
+      uiStore.setAutorunning(false)
+    }, 0)
     
     if (stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES) {
       set((state) => { state.genericAnalysisState.p4s_1_a_error = errText })
@@ -157,19 +166,20 @@ export const processSingleStepImplementation = async (
       set((state) => { state.genericAnalysisState.p4s_1_b_error = errText })
     }
     
-    uiStore.setAutorunning(false)
     return
   }
   
   const inputData = inputResult.data
-  uiStore.setCurrentStepInfo({ 
-    stepId, 
-    transcriptId: transcriptIdToProcess, 
-    status: StepStatus.Loading, 
-    inputData, 
-    currentGduForP4S: currentGDU, 
-    currentPhaseForP2S: currentPhase 
-  })
+  setTimeout(() => {
+    uiStore.setCurrentStepInfo({ 
+      stepId, 
+      transcriptId: transcriptIdToProcess, 
+      status: StepStatus.Loading, 
+      inputData, 
+      currentGduForP4S: currentGDU, 
+      currentPhaseForP2S: currentPhase 
+    })
+  }, 0)
   
   // Process the step
   let output: string | any
@@ -281,17 +291,19 @@ function handleStepError(
   set: any,
   uiStore: any
 ) {
-  uiStore.setCurrentStepInfo({ 
-    stepId, 
-    transcriptId: transcriptIdToProcess, 
-    status: StepStatus.Error, 
-    error: apiError, 
-    inputData, 
-    outputData: output, 
-    groundingSources, 
-    currentGduForP4S: currentGDU, 
-    currentPhaseForP2S: currentPhase 
-  })
+  setTimeout(() => {
+    uiStore.setCurrentStepInfo({ 
+      stepId, 
+      transcriptId: transcriptIdToProcess, 
+      status: StepStatus.Error, 
+      error: apiError, 
+      inputData, 
+      outputData: output, 
+      groundingSources, 
+      currentGduForP4S: currentGDU, 
+      currentPhaseForP2S: currentPhase 
+    })
+  }, 0)
   
   const key = stepIdToDataKeyPrefix[stepId]
   
@@ -342,7 +354,9 @@ function handleStepError(
     }
   }
   
-  uiStore.setAutorunning(false)
+  setTimeout(() => {
+    uiStore.setAutorunning(false)
+  }, 0)
 }
 
 function handleReportGeneration(output: any, set: any, uiStore: any) {
@@ -353,19 +367,23 @@ function handleReportGeneration(output: any, set: any, uiStore: any) {
       state.genericAnalysisState.p6_1_error = undefined
     })
     
-    uiStore.setCurrentStepInfo({ 
-      stepId: StepId.P6_1_GENERATE_MARKDOWN_REPORT, 
-      status: StepStatus.Success, 
-      outputData: output 
-    })
+    setTimeout(() => {
+      uiStore.setCurrentStepInfo({ 
+        stepId: StepId.P6_1_GENERATE_MARKDOWN_REPORT, 
+        status: StepStatus.Success, 
+        outputData: output 
+      })
+    }, 0)
   } else {
     const rptErr = "Report generation resulted in empty/invalid content."
-    uiStore.setCurrentStepInfo({
-      stepId: StepId.P6_1_GENERATE_MARKDOWN_REPORT,
-      status: StepStatus.Error,
-      error: rptErr,
-      outputData: output
-    })
+    setTimeout(() => {
+      uiStore.setCurrentStepInfo({
+        stepId: StepId.P6_1_GENERATE_MARKDOWN_REPORT,
+        status: StepStatus.Error,
+        error: rptErr,
+        outputData: output
+      })
+    }, 0)
     
     set((state: any) => {
       state.genericAnalysisState.isReportGenerated = false
@@ -373,7 +391,9 @@ function handleReportGeneration(output: any, set: any, uiStore: any) {
       state.genericAnalysisState.p6_1_error = rptErr
     })
     
-    uiStore.setAutorunning(false)
+    setTimeout(() => {
+      uiStore.setAutorunning(false)
+    }, 0)
   }
 }
 
@@ -389,16 +409,18 @@ function handleSuccessfulStep(
   set: any,
   uiStore: any
 ) {
-  uiStore.setCurrentStepInfo({ 
-    stepId, 
-    transcriptId: transcriptIdToProcess, 
-    status: StepStatus.Success, 
-    inputData, 
-    outputData: output, 
-    groundingSources, 
-    currentGduForP4S: currentGDU, 
-    currentPhaseForP2S: currentPhase 
-  })
+  setTimeout(() => {
+    uiStore.setCurrentStepInfo({ 
+      stepId, 
+      transcriptId: transcriptIdToProcess, 
+      status: StepStatus.Success, 
+      inputData, 
+      outputData: output, 
+      groundingSources, 
+      currentGduForP4S: currentGDU, 
+      currentPhaseForP2S: currentPhase 
+    })
+  }, 0)
   
   const key = stepIdToDataKeyPrefix[stepId]
   
@@ -625,15 +647,17 @@ function handleSuccessfulStep(
     if (validatedGroups.length === 0) {
       const noValidGroupsError = `No valid cross-transcript groups created for GDU ${currentGDU}. All groups failed the minimum 2-transcript requirement.`
       console.error(`[P4S.1.A Processing] ${noValidGroupsError}`)
-      uiStore.setCurrentStepInfo({ 
-        stepId, 
-        transcriptId: transcriptIdToProcess, 
-        status: StepStatus.Error, 
-        error: noValidGroupsError,
-        currentGduForP4S: currentGDU
-      })
+      setTimeout(() => {
+        uiStore.setCurrentStepInfo({ 
+          stepId, 
+          transcriptId: transcriptIdToProcess, 
+          status: StepStatus.Error, 
+          error: noValidGroupsError,
+          currentGduForP4S: currentGDU
+        })
+        uiStore.setAutorunning(false)
+      }, 0)
       set((state: any) => { state.genericAnalysisState.p4s_1_a_error = noValidGroupsError })
-      uiStore.setAutorunning(false)
       return
     }
     

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { StepId, StepStatus } from '../types'
 import { usePipelineStore } from '../src/stores/pipelineStore'
 import { useUIStore } from '../src/stores/uiStore'
 
@@ -32,8 +33,8 @@ export function TranscriptUploadHandler({ onFileUpload, fileUploadInputRef }: Tr
       const currentStepInfo = useUIStore.getState().currentStepInfo
       if (currentStepInfo.stepId === 'IDLE') {
         setCurrentStepInfo({
-          stepId: 'P_NEG1_1_VARIABLE_IDENTIFICATION',
-          status: 'idle'
+          stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
+          status: StepStatus.Idle
         })
       }
     }

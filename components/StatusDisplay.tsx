@@ -1,29 +1,34 @@
 
 import React from 'react';
-import { CurrentStepInfo, StepId, StepStatus, TranscriptProcessedData } from '../types';
-import { STEP_CONFIGS, CheckCircleIcon } from '../constants'; // Assuming CheckCircleIcon is in constants
+import { StepId, StepStatus } from '../types';
+import { STEP_CONFIGS, CheckCircleIcon } from '../constants';
+import { useUIStore } from '../src/stores/uiStore';
+import { usePipelineStore } from '../src/stores/pipelineStore';
 
 interface StatusDisplayProps {
-  currentStepInfo: CurrentStepInfo;
-  STEP_CONFIGS: typeof STEP_CONFIGS; // Use typeof to get the type of STEP_CONFIGS object
-  processedData: Map<string, TranscriptProcessedData>;
-  totalInputTokens: number;
-  totalOutputTokens: number;
-  processStartTime: number | null;
-  elapsedTime: number;
   formatElapsedTime: (seconds: number) => string;
 }
 
-const StatusDisplay: React.FC<StatusDisplayProps> = ({
-  currentStepInfo, STEP_CONFIGS, processedData,
-  totalInputTokens, totalOutputTokens,
-  processStartTime, elapsedTime, formatElapsedTime
-}) => {
+const StatusDisplay: React.FC<StatusDisplayProps> = ({ formatElapsedTime }) => {
+  // Get state from stores
+  const currentStepInfo = useUIStore(state => state.currentStepInfo);
+  const processStartTime = useUIStore(state => state.processStartTime);
+  const elapsedTime = useUIStore(state => state.elapsedTime);
+  
+  const processedData = usePipelineStore(state => state.processedData);
+  const totalInputTokens = usePipelineStore(state => state.totalInputTokens);
+  const totalOutputTokens = usePipelineStore(state => state.totalOutputTokens);
+  
+  // Get filename if transcript-specific step
+  const filename = currentStepInfo.transcriptId 
+    ? processedData.get(currentStepInfo.transcriptId)?.filename || currentStepInfo.transcriptId
+    : '';
+
   return (
     <div className="p-4 bg-light-bg-alt dark:bg-dark-bg-alt rounded-lg shadow">
       <h3 className="text-md font-semibold mb-1 text-light-text dark:text-dark-text">
         Status: {STEP_CONFIGS[currentStepInfo.stepId]?.title || currentStepInfo.stepId}
-        {currentStepInfo.transcriptId && ` on ${processedData.get(currentStepInfo.transcriptId)?.filename || currentStepInfo.transcriptId}`}
+        {currentStepInfo.transcriptId && ` on ${filename}`}
         {currentStepInfo.currentPhaseForP2S && ` (Phase: ${currentStepInfo.currentPhaseForP2S})`}
         {currentStepInfo.currentGduForP4S && ` (GDU: ${currentStepInfo.currentGduForP4S})`}
       </h3>

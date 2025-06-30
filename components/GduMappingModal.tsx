@@ -1,12 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { P9_1_SemanticGduMapping, GduMappingDisplayItem, AppState } from '../types';
+import { GduMappingDisplayItem } from '../types';
+import { useIRRStore } from '../src/stores/irrStore';
 
 interface GduMappingModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  mappingProposal: P9_1_SemanticGduMapping;
-  runAState: AppState;
-  runBState: AppState;
   onConfirmMapping: (confirmedMapping: Record<string, string | null>) => void;
   primaryButtonClasses: string;
   secondaryButtonClasses: string;
@@ -15,11 +11,6 @@ interface GduMappingModalProps {
 }
 
 const GduMappingModal: React.FC<GduMappingModalProps> = ({
-  isOpen,
-  onClose,
-  mappingProposal,
-  runAState,
-  runBState,
   onConfirmMapping,
   primaryButtonClasses,
   secondaryButtonClasses,
@@ -28,25 +19,33 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
 }) => {
   const [userMappings, setUserMappings] = useState<Record<string, string | null>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  
+  // Get state from store
+  const irrWorkflowState = useIRRStore(state => state.irrWorkflowState);
+  const closeMappingModal = useIRRStore(state => state.closeMappingModal);
+  
+  const isGduMappingModalOpen = irrWorkflowState.isMappingModalOpen;
+  const mappingProposal = irrWorkflowState.mappingProposal;
+  const { runA, runB } = irrWorkflowState;
 
   // Initialize user mappings with LLM proposals
   useEffect(() => {
     if (mappingProposal) {
       const initialMappings: Record<string, string | null> = {};
-      mappingProposal.gdu_mappings.forEach(mapping => {
+      mappingProposal.gdu_mappings.forEach((mapping: any) => {
         initialMappings[mapping.run_a_gdu_id] = mapping.run_b_gdu_id;
       });
       setUserMappings(initialMappings);
     }
   }, [mappingProposal]);
 
-  if (!isOpen) return null;
+  if (!isGduMappingModalOpen || !mappingProposal || !runA || !runB) return null;
 
   // Helper function to build enhanced display items
   const buildDisplayItems = (): GduMappingDisplayItem[] => {
-    const runBGdus = runBState.genericAnalysisState.p3_2_output?.identified_gdus || [];
+    const runBGdus = runB.genericAnalysisState.p3_2_output?.identified_gdus || [];
     
-    return mappingProposal.gdu_mappings.map(mapping => {
+    return mappingProposal.gdu_mappings.map((mapping: any) => {
       const availableRunBOptions = runBGdus.map(gdu => ({
         gduId: gdu.gdu_id,
         definition: gdu.definition,
@@ -61,7 +60,7 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
         runADefinition: mapping.run_a_definition,
         runAContributingRduCount: mapping.run_a_contributing_rdu_count,
         runATranscriptCount: new Set(
-          runAState.genericAnalysisState.p3_2_output?.identified_gdus
+          runA.genericAnalysisState.p3_2_output?.identified_gdus
             ?.find(g => g.gdu_id === mapping.run_a_gdu_id)
             ?.contributing_refined_du_ids.map(c => c.transcript_id) || []
         ).size,
@@ -177,7 +176,7 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
               Validate GDU Mappings
             </h2>
             <button
-              onClick={onClose}
+              onClick={closeMappingModal}
               className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text text-2xl"
             >
               ×
@@ -285,7 +284,7 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
             </div>
             <div className="flex space-x-3">
               <button
-                onClick={onClose}
+                onClick={closeMappingModal}
                 className={secondaryButtonClasses}
               >
                 Cancel

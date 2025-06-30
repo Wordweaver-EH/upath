@@ -29,6 +29,8 @@ import { useUIStore } from './uiStore'
 import { useSettingsStore } from './settingsStore'
 import { processSingleStepImplementation, getInvalidatedStates } from './pipelineActions'
 import { stepIdToDataKeyPrefix, isGlobalStep } from '../utils/stepIdToDataKeyPrefix'
+import { downloadFile, generateTsvForPromptHistory } from '../../utils/tsvHelper'
+import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from '../../utils/htmlHelper'
 
 // Slice types
 interface TranscriptSlice {
@@ -53,7 +55,12 @@ interface PromptSlice {
 
 // Main pipeline actions
 interface PipelineActions {
-  processSingleStep: (stepId: StepId, transcriptId?: string, overrideSeed?: number, hilMetaPrompt?: string) => Promise<void>
+  processSingleStep: (params: { 
+    stepId: StepId,
+    transcriptIdToProcess?: string,
+    overrideSeed?: number,
+    hilMetaPrompt?: string
+  }) => Promise<void>
   invalidateStateFromStep: (stepId: StepId, transcriptId?: string) => void
   getInvalidatedStates: (
     startInvalidationFromStepId: StepId,
@@ -69,10 +76,25 @@ interface PipelineActions {
   resetPipeline: () => void
   loadState: (savedState: SavedState) => void
   getSaveState: () => SavedState
+  downloadOutput: (stepIdToDownload?: StepId, transcriptId?: string, dataToDownload?: any) => void
+  downloadHistory: (format: 'tsv' | 'json') => void
+  generateAppendix: (type: 'markdown' | 'html') => void
+}
+
+// Pipeline selectors for derived state
+interface PipelineSelectors {
+  isPreviousStepDisabled: () => boolean
+  isNextStepDisabled: () => boolean
+  isRunStepDisabled: () => boolean
+  isHilModalDisabled: () => boolean
+  getPreviousStepDetails: () => { prevStepId: StepId; prevTranscriptIndex: number } | null
+  isDownloadOutputDisabled: () => boolean
+  isDownloadHistoryDisabled: () => boolean
+  isAppendixDataAvailable: () => boolean
 }
 
 type PipelineState = TranscriptSlice & GenericAnalysisSlice & PromptSlice
-type PipelineStore = PipelineState & PipelineActions
+type PipelineStore = PipelineState & PipelineActions & PipelineSelectors
 
 // Helper function to process file content
 const processFileContent = async (file: File): Promise<RawTranscript> => {
@@ -215,12 +237,8 @@ export const usePipelineStore = create<PipelineStore>()(
       ...createPromptSlice(set, get),
       
       // Main pipeline orchestrator
-      processSingleStep: async (
-        stepId: StepId, 
-        transcriptIdToProcess?: string, 
-        overrideSeed?: number, 
-        hilMetaPrompt?: string
-      ) => {
+      processSingleStep: async (params) => {
+        const { stepId, transcriptIdToProcess, overrideSeed, hilMetaPrompt } = params
         const isReportStepForThisCall = stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT
         
         // Get current state
@@ -247,35 +265,41 @@ export const usePipelineStore = create<PipelineStore>()(
         
         // API Key check
         if (!apiKeyPresent && !isReportStepForThisCall) {
-          uiStore.setCurrentStepInfo({ 
-            stepId, 
-            status: StepStatus.Error, 
-            error: "API Key not set." 
-          })
-          uiStore.setAutorunning(false)
+          setTimeout(() => {
+            uiStore.setCurrentStepInfo({ 
+              stepId, 
+              status: StepStatus.Error, 
+              error: "API Key not set." 
+            })
+            uiStore.setAutorunning(false)
+          }, 0)
           return
         }
         
         // DV Focus check
         if (dvFocusError) {
-          uiStore.setCurrentStepInfo({ 
-            stepId, 
-            status: StepStatus.Error, 
-            error: `DV Focus Error: ${dvFocusError}` 
-          })
-          uiStore.setAutorunning(false)
+          setTimeout(() => {
+            uiStore.setCurrentStepInfo({ 
+              stepId, 
+              status: StepStatus.Error, 
+              error: `DV Focus Error: ${dvFocusError}` 
+            })
+            uiStore.setAutorunning(false)
+          }, 0)
           return
         }
         
         // Call the implementation
         await processSingleStepImplementation(
-          { stepId, transcriptIdToProcess, overrideSeed, hilMetaPrompt },
+          params,
           {
             rawTranscripts: get().rawTranscripts,
             processedData: get().processedData,
             genericAnalysisState: get().genericAnalysisState,
             set,
-            get
+            get,
+            uiStore: useUIStore.getState(),
+            settingsStore: useSettingsStore.getState()
           }
         )
       },
@@ -497,31 +521,37 @@ export const usePipelineStore = create<PipelineStore>()(
           const { genericAnalysisState } = get()
           if (uiStore.currentStepInfo.stepId !== StepId.COMPLETE && genericAnalysisState.isReportGenerated) {
             const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All processing complete."
+            setTimeout(() => {
+              uiStore.setCurrentStepInfo({ 
+                stepId: StepId.COMPLETE, 
+                status: StepStatus.Success, 
+                outputData: report 
+              })
+              uiStore.setAutorunning(false)
+            }, 0)
+          }
+          return
+        }
+        
+        setTimeout(() => {
+          uiStore.setActiveTranscript(details.nextTranscriptIndex)
+        }, 0)
+        
+        if (details.nextStepId === StepId.COMPLETE) {
+          const { genericAnalysisState } = get()
+          const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "Processing complete."
+          setTimeout(() => {
             uiStore.setCurrentStepInfo({ 
               stepId: StepId.COMPLETE, 
               status: StepStatus.Success, 
               outputData: report 
             })
             uiStore.setAutorunning(false)
-          }
-          return
-        }
-        
-        uiStore.setActiveTranscript(details.nextTranscriptIndex)
-        
-        if (details.nextStepId === StepId.COMPLETE) {
-          const { genericAnalysisState } = get()
-          const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "Processing complete."
-          uiStore.setCurrentStepInfo({ 
-            stepId: StepId.COMPLETE, 
-            status: StepStatus.Success, 
-            outputData: report 
-          })
-          uiStore.setAutorunning(false)
+          }, 0)
         } else {
           const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId)
           const nextTxId = isNextGlobal ? undefined : rawTranscripts[details.nextTranscriptIndex]?.id
-          get().processSingleStep(details.nextStepId, nextTxId)
+          get().processSingleStep({ stepId: details.nextStepId, transcriptIdToProcess: nextTxId })
         }
       },
       
@@ -579,7 +609,9 @@ export const usePipelineStore = create<PipelineStore>()(
         
         // Update UI state
         const uiStore = useUIStore.getState()
-        uiStore.setActiveTranscript(savedState.activeTranscriptIndex)
+        setTimeout(() => {
+          uiStore.setActiveTranscript(savedState.activeTranscriptIndex)
+        }, 0)
         // Note: currentStepInfo is not restored from saved state
       },
       
@@ -602,6 +634,168 @@ export const usePipelineStore = create<PipelineStore>()(
           temperature: settingsState.temperature,
           seed: settingsState.seed,
           currentStepInfo: uiState.currentStepInfo
+        }
+      },
+
+      // Pipeline selectors for derived state
+      getPreviousStepDetails: () => {
+        const uiState = useUIStore.getState()
+        const { currentStepInfo, activeTranscriptIndex } = uiState
+        const { rawTranscripts } = get()
+        
+        if (currentStepInfo.stepId === StepId.IDLE) return null
+        
+        const currentIndex = ALL_PIPELINE_STEP_IDS_IN_ORDER.indexOf(currentStepInfo.stepId)
+        if (currentIndex <= 0) return null
+        
+        // Handle first step of pipeline for transcripts beyond the first
+        if (currentStepInfo.stepId === STEP_ORDER_PART_NEG1[0] && activeTranscriptIndex > 0) {
+          return { 
+            prevStepId: StepId.IDLE,
+            prevTranscriptIndex: activeTranscriptIndex - 1 
+          }
+        }
+        
+        const prevStepId = ALL_PIPELINE_STEP_IDS_IN_ORDER[currentIndex - 1] as StepId
+        return { prevStepId, prevTranscriptIndex: activeTranscriptIndex }
+      },
+
+      isPreviousStepDisabled: () => {
+        const uiState = useUIStore.getState()
+        const { currentStepInfo } = uiState
+        
+        return currentStepInfo.status === StepStatus.Loading || !get().getPreviousStepDetails()
+      },
+
+      isNextStepDisabled: () => {
+        const uiState = useUIStore.getState()
+        const { currentStepInfo } = uiState
+        const { genericAnalysisState } = get()
+        
+        return currentStepInfo.status === StepStatus.Loading || 
+               (!get().getNextStepDetails() && currentStepInfo.stepId !== StepId.COMPLETE && !genericAnalysisState.isReportGenerated)
+      },
+
+      isRunStepDisabled: () => {
+        const uiState = useUIStore.getState()
+        const settingsState = useSettingsStore.getState()
+        const { currentStepInfo } = uiState
+        const { apiKeyPresent, dvFocusError } = settingsState
+        
+        return currentStepInfo.stepId === StepId.IDLE || 
+               currentStepInfo.status === StepStatus.Loading || 
+               currentStepInfo.stepId === StepId.COMPLETE || 
+               (!apiKeyPresent && currentStepInfo.stepId !== StepId.P6_1_GENERATE_MARKDOWN_REPORT) || 
+               !!dvFocusError
+      },
+
+      isHilModalDisabled: () => {
+        const uiState = useUIStore.getState()
+        const { currentStepInfo } = uiState
+        
+        return currentStepInfo.stepId === StepId.IDLE || 
+               currentStepInfo.status === StepStatus.Loading || 
+               currentStepInfo.stepId === StepId.COMPLETE || 
+               !currentStepInfo.inputData || 
+               (!currentStepInfo.outputData && !currentStepInfo.error)
+      },
+
+      isDownloadOutputDisabled: () => {
+        const uiState = useUIStore.getState()
+        const { currentStepInfo } = uiState
+        const { genericAnalysisState } = get()
+        
+        return currentStepInfo.stepId === StepId.IDLE || 
+               (!currentStepInfo.outputData && !genericAnalysisState.p6_1_output) || 
+               (currentStepInfo.stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT && !genericAnalysisState.p6_1_output)
+      },
+
+      isDownloadHistoryDisabled: () => {
+        const { promptHistory } = get()
+        return promptHistory.length === 0
+      },
+
+      isAppendixDataAvailable: () => {
+        const { rawTranscripts, genericAnalysisState } = get()
+        return rawTranscripts.length > 0 && genericAnalysisState.isReportGenerated
+      },
+
+      // Download and appendix actions
+      downloadOutput: (stepIdToDownload?: StepId, transcriptId?: string, dataToDownload?: any) => {
+        const uiState = useUIStore.getState()
+        const settingsState = useSettingsStore.getState()
+        const { currentStepInfo } = uiState
+        const { outputDirectory } = settingsState
+        const { processedData, genericAnalysisState } = get()
+        
+        const stepId = stepIdToDownload || currentStepInfo.stepId
+        const transcriptIdToUse = transcriptId || currentStepInfo.transcriptId
+        
+        let data = dataToDownload
+        let filename = `${outputDirectory}/${stepId}_output`
+        
+        // If no specific data provided, get it from current step
+        if (!data) {
+          if (stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT) {
+            data = genericAnalysisState.p6_1_output
+          } else {
+            data = currentStepInfo.outputData
+          }
+        }
+        
+        if (data) {
+          const content = typeof data === 'string' ? data : JSON.stringify(data, null, 2)
+          const extension = typeof data === 'string' ? '.txt' : '.json'
+          downloadFile(content, `${filename}${extension}`, 'text/plain;charset=utf-8')
+        } else {
+          alert('No output data available to download.')
+        }
+      },
+
+      downloadHistory: (format: 'tsv' | 'json') => {
+        const { promptHistory } = get()
+        const settingsState = useSettingsStore.getState()
+        const { outputDirectory } = settingsState
+        
+        if (promptHistory.length === 0) {
+          alert('No history to download.')
+          return
+        }
+        
+        const filename = `${outputDirectory}/prompt_history_${new Date().toISOString().slice(0,10)}`
+        
+        if (format === 'tsv') {
+          const tsvContent = generateTsvForPromptHistory(promptHistory)
+          downloadFile(tsvContent, `${filename}.tsv`, 'text/tab-separated-values;charset=utf-8')
+        } else {
+          const jsonContent = JSON.stringify(promptHistory, null, 2)
+          downloadFile(jsonContent, `${filename}.json`, 'application/json')
+        }
+      },
+
+      generateAppendix: (type: 'markdown' | 'html' = 'markdown') => {
+        const { rawTranscripts, processedData, genericAnalysisState } = get()
+        const settingsState = useSettingsStore.getState()
+        const { outputDirectory } = settingsState
+        
+        if (rawTranscripts.length === 0) {
+          alert('No transcripts to generate appendix for.')
+          return
+        }
+        
+        const gduCounts = calculateGduUtteranceCounts(processedData, genericAnalysisState.p3_2_output)
+        const gssCounts = calculateGssCategoryUtteranceCounts(processedData, genericAnalysisState.p4s_outputs_by_gdu)
+        const transitionCounts = calculateGduTransitionCounts(processedData, genericAnalysisState.p3_2_output, genericAnalysisState.p3_3_output)
+        
+        if (type === 'html') {
+          const htmlContent = generateHtmlAppendix(gduCounts, gssCounts, transitionCounts, false)
+          const filename = `${outputDirectory}/appendix_${new Date().toISOString().slice(0,10)}.html`
+          downloadFile(htmlContent, filename, 'text/html;charset=utf-8')
+        } else {
+          // Basic markdown implementation
+          const markdownContent = `# Analysis Appendix\n\nGenerated on: ${new Date().toISOString()}\n\n## GDU Counts\n${JSON.stringify(gduCounts, null, 2)}\n\n## GSS Counts\n${JSON.stringify(gssCounts, null, 2)}\n\n## Transition Counts\n${JSON.stringify(transitionCounts, null, 2)}`
+          const filename = `${outputDirectory}/appendix_${new Date().toISOString().slice(0,10)}.md`
+          downloadFile(markdownContent, filename, 'text/markdown;charset=utf-8')
         }
       }
     })),

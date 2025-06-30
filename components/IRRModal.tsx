@@ -1,12 +1,8 @@
 import React, { useRef } from 'react';
-import { IrrWorkflowState, AppState, IrrResults } from '../types';
+import { AppState } from '../types';
+import { useIRRStore } from '../src/stores/irrStore';
 
 interface IRRModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  irrState: IrrWorkflowState;
-  onStateUpdate: (updates: Partial<IrrWorkflowState>) => void;
-  onStartComparison: () => void;
   onDownloadDisagreementReport?: () => void;
   primaryButtonClasses: string;
   secondaryButtonClasses: string;
@@ -15,11 +11,6 @@ interface IRRModalProps {
 }
 
 const IRRModal: React.FC<IRRModalProps> = ({
-  isOpen,
-  onClose,
-  irrState,
-  onStateUpdate,
-  onStartComparison,
   onDownloadDisagreementReport,
   primaryButtonClasses,
   secondaryButtonClasses,
@@ -28,11 +19,23 @@ const IRRModal: React.FC<IRRModalProps> = ({
 }) => {
   const fileInputARef = useRef<HTMLInputElement>(null);
   const fileInputBRef = useRef<HTMLInputElement>(null);
+  
+  // Get state and actions from store
+  const irrWorkflowState = useIRRStore(state => state.irrWorkflowState);
+  const closeIrrModal = useIRRStore(state => state.closeIrrModal);
+  const startComparison = useIRRStore(state => state.startComparison);
+  const setRunA = useIRRStore(state => state.setRunA);
+  const setRunB = useIRRStore(state => state.setRunB);
+  const setErrorMessage = useIRRStore(state => state.setErrorMessage);
+  const setLoadingState = useIRRStore(state => state.setLoadingState);
+  const generateSemanticMapping = useIRRStore(state => state.generateSemanticMapping);
+  
+  const isIrrModalOpen = irrWorkflowState.isIrrModalOpen;
 
-  if (!isOpen) return null;
+  if (!isIrrModalOpen) return null;
 
   const handleFileLoad = (file: File, run: 'A' | 'B') => {
-    onStateUpdate({ loadingState: 'loading-files' });
+    setLoadingState('loading-files');
     
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -46,15 +49,14 @@ const IRRModal: React.FC<IRRModalProps> = ({
         }
 
         if (run === 'A') {
-          onStateUpdate({ runA: parsedState, loadingState: 'idle' });
+          setRunA(parsedState);
+          setLoadingState('idle');
         } else {
-          onStateUpdate({ runB: parsedState, loadingState: 'idle' });
+          setRunB(parsedState);
+          setLoadingState('idle');
         }
       } catch (error) {
-        onStateUpdate({ 
-          loadingState: 'error', 
-          errorMessage: `Failed to load Run ${run}: ${error instanceof Error ? error.message : 'Invalid JSON'}` 
-        });
+        setErrorMessage(`Failed to load Run ${run}: ${error instanceof Error ? error.message : 'Invalid JSON'}`);
       }
     };
     reader.readAsText(file);
@@ -68,15 +70,15 @@ const IRRModal: React.FC<IRRModalProps> = ({
   };
 
   const canStartComparison = () => {
-    return irrState.runA && 
-           irrState.runB && 
-           irrState.loadingState === 'idle' &&
-           irrState.runA.genericAnalysisState.p3_2_output &&
-           irrState.runB.genericAnalysisState.p3_2_output;
+    return irrWorkflowState.runA && 
+           irrWorkflowState.runB && 
+           irrWorkflowState.loadingState === 'idle' &&
+           irrWorkflowState.runA.genericAnalysisState.p3_2_output &&
+           irrWorkflowState.runB.genericAnalysisState.p3_2_output;
   };
 
   const getLoadingMessage = () => {
-    switch (irrState.loadingState) {
+    switch (irrWorkflowState.loadingState) {
       case 'loading-files':
         return 'Loading state files...';
       case 'calling-llm':
@@ -89,8 +91,8 @@ const IRRModal: React.FC<IRRModalProps> = ({
   };
 
   const renderFileInput = (run: 'A' | 'B', ref: React.RefObject<HTMLInputElement>) => {
-    const isLoaded = run === 'A' ? !!irrState.runA : !!irrState.runB;
-    const state = run === 'A' ? irrState.runA : irrState.runB;
+    const isLoaded = run === 'A' ? !!irrWorkflowState.runA : !!irrWorkflowState.runB;
+    const state = run === 'A' ? irrWorkflowState.runA : irrWorkflowState.runB;
     
     return (
       <div className="mb-4">
@@ -120,7 +122,10 @@ const IRRModal: React.FC<IRRModalProps> = ({
     );
   };
 
-  const renderResults = (results: IrrResults) => {
+  const renderResults = () => {
+    const results = irrWorkflowState.results;
+    if (!results) return null;
+
     const getReliabilityColor = (alpha: number) => {
       if (alpha >= 0.8) return 'text-light-accent-subtle dark:text-dark-accent-subtle';
       if (alpha >= 0.667) return 'text-light-accent-subtle dark:text-dark-accent-subtle';
@@ -200,7 +205,7 @@ const IRRModal: React.FC<IRRModalProps> = ({
               Inter-Rater Reliability Analysis
             </h2>
             <button
-              onClick={onClose}
+              onClick={closeIrrModal}
               className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text text-2xl"
             >
               ×
@@ -225,7 +230,7 @@ const IRRModal: React.FC<IRRModalProps> = ({
           </div>
 
           {/* Loading state */}
-          {irrState.loadingState !== 'idle' && irrState.loadingState !== 'complete' && irrState.loadingState !== 'error' && (
+          {irrWorkflowState.loadingState !== 'idle' && irrWorkflowState.loadingState !== 'complete' && irrWorkflowState.loadingState !== 'error' && (
             <div className="mb-6 text-center">
               <div className="inline-flex items-center space-x-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
@@ -235,23 +240,23 @@ const IRRModal: React.FC<IRRModalProps> = ({
           )}
 
           {/* Error message */}
-          {irrState.loadingState === 'error' && irrState.errorMessage && (
+          {irrWorkflowState.loadingState === 'error' && irrWorkflowState.errorMessage && (
             <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
               <div className="text-red-600 dark:text-red-400 text-sm font-medium">Error</div>
-              <div className="text-red-600 dark:text-red-400 text-sm">{irrState.errorMessage}</div>
+              <div className="text-red-600 dark:text-red-400 text-sm">{irrWorkflowState.errorMessage}</div>
             </div>
           )}
 
           {/* Smart GDU check info */}
-          {irrState.runA && irrState.runB && irrState.loadingState === 'idle' && (
+          {irrWorkflowState.runA && irrWorkflowState.runB && irrWorkflowState.loadingState === 'idle' && (
             <div className="mb-6 p-4 bg-light-accent-subtle/10 dark:bg-dark-accent-subtle/10 border border-light-accent-subtle/30 dark:border-dark-accent-subtle/30 rounded-lg">
               <div className="text-light-accent-subtle dark:text-dark-accent-subtle text-sm">
                 <div className="font-medium mb-1">GDU Comparison Preview:</div>
-                <div>Run A: {irrState.runA.genericAnalysisState.p3_2_output?.identified_gdus?.length || 0} GDUs</div>
-                <div>Run B: {irrState.runB.genericAnalysisState.p3_2_output?.identified_gdus?.length || 0} GDUs</div>
+                <div>Run A: {irrWorkflowState.runA.genericAnalysisState.p3_2_output?.identified_gdus?.length || 0} GDUs</div>
+                <div>Run B: {irrWorkflowState.runB.genericAnalysisState.p3_2_output?.identified_gdus?.length || 0} GDUs</div>
                 {(() => {
-                  const runAGduIds = new Set(irrState.runA.genericAnalysisState.p3_2_output?.identified_gdus?.map(g => g.gdu_id) || []);
-                  const runBGduIds = new Set(irrState.runB.genericAnalysisState.p3_2_output?.identified_gdus?.map(g => g.gdu_id) || []);
+                  const runAGduIds = new Set(irrWorkflowState.runA.genericAnalysisState.p3_2_output?.identified_gdus?.map(g => g.gdu_id) || []);
+                  const runBGduIds = new Set(irrWorkflowState.runB.genericAnalysisState.p3_2_output?.identified_gdus?.map(g => g.gdu_id) || []);
                   const intersection = new Set([...runAGduIds].filter(id => runBGduIds.has(id)));
                   const areIdentical = runAGduIds.size === runBGduIds.size && intersection.size === runAGduIds.size;
                   
@@ -272,7 +277,7 @@ const IRRModal: React.FC<IRRModalProps> = ({
           <div className="flex justify-between items-center mb-6">
             <div></div>
             <button
-              onClick={onStartComparison}
+              onClick={generateSemanticMapping}
               disabled={!canStartComparison()}
               className={`px-6 py-3 rounded font-medium ${
                 canStartComparison()
@@ -285,13 +290,13 @@ const IRRModal: React.FC<IRRModalProps> = ({
           </div>
 
           {/* Results */}
-          {irrState.results && renderResults(irrState.results)}
+          {irrWorkflowState.results && renderResults()}
 
           {/* Footer */}
           <div className="border-t border-light-border dark:border-dark-border pt-4 mt-6">
             <div className="flex justify-end space-x-3">
               <button
-                onClick={onClose}
+                onClick={closeIrrModal}
                 className={secondaryButtonClasses}
               >
                 Close

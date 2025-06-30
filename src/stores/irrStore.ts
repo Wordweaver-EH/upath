@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import { IrrWorkflowState, SavedState, SemanticGduMapping, IrrResultsSection, P9_1_SemanticGduMapping } from '../../types'
+import { IrrWorkflowState, SavedState, P9_1_SemanticGduMapping } from '../../types'
 import { calculateKrippendorffsAlpha } from '../../utils/statisticsHelper'
 import { callGeminiAPI } from '../../services/geminiService'
 import { GEMINI_MODEL_TEXT } from '../../constants'
@@ -11,8 +11,12 @@ interface IRRState {
 
 interface IRRActions {
   // Workflow Control
+  openIrrModal: () => void
   startComparison: (runA: SavedState, runB: SavedState) => void
   closeIrrModal: () => void
+  setRunA: (runA: SavedState) => void
+  setRunB: (runB: SavedState) => void
+  setErrorMessage: (message: string) => void
   
   // Mapping Modal
   openMappingModal: () => void
@@ -20,7 +24,7 @@ interface IRRActions {
   
   // Semantic Mapping
   generateSemanticMapping: () => Promise<void>
-  confirmMapping: (mapping: SemanticGduMapping) => void
+  confirmMapping: (mapping: P9_1_SemanticGduMapping) => void
   
   // Results
   calculateResults: () => void
@@ -28,7 +32,7 @@ interface IRRActions {
   
   // Utils
   resetIrrWorkflow: () => void
-  setLoadingState: (state: 'idle' | 'generating' | 'calculating') => void
+  setLoadingState: (state: 'idle' | 'loading-files' | 'calling-llm' | 'calculating' | 'complete' | 'error') => void
 }
 
 type IRRStore = IRRState & IRRActions
@@ -50,6 +54,12 @@ export const useIRRStore = create<IRRStore>()(
     irrWorkflowState: initialIrrState,
     
     // Actions
+    openIrrModal: () => {
+      set((state) => {
+        state.irrWorkflowState.isIrrModalOpen = true
+      })
+    },
+    
     startComparison: (runA: SavedState, runB: SavedState) => {
       set((state) => {
         state.irrWorkflowState = {
@@ -64,6 +74,25 @@ export const useIRRStore = create<IRRStore>()(
     closeIrrModal: () => {
       set((state) => {
         state.irrWorkflowState.isIrrModalOpen = false
+      })
+    },
+    
+    setRunA: (runA: SavedState) => {
+      set((state) => {
+        state.irrWorkflowState.runA = runA
+      })
+    },
+    
+    setRunB: (runB: SavedState) => {
+      set((state) => {
+        state.irrWorkflowState.runB = runB
+      })
+    },
+    
+    setErrorMessage: (message: string) => {
+      set((state) => {
+        state.irrWorkflowState.errorMessage = message
+        state.irrWorkflowState.loadingState = 'error'
       })
     },
     
@@ -89,13 +118,13 @@ export const useIRRStore = create<IRRStore>()(
       }
       
       set((state) => {
-        state.irrWorkflowState.loadingState = 'generating'
+        state.irrWorkflowState.loadingState = 'calling-llm'
       })
       
       try {
         // Extract GDUs from both runs
-        const gdusA = runA.genericAnalysisState.p3_2_output?.gdus || []
-        const gdusB = runB.genericAnalysisState.p3_2_output?.gdus || []
+        const gdusA = runA.genericAnalysisState.p3_2_output?.identified_gdus || []
+        const gdusB = runB.genericAnalysisState.p3_2_output?.identified_gdus || []
         
         // Get settings from settingsStore
         const { temperature, seed } = (await import('./settingsStore')).useSettingsStore.getState()
@@ -103,10 +132,10 @@ export const useIRRStore = create<IRRStore>()(
         const prompt = `You are tasked with creating a semantic mapping between Generic Diachronic Units (GDUs) from two different analysis runs of micro-phenomenological data.
 
 ## Run A GDUs:
-${gdusA.map((gdu, idx) => `${idx + 1}. ${gdu.gdu_name}: ${gdu.gdu_description}`).join('\n')}
+${gdusA.map((gdu, idx) => `${idx + 1}. ${gdu.gdu_id}: ${gdu.definition}`).join('\n')}
 
 ## Run B GDUs:
-${gdusB.map((gdu, idx) => `${idx + 1}. ${gdu.gdu_name}: ${gdu.gdu_description}`).join('\n')}
+${gdusB.map((gdu, idx) => `${idx + 1}. ${gdu.gdu_id}: ${gdu.definition}`).join('\n')}
 
 ## Task:
 Create a mapping between semantically similar GDUs across the two runs. Some GDUs may have no match in the other run.
@@ -168,7 +197,7 @@ Provide your response as a JSON object with this structure:
       }
     },
     
-    confirmMapping: (mapping: SemanticGduMapping) => {
+    confirmMapping: (mapping: P9_1_SemanticGduMapping) => {
       set((state) => {
         state.irrWorkflowState.confirmedMapping = mapping
         state.irrWorkflowState.isMappingModalOpen = false
@@ -215,7 +244,7 @@ Provide your response as a JSON object with this structure:
       })
     },
     
-    setLoadingState: (loadingState: 'idle' | 'generating' | 'calculating') => {
+    setLoadingState: (loadingState: 'idle' | 'loading-files' | 'calling-llm' | 'calculating' | 'complete' | 'error') => {
       set((state) => {
         state.irrWorkflowState.loadingState = loadingState
       })
