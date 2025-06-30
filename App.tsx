@@ -15,10 +15,10 @@ import {
   STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_ORDER_PART_5_REFINEMENT,
   STEP_ORDER_PART_7_CAUSAL_MODELING, STEP_ORDER_PART_6_REPORT
 } from './constants';
-import { buildCompleteUtteranceToGduMapping } from './utils/traceabilityHelper';
-import { calculateKrippendorffsAlpha, buildReliabilityMatrix, validateReliabilityMatrix } from './utils/statisticsHelper';
-import { generateTsvForPromptHistory } from './utils/tsvHelper';
-import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './utils/htmlHelper';
+import { buildCompleteUtteranceToGduMapping } from './src/utils/traceabilityHelper';
+import { calculateKrippendorffsAlpha, buildReliabilityMatrix, validateReliabilityMatrix } from './src/utils/statisticsHelper';
+import { generateTsvForPromptHistory } from './src/utils/tsvHelper';
+import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './src/utils/htmlHelper';
 import { callGeminiAPI } from './services/geminiService';
 import { stepIdToDataKeyPrefix } from './src/utils/stepIdToDataKeyPrefix';
 

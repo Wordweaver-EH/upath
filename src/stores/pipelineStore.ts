@@ -29,15 +29,15 @@ import { callGeminiAPI } from '../../services/geminiService'
 import { useUIStore } from './uiStore'
 import { useSettingsStore } from './settingsStore'
 import { stepIdToDataKeyPrefix, isGlobalStep } from '../utils/stepIdToDataKeyPrefix'
-import { generateMarkdownReportProgrammatically, ReportData } from '../../utils/reportHelper'
+import { generateMarkdownReportProgrammatically, ReportData } from '../utils/reportHelper'
 import { 
   transformDiachronicToMermaid, 
   transformSynchronicToMermaid, 
   transformGenericDiachronicToMermaid, 
   transformDagToMermaid 
-} from '../../utils/visualizationHelper'
-import { downloadFile, generateTsvForPromptHistory } from '../../utils/tsvHelper'
-import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from '../../utils/htmlHelper'
+} from '../utils/visualizationHelper'
+import { downloadFile, generateTsvForPromptHistory } from '../utils/tsvHelper'
+import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from '../utils/htmlHelper'
 
 // Slice types
 interface TranscriptSlice {

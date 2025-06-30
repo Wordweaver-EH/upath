@@ -2,8 +2,8 @@
 
 
 import { StepId, UserDVFocus, SelectedUtterance, RawTranscript, TranscriptProcessedData, GenericAnalysisState, P_neg1_1_Output, P0_1_Output, P0_2_Output, P0_3_Output, P1_1_Output, P1_2_Output, P1_3_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_1_Output, P3_2_Output, P4S_1_A_Output, P5_1_ComparativeAnalysisOutput, P5_1_Input, P5_1_InputWithFlag, P5_2_RefinementOutput, P7_1_Output, P7_3_Output, P7_3b_Output, P7_4_Output, P7_2_ProposedLink, P7_1_CandidateVariable } from './types';
-import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './utils/htmlHelper'; // For P6.1 input
-import { ReportData } from './utils/reportHelper'; // Ensure this matches the actual path if different
+import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './src/utils/htmlHelper'; // For P6.1 input
+import { ReportData } from './src/utils/reportHelper'; // Ensure this matches the actual path if different
 
 export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash-preview-04-17';
 
