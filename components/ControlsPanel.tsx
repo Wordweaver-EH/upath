@@ -1,6 +1,6 @@
 
 import React, { useMemo } from 'react';
-import { StepId } from '../types';
+import { StepId, StepStatus } from '../types';
 import { PlayIcon, PauseIcon, NextIcon, PreviousIcon, RetryIcon, LightbulbIcon, DownloadIcon, AppendixIcon, ChevronDownIcon } from '../constants';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
@@ -16,13 +16,7 @@ const IrrIcon = (
 );
 
 interface ControlsPanelProps {
-  // Retry UI state (still managed in App.tsx)
-  showRetryWithNewSeedUI: boolean;
-  retrySeedInput: string;
-  onRetrySeedInputChange: (value: string) => void;
-  onRetryWithUserSeed: () => void;
-  
-  // Style classes
+  // Style classes only - all state managed by stores
   inputBaseClasses: string;
   primaryButtonClasses: string;
   secondaryButtonClasses: string;
@@ -30,10 +24,6 @@ interface ControlsPanelProps {
 }
 
 const ControlsPanel: React.FC<ControlsPanelProps> = ({
-  showRetryWithNewSeedUI,
-  retrySeedInput,
-  onRetrySeedInputChange,
-  onRetryWithUserSeed,
   inputBaseClasses,
   primaryButtonClasses,
   secondaryButtonClasses,
@@ -43,6 +33,8 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   const isAutorunning = useUIStore(state => state.isAutorunning);
   const toggleAutorun = useUIStore(state => state.toggleAutorun);
   const currentStepInfo = useUIStore(state => state.currentStepInfo);
+  const retrySeedInput = useUIStore(state => state.retrySeedInput);
+  const setRetrySeedInput = useUIStore(state => state.setRetrySeedInput);
   
   // Settings Store
   const apiKeyPresent = useSettingsStore(state => state.apiKeyPresent);
@@ -74,6 +66,7 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
   const downloadOutput = usePipelineStore(state => state.downloadOutput);
   const downloadHistory = usePipelineStore(state => state.downloadHistory);
   const generateAppendix = usePipelineStore(state => state.generateAppendix);
+  const retryWithUserSeed = usePipelineStore(state => state.retryWithUserSeed);
 
   // IRR Store
   const openIrrModal = useIRRStore(state => state.openIrrModal);
@@ -83,6 +76,12 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
     const currentStepInfo = useUIStore.getState().currentStepInfo;
     processSingleStep({ stepId: currentStepInfo.stepId });
   };
+
+  // Determine if retry UI should be shown
+  const showRetryWithNewSeedUI = useMemo(() => {
+    return currentStepInfo.status === StepStatus.Error && 
+           !!currentStepInfo.error?.match(/parse JSON/i);
+  }, [currentStepInfo.status, currentStepInfo.error]);
 
   return (
     <>
@@ -129,12 +128,12 @@ const ControlsPanel: React.FC<ControlsPanelProps> = ({
                   <input
                       type="number"
                       value={retrySeedInput}
-                      onChange={(e) => onRetrySeedInputChange(e.target.value)}
+                      onChange={(e) => setRetrySeedInput(e.target.value)}
                       placeholder="Enter new seed"
                       className={inputBaseClasses}
                   />
                   <button
-                      onClick={onRetryWithUserSeed}
+                      onClick={retryWithUserSeed}
                       className={primaryButtonClasses}
                   >
                       Retry

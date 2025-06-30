@@ -18,9 +18,17 @@ interface UIState {
   hilContext: HilContext | null
   hilUserGuidance: string
   
+  // Retry UI
+  retrySeedInput: string
+  
   // UI State
   theme: 'light' | 'dark'
   isDraggingOver: boolean
+  
+  // Drag & Drop
+  handleDragOver: (event: React.DragEvent<HTMLDivElement>) => void
+  handleDragLeave: (event: React.DragEvent<HTMLDivElement>) => void
+  handleDrop: (event: React.DragEvent<HTMLDivElement>) => void
 }
 
 interface UIActions {
@@ -42,6 +50,9 @@ interface UIActions {
   openHilModalWithContext: () => void
   closeHilModal: () => void
   setHilUserGuidance: (guidance: string) => void
+  
+  // Retry UI
+  setRetrySeedInput: (value: string) => void
   
   // UI State
   toggleTheme: () => void
@@ -79,6 +90,7 @@ export const useUIStore = create<UIStore>()(
     isHilModalOpen: false,
     hilContext: null,
     hilUserGuidance: '',
+    retrySeedInput: '',
     theme: getInitialTheme(),
     isDraggingOver: false,
     
@@ -206,6 +218,11 @@ export const useUIStore = create<UIStore>()(
     
     setHilUserGuidance: (guidance: string) => {
       set({ hilUserGuidance: guidance })
+    },
+    
+    // Retry UI Actions
+    setRetrySeedInput: (value: string) => {
+      set({ retrySeedInput: value })
     },
     
     toggleTheme: () => {

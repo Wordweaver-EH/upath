@@ -108,6 +108,7 @@ interface PipelineActions {
   downloadOutput: (stepIdToDownload?: StepId, transcriptId?: string, dataToDownload?: any) => void
   downloadHistory: (format: 'tsv' | 'json') => void
   generateAppendix: (type: 'markdown' | 'html') => void
+  retryWithUserSeed: () => void
   // New actions for SettingsPanel
   saveStateToFile: () => void
   loadStateFromFile: (event: React.ChangeEvent<HTMLInputElement>) => void
@@ -1696,6 +1697,26 @@ export const usePipelineStore = create<PipelineStore>()(
         }
         
         return 'Pending'
+      },
+
+      retryWithUserSeed: () => {
+        const uiStore = useUIStore.getState()
+        const { currentStepInfo, retrySeedInput } = uiStore
+        
+        if (currentStepInfo.status === StepStatus.Error && retrySeedInput.trim()) {
+          const seedValue = parseInt(retrySeedInput.trim(), 10)
+          if (!isNaN(seedValue) && seedValue > 0) {
+            // Retry the current step with the user-provided seed
+            get().processSingleStep({
+              stepId: currentStepInfo.stepId,
+              transcriptIdToProcess: currentStepInfo.transcriptId,
+              overrideSeed: seedValue
+            })
+            
+            // Clear the retry input
+            uiStore.setRetrySeedInput('')
+          }
+        }
       },
 
       isGlobalStep: (stepId: StepId): boolean => {
