@@ -79,7 +79,14 @@ interface PipelineActions {
   downloadOutput: (stepIdToDownload?: StepId, transcriptId?: string, dataToDownload?: any) => void
   downloadHistory: (format: 'tsv' | 'json') => void
   generateAppendix: (type: 'markdown' | 'html') => void
+  // New actions for SettingsPanel
+  saveStateToFile: () => void
+  loadStateFromFile: (event: React.ChangeEvent<HTMLInputElement>) => void
+  uploadTranscripts: (event: React.ChangeEvent<HTMLInputElement>) => void
+  setActiveTranscriptByIndex: (index: number) => void
+  getTranscriptStatusDisplay: (transcriptId: string) => string
 }
+
 
 // Pipeline selectors for derived state
 interface PipelineSelectors {
@@ -797,6 +804,97 @@ export const usePipelineStore = create<PipelineStore>()(
           const filename = `${outputDirectory}/appendix_${new Date().toISOString().slice(0,10)}.md`
           downloadFile(markdownContent, filename, 'text/markdown;charset=utf-8')
         }
+      },
+
+      // New actions for SettingsPanel integration
+      saveStateToFile: () => {
+        const savedState = get().getSaveState()
+        const settingsState = useSettingsStore.getState()
+        const { outputDirectory } = settingsState
+        
+        const content = JSON.stringify(savedState, null, 2)
+        const filename = `${outputDirectory}/upath_state_${new Date().toISOString().slice(0,10)}.json`
+        downloadFile(content, filename, 'application/json')
+      },
+
+      loadStateFromFile: (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0]
+        if (!file) return
+
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          try {
+            const content = e.target?.result as string
+            const savedState = JSON.parse(content) as SavedState
+            get().loadState(savedState)
+            
+            // Reset file input
+            event.target.value = ''
+            
+            alert('State loaded successfully!')
+          } catch (error) {
+            console.error('Failed to load state:', error)
+            alert('Failed to load state file. Please check the file format.')
+          }
+        }
+        reader.readAsText(file)
+      },
+
+      uploadTranscripts: async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(event.target.files || [])
+        if (files.length === 0) return
+
+        try {
+          await get().addTranscripts(files)
+          
+          // Reset file input
+          event.target.value = ''
+          
+          // Update UI state
+          const uiStore = useUIStore.getState()
+          if (uiStore.currentStepInfo.stepId === StepId.IDLE) {
+            setTimeout(() => {
+              uiStore.setCurrentStepInfo({
+                stepId: StepId.IDLE,
+                status: StepStatus.Idle,
+                transcriptId: undefined
+              })
+            }, 0)
+          }
+        } catch (error) {
+          console.error('Failed to upload transcripts:', error)
+          alert('Failed to upload transcripts. Please try again.')
+        }
+      },
+
+      setActiveTranscriptByIndex: (index: number) => {
+        const uiStore = useUIStore.getState()
+        setTimeout(() => {
+          uiStore.setActiveTranscript(index)
+        }, 0)
+      },
+
+      getTranscriptStatusDisplay: (transcriptId: string): string => {
+        const { processedData } = get()
+        const data = processedData.get(transcriptId)
+        
+        if (!data) return 'No Data'
+        
+        // Check completion status based on pipeline progress
+        if (data.isFullyProcessedSpecificDiachronic && data.isFullyProcessedSpecificSynchronic) {
+          return 'P2S Done'
+        }
+        if (data.isFullyProcessedSpecificDiachronic) {
+          return 'P1 Done'
+        }
+        if (data.p0_3_output || data.p0_3_error) {
+          return 'P0 Done'
+        }
+        if (data.p_neg1_1_output || data.p_neg1_1_error) {
+          return 'P-1 Done'
+        }
+        
+        return 'Pending'
       }
     })),
     {

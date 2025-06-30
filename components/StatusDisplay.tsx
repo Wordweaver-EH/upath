@@ -1,16 +1,15 @@
-
 import React from 'react';
 import { StepId, StepStatus } from '../types';
 import { STEP_CONFIGS, CheckCircleIcon } from '../constants';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
+import { formatElapsedTime } from '../src/utils/timeHelper';
 
-interface StatusDisplayProps {
-  formatElapsedTime: (seconds: number) => string;
-}
+// No props needed - component gets all data from stores
+interface StatusDisplayProps {}
 
-const StatusDisplay: React.FC<StatusDisplayProps> = ({ formatElapsedTime }) => {
-  // Get state from stores
+const StatusDisplay: React.FC<StatusDisplayProps> = () => {
+  // Get state directly from stores instead of props
   const currentStepInfo = useUIStore(state => state.currentStepInfo);
   const processStartTime = useUIStore(state => state.processStartTime);
   const elapsedTime = useUIStore(state => state.elapsedTime);
@@ -51,4 +50,5 @@ const StatusDisplay: React.FC<StatusDisplayProps> = ({ formatElapsedTime }) => {
     </div>
   );
 };
+
 export default StatusDisplay;
