@@ -40,15 +40,29 @@
 - Addressed React hooks temporal dead zone issues
 
 ### Bug Fixes
-- **FIXED: Autorun functionality** - Corrected critical bug where `lastStepInfo` was incorrectly set to `StepId.P_NEG1_1_VARIABLE_IDENTIFICATION` with `StepStatus.READY` instead of the actual step with proper Success/Error status
+
+#### Critical Autorun Restoration (2025-07-02)
+- **FIXED: DV Focus Initialization** - Fixed `userDvFocus.dv_focus` array not being populated from default string on startup, preventing "Missing transcript content or DV focus" error
+- **FIXED: Gemini API Parameter Order** - Corrected `callGeminiAPI` parameters being passed in wrong order, fixing temperature validation errors
+- **FIXED: Store Subscription Middleware** - Added missing `subscribeWithSelector` middleware to `pipelineStore` enabling proper state synchronization with UI
+- **FIXED: Invalid Enum Values** - Replaced non-existent `StepStatus.READY` with `StepStatus.Idle` in multiple locations
+- **FIXED: Missing Import** - Added `P3_2_APPROACH` import to prevent ReferenceError during P3.2 step processing
+- **FIXED: Undefined Function** - Replaced missing `getUIStoreSync()` function with proper `useUIStore.getState()` pattern
+- **FIXED: String Interpolation** - Corrected template literal syntax in P5.1 error messages for proper variable interpolation
+
+#### Debug Logging & Monitoring
 - Added comprehensive debugging logging to track autorun decision logic
-- Fixed `handleSuccessfulStep` and `handleStepError` to properly set step status for autorun continuation
+- Enhanced pipeline state synchronization logging between stores
+- Added step-by-step execution tracking in `processSingleStep` function
+- Improved error reporting with detailed context in validation failures
 
 ### Known Issues
 - Some native form elements remain (file inputs, checkbox) which is standard practice
 - Inline Tailwind classes throughout (this is expected with Tailwind CSS)
 
 ### Files Modified
+
+#### Architectural Refactoring
 - `src/stores/pipelineStore.ts` - Removed circular dependencies, added selectors
 - `src/stores/uiStore.ts` - Added selectors, removed pipelineStore import  
 - `src/stores/index.ts` - Added store initialization and exports
@@ -60,6 +74,12 @@
 - `components/IRRModal.tsx` - Migrated to design system
 - `components/CollapsibleSection.tsx` - Migrated to use Button component
 - Created: `src/components/ui/` directory with Button, Input, Select, TextArea components
+
+#### Autorun Fixes & Code Review
+- `src/stores/settingsStore.ts` - Added `parseDvFocusString` helper and proper DV focus initialization
+- `src/stores/pipelineStore.ts` - Fixed API parameter order, added `subscribeWithSelector`, fixed enum values, added missing imports
+- `App.tsx` - Added pipeline state subscription debugging and sync logic
+- `constants.tsx` - Fixed string interpolation errors in P5.1 validation messages
 
 ### Lessons Learned
 - Initial plan incorrectly assumed callbacks were the solution for circular dependencies
