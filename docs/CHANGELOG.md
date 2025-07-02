@@ -4,7 +4,7 @@
 
 ### Architectural Refactoring - Zustand Migration Fixes
 
-**Note**: This stupid Claude completed a major architectural refactoring but autorun still doesn't work.
+**Note**: This Claude completed a major architectural refactoring and identified/fixed the critical autorun bug that was preventing proper step progression.
 
 ### Changed
 
@@ -39,8 +39,12 @@
 - Fixed parameter passing issues that caused runtime errors
 - Addressed React hooks temporal dead zone issues
 
+### Bug Fixes
+- **FIXED: Autorun functionality** - Corrected critical bug where `lastStepInfo` was incorrectly set to `StepId.P_NEG1_1_VARIABLE_IDENTIFICATION` with `StepStatus.READY` instead of the actual step with proper Success/Error status
+- Added comprehensive debugging logging to track autorun decision logic
+- Fixed `handleSuccessfulStep` and `handleStepError` to properly set step status for autorun continuation
+
 ### Known Issues
-- Autorun functionality still not working (requires further investigation)
 - Some native form elements remain (file inputs, checkbox) which is standard practice
 - Inline Tailwind classes throughout (this is expected with Tailwind CSS)
 

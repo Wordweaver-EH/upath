@@ -33,31 +33,84 @@ export const useAutorunManager = () => {
   const autoDownloadResults = useSettingsStore(state => state.autoDownloadResults)
 
   useEffect(() => { 
+    console.groupCollapsed(`🤖 [useAutorunManager] Effect triggered`);
+    console.log(`- isAutorunning: ${isAutorunning}`);
+    console.log(`- currentStepInfo.status: ${currentStepInfo.status}`);
+    console.log(`- currentStepInfo.stepId: ${currentStepInfo.stepId}`);
+    console.log(`- activeTranscriptIndex: ${activeTranscriptIndex}`);
+    
     if (isAutorunning && currentStepInfo.status === StepStatus.Success) {
+      console.log(`✅ Autorun active & step successful - checking next step`);
       const details = getNextStepDetails(currentStepInfo, activeTranscriptIndex);
+      console.log(`- getNextStepDetails result:`, details);
+      
       if (details) {
+        console.log(`🎯 Found next step: ${details.nextStepId} (transcript index: ${details.nextTranscriptIndex})`);
         setActiveTranscript(details.nextTranscriptIndex); 
+        
         if (details.nextStepId === StepId.COMPLETE) {
+            console.log(`🏁 Next step is COMPLETE - finalizing`);
             const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "Processing complete.";
-            setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData:report }); setAutorunning(false); 
+            console.log(`- Report length: ${report.length} chars`);
+            setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData:report }); 
+            setAutorunning(false); 
+            console.log(`🛑 Autorun stopped (COMPLETE)`);
             if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
-            if (autoDownloadResults && report!=="Processing complete." && ESSENTIAL_STEPS_FOR_AUTODOWNLOAD.includes(StepId.P6_1_GENERATE_MARKDOWN_REPORT)) downloadOutput(StepId.COMPLETE, "final_analysis_report", report);
+            if (autoDownloadResults && report!=="Processing complete." && ESSENTIAL_STEPS_FOR_AUTODOWNLOAD.includes(StepId.P6_1_GENERATE_MARKDOWN_REPORT)) {
+              console.log(`💾 Auto-downloading final report`);
+              downloadOutput(StepId.COMPLETE, "final_analysis_report", report);
+            }
         } else {
             const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId);
             const nextTxId = isNextGlobal ? undefined : rawTranscripts[details.nextTranscriptIndex]?.id;
+            console.log(`🚀 Processing next step: ${details.nextStepId}`);
+            console.log(`- Is global step: ${isNextGlobal}`);
+            console.log(`- Transcript ID: ${nextTxId || 'N/A (global)'}`);
             processSingleStep({ stepId: details.nextStepId, transcriptIdToProcess: nextTxId });
         }
       } else if (currentStepInfo.stepId !== StepId.COMPLETE && genericAnalysisState.isReportGenerated) { 
+        console.log(`📋 No next step details but report is generated - completing`);
         const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All processing complete.";
-        setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData:report }); setAutorunning(false); 
+        console.log(`- Report length: ${report.length} chars`);
+        setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData:report }); 
+        setAutorunning(false); 
+        console.log(`🛑 Autorun stopped (report generated)`);
         if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
       } else if (currentStepInfo.stepId !== StepId.COMPLETE && !details) { 
-         if (genericAnalysisState.isReportGenerated) setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData: typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All complete." });
-         setAutorunning(false); if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
+         console.log(`❌ No next step details and not complete - stopping autorun`);
+         console.log(`- isReportGenerated: ${genericAnalysisState.isReportGenerated}`);
+         if (genericAnalysisState.isReportGenerated) {
+           console.log(`📋 Setting COMPLETE status with report`);
+           setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData: typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All complete." });
+         }
+         setAutorunning(false); 
+         console.log(`🛑 Autorun stopped (no details)`);
+         if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
       }
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Error) {
-      setAutorunning(false); if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
+      console.log(`💥 Autorun active but step failed - stopping`);
+      console.log(`- Error step: ${currentStepInfo.stepId}`);
+      setAutorunning(false); 
+      console.log(`🛑 Autorun stopped (error)`);
+      if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
+    } else if (isAutorunning && currentStepInfo.status === StepStatus.Idle && rawTranscripts.length > 0) {
+      console.log(`🚀 Autorun starting from Idle - beginning first step`);
+      const firstStepId = StepId.P_NEG1_1_VARIABLE_IDENTIFICATION;
+      const firstTranscriptId = rawTranscripts[0]?.id;
+      console.log(`- Starting with: ${firstStepId}`);
+      console.log(`- First transcript: ${firstTranscriptId}`);
+      processSingleStep({ stepId: firstStepId, transcriptIdToProcess: firstTranscriptId });
+    } else {
+      console.log(`⏸️ Autorun conditions not met`);
+      console.log(`- isAutorunning: ${isAutorunning}`);
+      console.log(`- currentStepInfo.status: ${currentStepInfo.status}`);
+      console.log(`- rawTranscripts.length: ${rawTranscripts.length}`);
+      if (isAutorunning) {
+        console.log(`- Autorun enabled but status is ${currentStepInfo.status} (need Success to continue)`);
+      }
     }
+    
+    console.groupEnd();
   }, [
     isAutorunning, 
     currentStepInfo, 

@@ -156,6 +156,13 @@ export const useUIStore = create<UIStore>()(
     },
     
     setCurrentStepInfo: (info: CurrentStepInfo) => {
+      const currentInfo = get().currentStepInfo
+      console.log(`🔄 [uiStore] setCurrentStepInfo called`);
+      console.log(`- Previous: ${currentInfo.stepId} (${currentInfo.status})`);
+      console.log(`- New: ${info.stepId} (${info.status})`);
+      if (info.error) console.log(`- Error: ${info.error}`);
+      if (info.outputData) console.log(`- Has output data: ${typeof info.outputData} (${typeof info.outputData === 'string' ? info.outputData.length + ' chars' : 'object'})`);
+      
       set({ currentStepInfo: info })
     },
     
