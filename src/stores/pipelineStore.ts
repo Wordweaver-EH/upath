@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import { persist, createJSONStorage } from 'zustand/middleware'
+import { persist, createJSONStorage, subscribeWithSelector } from 'zustand/middleware'
 import { 
   RawTranscript, 
   TranscriptProcessedData, 
@@ -24,7 +24,8 @@ import {
   STEP_ORDER_PART_4_GENERIC_SYNCHRONIC,
   STEP_ORDER_PART_5_REFINEMENT,
   STEP_ORDER_PART_6_REPORT,
-  STEP_ORDER_PART_7_CAUSAL_MODELING
+  STEP_ORDER_PART_7_CAUSAL_MODELING,
+  P3_2_APPROACH
 } from '../../constants'
 import { callGeminiAPI } from '../../services/geminiService'
 // Circular dependency removed - UI updates handled through state synchronization
@@ -271,8 +272,9 @@ const createPromptSlice = (set: any, get: any): PromptSlice => ({
 
 // Main store
 export const usePipelineStore = create<PipelineStore>()(
-  persist(
-    immer((set, get) => ({
+  subscribeWithSelector(
+    persist(
+      immer((set, get) => ({
       ...createTranscriptSlice(set, get),
       ...createGenericAnalysisSlice(set, get),
       ...createPromptSlice(set, get),
@@ -300,7 +302,7 @@ export const usePipelineStore = create<PipelineStore>()(
           // Update pipeline state - App.tsx will handle UI updates
           set(state => ({
             ...state,
-            lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY },
+            lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.Idle },
             shouldStopAutorun: true
           }))
           console.groupEnd();
@@ -475,11 +477,11 @@ export const usePipelineStore = create<PipelineStore>()(
           const effectiveSeed = overrideSeed !== undefined ? overrideSeed : seed
           const apiResult = await callGeminiAPI(
             promptForHistory, 
-            1, // maxRetries
             config.isJsonOutput, 
             false, // useGrounding
             temperature, 
-            effectiveSeed
+            effectiveSeed,
+            1 // maxRetries/attempt
           )
           output = config.isJsonOutput ? apiResult.parsedJson : apiResult.text
           apiError = apiResult.error
@@ -1685,7 +1687,7 @@ export const usePipelineStore = create<PipelineStore>()(
                 if (!currentState.lastStepInfo || currentState.lastStepInfo.stepId === StepId.IDLE) {
                   set(state => ({
                     ...state,
-                    lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }
+                    lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.Idle }
                   }))
                 }
               } catch (error) {
@@ -1959,6 +1961,7 @@ export const usePipelineStore = create<PipelineStore>()(
         totalOutputTokens: state.totalOutputTokens
       })
     }
+    )
   )
 )
 

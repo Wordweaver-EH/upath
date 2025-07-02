@@ -198,15 +198,26 @@ const App: React.FC = () => {
   
   // Listen for pipeline state changes to update UI
   useEffect(() => {
+    console.log('📡 [App.tsx] Setting up pipeline store subscription...');
     const unsubscribe = usePipelineStore.subscribe(
-      (state) => ({
-        lastStepInfo: state.lastStepInfo,
-        lastError: state.lastError,
-        shouldStopAutorun: state.shouldStopAutorun,
-        lastHilContext: state.lastHilContext
-      }),
-      (pipelineUpdates) => {
+      (state) => {
+        const selected = {
+          lastStepInfo: state.lastStepInfo,
+          lastError: state.lastError,
+          shouldStopAutorun: state.shouldStopAutorun,
+          lastHilContext: state.lastHilContext
+        };
+        console.log('🔍 [App.tsx] Pipeline state selector called:', selected);
+        return selected;
+      },
+      (pipelineUpdates, prevUpdates) => {
+        console.log('🔄 [App.tsx] Pipeline subscription triggered:', { 
+          current: pipelineUpdates, 
+          previous: prevUpdates 
+        });
+        
         if (pipelineUpdates.lastStepInfo) {
+          console.log('🔄 [App.tsx] Pipeline sync: updating UI with lastStepInfo:', pipelineUpdates.lastStepInfo);
           setCurrentStepInfo(pipelineUpdates.lastStepInfo)
         }
         if (pipelineUpdates.shouldStopAutorun) {
