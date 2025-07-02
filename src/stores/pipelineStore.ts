@@ -301,7 +301,7 @@ export const usePipelineStore = create<PipelineStore>()(
         if (!config) {
           setTimeout(() => {
             setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-            setTimeout(() => { uiStore.setAutorunning($1) }, 0)
+            setTimeout(() => { uiStore.setAutorunning(false) }, 0)
           }, 0)
           return
         }
@@ -334,7 +334,7 @@ export const usePipelineStore = create<PipelineStore>()(
             if (!currentPhase && (tData.phases_for_p2s_processing?.length || 0) > 0 && !tData.isFullyProcessedSpecificSynchronic) {
               setTimeout(() => {
                 setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-                setTimeout(() => { uiStore.setAutorunning($1) }, 0)
+                setTimeout(() => { uiStore.setAutorunning(false) }, 0)
               }, 0)
               return
             }
@@ -364,7 +364,7 @@ export const usePipelineStore = create<PipelineStore>()(
             } else if (!tempGenericState.isFullyProcessedGenericSynchronic) {
               setTimeout(() => {
                 setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-                setTimeout(() => { uiStore.setAutorunning($1) }, 0)
+                setTimeout(() => { uiStore.setAutorunning(false) }, 0)
               }, 0)
               return
             }
@@ -372,7 +372,7 @@ export const usePipelineStore = create<PipelineStore>()(
           if (!currentGDU && (tempGenericState.core_gdus_for_sync_analysis || []).length > 0 && !tempGenericState.isFullyProcessedGenericSynchronic) {
             setTimeout(() => {
               setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-              setTimeout(() => { uiStore.setAutorunning($1) }, 0)
+              setTimeout(() => { uiStore.setAutorunning(false) }, 0)
             }, 0)
             return
           }
@@ -394,7 +394,7 @@ export const usePipelineStore = create<PipelineStore>()(
           const errText = `Input error for ${stepId}: ${inputResult?.error || 'Input null'}`
           setTimeout(() => {
             setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-            setTimeout(() => { uiStore.setAutorunning($1) }, 0)
+            setTimeout(() => { uiStore.setAutorunning(false) }, 0)
           }, 0)
           
           if (stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES) {
@@ -603,7 +603,7 @@ export const usePipelineStore = create<PipelineStore>()(
           })
           
           setTimeout(() => {
-            setTimeout(() => { uiStore.setAutorunning($1) }, 0)
+            setTimeout(() => { uiStore.setAutorunning(false) }, 0)
           }, 0)
         }
       },
@@ -835,7 +835,7 @@ export const usePipelineStore = create<PipelineStore>()(
             console.error(`[P4S.1.A Processing] ${noValidGroupsError}`)
             setTimeout(() => {
               setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-              setTimeout(() => { uiStore.setAutorunning($1) }, 0)
+              setTimeout(() => { uiStore.setAutorunning(false) }, 0)
             }, 0)
             set((state: any) => { state.genericAnalysisState.p4s_1_a_error = noValidGroupsError })
             return
@@ -1277,7 +1277,7 @@ export const usePipelineStore = create<PipelineStore>()(
             const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All processing complete."
             setTimeout(() => {
               setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-              setTimeout(() => { uiStore.setAutorunning($1) }, 0)
+              setTimeout(() => { uiStore.setAutorunning(false) }, 0)
             }, 0)
           }
           return
@@ -1292,7 +1292,7 @@ export const usePipelineStore = create<PipelineStore>()(
           const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "Processing complete."
           setTimeout(() => {
             setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-            setTimeout(() => { uiStore.setAutorunning($1) }, 0)
+            setTimeout(() => { uiStore.setAutorunning(false) }, 0)
           }, 0)
         } else {
           const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId)
