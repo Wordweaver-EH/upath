@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronDownIcon, ChevronUpIcon } from '../constants';
+import { Button } from '../src/components/ui';
 
 interface CollapsibleSectionProps {
   title: string;
@@ -13,14 +14,15 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({ title, children
 
   return (
     <div className="mb-4 border border-light-border dark:border-dark-border rounded-md bg-light-bg-alt dark:bg-dark-bg-alt">
-      <button
+      <Button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex justify-between items-center p-3 hover:bg-light-border dark:hover:bg-dark-border focus:outline-none rounded-t-md transition-colors duration-150"
+        className="w-full justify-between p-3 hover:bg-light-border dark:hover:bg-dark-border rounded-t-md"
+        variant="secondary"
         aria-expanded={isOpen}
       >
         <h3 className="text-md font-semibold text-light-accent dark:text-dark-accent">{title}</h3>
         {isOpen ? ChevronUpIcon : ChevronDownIcon}
-      </button>
+      </Button>
       {isOpen && (
         <div 
           className="p-3 bg-light-bg dark:bg-dark-bg rounded-b-md overflow-y-auto"

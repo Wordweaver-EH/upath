@@ -77,6 +77,7 @@ interface UIActions {
 interface UISelectors {
   // Derived state selectors
   isAutorunDisabled: () => boolean
+  selectShowRetryUI: () => boolean
 }
 
 type UIStore = UIState & UIActions & UISelectors
@@ -315,21 +316,17 @@ ${hilUserGuidance}
 
 Please provide a corrected response addressing the user's feedback.`
         
-        // Import pipelineStore dynamically to avoid circular dependency
-        const { usePipelineStore } = await import('./pipelineStore')
-        const { processSingleStep } = usePipelineStore.getState()
+        // Store the HIL context for the pipeline to process
+        // App.tsx will handle the actual pipeline processing
+        set({
+          hilContext: {
+            ...hilContext,
+            metaPrompt,
+            needsProcessing: true
+          }
+        })
         
         get().closeHilModal()
-        
-        // Process with the correction
-        await processSingleStep(
-          stepInfo.stepId,
-          stepInfo.transcriptId,
-          stepInfo.phaseId,
-          stepInfo.gduId,
-          true,
-          metaPrompt
-        )
       }
     },
     
@@ -349,11 +346,21 @@ Please provide a corrected response addressing the user's feedback.`
     },
     
     // Selectors
-    isAutorunDisabled: () => {
+    selectIsAutorunDisabled: (apiKeyPresent: boolean, dvFocusError: string | null, transcriptsLength: number) => {
       const { currentStepInfo } = get()
       
-      // Basic UI-level checks - pipeline-specific checks moved to component level
-      return currentStepInfo.stepId === StepId.COMPLETE
+      return !apiKeyPresent || 
+        !!dvFocusError || 
+        (transcriptsLength === 0 && currentStepInfo.stepId === StepId.IDLE) || 
+        currentStepInfo.stepId === StepId.COMPLETE
+    },
+    
+    selectShowRetryUI: () => {
+      const { currentStepInfo } = get()
+      
+      // Show retry UI when there's a JSON parse error
+      return currentStepInfo.status === StepStatus.Error && 
+             !!currentStepInfo.error?.match(/parse JSON/i)
     }
   }))
 )

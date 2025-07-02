@@ -1,21 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { GduMappingDisplayItem } from '../types';
 import { useIRRStore } from '../src/stores/irrStore';
+import { Button, Select } from '../src/components/ui';
 
 interface GduMappingModalProps {
   onConfirmMapping: (confirmedMapping: Record<string, string | null>) => void;
-  primaryButtonClasses: string;
-  secondaryButtonClasses: string;
-  inputBaseClasses: string;
-  disabledButtonClasses: string;
 }
 
 const GduMappingModal: React.FC<GduMappingModalProps> = ({
-  onConfirmMapping,
-  primaryButtonClasses,
-  secondaryButtonClasses,
-  inputBaseClasses,
-  disabledButtonClasses
+  onConfirmMapping
 }) => {
   const [userMappings, setUserMappings] = useState<Record<string, string | null>>({});
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -176,12 +169,14 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
             <h2 className="text-2xl font-bold text-light-text dark:text-dark-text">
               Validate GDU Mappings
             </h2>
-            <button
+            <Button
               onClick={closeMappingModal}
-              className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text text-2xl"
+              className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text text-2xl p-1"
+              variant="secondary"
+              aria-label="Close modal"
             >
               ×
-            </button>
+            </Button>
           </div>
           <p className="text-light-sidenote dark:text-dark-sidenote text-sm mt-2">
             Review and adjust the LLM-proposed mappings between Run A and Run B GDUs. 
@@ -218,12 +213,14 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
                 <React.Fragment key={item.runAGduId}>
                   <tr className="hover:bg-light-bg-alt dark:hover:bg-dark-bg-alt">
                     <td className="px-4 py-4 whitespace-nowrap">
-                      <button
+                      <Button
                         onClick={() => toggleRowExpansion(item.runAGduId)}
-                        className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text text-lg"
+                        className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text text-lg p-1 min-w-0"
+                        variant="secondary"
+                        aria-label={expandedRows.has(item.runAGduId) ? 'Collapse row' : 'Expand row'}
                       >
                         {expandedRows.has(item.runAGduId) ? '↑' : '↓'}
-                      </button>
+                      </Button>
                     </td>
                     
                     <td className="px-4 py-4 whitespace-nowrap">
@@ -242,18 +239,18 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
                     </td>
                     
                     <td className="px-4 py-4">
-                      <select
+                      <Select
                         value={userMappings[item.runAGduId] || ''}
                         onChange={(e) => handleMappingChange(item.runAGduId, e.target.value || null)}
-                        className={`w-full text-sm rounded px-2 py-1 focus:outline-none ${inputBaseClasses}`}
-                      >
-                        <option value="">-- Unmatched --</option>
-                        {item.availableRunBOptions.map(option => (
-                          <option key={option.gduId} value={option.gduId}>
-                            {option.gduId} ({option.contributingRduCount} RDUs, {option.transcriptCount} transcripts)
-                          </option>
-                        ))}
-                      </select>
+                        className="w-full text-sm"
+                        options={[
+                          { value: '', label: '-- Unmatched --' },
+                          ...item.availableRunBOptions.map(option => ({
+                            value: option.gduId,
+                            label: `${option.gduId} (${option.contributingRduCount} RDUs, ${option.transcriptCount} transcripts)`
+                          }))
+                        ]}
+                      />
                       {userMappings[item.runAGduId] && (
                         <div className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">
                           {getSelectedGduDetails(item.runAGduId)?.definition.substring(0, 60)}...
@@ -284,18 +281,19 @@ const GduMappingModal: React.FC<GduMappingModalProps> = ({
               {Object.values(userMappings).filter(v => v !== null).length} of {displayItems.length} GDUs mapped
             </div>
             <div className="flex space-x-3">
-              <button
+              <Button
                 onClick={closeMappingModal}
-                className={secondaryButtonClasses}
+                variant="secondary"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleConfirm}
-                className={`px-6 py-2 rounded font-medium ${primaryButtonClasses}`}
+                variant="primary"
+                className="px-6"
               >
                 Confirm Mapping
-              </button>
+              </Button>
             </div>
           </div>
         </div>

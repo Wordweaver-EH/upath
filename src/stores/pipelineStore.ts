@@ -10,7 +10,8 @@ import {
   StepStatus,
   SavedState,
   P2SPhaseData,
-  CurrentStepInfo
+  CurrentStepInfo,
+  HilContext
 } from '../../types'
 import { 
   STEP_CONFIGS, 
@@ -26,7 +27,7 @@ import {
   STEP_ORDER_PART_7_CAUSAL_MODELING
 } from '../../constants'
 import { callGeminiAPI } from '../../services/geminiService'
-import { useUIStore } from './uiStore'
+// Circular dependency removed - UI updates handled through state synchronization
 import { useSettingsStore } from './settingsStore'
 import { stepIdToDataKeyPrefix, isGlobalStep } from '../utils/stepIdToDataKeyPrefix'
 import { generateMarkdownReportProgrammatically, ReportData } from '../utils/reportHelper'
@@ -51,6 +52,11 @@ interface TranscriptSlice {
 interface GenericAnalysisSlice {
   genericAnalysisState: GenericAnalysisState
   updateGenericState: (updates: Partial<GenericAnalysisState>) => void
+  // UI synchronization state - App.tsx will listen to these
+  lastStepInfo?: CurrentStepInfo
+  lastError?: string
+  lastHilContext?: HilContext
+  shouldStopAutorun?: boolean
 }
 
 interface PromptSlice {
@@ -142,22 +148,7 @@ interface PipelineSelectors {
 type PipelineState = TranscriptSlice & GenericAnalysisSlice & PromptSlice
 type PipelineStore = PipelineState & PipelineActions & PipelineSelectors
 
-      // Helper function to avoid circular dependency
-      const getUIStore = () => {
-        // Dynamic import to break circular dependency
-        return import('./uiStore').then(module => module.useUIStore.getState())
-      }
-      
-      // Synchronous version for use in actions (temporary bridge until better architecture)
-      const getUIStoreSync = () => {
-        // This requires the store to be initialized first via initializeStores()
-        // For now, we'll use a workaround with global access
-        if (typeof window !== 'undefined' && (window as any).__uiStore) {
-          return (window as any).__uiStore
-        }
-        // Fallback - dynamic import (will be async)
-        throw new Error('UI Store not available - make sure initializeStores() was called')
-      }
+// UI updates are now handled through state changes that App.tsx listens to
 // Helper function to process file content
 const processFileContent = async (file: File): Promise<RawTranscript> => {
   const text = await file.text()
@@ -290,7 +281,6 @@ export const usePipelineStore = create<PipelineStore>()(
       processSingleStep: async (params) => {
         const { stepId, transcriptIdToProcess, overrideSeed, hilMetaPrompt } = params
         const { rawTranscripts, processedData, genericAnalysisState } = get()
-        const uiStore = useUIStore.getState()
         const settingsStore = useSettingsStore.getState()
         
         const isReportStepForThisCall = stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT
@@ -299,10 +289,12 @@ export const usePipelineStore = create<PipelineStore>()(
         // Get step config
         const config = STEP_CONFIGS[stepId]
         if (!config) {
-          setTimeout(() => {
-            setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-            setTimeout(() => { uiStore.setAutorunning(false) }, 0)
-          }, 0)
+          // Update pipeline state - App.tsx will handle UI updates
+          set(state => ({
+            ...state,
+            lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY },
+            shouldStopAutorun: true
+          }))
           return
         }
         
@@ -519,10 +511,12 @@ export const usePipelineStore = create<PipelineStore>()(
         currentPhase: string | undefined,
         isReportStepForThisCall: boolean
       ) => {
-        const uiStore = useUIStore.getState()
-        setTimeout(() => {
-          setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-        }, 0)
+        // Update pipeline state - App.tsx will handle UI updates
+        set(state => ({
+          ...state,
+          lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY },
+          lastError: apiError
+        }))
         
         const key = stepIdToDataKeyPrefix[stepId]
         
@@ -573,38 +567,34 @@ export const usePipelineStore = create<PipelineStore>()(
           }
         }
         
-        setTimeout(() => {
-          setTimeout(() => { uiStore.setAutorunning($1) }, 0)
-        }, 0)
+        // Signal to stop autorun
+        set(state => ({
+          ...state,
+          shouldStopAutorun: true
+        }))
       },
 
       handleReportGeneration: (output: any) => {
-        const uiStore = useUIStore.getState()
         if (typeof output === 'string' && output.trim() !== '') {
           set((state: any) => {
             state.genericAnalysisState.isReportGenerated = true
             state.genericAnalysisState.p6_1_output = output as P6_1_Output
             state.genericAnalysisState.p6_1_error = undefined
+            // Update pipeline state - App.tsx will handle UI updates
+            state.lastStepInfo = { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }
           })
-          
-          setTimeout(() => {
-            setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-          }, 0)
         } else {
           const rptErr = "Report generation resulted in empty/invalid content."
-          setTimeout(() => {
-            setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-          }, 0)
           
           set((state: any) => {
             state.genericAnalysisState.isReportGenerated = false
             state.genericAnalysisState.p6_1_output = undefined
             state.genericAnalysisState.p6_1_error = rptErr
+            // Update pipeline state - App.tsx will handle UI updates
+            state.lastStepInfo = { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }
+            state.lastError = rptErr
+            state.shouldStopAutorun = true
           })
-          
-          setTimeout(() => {
-            setTimeout(() => { uiStore.setAutorunning(false) }, 0)
-          }, 0)
         }
       },
 
@@ -618,10 +608,11 @@ export const usePipelineStore = create<PipelineStore>()(
         currentPhase: string | undefined,
         processedData: Map<string, TranscriptProcessedData>
       ) => {
-        const uiStore = useUIStore.getState()
-        setTimeout(() => {
-          setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-        }, 0)
+        // Update pipeline state - App.tsx will handle UI updates
+        set(state => ({
+          ...state,
+          lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }
+        }))
         
         const key = stepIdToDataKeyPrefix[stepId]
         
@@ -1073,10 +1064,8 @@ export const usePipelineStore = create<PipelineStore>()(
         }
       },
       
-      getNextStepDetails: () => {
+      getNextStepDetails: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
         const { rawTranscripts, processedData, genericAnalysisState } = get()
-        const uiStore = useUIStore.getState()
-        const { currentStepInfo, activeTranscriptIndex } = uiStore
         
         const currentTranscriptId = rawTranscripts[activeTranscriptIndex]?.id
         const currentTData = currentTranscriptId ? processedData.get(currentTranscriptId) : undefined
@@ -1266,34 +1255,35 @@ export const usePipelineStore = create<PipelineStore>()(
         return null
       },
       
-      processNextStep: () => {
+      processNextStep: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
         const { rawTranscripts } = get()
-        const uiStore = useUIStore.getState()
-        const details = get().getNextStepDetails()
+        const details = get().getNextStepDetails(currentStepInfo, activeTranscriptIndex)
         
         if (!details) {
           const { genericAnalysisState } = get()
-          if (uiStore.currentStepInfo.stepId !== StepId.COMPLETE && genericAnalysisState.isReportGenerated) {
+          if (currentStepInfo.stepId !== StepId.COMPLETE && genericAnalysisState.isReportGenerated) {
             const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All processing complete."
-            setTimeout(() => {
-              setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-              setTimeout(() => { uiStore.setAutorunning(false) }, 0)
-            }, 0)
+            // Update pipeline state - App.tsx will handle UI updates
+            set(state => ({
+              ...state,
+              lastStepInfo: { stepId: StepId.COMPLETE, status: StepStatus.Success, outputData: report },
+              shouldStopAutorun: true
+            }))
           }
           return
         }
         
-        setTimeout(() => {
-          setTimeout(() => { uiStore.setActiveTranscript($1) }, 0)
-        }, 0)
+        // Note: activeTranscript update should be handled by the caller
         
         if (details.nextStepId === StepId.COMPLETE) {
           const { genericAnalysisState } = get()
           const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "Processing complete."
-          setTimeout(() => {
-            setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-            setTimeout(() => { uiStore.setAutorunning(false) }, 0)
-          }, 0)
+          // Update pipeline state - App.tsx will handle UI updates
+          set(state => ({
+            ...state,
+            lastStepInfo: { stepId: StepId.COMPLETE, status: StepStatus.Success, outputData: report },
+            shouldStopAutorun: true
+          }))
         } else {
           const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId)
           const nextTxId = isNextGlobal ? undefined : rawTranscripts[details.nextTranscriptIndex]?.id
@@ -1301,10 +1291,9 @@ export const usePipelineStore = create<PipelineStore>()(
         }
       },
       
-      invalidateStateFromStep: (stepId: StepId, transcriptId?: string) => {
+      invalidateStateFromStep: (stepId: StepId, transcriptId?: string, activeTranscriptIndex?: number) => {
         const { rawTranscripts, processedData, genericAnalysisState } = get()
-        const uiStore = useUIStore.getState()
-        const activeTxId = transcriptId || rawTranscripts[uiStore.activeTranscriptIndex]?.id
+        const activeTxId = transcriptId || (activeTranscriptIndex !== undefined ? rawTranscripts[activeTranscriptIndex]?.id : undefined)
         
         const { invalidatedProcessedData, invalidatedGenericState } = getInvalidatedStates(
           stepId,
@@ -1334,8 +1323,12 @@ export const usePipelineStore = create<PipelineStore>()(
           state.totalOutputTokens = 0
         })
         
-        // Reset UI state
-        useUIStore.getState().resetUIState()
+        // Signal that UI should be reset
+        set(state => ({
+          ...state,
+          lastStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle },
+          shouldStopAutorun: true
+        }))
       },
       
       loadState: (savedState: SavedState) => {
@@ -1353,18 +1346,12 @@ export const usePipelineStore = create<PipelineStore>()(
           state.totalOutputTokens = savedState.totalOutputTokens
         })
         
-        // Update UI state
-        const uiStore = useUIStore.getState()
-        setTimeout(() => {
-          setTimeout(() => { uiStore.setActiveTranscript($1) }, 0)
-        }, 0)
+        // Note: UI state updates should be handled by the caller or through state synchronization
         // Note: currentStepInfo is not restored from saved state
       },
       
-      getSaveState: (): SavedState => {
+      getSaveState: (activeTranscriptIndex: number, currentStepInfo: CurrentStepInfo, settingsData: { userDvFocus: string, temperature: number, seed: number }): SavedState => {
         const state = get()
-        const uiState = useUIStore.getState()
-        const settingsState = useSettingsStore.getState()
         
         return {
           version: '1.0',
@@ -1373,20 +1360,18 @@ export const usePipelineStore = create<PipelineStore>()(
           processedDataArray: Array.from(state.processedData.entries()),
           genericAnalysisState: state.genericAnalysisState,
           promptHistory: state.promptHistory,
-          activeTranscriptIndex: uiState.activeTranscriptIndex,
+          activeTranscriptIndex: activeTranscriptIndex,
           totalInputTokens: state.totalInputTokens,
           totalOutputTokens: state.totalOutputTokens,
-          userDvFocus: settingsState.userDvFocus,
-          temperature: settingsState.temperature,
-          seed: settingsState.seed,
-          currentStepInfo: uiState.currentStepInfo
+          userDvFocus: settingsData.userDvFocus,
+          temperature: settingsData.temperature,
+          seed: settingsData.seed,
+          currentStepInfo: currentStepInfo
         }
       },
 
       // Pipeline selectors for derived state
-      getPreviousStepDetails: () => {
-        const uiState = useUIStore.getState()
-        const { currentStepInfo, activeTranscriptIndex } = uiState
+      getPreviousStepDetails: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
         const { rawTranscripts } = get()
         
         if (currentStepInfo.stepId === StepId.IDLE) return null
@@ -1406,28 +1391,18 @@ export const usePipelineStore = create<PipelineStore>()(
         return { prevStepId, prevTranscriptIndex: activeTranscriptIndex }
       },
 
-      isPreviousStepDisabled: () => {
-        const uiState = useUIStore.getState()
-        const { currentStepInfo } = uiState
-        
-        return currentStepInfo.status === StepStatus.Loading || !get().getPreviousStepDetails()
+      isPreviousStepDisabled: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
+        return currentStepInfo.status === StepStatus.Loading || !get().getPreviousStepDetails(currentStepInfo, activeTranscriptIndex)
       },
 
-      isNextStepDisabled: () => {
-        const uiState = useUIStore.getState()
-        const { currentStepInfo } = uiState
+      isNextStepDisabled: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
         const { genericAnalysisState } = get()
         
         return currentStepInfo.status === StepStatus.Loading || 
-               (!get().getNextStepDetails() && currentStepInfo.stepId !== StepId.COMPLETE && !genericAnalysisState.isReportGenerated)
+               (!get().getNextStepDetails(currentStepInfo, activeTranscriptIndex) && currentStepInfo.stepId !== StepId.COMPLETE && !genericAnalysisState.isReportGenerated)
       },
 
-      isRunStepDisabled: () => {
-        const uiState = useUIStore.getState()
-        const settingsState = useSettingsStore.getState()
-        const { currentStepInfo } = uiState
-        const { apiKeyPresent, dvFocusError } = settingsState
-        
+      isRunStepDisabled: (currentStepInfo: CurrentStepInfo, apiKeyPresent: boolean, dvFocusError?: string) => {
         return currentStepInfo.stepId === StepId.IDLE || 
                currentStepInfo.status === StepStatus.Loading || 
                currentStepInfo.stepId === StepId.COMPLETE || 
@@ -1435,9 +1410,7 @@ export const usePipelineStore = create<PipelineStore>()(
                !!dvFocusError
       },
 
-      isHilModalDisabled: () => {
-        const uiState = useUIStore.getState()
-        const { currentStepInfo } = uiState
+      isHilModalDisabled: (currentStepInfo: CurrentStepInfo) => {
         
         return currentStepInfo.stepId === StepId.IDLE || 
                currentStepInfo.status === StepStatus.Loading || 
@@ -1446,9 +1419,7 @@ export const usePipelineStore = create<PipelineStore>()(
                (!currentStepInfo.outputData && !currentStepInfo.error)
       },
 
-      isDownloadOutputDisabled: () => {
-        const uiState = useUIStore.getState()
-        const { currentStepInfo } = uiState
+      isDownloadOutputDisabled: (currentStepInfo: CurrentStepInfo) => {
         const { genericAnalysisState } = get()
         
         return currentStepInfo.stepId === StepId.IDLE || 
@@ -1467,25 +1438,24 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       // Download and appendix actions
-      downloadOutput: (stepIdToDownload?: StepId, transcriptId?: string, dataToDownload?: any) => {
-        const uiState = useUIStore.getState()
-        const settingsState = useSettingsStore.getState()
-        const { currentStepInfo } = uiState
-        const { outputDirectory } = settingsState
+      downloadOutput: (stepIdToDownload?: StepId, transcriptId?: string, dataToDownload?: any, currentStepInfo?: CurrentStepInfo, outputDirectory?: string) => {
+        // If not provided, use defaults - but ideally these should be passed in
+        const actualCurrentStepInfo = currentStepInfo || get().lastStepInfo || { stepId: StepId.IDLE, status: StepStatus.Idle }
+        const actualOutputDirectory = outputDirectory || ''
         const { processedData, genericAnalysisState } = get()
         
-        const stepId = stepIdToDownload || currentStepInfo.stepId
-        const transcriptIdToUse = transcriptId || currentStepInfo.transcriptId
+        const stepId = stepIdToDownload || actualCurrentStepInfo.stepId
+        const transcriptIdToUse = transcriptId || actualCurrentStepInfo.transcriptId
         
         let data = dataToDownload
-        let filename = `${outputDirectory}/${stepId}_output`
+        let filename = `${actualOutputDirectory}/${stepId}_output`
         
         // If no specific data provided, get it from current step
         if (!data) {
           if (stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT) {
             data = genericAnalysisState.p6_1_output
           } else {
-            data = currentStepInfo.outputData
+            data = actualCurrentStepInfo.outputData
           }
         }
         
@@ -1546,9 +1516,24 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       // New actions for SettingsPanel integration
-      saveStateToFile: () => {
-        const savedState = get().getSaveState()
+      saveStateToFile: (activeTranscriptIndex: number, currentStepInfo: CurrentStepInfo) => {
+        // Get settings data
         const settingsState = useSettingsStore.getState()
+        
+        // Create settings data object
+        const settingsData = {
+          userDvFocus: settingsState.userDvFocus,
+          temperature: settingsState.temperature,
+          seed: settingsState.seed
+        }
+        
+        // Call getSaveState with required parameters
+        const savedState = get().getSaveState(
+          activeTranscriptIndex,
+          currentStepInfo,
+          settingsData
+        )
+        
         const { outputDirectory } = settingsState
         
         const content = JSON.stringify(savedState, null, 2)
@@ -1589,12 +1574,13 @@ export const usePipelineStore = create<PipelineStore>()(
           // Reset file input
           event.target.value = ''
           
-          // Update UI state
-          const uiStore = useUIStore.getState()
-          if (uiStore.currentStepInfo.stepId === StepId.IDLE) {
-            setTimeout(() => {
-              setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-            }, 0)
+          // Signal ready state if we're idle
+          const currentState = get()
+          if (!currentState.lastStepInfo || currentState.lastStepInfo.stepId === StepId.IDLE) {
+            set(state => ({
+              ...state,
+              lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }
+            }))
           }
         } catch (error) {
           console.error('Failed to upload transcripts:', error)
@@ -1613,12 +1599,13 @@ export const usePipelineStore = create<PipelineStore>()(
                 await get().addTranscripts(files)
                 console.log('✅ addTranscripts completed successfully');
                 
-                // Update UI state
-                const uiStore = useUIStore.getState()
-                if (uiStore.currentStepInfo.stepId === StepId.IDLE) {
-                  setTimeout(() => {
-                    setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
-                  }, 0)
+                // Signal ready state if we're idle
+                const currentState = get()
+                if (!currentState.lastStepInfo || currentState.lastStepInfo.stepId === StepId.IDLE) {
+                  set(state => ({
+                    ...state,
+                    lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }
+                  }))
                 }
               } catch (error) {
                 console.error('❌ Error in handleDroppedFiles:', error);
@@ -1626,12 +1613,7 @@ export const usePipelineStore = create<PipelineStore>()(
                 alert('Failed to upload files. Please try again.')
               }
             },
-      setActiveTranscriptByIndex: (index: number) => {
-        const uiStore = useUIStore.getState()
-        setTimeout(() => {
-          setTimeout(() => { uiStore.setActiveTranscript($1) }, 0)
-        }, 0)
-      },
+      // Note: setActiveTranscriptByIndex removed - UI operations should be handled by UI store
 
       getTranscriptStatusDisplay: (transcriptId: string): string => {
         const { processedData } = get()
@@ -1656,10 +1638,7 @@ export const usePipelineStore = create<PipelineStore>()(
         return 'Pending'
       },
 
-      retryWithUserSeed: () => {
-        const uiStore = useUIStore.getState()
-        const { currentStepInfo, retrySeedInput } = uiStore
-        
+      retryWithUserSeed: (currentStepInfo: CurrentStepInfo, retrySeedInput: string) => {
         if (currentStepInfo.status === StepStatus.Error && retrySeedInput.trim()) {
           const seedValue = parseInt(retrySeedInput.trim(), 10)
           if (!isNaN(seedValue) && seedValue > 0) {
@@ -1895,3 +1874,107 @@ export const usePipelineStore = create<PipelineStore>()(
     }
   )
 )
+
+// Selectors for derived state
+export const selectCurrentStepDisplay = (currentStepInfo: CurrentStepInfo, transcriptsLength: number) => {
+  const state = usePipelineStore.getState()
+  
+  // Loading state
+  if (currentStepInfo.status === StepStatus.Loading) {
+    return {
+      type: 'loading' as const,
+      message: 'Loading output...'
+    }
+  }
+  
+  // Error state with no output
+  if (currentStepInfo.status === StepStatus.Error && !currentStepInfo.outputData) {
+    return {
+      type: 'error' as const,
+      message: 'Error occurred. See status bar for details.'
+    }
+  }
+  
+  // No output yet
+  if (!currentStepInfo.outputData && currentStepInfo.stepId !== StepId.IDLE) {
+    return {
+      type: 'empty' as const,
+      message: 'No output to display for this step yet.'
+    }
+  }
+  
+  // Idle states
+  if (currentStepInfo.stepId === StepId.IDLE && transcriptsLength === 0) {
+    return {
+      type: 'empty' as const,
+      message: 'Upload transcripts to begin.'
+    }
+  }
+  
+  if (currentStepInfo.stepId === StepId.IDLE && transcriptsLength > 0) {
+    return {
+      type: 'empty' as const,
+      message: 'Ready to start. Click "Autorun" or "Next Step".'
+    }
+  }
+  
+  // Check for mermaid chart
+  const mermaidChart = selectMermaidChartForStep(currentStepInfo)
+  if (mermaidChart) {
+    return {
+      type: 'mermaid' as const,
+      chart: mermaidChart
+    }
+  }
+  
+  // Report steps
+  if (currentStepInfo.stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT || currentStepInfo.stepId === StepId.COMPLETE) {
+    if (typeof currentStepInfo.outputData === 'string' && currentStepInfo.outputData.trim() !== "") {
+      return {
+        type: 'report' as const,
+        markdown: currentStepInfo.outputData
+      }
+    }
+    return {
+      type: 'empty' as const,
+      message: 'Report not generated or empty.'
+    }
+  }
+  
+  // Regular output
+  return {
+    type: 'output' as const,
+    data: currentStepInfo.outputData
+  }
+}
+
+export const selectMermaidChartForStep = (stepInfo: CurrentStepInfo): string | undefined => {
+  const state = usePipelineStore.getState()
+  const { processedData, genericAnalysisState } = state
+  const tId = stepInfo.transcriptId
+  const phase = stepInfo.currentPhaseForP2S
+  const gdu = stepInfo.currentGduForP4S
+  
+  switch (stepInfo.stepId) {
+    case StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE:
+      return tId ? processedData.get(tId)?.p1_4_mermaid_syntax : undefined
+      
+    case StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE:
+      return tId && phase ? processedData.get(tId)?.p2s_outputs_by_phase?.[phase]?.p2s_3_mermaid_syntax : undefined
+      
+    case StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE:
+      return genericAnalysisState.p3_3_mermaid_syntax
+      
+    case StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS:
+      return gdu ? genericAnalysisState.p4s_mermaid_syntax_by_gdu?.[gdu] : undefined
+      
+    case StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS:
+      return genericAnalysisState.p7_3_mermaid_syntax_dag
+      
+    case StepId.P7_3B_VALIDATE_AND_CLEAN_DAG:
+      return genericAnalysisState.p7_3b_mermaid_syntax_dag
+      
+    default:
+      return undefined
+  }
+}

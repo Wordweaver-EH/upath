@@ -5,17 +5,15 @@ import { UploadIcon, FileTextIcon, SaveIcon, LoadIcon, InfoIcon } from '../const
 import { useSettingsStore } from '../src/stores/settingsStore';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
+import { Button, Input } from '../src/components/ui';
 
 // No props needed - component gets all data from stores
 interface SettingsPanelProps {
   PipelineOverviewComponent: React.ReactNode;
-  inputBaseClasses: string;
-  secondaryButtonClasses: string;
-  disabledButtonClasses: string;
 }
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({
-  PipelineOverviewComponent, inputBaseClasses, secondaryButtonClasses, disabledButtonClasses
+  PipelineOverviewComponent
 }) => {
   // Create refs for file inputs
   const loadStateInputRef = useRef<HTMLInputElement>(null)
@@ -43,13 +41,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const handleDragOver = useUIStore(state => state.handleDragOver)
   const handleDragLeave = useUIStore(state => state.handleDragLeave)
   const handleDrop = useUIStore(state => state.handleDrop)
+  const setActiveTranscript = useUIStore(state => state.setActiveTranscript)
 
   // Pipeline store - state and actions
   const rawTranscripts = usePipelineStore(state => state.rawTranscripts)
   const saveStateToFile = usePipelineStore(state => state.saveStateToFile)
   const loadStateFromFile = usePipelineStore(state => state.loadStateFromFile)
   const uploadTranscripts = usePipelineStore(state => state.uploadTranscripts)
-  const setActiveTranscriptByIndex = usePipelineStore(state => state.setActiveTranscriptByIndex)
   const getTranscriptStatusDisplay = usePipelineStore(state => state.getTranscriptStatusDisplay)
   const isGlobalStep = usePipelineStore(state => state.isGlobalStep)
 
@@ -62,17 +60,93 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
     <aside className="md:col-span-1 space-y-4 p-4 bg-light-bg-alt dark:bg-dark-bg-alt rounded-lg shadow overflow-y-auto max-h-[calc(100vh-140px)]">
       {PipelineOverviewComponent}
       {!apiKeyPresent && ( <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-md dark:bg-red-900 dark:border-red-700 dark:text-red-300" role="alert"> <p className="font-semibold">API Key Missing!</p> <p className="text-sm">process.env.API_KEY is not set. Please configure it to enable analysis.</p> </div> )}
-      <div> <label htmlFor="dvFocus" className="block text-sm font-medium text-light-sidenote dark:text-dark-sidenote mb-1"> Dependent Variable Focuses </label> <div className="relative"> <input type="text" id="dvFocus" value={dvFocusInput} onChange={(e) => validateAndSetDvFocus(e.target.value)} placeholder="e.g., cognitions, emotions" className={`${inputBaseClasses} ${dvFocusError ? 'border-red-500 dark:border-red-400' : 'border-light-border dark:border-dark-border'}`} aria-invalid={!!dvFocusError} aria-describedby={dvFocusError ? "dvFocusError" : undefined} /> <div className="absolute inset-y-0 right-0 pr-3 flex items-center"> <span className="text-light-sidenote dark:text-dark-sidenote cursor-pointer group" title="Enter comma-separated values. Example: cognitions, emotions, sensations"> {InfoIcon} </span> </div> </div> {dvFocusError && <p id="dvFocusError" className="mt-1 text-xs text-red-600 dark:text-red-400">{dvFocusError}</p>} </div>
-      <div className="grid grid-cols-2 gap-4"> <div> <label htmlFor="temperature" className="block text-sm font-medium text-light-sidenote dark:text-dark-sidenote mb-1">Temperature</label> <div className="relative"> <input type="number" id="temperature" value={temperature} onChange={(e) => setTemperature(parseFloat(e.target.value))} min="0" max="2" step="0.1" className={`${inputBaseClasses} border-light-border dark:border-dark-border`} /> <div className="absolute inset-y-0 right-0 pr-3 flex items-center"> <span className="text-light-sidenote dark:text-dark-sidenote cursor-pointer group" title="Controls randomness. 0.0 for deterministic. Default: 0.0">{InfoIcon}</span> </div> </div> </div> <div> <label htmlFor="seed" className="block text-sm font-medium text-light-sidenote dark:text-dark-sidenote mb-1">Global Seed</label> <div className="relative"> <input type="text" id="seed" value={seedInput} onChange={(e) => validateAndSetSeed(e.target.value)} placeholder="Optional integer" className={`${inputBaseClasses} border-light-border dark:border-dark-border`} /> <div className="absolute inset-y-0 right-0 pr-3 flex items-center"> <span className="text-light-sidenote dark:text-dark-sidenote cursor-pointer group" title="Optional positive integer for reproducibility. Default: 42">{InfoIcon}</span> </div> </div> </div> </div>
-      <div> <label htmlFor="outputDir" className="block text-sm font-medium text-light-sidenote dark:text-dark-sidenote mb-1">Output Directory Name</label> <input type="text" id="outputDir" value={outputDirectory} onChange={(e) => setOutputDirectory(e.target.value)} className={`${inputBaseClasses} border-light-border dark:border-dark-border`} placeholder="e.g., MyProject_Outputs" /> <p className="mt-1 text-xs text-light-sidenote dark:text-dark-sidenote">Prefixes filenames. Browser handles save location.</p> </div>
+      <div>
+        <div className="relative">
+          <Input
+            type="text"
+            id="dvFocus"
+            label="Dependent Variable Focuses"
+            value={dvFocusInput}
+            onChange={(e) => validateAndSetDvFocus(e.target.value)}
+            placeholder="e.g., cognitions, emotions"
+            error={dvFocusError}
+            aria-invalid={!!dvFocusError}
+            aria-describedby={dvFocusError ? "dvFocusError" : undefined}
+          />
+          <div className="absolute inset-y-0 right-0 pr-3 flex items-center top-7">
+            <span className="text-light-sidenote dark:text-dark-sidenote cursor-pointer group" title="Enter comma-separated values. Example: cognitions, emotions, sensations">
+              {InfoIcon}
+            </span>
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <div className="relative">
+            <Input
+              type="number"
+              id="temperature"
+              label="Temperature"
+              value={temperature}
+              onChange={(e) => setTemperature(parseFloat(e.target.value))}
+              min="0"
+              max="2"
+              step="0.1"
+            />
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center top-7">
+              <span className="text-light-sidenote dark:text-dark-sidenote cursor-pointer group" title="Controls randomness. 0.0 for deterministic. Default: 0.0">{InfoIcon}</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div className="relative">
+            <Input
+              type="text"
+              id="seed"
+              label="Global Seed"
+              value={seedInput}
+              onChange={(e) => validateAndSetSeed(e.target.value)}
+              placeholder="Optional integer"
+            />
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center top-7">
+              <span className="text-light-sidenote dark:text-dark-sidenote cursor-pointer group" title="Optional positive integer for reproducibility. Default: 42">{InfoIcon}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <Input
+          type="text"
+          id="outputDir"
+          label="Output Directory Name"
+          value={outputDirectory}
+          onChange={(e) => setOutputDirectory(e.target.value)}
+          placeholder="e.g., MyProject_Outputs"
+          helperText="Prefixes filenames. Browser handles save location."
+        />
+      </div>
       <div className="flex items-center"> <input id="autoDownload" type="checkbox" checked={autoDownloadResults} onChange={(e) => updateSettings({ autoDownloadResults: e.target.checked })} className="h-4 w-4 rounded border-light-border dark:border-dark-border text-light-accent dark:text-dark-accent focus:ring-light-accent dark:focus:ring-dark-accent bg-light-input-bg dark:bg-dark-input-bg" /> <label htmlFor="autoDownload" className="ml-2 block text-sm text-light-text dark:text-dark-text">Autodownload essential results</label> </div>
       <div className="grid grid-cols-2 gap-2">
-          <button onClick={saveStateToFile} disabled={rawTranscripts.length === 0 && currentStepInfo.stepId === StepId.IDLE} className={`${secondaryButtonClasses} w-full ${ (rawTranscripts.length === 0 && currentStepInfo.stepId === StepId.IDLE) ? disabledButtonClasses : ''}`}> {SaveIcon} <span>Save State</span> </button>
-          <div> <label htmlFor="loadStateFile" className={`${secondaryButtonClasses} w-full cursor-pointer`}> {LoadIcon} <span>Load State</span> </label> <input id="loadStateFile" type="file" accept=".json" onChange={loadStateFromFile} className="hidden" ref={loadStateInputRef} /> </div>
+          <Button
+            onClick={() => saveStateToFile(activeTranscriptIndex, currentStepInfo)}
+            disabled={rawTranscripts.length === 0 && currentStepInfo.stepId === StepId.IDLE}
+            variant="secondary"
+            className="w-full"
+          >
+            {SaveIcon} <span>Save State</span>
+          </Button>
+          <div>
+            <label htmlFor="loadStateFile">
+              <Button as="span" variant="secondary" className="w-full cursor-pointer">
+                {LoadIcon} <span>Load State</span>
+              </Button>
+            </label>
+            <input id="loadStateFile" type="file" accept=".json" onChange={loadStateFromFile} className="hidden" ref={loadStateInputRef} />
+          </div>
       </div>
        <div
           onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-          className={`px-1 py-[1px] border-2 border-dashed rounded-md text-center ${isDraggingOver ? 'border-light-accent dark:border-dark-accent bg-light-accent/10 dark:bg-dark-accent/10' : 'border-light-border dark:border-dark-border hover:border-light-accent/50 dark:hover:border-dark-accent/50'} ${(!apiKeyPresent || !!dvFocusError) ? disabledButtonClasses : 'cursor-pointer'} transition-colors duration-150`}
+          className={`px-1 py-[1px] border-2 border-dashed rounded-md text-center ${isDraggingOver ? 'border-light-accent dark:border-dark-accent bg-light-accent/10 dark:bg-dark-accent/10' : 'border-light-border dark:border-dark-border hover:border-light-accent/50 dark:hover:border-dark-accent/50'} ${(!apiKeyPresent || !!dvFocusError) ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} transition-colors duration-150`}
           role="button" aria-label="File upload area"
       >
           <label htmlFor="fileUpload" className={`w-full flex flex-col items-center justify-center space-y-0 ${(!apiKeyPresent || !!dvFocusError) ? 'cursor-not-allowed' : 'cursor-pointer'}`}> {UploadIcon} <span className="text-sm">{isDraggingOver ? 'Drop files here' : 'Upload or Drag & Drop .txt Files'}</span> </label>
@@ -86,7 +160,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <li 
                   key={transcript.id} 
                   className={`p-2 rounded-md text-sm flex items-center justify-between transition-colors duration-150 ${activeTranscriptIndex === index && !isGlobalStep(currentStepInfo.stepId) ? 'border-b-2 border-light-accent dark:border-dark-accent text-light-accent dark:text-dark-accent' : 'border-b-2 border-transparent hover:bg-light-border dark:hover:bg-dark-border'} ${currentStepInfo.status === StepStatus.Loading && currentStepInfo.transcriptId === transcript.id ? 'ephemeral-border' : ''}`}
-                  onClick={() => setActiveTranscriptByIndex(index)} role="button" tabIndex={0} onKeyPress={(e) => e.key === 'Enter' && setActiveTranscriptByIndex(index)} aria-current={activeTranscriptIndex === index && !isGlobalStep(currentStepInfo.stepId)}
+                  onClick={() => setActiveTranscript(index)} role="button" tabIndex={0} onKeyPress={(e) => e.key === 'Enter' && setActiveTranscript(index)} aria-current={activeTranscriptIndex === index && !isGlobalStep(currentStepInfo.stepId)}
               >
                 <span className="flex items-center space-x-2 truncate"> {FileTextIcon} <span className="truncate" title={transcript.filename}>{transcript.filename}</span> </span>
                 <span className={`text-xs px-2 py-0.5 rounded-full ${getTranscriptStatusDisplay(transcript.id).includes("Done") ? 'bg-light-accent-subtle/20 text-light-accent-subtle dark:bg-dark-accent-subtle/20 dark:text-dark-accent-subtle' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-700 dark:text-yellow-100'} whitespace-nowrap`}> {getTranscriptStatusDisplay(transcript.id)} </span>

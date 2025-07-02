@@ -38,3 +38,6 @@ export {
   useSettingsStore,
   useIRRStore
 }
+
+// Export selectors
+export { selectCurrentStepDisplay, selectMermaidChartForStep } from './pipelineStore'

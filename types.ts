@@ -629,6 +629,8 @@ export interface HilContext {
   stepInfo: CurrentStepInfo;
   originalPrompt: string;
   previousResponse: string;
+  metaPrompt?: string;
+  needsProcessing?: boolean;
 }
 
 export interface GroundingChunkWeb {

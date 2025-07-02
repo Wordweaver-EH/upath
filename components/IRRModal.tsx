@@ -1,21 +1,14 @@
 import React, { useRef } from 'react';
 import { AppState } from '../types';
 import { useIRRStore } from '../src/stores/irrStore';
+import { Button, Input } from '../src/components/ui';
 
 interface IRRModalProps {
   onDownloadDisagreementReport?: () => void;
-  primaryButtonClasses: string;
-  secondaryButtonClasses: string;
-  inputBaseClasses: string;
-  disabledButtonClasses: string;
 }
 
 const IRRModal: React.FC<IRRModalProps> = ({
-  onDownloadDisagreementReport,
-  primaryButtonClasses,
-  secondaryButtonClasses,
-  inputBaseClasses,
-  disabledButtonClasses
+  onDownloadDisagreementReport
 }) => {
   const fileInputARef = useRef<HTMLInputElement>(null);
   const fileInputBRef = useRef<HTMLInputElement>(null);
@@ -197,12 +190,13 @@ const IRRModal: React.FC<IRRModalProps> = ({
 
         {onDownloadDisagreementReport && (
           <div className="flex justify-end">
-            <button
+            <Button
               onClick={onDownloadDisagreementReport}
-              className={`px-4 py-2 rounded text-sm ${primaryButtonClasses}`}
+              variant="primary"
+              size="sm"
             >
               Download Full Coding Matrix Report
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -217,12 +211,14 @@ const IRRModal: React.FC<IRRModalProps> = ({
             <h2 className="text-2xl font-bold text-light-text dark:text-dark-text">
               Inter-Rater Reliability Analysis
             </h2>
-            <button
+            <Button
               onClick={closeIrrModal}
-              className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text text-2xl"
+              className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text text-2xl p-1"
+              variant="secondary"
+              aria-label="Close modal"
             >
               ×
-            </button>
+            </Button>
           </div>
 
           <div className="mb-6">
@@ -289,17 +285,14 @@ const IRRModal: React.FC<IRRModalProps> = ({
           {/* Action buttons */}
           <div className="flex justify-between items-center mb-6">
             <div></div>
-            <button
+            <Button
               onClick={generateSemanticMapping}
               disabled={!canStartComparison()}
-              className={`px-6 py-3 rounded font-medium ${
-                canStartComparison()
-                  ? primaryButtonClasses
-                  : `${disabledButtonClasses} bg-light-border dark:bg-dark-border text-light-sidenote dark:text-dark-sidenote cursor-not-allowed`
-              }`}
+              variant="primary"
+              className="px-6 py-3"
             >
               Compare Analyses
-            </button>
+            </Button>
           </div>
 
           {/* Results */}
@@ -308,12 +301,12 @@ const IRRModal: React.FC<IRRModalProps> = ({
           {/* Footer */}
           <div className="border-t border-light-border dark:border-dark-border pt-4 mt-6">
             <div className="flex justify-end space-x-3">
-              <button
+              <Button
                 onClick={closeIrrModal}
-                className={secondaryButtonClasses}
+                variant="secondary"
               >
                 Close
-              </button>
+              </Button>
             </div>
           </div>
         </div>

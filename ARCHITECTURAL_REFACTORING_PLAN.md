@@ -3,10 +3,27 @@
 **Date:** 2025-01-02  
 **Objective:** Address three architectural issues identified in Bug Report 003  
 **Timeline:** 3-4 days total  
+**STATUS:** Phase 1 in progress - plan needs revision based on runtime issues discovered
 
 ## Overview
 
 This plan details the step-by-step implementation for fixing the architectural issues resulting from the Zustand migration. The fixes will be implemented in priority order to ensure stability throughout the refactoring process.
+
+⚠️ **CRITICAL REVISION NOTE**: The original plan was insufficient. It focused on static code structure but missed runtime dependencies and execution order issues. See inline revisions throughout.
+
+### Key Failures in Original Plan:
+1. **Assumed callbacks were the solution** - Actually made things worse
+2. **Didn't map parameter requirements** - Components broke at runtime  
+3. **Ignored React hook ordering** - Caused temporal dead zone errors
+4. **No incremental testing** - Found errors only after "completing" work
+5. **Missed component updates** - Only fixed stores, not their consumers
+
+### What Actually Works:
+1. **State synchronization** via Zustand subscriptions (not callbacks)
+2. **Parameter passing** from components to store functions
+3. **Careful hook ordering** in React components
+4. **Test after EVERY change** - catch runtime errors early
+5. **Update ALL touchpoints** - stores, components, and their contracts
 
 ## Phase 1: Eliminate Circular Store Dependency (P1)
 
@@ -16,67 +33,147 @@ This plan details the step-by-step implementation for fixing the architectural i
 1. Create a dependency map of all `useUIStore.getState()` calls in pipelineStore
 2. Identify which UI actions are being called from pipelineStore
 3. Document the data flow for each interaction
+4. **REVISION ADDED**: Map ALL runtime data dependencies, not just imports
+5. **REVISION ADDED**: Document which components pass data to store functions
+6. **REVISION ADDED**: Create execution order diagram for React hooks
 
 #### Step 1.2: Define Callback Interfaces
+
+**REVISION**: This approach was too complex. Instead of callbacks, we used:
+1. State synchronization fields in pipelineStore
+2. Zustand subscriptions in App.tsx
+3. Parameter passing from components
+
 ```typescript
-// types/callbacks.ts
-export interface PipelineCallbacks {
-  onStepUpdate?: (stepInfo: CurrentStepInfo) => void;
-  onAutorunUpdate?: (isRunning: boolean) => void;
-  onUIReset?: () => void;
-  onError?: (error: string) => void;
-  onProgress?: (progress: number) => void;
+// REVISED APPROACH - Add to pipelineStore state:
+interface PipelineState {
+  // ... existing state
+  // UI synchronization state
+  lastStepInfo?: CurrentStepInfo;
+  lastError?: string;
+  lastHilContext?: HilContext;
+  shouldStopAutorun?: boolean;
 }
 ```
 
+**Why this works better**: Avoids callback hell, uses Zustand's built-in subscription system, maintains unidirectional data flow
+
 #### Step 1.3: Refactor pipelineStore Actions
-1. **processSingleStep**
+
+**REVISION**: The callback approach was wrong. Here's what actually works:
+
+1. **Functions that need UI state must accept it as parameters**
    ```typescript
+   // WRONG (original plan):
    processSingleStep: async (stepId: StepId, callbacks?: PipelineCallbacks) => {
-     // Replace direct UI store calls with callbacks
      callbacks?.onStepUpdate?.(newStepInfo);
-     callbacks?.onAutorunUpdate?.(false);
+   }
+   
+   // RIGHT (revised):
+   processSingleStep: async ({ stepId, transcriptIdToProcess, hilMetaPrompt }) => {
+     // Update pipeline's own state
+     set(state => ({ ...state, lastStepInfo: newStepInfo }));
    }
    ```
 
-2. **resetPipeline**
+2. **Helper functions must be updated to accept parameters**
    ```typescript
-   resetPipeline: (callbacks?: PipelineCallbacks) => {
-     // Reset pipeline state
-     callbacks?.onUIReset?.();
+   // CRITICAL MISS IN ORIGINAL PLAN:
+   // Functions like isPreviousStepDisabled need currentStepInfo & activeTranscriptIndex
+   isPreviousStepDisabled: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
+     // Implementation using passed parameters
    }
    ```
 
-3. Continue for all 22 instances of `useUIStore.getState()`
+3. **Components must provide these parameters**
+   - This was completely missing from the original plan!
+   - ControlsPanel must get activeTranscriptIndex from UI store
+   - Must pass it to pipeline store functions
 
 #### Step 1.4: Update App.tsx to Bridge Stores
+
+**MAJOR REVISION**: The original bridging approach was overcomplicated. Here's what actually works:
+
 ```typescript
-// App.tsx
-const bridgeStoreActions = () => {
-  const setCurrentStepInfo = useUIStore(state => state.setCurrentStepInfo);
-  const setAutorunning = useUIStore(state => state.setAutorunning);
-  const resetUIState = useUIStore(state => state.resetUIState);
-  
-  const callbacks: PipelineCallbacks = {
-    onStepUpdate: setCurrentStepInfo,
-    onAutorunUpdate: setAutorunning,
-    onUIReset: resetUIState,
-  };
-  
-  return callbacks;
-};
+// CRITICAL: Order matters! Define store selectors BEFORE useEffect hooks
+const processSingleStep = usePipelineStore(state => state.processSingleStep);
+const setCurrentStepInfo = useUIStore(state => state.setCurrentStepInfo);
+
+// Initialize stores (already exists in stores/index.ts)
+useEffect(() => {
+  initializeStores()
+}, [])
+
+// Listen for pipeline state changes
+useEffect(() => {
+  const unsubscribe = usePipelineStore.subscribe(
+    (state) => ({ lastStepInfo: state.lastStepInfo, shouldStopAutorun: state.shouldStopAutorun }),
+    (updates) => {
+      if (updates.lastStepInfo) setCurrentStepInfo(updates.lastStepInfo);
+      if (updates.shouldStopAutorun) setAutorunning(false);
+    }
+  );
+  return unsubscribe;
+}, [setCurrentStepInfo, setAutorunning]);
 ```
 
+**LESSON LEARNED**: React's temporal dead zone means hook order is critical!
+
 #### Step 1.5: Remove Circular Import from uiStore
-1. Remove the dynamic import of pipelineStore
-2. Pass pipeline actions as props where needed
+1. Remove the dynamic import of pipelineStore ✅ DONE
+2. Pass pipeline actions as props where needed ✅ DONE via initializeStores
+
+### ⚠️ CRITICAL: Remaining Phase 1 Work
+
+**What's Still Broken:**
+1. **Component-Store Contracts**: Not all components updated to pass parameters
+2. **Function Signatures**: Some store functions still trying to access UI state directly
+3. **Missing State Fields**: Pipeline store needs more synchronization fields
+4. **Edge Cases**: HIL modal, error handling, file drops not fully migrated
+
+**Immediate Next Steps:**
+1. Audit ALL components that use pipeline store functions
+2. Update remaining function signatures to accept parameters
+3. Test every user interaction path
+4. Add proper error boundaries
 
 ### Testing Checklist for Phase 1
-- [ ] No import cycles detected by build tools
-- [ ] HMR works correctly after changes
+
+**REVISED CHECKLIST** (original was insufficient):
+- [x] No import cycles detected by build tools
+- [x] App builds successfully
+- [ ] **NEW**: App loads without console errors (check browser!)
+- [ ] **NEW**: All store selector functions receive required parameters
+- [ ] **NEW**: Components pass correct parameters to store functions
+- [ ] **NEW**: State synchronization works (pipeline → UI updates)
+- [x] HMR works correctly after changes
 - [ ] All UI updates function as before
-- [ ] Unit tests pass for both stores
-- [ ] No console errors or warnings
+- [ ] **NEW**: No temporal dead zone errors
+- [ ] **NEW**: Verify with test script: `node test-circular-deps.cjs`
+
+### NEW SECTION: Complete Data Flow Mapping (Missing from Original Plan)
+
+**Pipeline Store Functions Requiring UI State:**
+```typescript
+// Function → Required Parameters → Source
+isPreviousStepDisabled → currentStepInfo, activeTranscriptIndex → UIStore
+isNextStepDisabled → currentStepInfo, activeTranscriptIndex → UIStore  
+isRunStepDisabled → currentStepInfo, apiKeyPresent, dvFocusError → UIStore + SettingsStore
+isHilModalDisabled → currentStepInfo → UIStore
+isDownloadOutputDisabled → currentStepInfo → UIStore
+getNextStepDetails → currentStepInfo, activeTranscriptIndex → UIStore
+getPreviousStepDetails → currentStepInfo, activeTranscriptIndex → UIStore
+getSaveState → activeTranscriptIndex, currentStepInfo → UIStore
+downloadOutput → stepId, label, outputData → Params from component
+retryWithUserSeed → seed, temperature → SettingsStore
+```
+
+**Components That Must Provide Parameters:**
+- ControlsPanel.tsx ✅ FIXED
+- SettingsPanel.tsx ❓ NEEDS AUDIT
+- StatusDisplay.tsx ❓ NEEDS AUDIT
+- PipelineOverview.tsx ❓ NEEDS AUDIT
+- App.tsx ✅ PARTIALLY FIXED
 
 ## Phase 2: Consolidate Derived State into Store Selectors (P2)
 

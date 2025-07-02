@@ -14,6 +14,7 @@ export const useAutorunManager = () => {
   const isAutorunning = useUIStore(state => state.isAutorunning)
   const currentStepInfo = useUIStore(state => state.currentStepInfo)
   const processStartTime = useUIStore(state => state.processStartTime)
+  const activeTranscriptIndex = useUIStore(state => state.activeTranscriptIndex)
   const setActiveTranscript = useUIStore(state => state.setActiveTranscript)
   const setCurrentStepInfo = useUIStore(state => state.setCurrentStepInfo)
   const setAutorunning = useUIStore(state => state.setAutorunning)
@@ -33,7 +34,7 @@ export const useAutorunManager = () => {
 
   useEffect(() => { 
     if (isAutorunning && currentStepInfo.status === StepStatus.Success) {
-      const details = getNextStepDetails();
+      const details = getNextStepDetails(currentStepInfo, activeTranscriptIndex);
       if (details) {
         setActiveTranscript(details.nextTranscriptIndex); 
         if (details.nextStepId === StepId.COMPLETE) {

@@ -28,10 +28,11 @@ import ControlsPanel from './components/ControlsPanel';
 import StatusDisplay from './components/StatusDisplay';
 import HilModal from './components/HilModal';
 import PipelineOverview, { PipelineStepNode } from './components/PipelineOverview';
+import { Button } from './src/components/ui';
 import IRRModal from './components/IRRModal';
 import GduMappingModal from './components/GduMappingModal';
 
-import { useUIStore, useSettingsStore, usePipelineStore, useIRRStore, initializeStores } from './src/stores';
+import { useUIStore, useSettingsStore, usePipelineStore, useIRRStore, initializeStores, selectCurrentStepDisplay } from './src/stores';
 import { useAutorunManager } from './src/hooks/useAutorunManager';
 
 
@@ -112,13 +113,6 @@ const ReportRenderer: React.FC<ReportRendererProps> = ({ markdown, theme }) => {
 
 
 const App: React.FC = () => { 
-  // Initialize stores with dependency injection to avoid circular dependencies
-  useEffect(() => {
-    initializeStores()
-  }, [])
-
-  // Migration to Zustand is now complete - no longer need feature flag
-
   // UI Store - consolidated selector for better performance
   const {
     theme,
@@ -169,6 +163,66 @@ const App: React.FC = () => {
 
 
   const outputDisplayRef = useRef<HTMLDivElement | null>(null);
+  
+  // Initialize stores with dependency injection to avoid circular dependencies
+  useEffect(() => {
+    initializeStores()
+  }, [])
+  
+  // Listen for HIL context changes that need processing
+  useEffect(() => {
+    const unsubscribe = useUIStore.subscribe(
+      (state) => state.hilContext,
+      (hilContext) => {
+        if (hilContext?.needsProcessing && hilContext.metaPrompt) {
+          // Process the HIL correction
+          const { stepInfo, metaPrompt } = hilContext
+          processSingleStep({
+            stepId: stepInfo.stepId,
+            transcriptIdToProcess: stepInfo.transcriptId,
+            hilMetaPrompt: metaPrompt
+          })
+          
+          // Clear the needsProcessing flag
+          useUIStore.setState({
+            hilContext: {
+              ...hilContext,
+              needsProcessing: false
+            }
+          })
+        }
+      }
+    )
+    return unsubscribe
+  }, [processSingleStep])
+  
+  // Listen for pipeline state changes to update UI
+  useEffect(() => {
+    const unsubscribe = usePipelineStore.subscribe(
+      (state) => ({
+        lastStepInfo: state.lastStepInfo,
+        lastError: state.lastError,
+        shouldStopAutorun: state.shouldStopAutorun,
+        lastHilContext: state.lastHilContext
+      }),
+      (pipelineUpdates) => {
+        if (pipelineUpdates.lastStepInfo) {
+          setCurrentStepInfo(pipelineUpdates.lastStepInfo)
+        }
+        if (pipelineUpdates.shouldStopAutorun) {
+          setAutorunning(false)
+          // Clear the flag
+          usePipelineStore.setState({ shouldStopAutorun: false })
+        }
+        if (pipelineUpdates.lastHilContext) {
+          openHilModal(pipelineUpdates.lastHilContext)
+          // Clear after handling
+          usePipelineStore.setState({ lastHilContext: undefined })
+        }
+      }
+    )
+    return unsubscribe
+  }, [setCurrentStepInfo, setAutorunning, openHilModal])
 
   // Autorun logic extracted to custom hook for better separation of concerns
   useAutorunManager();
@@ -182,11 +236,6 @@ const App: React.FC = () => {
 
   
 
-  const inputBaseClasses = "block w-full text-sm rounded-md shadow-sm bg-light-input-bg dark:bg-dark-input-bg text-light-text dark:text-dark-text placeholder-light-sidenote dark:placeholder-dark-sidenote focus:ring-light-accent dark:focus:ring-dark-accent focus:border-light-accent dark:focus:border-dark-accent";
-  const baseButtonClasses = "inline-flex items-center justify-center space-x-2 px-3 py-1.5 text-sm font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-light-bg-alt dark:focus:ring-offset-dark-bg-alt transition-colors duration-150";
-  const primaryButtonClasses = `${baseButtonClasses} bg-light-accent hover:bg-light-accent-hover text-white dark:bg-dark-accent dark:hover:bg-dark-accent-hover dark:text-dark-bg`;
-  const secondaryButtonClasses = `${baseButtonClasses} bg-light-btn dark:bg-dark-btn text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border border border-light-border dark:border-dark-border`;
-  const disabledButtonClasses = "opacity-50 cursor-not-allowed";
 
   const allPipelinePartsInOrder: { name: string; steps: StepId[]; isPerTranscript?: boolean; isPerPhase?: boolean; isPerGDU?: boolean; }[] = [
     { name: "Part -1: Variable ID", steps: STEP_ORDER_PART_NEG1, isPerTranscript: true },
@@ -222,52 +271,42 @@ const App: React.FC = () => {
 
     const handleHilSubmit = useUIStore(state => state.handleHilSubmit);
 
+  // Use selector for output display logic
+  const stepDisplay = selectCurrentStepDisplay(currentStepInfo, rawTranscripts.length);
+  
   const renderOutput = () => {
-    if (currentStepInfo.status === StepStatus.Loading) {
-      return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote animate-pulse">Loading output...</div>;
+    switch (stepDisplay.type) {
+      case 'loading':
+        return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote animate-pulse">{stepDisplay.message}</div>;
+      
+      case 'error':
+        return <div className="text-center py-8 text-red-600 dark:text-red-400">{stepDisplay.message}</div>;
+      
+      case 'empty':
+        return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">{stepDisplay.message}</div>;
+      
+      case 'mermaid':
+        return <MermaidDiagram chart={stepDisplay.chart} theme={theme} />;
+      
+      case 'report':
+        return <ReportRenderer markdown={stepDisplay.markdown} theme={theme} />;
+      
+      case 'output':
+        if (typeof stepDisplay.data === 'object' && stepDisplay.data !== null) {
+          try { 
+            return <pre className="text-xs whitespace-pre-wrap break-all">{JSON.stringify(stepDisplay.data, null, 2)}</pre>; 
+          } catch (e) { 
+            return <pre className="text-xs whitespace-pre-wrap break-all text-red-600 dark:text-red-400">Error stringifying JSON output: {(e as Error).message}</pre>;
+          }
+        }
+        if (typeof stepDisplay.data === 'string') {
+          return <pre className="text-xs whitespace-pre-wrap break-all">{stepDisplay.data}</pre>;
+        }
+        return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">Output format not recognized or no output data.</div>;
+      
+      default:
+        return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">Unknown display type</div>;
     }
-    if (currentStepInfo.status === StepStatus.Error && !currentStepInfo.outputData) { 
-      return <div className="text-center py-8 text-red-600 dark:text-red-400">Error occurred. See status bar for details.</div>;
-    }
-    if (!currentStepInfo.outputData && currentStepInfo.stepId !== StepId.IDLE) {
-      return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">No output to display for this step yet.</div>;
-    }
-    if (currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length === 0) {
-      return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">Upload transcripts to begin.</div>;
-    }
-    if (currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length > 0) {
-      return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">Ready to start. Click "Autorun" or "Next Step".</div>;
-    }
-
-    const outputData = currentStepInfo.outputData;
-    let mermaidChart: string | undefined = undefined;
-    const tId = currentStepInfo.transcriptId;
-    const phase = currentStepInfo.currentPhaseForP2S;
-    const gdu = currentStepInfo.currentGduForP4S;
-
-    if (currentStepInfo.stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && tId) mermaidChart = processedData.get(tId)?.p1_4_mermaid_syntax;
-    else if (currentStepInfo.stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE && tId && phase) mermaidChart = processedData.get(tId)?.p2s_outputs_by_phase?.[phase]?.p2s_3_mermaid_syntax;
-    else if (currentStepInfo.stepId === StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE) mermaidChart = genericAnalysisState.p3_3_mermaid_syntax;
-    else if (currentStepInfo.stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES && gdu) {
-        // No mermaid for P4S_1_A, just display output
-    } else if (currentStepInfo.stepId === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS && gdu) mermaidChart = genericAnalysisState.p4s_mermaid_syntax_by_gdu?.[gdu];
-    else if (currentStepInfo.stepId === StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS) mermaidChart = genericAnalysisState.p7_3_mermaid_syntax_dag;
-    else if (currentStepInfo.stepId === StepId.P7_3B_VALIDATE_AND_CLEAN_DAG) mermaidChart = genericAnalysisState.p7_3b_mermaid_syntax_dag;
-
-    if (mermaidChart) return <MermaidDiagram chart={mermaidChart} theme={theme} />;
-    
-    if (currentStepInfo.stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT || currentStepInfo.stepId === StepId.COMPLETE) {
-      if (typeof outputData === 'string' && outputData.trim() !== "") return <ReportRenderer markdown={outputData} theme={theme} />;
-      return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">Report not generated or empty.</div>;
-    }
-
-    if (typeof outputData === 'object' && outputData !== null) {
-      try { return <pre className="text-xs whitespace-pre-wrap break-all">{JSON.stringify(outputData, null, 2)}</pre>; } 
-      catch (e) { return <pre className="text-xs whitespace-pre-wrap break-all text-red-600 dark:text-red-400">Error stringifying JSON output: {(e as Error).message}</pre>;}
-    }
-    if (typeof outputData === 'string') return <pre className="text-xs whitespace-pre-wrap break-all">{outputData}</pre>;
-    
-    return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">Output format not recognized or no output data.</div>;
   };
 
   return (
@@ -277,9 +316,9 @@ const App: React.FC = () => {
           <span style={{ fontFamily: "'Times New Roman', serif" }}>µ</span>-<span className="font-logoP">P</span>ATH: Micro-Phenomenological Analysis Threader
           <span className="text-xs text-light-sidenote dark:text-dark-sidenote align-middle ml-1">v{APP_VERSION}</span>
         </h1>
-        <button onClick={toggleTheme} className={`${secondaryButtonClasses} p-2`} aria-label="Toggle theme">
+        <Button onClick={toggleTheme} variant="secondary" className="p-2" aria-label="Toggle theme">
           {theme === 'light' ? MoonIcon : SunIcon}
-        </button>
+        </Button>
       </header>
 
       <main className="md:grid md:grid-cols-3 gap-4 p-4">
@@ -294,19 +333,11 @@ const App: React.FC = () => {
               PipelineStepNodeComponent={PipelineStepNode}
             />
           }
-          inputBaseClasses={inputBaseClasses}
-          secondaryButtonClasses={secondaryButtonClasses}
-          disabledButtonClasses={disabledButtonClasses}
         />
 
         <div className="md:col-span-2 space-y-4">
           <div className="space-y-2">
-            <ControlsPanel
-              inputBaseClasses={inputBaseClasses} 
-              primaryButtonClasses={primaryButtonClasses} 
-              secondaryButtonClasses={secondaryButtonClasses} 
-              disabledButtonClasses={disabledButtonClasses}
-            />
+            <ControlsPanel />
           </div>
           
           <StatusDisplay />
@@ -323,25 +354,13 @@ const App: React.FC = () => {
       {/* Unified modals using Zustand stores */}
       <IRRModal
         onDownloadDisagreementReport={handleDownloadDisagreementReport}
-        primaryButtonClasses={primaryButtonClasses}
-        secondaryButtonClasses={secondaryButtonClasses}
-        inputBaseClasses={inputBaseClasses}
-        disabledButtonClasses={disabledButtonClasses}
       />
       <GduMappingModal
         onConfirmMapping={handleConfirmGduMapping}
-        primaryButtonClasses={primaryButtonClasses}
-        secondaryButtonClasses={secondaryButtonClasses}
-        inputBaseClasses={inputBaseClasses}
-        disabledButtonClasses={disabledButtonClasses}
       />
       <HilModal
         onSubmit={handleHilSubmit}
         getHilPreviousResponseDisplay={getHilPreviousResponseDisplay}
-        inputBaseClasses={inputBaseClasses}
-        secondaryButtonClasses={secondaryButtonClasses}
-        primaryButtonClasses={primaryButtonClasses}
-        disabledButtonClasses={disabledButtonClasses}
       />
     </div>
   );

@@ -3,23 +3,16 @@ import { STEP_CONFIGS } from '../constants';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
 import CollapsibleSection from './CollapsibleSection';
+import { Button, TextArea } from '../src/components/ui';
 
 interface HilModalProps {
   onSubmit: () => void;
   getHilPreviousResponseDisplay: () => string;
-  inputBaseClasses: string;
-  secondaryButtonClasses: string;
-  primaryButtonClasses: string;
-  disabledButtonClasses: string;
 }
 
 const HilModal: React.FC<HilModalProps> = ({
   onSubmit,
-  getHilPreviousResponseDisplay,
-  inputBaseClasses,
-  secondaryButtonClasses,
-  primaryButtonClasses,
-  disabledButtonClasses
+  getHilPreviousResponseDisplay
 }) => {
   // Get state from stores
   const isHilModalOpen = useUIStore(state => state.isHilModalOpen);
@@ -60,30 +53,25 @@ const HilModal: React.FC<HilModalProps> = ({
               {getHilPreviousResponseDisplay()}
             </pre>
           </CollapsibleSection>
-          <div>
-            <label htmlFor="hilGuidance" className="block text-sm font-medium text-light-sidenote dark:text-dark-sidenote mb-1">
-              Your Guidance for Improvement:
-            </label>
-            <textarea 
-              id="hilGuidance" 
-              value={hilUserGuidance} 
-              onChange={(e) => setHilUserGuidance(e.target.value)}
-              rows={6} 
-              className={`${inputBaseClasses} border-light-border dark:border-dark-border`}
-              placeholder="Describe what was wrong or how to improve the output."
-            />
-          </div>
+          <TextArea
+            label="Your Guidance for Improvement:"
+            id="hilGuidance" 
+            value={hilUserGuidance} 
+            onChange={(e) => setHilUserGuidance(e.target.value)}
+            rows={6} 
+            placeholder="Describe what was wrong or how to improve the output."
+          />
         </div>
 
         <div className="mt-6 flex justify-end space-x-3 pt-4 border-t border-light-border dark:border-dark-border">
-          <button onClick={closeHilModal} className={secondaryButtonClasses}>Cancel</button>
-          <button 
+          <Button onClick={closeHilModal} variant="secondary">Cancel</Button>
+          <Button 
             onClick={onSubmit} 
             disabled={!hilUserGuidance.trim()} 
-            className={`${primaryButtonClasses} ${!hilUserGuidance.trim() ? disabledButtonClasses : ''}`}
+            variant="primary"
           >
             Submit Guidance & Re-run
-          </button>
+          </Button>
         </div>
       </div>
     </div>
