@@ -4,7 +4,7 @@ import { calculateKrippendorffsAlpha, type ReliabilityMatrix } from '../statisti
 import type { TranscriptProcessedData, P3_2_Output } from '../../types';
 
 // Import the validation function to test it
-import { validateAndCleanP3_2_Output } from '../../constants';
+import { validateAndCleanP3_2_Output } from '@/constants';
 
 describe('Bug Fixes Verification', () => {
   describe('Deterministic GDU Ordering', () => {

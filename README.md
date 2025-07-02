@@ -106,7 +106,7 @@ The application implements a detailed, multi-part analysis pipeline:
 ### 4.1. API Key Configuration (Crucial!)
 
 This application requires a Google Gemini API key. **It MUST be configured in a `.env` file in the project root.** Copy `.env.example` to `.env` and add your key:
-`REACT_APP_API_KEY=your_gemini_api_key_here`
+`GEMINI_API_KEY=your_gemini_api_key_here`
 
 ### 4.2. Running the Application
 
