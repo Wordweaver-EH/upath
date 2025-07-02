@@ -161,13 +161,11 @@ type PipelineStore = PipelineState & PipelineActions & PipelineSelectors
 // Helper function to process file content
 const processFileContent = async (file: File): Promise<RawTranscript> => {
   const text = await file.text()
-  const lines = text.split('\\n').filter(line => line.trim())
-  const metadata = { fileName: file.name, uploadDate: new Date().toISOString() }
   
   return {
     id: `transcript-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    content: lines,
-    metadata
+    filename: file.name,
+    content: text
   }
 }
 
@@ -177,35 +175,25 @@ const createTranscriptSlice = (set: any, get: any): TranscriptSlice => ({
   processedData: new Map(),
   
   addTranscripts: async (files: File[]) => {
+    console.log('🔄 addTranscripts called with', files.length, 'files');
     const newTranscripts = await Promise.all(files.map(processFileContent))
+    console.log('✅ Processed transcripts:', newTranscripts);
     
     set((state: PipelineState) => {
+      console.log('📝 Starting state update...');
       state.rawTranscripts = [...state.rawTranscripts, ...newTranscripts]
+      console.log('📋 Updated rawTranscripts, count:', state.rawTranscripts.length);
       
       // Initialize processed data for new transcripts
+      console.log('🔄 Initializing processed data...');
       newTranscripts.forEach(transcript => {
+        console.log('📊 Processing transcript:', transcript.id, transcript.filename);
         state.processedData.set(transcript.id, {
           id: transcript.id,
-          rawContent: transcript.content,
-          fileName: transcript.metadata.fileName,
-          isFullyProcessedSpecific: false,
-          p_neg1_output: undefined,
-          p_neg1_error: undefined,
-          p0_output: undefined,
-          p0_error: undefined,
-          p1_1_output: undefined,
-          p1_1_error: undefined,
-          p1_2_output: undefined,
-          p1_2_mermaid_syntax: undefined,
-          p1_2_error: undefined,
-          p2s_outputs_by_phase: {},
-          p2s_mermaid_syntax_by_phase: {},
-          p2s_1_a_error: undefined,
-          p2s_1_b_error: undefined,
-          current_phase_for_p2s_processing: undefined,
-          phases_to_process_for_p2s: [],
-          processed_phases_for_p2s: []
-        })
+          filename: transcript.filename,
+          isFullyProcessedSpecificDiachronic: false,
+          isFullyProcessedSpecificSynchronic: false
+        } as TranscriptProcessedData)
       })
     })
   },
@@ -312,7 +300,7 @@ export const usePipelineStore = create<PipelineStore>()(
         const config = STEP_CONFIGS[stepId]
         if (!config) {
           setTimeout(() => {
-            setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+            setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
             setTimeout(() => { uiStore.setAutorunning($1) }, 0)
           }, 0)
           return
@@ -345,7 +333,7 @@ export const usePipelineStore = create<PipelineStore>()(
             }
             if (!currentPhase && (tData.phases_for_p2s_processing?.length || 0) > 0 && !tData.isFullyProcessedSpecificSynchronic) {
               setTimeout(() => {
-                setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+                setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
                 setTimeout(() => { uiStore.setAutorunning($1) }, 0)
               }, 0)
               return
@@ -375,7 +363,7 @@ export const usePipelineStore = create<PipelineStore>()(
               })
             } else if (!tempGenericState.isFullyProcessedGenericSynchronic) {
               setTimeout(() => {
-                setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+                setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
                 setTimeout(() => { uiStore.setAutorunning($1) }, 0)
               }, 0)
               return
@@ -383,7 +371,7 @@ export const usePipelineStore = create<PipelineStore>()(
           }
           if (!currentGDU && (tempGenericState.core_gdus_for_sync_analysis || []).length > 0 && !tempGenericState.isFullyProcessedGenericSynchronic) {
             setTimeout(() => {
-              setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+              setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
               setTimeout(() => { uiStore.setAutorunning($1) }, 0)
             }, 0)
             return
@@ -405,7 +393,7 @@ export const usePipelineStore = create<PipelineStore>()(
         if (inputResult === null || inputResult?.error) {
           const errText = `Input error for ${stepId}: ${inputResult?.error || 'Input null'}`
           setTimeout(() => {
-            setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+            setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
             setTimeout(() => { uiStore.setAutorunning($1) }, 0)
           }, 0)
           
@@ -420,7 +408,7 @@ export const usePipelineStore = create<PipelineStore>()(
         
         const inputData = inputResult.data
         setTimeout(() => {
-          setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+          setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
         }, 0)
         
         // Process the step
@@ -533,7 +521,7 @@ export const usePipelineStore = create<PipelineStore>()(
       ) => {
         const uiStore = useUIStore.getState()
         setTimeout(() => {
-          setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+          setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
         }, 0)
         
         const key = stepIdToDataKeyPrefix[stepId]
@@ -600,12 +588,12 @@ export const usePipelineStore = create<PipelineStore>()(
           })
           
           setTimeout(() => {
-            setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+            setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
           }, 0)
         } else {
           const rptErr = "Report generation resulted in empty/invalid content."
           setTimeout(() => {
-            setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+            setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
           }, 0)
           
           set((state: any) => {
@@ -632,7 +620,7 @@ export const usePipelineStore = create<PipelineStore>()(
       ) => {
         const uiStore = useUIStore.getState()
         setTimeout(() => {
-          setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+          setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
         }, 0)
         
         const key = stepIdToDataKeyPrefix[stepId]
@@ -846,7 +834,7 @@ export const usePipelineStore = create<PipelineStore>()(
             const noValidGroupsError = `No valid cross-transcript groups created for GDU ${currentGDU}. All groups failed the minimum 2-transcript requirement.`
             console.error(`[P4S.1.A Processing] ${noValidGroupsError}`)
             setTimeout(() => {
-              setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+              setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
               setTimeout(() => { uiStore.setAutorunning($1) }, 0)
             }, 0)
             set((state: any) => { state.genericAnalysisState.p4s_1_a_error = noValidGroupsError })
@@ -1288,7 +1276,7 @@ export const usePipelineStore = create<PipelineStore>()(
           if (uiStore.currentStepInfo.stepId !== StepId.COMPLETE && genericAnalysisState.isReportGenerated) {
             const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All processing complete."
             setTimeout(() => {
-              setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+              setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
               setTimeout(() => { uiStore.setAutorunning($1) }, 0)
             }, 0)
           }
@@ -1303,7 +1291,7 @@ export const usePipelineStore = create<PipelineStore>()(
           const { genericAnalysisState } = get()
           const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "Processing complete."
           setTimeout(() => {
-            setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+            setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
             setTimeout(() => { uiStore.setAutorunning($1) }, 0)
           }, 0)
         } else {
@@ -1605,7 +1593,7 @@ export const usePipelineStore = create<PipelineStore>()(
           const uiStore = useUIStore.getState()
           if (uiStore.currentStepInfo.stepId === StepId.IDLE) {
             setTimeout(() => {
-              setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+              setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
             }, 0)
           }
         } catch (error) {
@@ -1617,20 +1605,24 @@ export const usePipelineStore = create<PipelineStore>()(
             
             // Handle files dropped from UI store (avoids circular dependency)
             handleDroppedFiles: async (files: File[]) => {
+              console.log('🗂️ handleDroppedFiles called with', files.length, 'files');
               if (files.length === 0) return
       
               try {
+                console.log('📤 Calling addTranscripts...');
                 await get().addTranscripts(files)
+                console.log('✅ addTranscripts completed successfully');
                 
                 // Update UI state
                 const uiStore = useUIStore.getState()
                 if (uiStore.currentStepInfo.stepId === StepId.IDLE) {
                   setTimeout(() => {
-                    setTimeout(() => { uiStore.setCurrentStepInfo($1) }, 0)
+                    setTimeout(() => { uiStore.setCurrentStepInfo({ stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }) }, 0)
                   }, 0)
                 }
               } catch (error) {
-                console.error('Failed to handle dropped files:', error)
+                console.error('❌ Error in handleDroppedFiles:', error);
+                console.error('❌ Error stack:', error.stack);
                 alert('Failed to upload files. Please try again.')
               }
             },

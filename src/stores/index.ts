@@ -1,10 +1,14 @@
 // Store Initialization with Dependency Injection
 // This file establishes proper store dependencies and eliminates circular imports
 
+import { enableMapSet } from 'immer'
 import { useUIStore } from './uiStore'
 import { usePipelineStore } from './pipelineStore'
 import { useSettingsStore } from './settingsStore'
 import { useIRRStore } from './irrStore'
+
+// Enable Immer's Map support
+enableMapSet()
 
 // Initialize stores in proper dependency order
 // UI Store is independent, Pipeline Store will get UI Store injected
