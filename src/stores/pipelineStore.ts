@@ -30,6 +30,7 @@ import {
 import { callGeminiAPI } from '../../services/geminiService'
 // Circular dependency removed - UI updates handled through state synchronization
 import { useSettingsStore } from './settingsStore'
+import { useUIStore } from './uiStore'
 import { stepIdToDataKeyPrefix, isGlobalStep } from '../utils/stepIdToDataKeyPrefix'
 import { generateMarkdownReportProgrammatically, ReportData } from '../utils/reportHelper'
 import { 
@@ -1662,7 +1663,7 @@ export const usePipelineStore = create<PipelineStore>()(
           if (!currentState.lastStepInfo || currentState.lastStepInfo.stepId === StepId.IDLE) {
             set(state => ({
               ...state,
-              lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.READY }
+              lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.Idle }
             }))
           }
         } catch (error) {
@@ -1872,11 +1873,10 @@ export const usePipelineStore = create<PipelineStore>()(
       handlePipelineStepClick: (clickedStepId: StepId) => {
         const { rawTranscripts, processedData } = get()
         
-        // Get UI store synchronously
-        const uiStore = getUIStoreSync()
-        if (!uiStore) return
-        
-        const { isAutorunning, setAutorunning, activeTranscriptIndex, setCurrentStepInfo } = uiStore
+        // Get UI store state synchronously
+        const uiState = useUIStore.getState()
+        const { isAutorunning, activeTranscriptIndex } = uiState
+        const { setAutorunning, setCurrentStepInfo } = useUIStore.getState()
         
         if (isAutorunning) setAutorunning(false)
         

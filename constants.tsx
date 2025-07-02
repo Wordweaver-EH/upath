@@ -2172,23 +2172,23 @@ Important: This is a meta-analysis of already-identified structures. Do not modi
         // Validate each IV group analysis
         const validatedGroups = output.analysis_by_iv_group.map((group: any, index: number) => {
             if (!group.iv_condition || !Array.isArray(group.transcript_ids)) {
-                throw new Error(`P5.1 IV group \${index} missing required fields`);
+                throw new Error(`P5.1 IV group ${index} missing required fields`);
             }
             
             // Validate diachronic summary
             if (!group.diachronic_summary || !Array.isArray(group.diachronic_summary.common_sequences)) {
-                throw new Error(`P5.1 IV group \${index} missing valid diachronic_summary`);
+                throw new Error(`P5.1 IV group ${index} missing valid diachronic_summary`);
             }
             
             // Validate synchronic summary
             if (!group.synchronic_summary || !Array.isArray(group.synchronic_summary.dominant_gss_categories)) {
-                throw new Error(`P5.1 IV group \${index} missing valid synchronic_summary`);
+                throw new Error(`P5.1 IV group ${index} missing valid synchronic_summary`);
             }
             
             // Validate GSS categories reference actual GDUs
             group.synchronic_summary.dominant_gss_categories.forEach((cat: any) => {
                 if (!cat.gdu_context || !cat.category_label) {
-                    throw new Error(`P5.1 IV group \${index} has invalid GSS category`);
+                    throw new Error(`P5.1 IV group ${index} has invalid GSS category`);
                 }
                 
                 // Check if GDU exists in input
