@@ -4,6 +4,14 @@
 
 ### Bug Fixes
 
+#### Unguarded Deep Property Access in P4S.1.A Step (2025-07-03)
+- **FIXED: Runtime Crash from Unguarded Property Access** - Fixed potential TypeError in `constants.tsx` P4S.1.A step
+  - The guard clause at line 1680 was missing optional chaining on `phaseData.p2s_2_output`
+  - Lines 1691-1692 accessed nested properties without optional chaining after the guard
+  - This could cause runtime crashes when `phaseData`, `p2s_3_output`, or `p2s_2_output` were null/undefined
+  - **Solution**: Added optional chaining to all property accesses and implemented defensive variable assignment with additional validation
+  - **Impact**: Prevents pipeline crashes during cross-transcript analysis when data is missing or malformed
+
 #### Critical Race Condition in IRR State Update (2025-07-03)
 - **FIXED: Race Condition in confirmMapping** - Removed setTimeout hack that caused non-deterministic failures in IRR calculations
   - The `confirmMapping` action was using `setTimeout(..., 100)` to delay calling `calculateResults()`

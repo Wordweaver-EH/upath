@@ -1677,7 +1677,7 @@ Do NOT include a "mermaid_syntax_generic_diachronic" field; this will be generat
 
                 const phaseData = tData.p2s_outputs_by_phase?.[phase.phase_name];
                 console.log(`[P4S.1.A getInput] Phase data for ${phase.phase_name}:`, phaseData ? Object.keys(phaseData) : 'null');
-                if (!phaseData?.p2s_3_output?.specific_synchronic_structure || !phaseData.p2s_2_output?.specific_synchronic_units_hierarchy) {
+                if (!phaseData?.p2s_3_output?.specific_synchronic_structure || !phaseData?.p2s_2_output?.specific_synchronic_units_hierarchy) {
                     console.log(`[P4S.1.A getInput] Missing P2S data for phase ${phase.phase_name}: p2s_3_output=${!!phaseData?.p2s_3_output}, p2s_2_output=${!!phaseData?.p2s_2_output}`);
                     if (phaseData) {
                         console.log(`[P4S.1.A getInput] Available phase data keys for ${phase.phase_name}:`, Object.keys(phaseData));
@@ -1688,8 +1688,13 @@ Do NOT include a "mermaid_syntax_generic_diachronic" field; this will be generat
                     return;
                 }
 
-                const sss = phaseData.p2s_3_output.specific_synchronic_structure;
-                const isuHierarchy = phaseData.p2s_2_output.specific_synchronic_units_hierarchy;
+                const sss = phaseData?.p2s_3_output?.specific_synchronic_structure;
+                const isuHierarchy = phaseData?.p2s_2_output?.specific_synchronic_units_hierarchy;
+                
+                if (!sss || !isuHierarchy) {
+                    console.log(`[P4S.1.A getInput] Skipping phase ${phase.phase_name} in transcript ${tData.id} due to missing P2S data after validation.`);
+                    return;
+                }
                 const groundingMemo = new Map<string, boolean>();
                 
                 console.log(`[P4S.1.A getInput] Phase ${phase.phase_name} has ${sss.network_nodes.length} SSS nodes and ${isuHierarchy.length} ISUs`);
