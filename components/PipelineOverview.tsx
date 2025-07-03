@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { StepId, StepStatus, CurrentStepInfo } from '../types';
-import { STEP_CONFIGS as StepConfigsType, CheckCircleIcon, InfoIcon } from '../constants';
+import { STEP_CONFIGS as StepConfigsType, CheckCircleIcon, InfoIcon, getStepDisplayName } from '../constants';
 import CollapsibleSection from './CollapsibleSection';
 
 interface PipelineStepNodeProps {
@@ -47,7 +47,7 @@ export const PipelineStepNode: React.FC<PipelineStepNodeProps> = ({
       borderColor = 'border-light-accent dark:border-dark-accent'; break;
     default: break;
   }
-  const shortTitle = title.split(':')[1]?.trim() || title;
+  const shortTitle = title; // Display names are already user-friendly
   return (
     <div
       className={`p-2 rounded-md border text-xs text-center transition-all duration-150 ${bgColor} ${textColor} ${borderColor} ${isActive ? 'ring-2 ring-offset-1 ring-offset-light-bg-alt dark:ring-offset-dark-bg-alt ring-light-accent dark:ring-dark-accent ephemeral-border' : ''} ${onClick ? 'cursor-pointer hover:shadow-md' : 'cursor-default'}`}
@@ -96,7 +96,7 @@ const PipelineOverview: React.FC<PipelineOverviewProps> = ({
                 const {status, error} = getStepStatusForPipelineView(stepId);
                 return (
                   <NodeComponent // Use the passed NodeComponent
-                    key={stepId} stepId={stepId} title={config.title} status={status}
+                    key={stepId} stepId={stepId} title={getStepDisplayName(stepId)} status={status}
                     isActive={currentStepInfo.stepId === stepId && currentStepInfo.status !== StepStatus.Idle}
                     isPerTranscript={part.isPerTranscript} isPerPhase={part.isPerPhase} isPerGDU={part.isPerGDU}
                     error={error} onClick={() => handlePipelineStepClick(stepId)}

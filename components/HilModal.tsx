@@ -1,5 +1,5 @@
 import React from 'react';
-import { STEP_CONFIGS } from '../constants';
+import { STEP_CONFIGS, getStepDisplayName } from '../constants';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
 import CollapsibleSection from './CollapsibleSection';
@@ -35,7 +35,7 @@ const HilModal: React.FC<HilModalProps> = ({
       <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-6 rounded-lg shadow-2xl max-w-2xl w-full max-h-[90vh] flex flex-col border border-light-border dark:border-dark-border">
         <h2 id="hil-modal-title" className="text-lg font-semibold text-light-accent dark:text-dark-accent mb-4">
           Provide Guidance for: <span className="font-normal text-light-text dark:text-dark-text">
-            {STEP_CONFIGS[hilContext.stepInfo.stepId]?.title}
+            {getStepDisplayName(hilContext.stepInfo.stepId)}
             {hilContext.stepInfo.transcriptId && ` (Transcript: ${processedData.get(hilContext.stepInfo.transcriptId)?.filename || hilContext.stepInfo.transcriptId})`}
             {hilContext.stepInfo.currentPhaseForP2S && ` (Phase: ${hilContext.stepInfo.currentPhaseForP2S})`}
             {hilContext.stepInfo.currentGduForP4S && ` (GDU: ${hilContext.stepInfo.currentGduForP4S})`}

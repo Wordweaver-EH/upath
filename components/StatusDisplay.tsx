@@ -1,6 +1,6 @@
 import React from 'react';
 import { StepId, StepStatus } from '../types';
-import { STEP_CONFIGS, CheckCircleIcon } from '../constants';
+import { STEP_CONFIGS, CheckCircleIcon, getStepDisplayName } from '../constants';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
 import { formatElapsedTime } from '../src/utils/timeHelper';
@@ -26,7 +26,7 @@ const StatusDisplay: React.FC<StatusDisplayProps> = () => {
   return (
     <div className="p-4 bg-light-bg-alt dark:bg-dark-bg-alt rounded-lg shadow">
       <h3 className="text-md font-semibold mb-1 text-light-text dark:text-dark-text">
-        Status: {STEP_CONFIGS[currentStepInfo.stepId]?.title || currentStepInfo.stepId}
+        Status: {getStepDisplayName(currentStepInfo.stepId)}
         {currentStepInfo.transcriptId && ` on ${filename}`}
         {currentStepInfo.currentPhaseForP2S && ` (Phase: ${currentStepInfo.currentPhaseForP2S})`}
         {currentStepInfo.currentGduForP4S && ` (GDU: ${currentStepInfo.currentGduForP4S})`}
