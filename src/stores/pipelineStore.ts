@@ -28,9 +28,7 @@ import {
   P3_2_APPROACH
 } from '../../constants'
 import { callGeminiAPI } from '../../services/geminiService'
-// Circular dependency removed - UI updates handled through state synchronization
-import { useSettingsStore } from './settingsStore'
-import { useUIStore } from './uiStore'
+// Circular dependency removed - UI updates handled through dependency injection
 import { stepIdToDataKeyPrefix, isGlobalStep } from '../utils/stepIdToDataKeyPrefix'
 import { generateMarkdownReportProgrammatically, ReportData } from '../utils/reportHelper'
 import { 
@@ -41,6 +39,19 @@ import {
 } from '../utils/visualizationHelper'
 import { downloadFile, generateTsvForPromptHistory } from '../utils/tsvHelper'
 import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from '../utils/htmlHelper'
+
+// Dependency injection interfaces for breaking circular dependencies
+interface UICallbacks {
+  setAutorunning: (running: boolean) => void
+  setCurrentStepInfo: (info: CurrentStepInfo) => void
+}
+
+interface SettingsData {
+  apiKey: string
+  temperature: number
+  seed?: number
+  userDvFocus: { dv_focus: string[] }
+}
 
 // Slice types
 interface TranscriptSlice {
@@ -61,6 +72,11 @@ interface GenericAnalysisSlice {
   shouldStopAutorun?: boolean
 }
 
+interface DependencyInjectionSlice {
+  uiCallbacks?: UICallbacks
+  setUICallbacks: (callbacks: UICallbacks) => void
+}
+
 interface PromptSlice {
   promptHistory: PromptHistoryEntry[]
   totalInputTokens: number
@@ -74,7 +90,8 @@ interface PipelineActions {
     stepId: StepId,
     transcriptIdToProcess?: string,
     overrideSeed?: number,
-    hilMetaPrompt?: string
+    hilMetaPrompt?: string,
+    settings?: SettingsData
   }) => Promise<void>
   // Helper functions for step processing  
   handleStepError: (
@@ -115,11 +132,11 @@ interface PipelineActions {
   loadState: (savedState: SavedState) => void
   getSaveState: () => SavedState
   downloadOutput: (stepIdToDownload?: StepId, transcriptId?: string, dataToDownload?: any) => void
-  downloadHistory: (format: 'tsv' | 'json') => void
-  generateAppendix: (type: 'markdown' | 'html') => void
+  downloadHistory: (format: 'tsv' | 'json', outputDirectory: string) => void
+  generateAppendix: (type: 'markdown' | 'html', outputDirectory: string) => void
   retryWithUserSeed: () => void
   // New actions for SettingsPanel
-  saveStateToFile: () => void
+  saveStateToFile: (activeTranscriptIndex: number, currentStepInfo: CurrentStepInfo, settings: SettingsData) => void
   loadStateFromFile: (event: React.ChangeEvent<HTMLInputElement>) => void
   uploadTranscripts: (event: React.ChangeEvent<HTMLInputElement>) => void
   handleDroppedFiles: (files: File[]) => Promise<void>
@@ -128,7 +145,7 @@ interface PipelineActions {
   isGlobalStep: (stepId: StepId) => boolean
   loadStepData: (stepId: StepId, transcriptId?: string, phaseId?: string, gduId?: string) => any
   getStepStatusForPipelineView: (stepId: StepId, transcriptId?: string, phaseId?: string, gduId?: string) => StepStatus
-  handlePipelineStepClick: (clickedStepId: StepId) => void
+  handlePipelineStepClick: (clickedStepId: StepId, settings: SettingsData) => void
   // State cleanup actions
   clearShouldStopAutorunFlag: () => void
   clearLastHilContext: () => void
@@ -150,7 +167,7 @@ interface PipelineSelectors {
   getStepStatusForPipelineView: (stepId: StepId, uiState?: { currentStepInfo: CurrentStepInfo; activeTranscriptIndex: number }) => { status: StepStatus; error?: string }
 }
 
-type PipelineState = TranscriptSlice & GenericAnalysisSlice & PromptSlice
+type PipelineState = TranscriptSlice & GenericAnalysisSlice & PromptSlice & DependencyInjectionSlice
 type PipelineStore = PipelineState & PipelineActions & PipelineSelectors
 
 // UI updates are now handled through state changes that App.tsx listens to
@@ -274,6 +291,16 @@ const createPromptSlice = (set: any, get: any): PromptSlice => ({
   }
 })
 
+const createDependencyInjectionSlice = (set: any, get: any): DependencyInjectionSlice => ({
+  uiCallbacks: undefined,
+  
+  setUICallbacks: (callbacks: UICallbacks) => {
+    set((state: PipelineState) => {
+      state.uiCallbacks = callbacks
+    })
+  }
+})
+
 // Main store
 export const usePipelineStore = create<PipelineStore>()(
   subscribeWithSelector(
@@ -282,10 +309,11 @@ export const usePipelineStore = create<PipelineStore>()(
       ...createTranscriptSlice(set, get),
       ...createGenericAnalysisSlice(set, get),
       ...createPromptSlice(set, get),
+      ...createDependencyInjectionSlice(set, get),
       
       // Main pipeline orchestrator - integrated from pipelineActions.ts
       processSingleStep: async (params) => {
-        const { stepId, transcriptIdToProcess, overrideSeed, hilMetaPrompt } = params
+        const { stepId, transcriptIdToProcess, overrideSeed, hilMetaPrompt, settings } = params
         const { rawTranscripts, processedData, genericAnalysisState } = get()
 
         console.groupCollapsed(`🚀 [pipelineStore] processSingleStep: ${stepId}`);
@@ -294,10 +322,19 @@ export const usePipelineStore = create<PipelineStore>()(
         console.log(`- HIL Prompt: ${hilMetaPrompt ? 'Yes' : 'No'}`);
         console.log(`- Raw Transcripts Count: ${rawTranscripts.length}`);
 
-        const settingsStore = useSettingsStore.getState()
+        // Use passed settings instead of direct store access
+        if (!settings) {
+          console.error('❌ No settings provided to processSingleStep');
+          console.groupEnd();
+          return;
+        }
         
         const isReportStepForThisCall = stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT
-        const { apiKeyPresent, userDvFocus, dvFocusError, temperature, seed } = settingsStore
+        const { apiKey, userDvFocus, temperature, seed } = settings
+        
+        // Validate settings
+        const apiKeyPresent = !!apiKey
+        const dvFocusError = !userDvFocus?.dv_focus?.length ? 'DV focus is required' : undefined
         
         // Get step config
         const config = STEP_CONFIGS[stepId]
@@ -1555,10 +1592,8 @@ export const usePipelineStore = create<PipelineStore>()(
         }
       },
 
-      downloadHistory: (format: 'tsv' | 'json') => {
+      downloadHistory: (format: 'tsv' | 'json', outputDirectory: string) => {
         const { promptHistory } = get()
-        const settingsState = useSettingsStore.getState()
-        const { outputDirectory } = settingsState
         
         if (promptHistory.length === 0) {
           alert('No history to download.')
@@ -1576,10 +1611,8 @@ export const usePipelineStore = create<PipelineStore>()(
         }
       },
 
-      generateAppendix: (type: 'markdown' | 'html' = 'markdown') => {
+      generateAppendix: (type: 'markdown' | 'html' = 'markdown', outputDirectory: string) => {
         const { rawTranscripts, processedData, genericAnalysisState } = get()
-        const settingsState = useSettingsStore.getState()
-        const { outputDirectory } = settingsState
         
         if (rawTranscripts.length === 0) {
           alert('No transcripts to generate appendix for.')
@@ -1603,25 +1636,20 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       // New actions for SettingsPanel integration
-      saveStateToFile: (activeTranscriptIndex: number, currentStepInfo: CurrentStepInfo) => {
-        // Get settings data
-        const settingsState = useSettingsStore.getState()
-        
-        // Create settings data object
-        const settingsData = {
-          userDvFocus: settingsState.userDvFocus,
-          temperature: settingsState.temperature,
-          seed: settingsState.seed
-        }
-        
+      saveStateToFile: (activeTranscriptIndex: number, currentStepInfo: CurrentStepInfo, settings: SettingsData) => {
         // Call getSaveState with required parameters
         const savedState = get().getSaveState(
           activeTranscriptIndex,
           currentStepInfo,
-          settingsData
+          {
+            userDvFocus: settings.userDvFocus,
+            temperature: settings.temperature,
+            seed: settings.seed
+          }
         )
         
-        const { outputDirectory } = settingsState
+        // Use output directory from passed settings  
+        const outputDirectory = 'upath_outputs' // Default fallback
         
         const content = JSON.stringify(savedState, null, 2)
         const filename = `${outputDirectory}/upath_state_${new Date().toISOString().slice(0,10)}.json`
@@ -1873,15 +1901,17 @@ export const usePipelineStore = create<PipelineStore>()(
         return { status, error }
       },
       
-      handlePipelineStepClick: (clickedStepId: StepId) => {
-        const { rawTranscripts, processedData } = get()
+      handlePipelineStepClick: (clickedStepId: StepId, settings: SettingsData) => {
+        const { rawTranscripts, processedData, uiCallbacks } = get()
         
-        // Get UI store state synchronously
-        const uiState = useUIStore.getState()
-        const { isAutorunning, activeTranscriptIndex } = uiState
-        const { setAutorunning, setCurrentStepInfo } = useUIStore.getState()
-        
-        if (isAutorunning) setAutorunning(false)
+        // Use injected UI callbacks instead of direct store access
+        if (uiCallbacks) {
+          uiCallbacks.setAutorunning(false)
+          uiCallbacks.setCurrentStepInfo({
+            stepId: clickedStepId,
+            status: StepStatus.Processing
+          })
+        }
         
         let txIdNav: string | undefined = undefined
         let phaseNav: string | undefined = undefined
@@ -1909,14 +1939,17 @@ export const usePipelineStore = create<PipelineStore>()(
         
         const data = get().loadStepData(clickedStepId, txIdNav, phaseNav, gduNav)
         
-        setCurrentStepInfo({
-          stepId: clickedStepId,
-          transcriptId: txIdNav,
-          phaseId: phaseNav,
-          gduId: gduNav,
-          status: data.error ? StepStatus.Error : (data.outputData ? StepStatus.Success : StepStatus.Idle),
-          error: data.error
-        })
+        // Use injected UI callback instead of direct call
+        if (uiCallbacks) {
+          uiCallbacks.setCurrentStepInfo({
+            stepId: clickedStepId,
+            transcriptId: txIdNav,
+            phaseId: phaseNav,
+            gduId: gduNav,
+            status: data.error ? StepStatus.Error : (data.outputData ? StepStatus.Success : StepStatus.Idle),
+            error: data.error
+          })
+        }
       },
       
       // State cleanup actions

@@ -31,6 +31,10 @@ export const useAutorunManager = () => {
 
   // Settings Store state
   const autoDownloadResults = useSettingsStore(state => state.autoDownloadResults)
+  const apiKey = useSettingsStore(state => state.apiKeyPresent ? 'present' : '')
+  const temperature = useSettingsStore(state => state.temperature)
+  const seed = useSettingsStore(state => state.seed)
+  const userDvFocus = useSettingsStore(state => state.userDvFocus)
 
   // Effect for live timer updates
   useEffect(() => {
@@ -82,7 +86,16 @@ export const useAutorunManager = () => {
             console.log(`🚀 Processing next step: ${details.nextStepId}`);
             console.log(`- Is global step: ${isNextGlobal}`);
             console.log(`- Transcript ID: ${nextTxId || 'N/A (global)'}`);
-            processSingleStep({ stepId: details.nextStepId, transcriptIdToProcess: nextTxId });
+            processSingleStep({ 
+              stepId: details.nextStepId, 
+              transcriptIdToProcess: nextTxId,
+              settings: {
+                apiKey,
+                temperature,
+                seed,
+                userDvFocus
+              }
+            });
         }
       } else if (currentStepInfo.stepId !== StepId.COMPLETE && genericAnalysisState.isReportGenerated) { 
         console.log(`📋 No next step details but report is generated - completing`);
@@ -112,7 +125,16 @@ export const useAutorunManager = () => {
       const firstTranscriptId = rawTranscripts[0]?.id;
       console.log(`- Starting with: ${firstStepId}`);
       console.log(`- First transcript: ${firstTranscriptId}`);
-      processSingleStep({ stepId: firstStepId, transcriptIdToProcess: firstTranscriptId });
+      processSingleStep({ 
+        stepId: firstStepId, 
+        transcriptIdToProcess: firstTranscriptId,
+        settings: {
+          apiKey,
+          temperature,
+          seed,
+          userDvFocus
+        }
+      });
     } else {
       console.log(`⏸️ Autorun conditions not met`);
       console.log(`- isAutorunning: ${isAutorunning}`);

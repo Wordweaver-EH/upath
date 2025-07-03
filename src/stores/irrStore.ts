@@ -7,7 +7,6 @@ import { buildCompleteUtteranceToGduMapping } from '../utils/traceabilityHelper'
 import { generateDisagreementReport, disagreementReportToCsv, disagreementReportToMarkdown, normalizeRunBData } from '../utils/irrReportHelper'
 import { downloadFile } from '../utils/tsvHelper'
 import { STEP_CONFIGS, STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC, STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC, STEP_ORDER_PART_3_GENERIC_DIACHRONIC, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, GEMINI_MODEL_TEXT } from '../../constants'
-import { useSettingsStore } from './settingsStore'
 
 interface IRRState {
   irrWorkflowState: IrrWorkflowState
@@ -27,7 +26,7 @@ interface IRRActions {
   closeMappingModal: () => void
   
   // Semantic Mapping
-  generateSemanticMapping: () => Promise<void>
+  generateSemanticMapping: (settings: { temperature: number; seed?: number; apiKey: string }) => Promise<void>
   confirmMapping: (mapping: P9_1_SemanticGduMapping) => void
   
   // Results
@@ -121,7 +120,7 @@ export const useIRRStore = create<IRRStore>()(
       })
     },
     
-    generateSemanticMapping: async () => {
+    generateSemanticMapping: async (settings: { temperature: number; seed?: number; apiKey: string }) => {
       const { runA, runB } = get().irrWorkflowState
       
       if (!runA || !runB) {
@@ -138,8 +137,8 @@ export const useIRRStore = create<IRRStore>()(
         const gdusA = runA.genericAnalysisState.p3_2_output?.identified_gdus || []
         const gdusB = runB.genericAnalysisState.p3_2_output?.identified_gdus || []
         
-        // Get settings from settingsStore
-        const { temperature, seed } = useSettingsStore.getState()
+        // Use passed settings instead of direct store access
+        const { temperature, seed, apiKey } = settings
         
         const prompt = `You are tasked with creating a semantic mapping between Generic Diachronic Units (GDUs) from two different analysis runs of micro-phenomenological data.
 

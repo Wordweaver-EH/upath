@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { AppState } from '../types';
 import { useIRRStore } from '../src/stores/irrStore';
+import { useSettingsStore } from '../src/stores/settingsStore';
 import { Button, Input } from '../src/components/ui';
 
 interface IRRModalProps {
@@ -22,6 +23,11 @@ const IRRModal: React.FC<IRRModalProps> = ({
   const setErrorMessage = useIRRStore(state => state.setErrorMessage);
   const setLoadingState = useIRRStore(state => state.setLoadingState);
   const generateSemanticMapping = useIRRStore(state => state.generateSemanticMapping);
+  
+  // Settings for API calls
+  const temperature = useSettingsStore(state => state.temperature);
+  const seed = useSettingsStore(state => state.seed);
+  const apiKeyPresent = useSettingsStore(state => state.apiKeyPresent);
   
   const isIrrModalOpen = irrWorkflowState.isIrrModalOpen;
 
@@ -286,7 +292,11 @@ const IRRModal: React.FC<IRRModalProps> = ({
           <div className="flex justify-between items-center mb-6">
             <div></div>
             <Button
-              onClick={generateSemanticMapping}
+              onClick={() => generateSemanticMapping({
+                temperature,
+                seed,
+                apiKey: apiKeyPresent ? 'present' : ''
+              })}
               disabled={!canStartComparison()}
               variant="primary"
               className="px-6 py-3"

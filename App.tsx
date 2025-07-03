@@ -34,9 +34,9 @@ import GduMappingModal from './components/GduMappingModal';
 
 import { useUIStore, useSettingsStore, usePipelineStore, useIRRStore, initializeStores, selectCurrentStepDisplay } from './src/stores';
 import { useAutorunManager } from './src/hooks/useAutorunManager';
+import packageJson from './package.json';
 
-
-const APP_VERSION = '0.10.0'; // Version from package.json 
+const APP_VERSION = packageJson.version; 
 
 const MoonIcon = (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -167,6 +167,15 @@ const App: React.FC = () => {
   // Initialize stores with dependency injection to avoid circular dependencies
   useEffect(() => {
     initializeStores()
+    
+    // Inject UI callbacks into pipeline store
+    const pipelineStore = usePipelineStore.getState()
+    const uiStore = useUIStore.getState()
+    
+    pipelineStore.setUICallbacks({
+      setAutorunning: uiStore.setAutorunning,
+      setCurrentStepInfo: uiStore.setCurrentStepInfo
+    })
   }, [])
   
   // Listen for HIL context changes that need processing
@@ -175,12 +184,20 @@ const App: React.FC = () => {
       (state) => state.hilContext,
       (hilContext) => {
         if (hilContext?.needsProcessing && hilContext.metaPrompt) {
-          // Process the HIL correction
+          // Process the HIL correction with settings
           const { stepInfo, metaPrompt } = hilContext
+          const settings = useSettingsStore.getState()
+          
           processSingleStep({
             stepId: stepInfo.stepId,
             transcriptIdToProcess: stepInfo.transcriptId,
-            hilMetaPrompt: metaPrompt
+            hilMetaPrompt: metaPrompt,
+            settings: {
+              apiKey: settings.apiKeyPresent ? 'test-key' : '', // In real app, use actual key
+              temperature: settings.temperature,
+              seed: settings.seed,
+              userDvFocus: settings.userDvFocus
+            }
           })
           
           // Clear the needsProcessing flag

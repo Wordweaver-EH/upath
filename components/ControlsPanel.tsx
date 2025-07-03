@@ -28,6 +28,7 @@ const ControlsPanel: React.FC = () => {
   // Settings Store
   const apiKeyPresent = useSettingsStore(state => state.apiKeyPresent);
   const dvFocusError = useSettingsStore(state => state.dvFocusError);
+  const outputDirectory = useSettingsStore(state => state.outputDirectory);
   
   // Pipeline Store
   const rawTranscripts = usePipelineStore(state => state.rawTranscripts);
@@ -95,8 +96,8 @@ const ControlsPanel: React.FC = () => {
                 {DownloadIcon} <span>DL History</span> {ChevronDownIcon}
               </Button>
               <div id="history-dropdown" className="absolute z-10 mt-1 w-full bg-light-bg-alt dark:bg-dark-bg-alt border border-light-border dark:border-dark-border rounded-md shadow-lg hidden">
-                  <a href="#" onClick={(e)=>{e.preventDefault(); downloadHistory('json');const el = document.getElementById('history-dropdown'); if(el) el.classList.add('hidden');}} className="block px-4 py-2 text-sm text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border">As JSON</a>
-                  <a href="#" onClick={(e)=>{e.preventDefault(); downloadHistory('tsv');const el = document.getElementById('history-dropdown'); if(el) el.classList.add('hidden');}} className="block px-4 py-2 text-sm text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border">As TSV</a>
+                  <a href="#" onClick={(e)=>{e.preventDefault(); downloadHistory('json', outputDirectory);const el = document.getElementById('history-dropdown'); if(el) el.classList.add('hidden');}} className="block px-4 py-2 text-sm text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border">As JSON</a>
+                  <a href="#" onClick={(e)=>{e.preventDefault(); downloadHistory('tsv', outputDirectory);const el = document.getElementById('history-dropdown'); if(el) el.classList.add('hidden');}} className="block px-4 py-2 text-sm text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border">As TSV</a>
               </div>
           </div>
           <div className="relative lg:col-span-1">
@@ -104,8 +105,8 @@ const ControlsPanel: React.FC = () => {
                 {AppendixIcon} <span>DL Appendix</span> {ChevronDownIcon}
               </Button>
               <div id="appendix-dropdown" className="absolute z-10 mt-1 w-full bg-light-bg-alt dark:bg-dark-bg-alt border border-light-border dark:border-dark-border rounded-md shadow-lg hidden">
-                  <a href="#" onClick={(e)=>{e.preventDefault(); generateAppendix('markdown');const el = document.getElementById('appendix-dropdown'); if(el) el.classList.add('hidden');}} className="block px-4 py-2 text-sm text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border">As Markdown (.md)</a>
-                  <a href="#" onClick={(e)=>{e.preventDefault(); generateAppendix('html');const el = document.getElementById('appendix-dropdown'); if(el) el.classList.add('hidden');}} className="block px-4 py-2 text-sm text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border">As HTML (.html)</a>
+                  <a href="#" onClick={(e)=>{e.preventDefault(); generateAppendix('markdown', outputDirectory);const el = document.getElementById('appendix-dropdown'); if(el) el.classList.add('hidden');}} className="block px-4 py-2 text-sm text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border">As Markdown (.md)</a>
+                  <a href="#" onClick={(e)=>{e.preventDefault(); generateAppendix('html', outputDirectory);const el = document.getElementById('appendix-dropdown'); if(el) el.classList.add('hidden');}} className="block px-4 py-2 text-sm text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border">As HTML (.html)</a>
               </div>
           </div>
           <div className="lg:col-span-1">
