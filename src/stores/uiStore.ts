@@ -167,20 +167,23 @@ export const useUIStore = create<UIStore>()(
     },
     
     toggleAutorun: () => {
-      const isAutorunning = !get().isAutorunning
-      set({ 
-        isAutorunning,
-        processStartTime: isAutorunning ? Date.now() : get().processStartTime
-      })
-      
-      // Pipeline processing will be triggered by the component listening to this state change
+      const { isAutorunning } = get();
+      get().setAutorunning(!isAutorunning);
     },
     
     setAutorunning: (value: boolean) => {
-      set({ 
-        isAutorunning: value,
-        processStartTime: value ? Date.now() : get().processStartTime
-      })
+      if (value) {
+        // Starting
+        set({ isAutorunning: true, processStartTime: Date.now(), elapsedTime: 0 });
+      } else {
+        // Stopping/Pausing
+        const { processStartTime } = get();
+        if (processStartTime) {
+          set({ isAutorunning: false, elapsedTime: Math.floor((Date.now() - processStartTime) / 1000), processStartTime: null });
+        } else {
+          set({ isAutorunning: false });
+        }
+      }
     },
     
     setProcessStartTime: (time: number | null) => {

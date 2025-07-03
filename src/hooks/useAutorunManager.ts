@@ -32,6 +32,23 @@ export const useAutorunManager = () => {
   // Settings Store state
   const autoDownloadResults = useSettingsStore(state => state.autoDownloadResults)
 
+  // Effect for live timer updates
+  useEffect(() => {
+    let intervalId: number | undefined;
+
+    if (isAutorunning && processStartTime) {
+      intervalId = window.setInterval(() => {
+        updateElapsedTime();
+      }, 1000);
+    }
+
+    return () => {
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [isAutorunning, processStartTime]);
+
   useEffect(() => { 
     console.groupCollapsed(`🤖 [useAutorunManager] Effect triggered`);
     console.log(`- isAutorunning: ${isAutorunning}`);
@@ -53,9 +70,8 @@ export const useAutorunManager = () => {
             const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "Processing complete.";
             console.log(`- Report length: ${report.length} chars`);
             setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData:report }); 
-            setAutorunning(false); 
             console.log(`🛑 Autorun stopped (COMPLETE)`);
-            if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
+            setAutorunning(false);
             if (autoDownloadResults && report!=="Processing complete." && ESSENTIAL_STEPS_FOR_AUTODOWNLOAD.includes(StepId.P6_1_GENERATE_MARKDOWN_REPORT)) {
               console.log(`💾 Auto-downloading final report`);
               downloadOutput(StepId.COMPLETE, "final_analysis_report", report);
@@ -73,9 +89,8 @@ export const useAutorunManager = () => {
         const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All processing complete.";
         console.log(`- Report length: ${report.length} chars`);
         setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData:report }); 
-        setAutorunning(false); 
         console.log(`🛑 Autorun stopped (report generated)`);
-        if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
+        setAutorunning(false);
       } else if (currentStepInfo.stepId !== StepId.COMPLETE && !details) { 
          console.log(`❌ No next step details and not complete - stopping autorun`);
          console.log(`- isReportGenerated: ${genericAnalysisState.isReportGenerated}`);
@@ -83,16 +98,14 @@ export const useAutorunManager = () => {
            console.log(`📋 Setting COMPLETE status with report`);
            setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData: typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All complete." });
          }
-         setAutorunning(false); 
          console.log(`🛑 Autorun stopped (no details)`);
-         if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
+         setAutorunning(false);
       }
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Error) {
       console.log(`💥 Autorun active but step failed - stopping`);
       console.log(`- Error step: ${currentStepInfo.stepId}`);
-      setAutorunning(false); 
       console.log(`🛑 Autorun stopped (error)`);
-      if (processStartTime) { updateElapsedTime(); setProcessStartTime(null); }
+      setAutorunning(false);
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Idle && rawTranscripts.length > 0) {
       console.log(`🚀 Autorun starting from Idle - beginning first step`);
       const firstStepId = StepId.P_NEG1_1_VARIABLE_IDENTIFICATION;
