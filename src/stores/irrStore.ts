@@ -30,7 +30,7 @@ interface IRRActions {
   confirmMapping: (mapping: P9_1_SemanticGduMapping) => void
   
   // Results
-  calculateResults: () => void
+  calculateResults: (mappingOverride?: Record<string, string | null>) => void
   closeResults: () => void
   
   // Utils
@@ -250,16 +250,15 @@ Provide your response as a JSON object with this structure:
       
       console.log('State after confirmMapping:', get().irrWorkflowState)
       
-      // Automatically trigger the IRR calculation after confirming mapping
-      setTimeout(() => {
-        console.log('Triggering calculateResults...')
-        get().calculateResults()
-      }, 100)
+      // Immediately trigger the IRR calculation with the confirmed mapping
+      console.log('Triggering calculateResults with mapping data...')
+      get().calculateResults(simpleMappingDict)
     },
     
-    calculateResults: () => {
-      console.log('calculateResults called')
-      const { runA, runB, confirmedMapping } = get().irrWorkflowState
+    calculateResults: (mappingOverride?: Record<string, string | null>) => {
+      console.log('calculateResults called', mappingOverride ? 'with override' : 'from state')
+      const { runA, runB, confirmedMapping: stateMapping } = get().irrWorkflowState
+      const confirmedMapping = mappingOverride || stateMapping
       
       console.log('calculateResults - runA exists:', !!runA)
       console.log('calculateResults - runB exists:', !!runB)
@@ -267,6 +266,10 @@ Provide your response as a JSON object with this structure:
       
       if (!runA || !runB || !confirmedMapping) {
         console.error('Cannot calculate results without runs and mapping', { runA: !!runA, runB: !!runB, confirmedMapping: !!confirmedMapping })
+        set((state) => {
+          state.irrWorkflowState.errorMessage = 'Cannot calculate results: missing required data'
+          state.irrWorkflowState.loadingState = 'error'
+        })
         return
       }
       
@@ -418,7 +421,6 @@ Provide your response as a JSON object with this structure:
           }
           get().confirmMapping(autoMapping)
           get().setLoadingState('calculating')
-          get().calculateResults()
         } else {
           // Need semantic mapping
           await get().generateSemanticMapping()

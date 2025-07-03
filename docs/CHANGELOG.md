@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased] - 2025-07-03
+
+### Bug Fixes
+
+#### Critical Race Condition in IRR State Update (2025-07-03)
+- **FIXED: Race Condition in confirmMapping** - Removed setTimeout hack that caused non-deterministic failures in IRR calculations
+  - The `confirmMapping` action was using `setTimeout(..., 100)` to delay calling `calculateResults()`
+  - This created a race condition where `calculateResults` could execute before state updates completed
+  - Under heavy system load, this led to IRR calculations using stale or null mapping data
+  - **Solution**: Modified `calculateResults` to accept optional mapping parameter and pass data directly
+  - **Impact**: Eliminates silent failures and ensures IRR statistics are always calculated with correct data
+- **IMPROVED: Error Handling** - Added user-facing error messages when calculateResults lacks required data
+- **ADDED: Comprehensive Tests** - Created test suite to verify race condition fix and prevent regression
+
 ## [Unreleased] - 2025-07-02
 
 ### Architectural Refactoring - Zustand Migration Fixes
