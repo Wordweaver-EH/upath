@@ -25,7 +25,8 @@ import {
   STEP_ORDER_PART_5_REFINEMENT,
   STEP_ORDER_PART_6_REPORT,
   STEP_ORDER_PART_7_CAUSAL_MODELING,
-  P3_2_APPROACH
+  P3_2_APPROACH,
+  getStepDisplayName
 } from '../../constants'
 import { callGeminiAPI } from '../../services/geminiService'
 // Circular dependency removed - UI updates handled through dependency injection
@@ -1738,16 +1739,16 @@ export const usePipelineStore = create<PipelineStore>()(
         
         // Check completion status based on pipeline progress
         if (data.isFullyProcessedSpecificDiachronic && data.isFullyProcessedSpecificSynchronic) {
-          return 'P2S Done'
+          return `${getStepDisplayName(StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE)} Done`
         }
         if (data.isFullyProcessedSpecificDiachronic) {
-          return 'P1 Done'
+          return `${getStepDisplayName(StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE)} Done`
         }
         if (data.p0_3_output || data.p0_3_error) {
-          return 'P0 Done'
+          return `${getStepDisplayName(StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES)} Done`
         }
         if (data.p_neg1_1_output || data.p_neg1_1_error) {
-          return 'P-1 Done'
+          return `${getStepDisplayName(StepId.P_NEG1_1_VARIABLE_IDENTIFICATION)} Done`
         }
         
         return 'Pending'
