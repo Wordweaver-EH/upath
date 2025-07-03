@@ -196,6 +196,11 @@ const App: React.FC = () => {
     return unsubscribe
   }, [processSingleStep])
   
+  // Get actions from the store
+  const handlePipelineStepClick = usePipelineStore(state => state.handlePipelineStepClick);
+  const clearShouldStopAutorunFlag = usePipelineStore(state => state.clearShouldStopAutorunFlag);
+  const clearLastHilContext = usePipelineStore(state => state.clearLastHilContext);
+  
   // Listen for pipeline state changes to update UI
   useEffect(() => {
     console.log('📡 [App.tsx] Setting up pipeline store subscription...');
@@ -223,24 +228,20 @@ const App: React.FC = () => {
         if (pipelineUpdates.shouldStopAutorun) {
           setAutorunning(false)
           // Clear the flag
-          usePipelineStore.setState({ shouldStopAutorun: false })
+          clearShouldStopAutorunFlag()
         }
         if (pipelineUpdates.lastHilContext) {
           openHilModal(pipelineUpdates.lastHilContext)
           // Clear after handling
-          usePipelineStore.setState({ lastHilContext: undefined })
+          clearLastHilContext()
         }
       }
     )
     return unsubscribe
-  }, [setCurrentStepInfo, setAutorunning, openHilModal])
+  }, [setCurrentStepInfo, setAutorunning, openHilModal, clearShouldStopAutorunFlag, clearLastHilContext])
 
   // Autorun logic extracted to custom hook for better separation of concerns
   useAutorunManager();
-
-
-
-  const handlePipelineStepClick = usePipelineStore(state => state.handlePipelineStepClick);
 
 
 

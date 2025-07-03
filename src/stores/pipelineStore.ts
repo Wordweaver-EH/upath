@@ -129,6 +129,9 @@ interface PipelineActions {
   loadStepData: (stepId: StepId, transcriptId?: string, phaseId?: string, gduId?: string) => any
   getStepStatusForPipelineView: (stepId: StepId, transcriptId?: string, phaseId?: string, gduId?: string) => StepStatus
   handlePipelineStepClick: (clickedStepId: StepId) => void
+  // State cleanup actions
+  clearShouldStopAutorunFlag: () => void
+  clearLastHilContext: () => void
 }
 
 
@@ -1913,6 +1916,19 @@ export const usePipelineStore = create<PipelineStore>()(
           gduId: gduNav,
           status: data.error ? StepStatus.Error : (data.outputData ? StepStatus.Success : StepStatus.Idle),
           error: data.error
+        })
+      },
+      
+      // State cleanup actions
+      clearShouldStopAutorunFlag: () => {
+        set((state) => {
+          state.shouldStopAutorun = false
+        })
+      },
+      
+      clearLastHilContext: () => {
+        set((state) => {
+          state.lastHilContext = undefined
         })
       }
     })),

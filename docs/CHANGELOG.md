@@ -4,6 +4,14 @@
 
 ### Bug Fixes
 
+#### Store Encapsulation Violation in App.tsx (2025-07-03)
+- **FIXED: Direct State Manipulation Anti-Pattern** - Fixed architectural violation where App.tsx was directly manipulating pipelineStore state
+  - App.tsx was using `usePipelineStore.setState({ shouldStopAutorun: false })` and `setState({ lastHilContext: undefined })`
+  - This bypassed store encapsulation and created tight coupling between component and store internals
+  - **Solution**: Added proper `clearShouldStopAutorunFlag()` and `clearLastHilContext()` actions to pipelineStore
+  - **Impact**: Maintains proper encapsulation, improves maintainability, and prevents silent failures from property name changes
+  - Modified files: `src/stores/pipelineStore.ts`, `App.tsx`
+
 #### Unguarded Deep Property Access in P4S.1.A Step (2025-07-03)
 - **FIXED: Runtime Crash from Unguarded Property Access** - Fixed potential TypeError in `constants.tsx` P4S.1.A step
   - The guard clause at line 1680 was missing optional chaining on `phaseData.p2s_2_output`
