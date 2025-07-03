@@ -138,3 +138,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }
   )
 )
+
+// Run validation on initial load to ensure the derived state is in sync with the input state
+useSettingsStore.getState().validateAndSetDvFocus(useSettingsStore.getState().dvFocusInput);
+useSettingsStore.getState().validateAndSetSeed(useSettingsStore.getState().seedInput);
