@@ -14,6 +14,15 @@
   - **Impact**: Improves code transparency, testability, and consistency with rest of codebase
   - Modified files: `src/stores/irrStore.ts`
 
+#### Gemini API Method Reversion (2025-07-03)
+- **FIXED: Incorrect API Method** - Reverted Gemini API call method in `services/geminiService.ts`
+  - The July 2 fix incorrectly changed from `ai.models.generateContent()` to `ai.getGenerativeModel().generateContent()`
+  - This caused runtime error: "ai.getGenerativeModel is not a function"
+  - The @google/genai v1.5.1 package uses `ai.models.generateContent()` directly
+  - **Solution**: Reverted to original pattern: `await ai.models.generateContent(params)`
+  - **Impact**: Restores Gemini API functionality
+  - Modified files: `services/geminiService.ts`
+
 #### Store Encapsulation Violation in App.tsx (2025-07-03)
 - **FIXED: Direct State Manipulation Anti-Pattern** - Fixed architectural violation where App.tsx was directly manipulating pipelineStore state
   - App.tsx was using `usePipelineStore.setState({ shouldStopAutorun: false })` and `setState({ lastHilContext: undefined })`

@@ -150,8 +150,7 @@ async function performGeminiCall(
     }
 
     try {
-        const model = ai.getGenerativeModel({ model: GEMINI_MODEL_TEXT });
-        const response: GenerateContentResponse = await model.generateContent(params);
+        const response: GenerateContentResponse = await ai.models.generateContent(params);
         const responseText = response.text ?? ""; // Ensure responseText is always a string
         const estimatedOutputTokens = estimateTokens(responseText);
         return { responseText, response, estimatedInputTokens, estimatedOutputTokens };
