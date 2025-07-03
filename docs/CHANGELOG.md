@@ -4,6 +4,16 @@
 
 ### Bug Fixes
 
+#### Hidden Asynchronous Dependency in IRR Store (2025-07-03)
+- **FIXED: Dynamic Import Anti-Pattern** - Removed hidden dependency in `src/stores/irrStore.ts`
+  - The `generateSemanticMapping` function used dynamic import: `(await import('./settingsStore')).useSettingsStore.getState()`
+  - This pattern hid a critical dependency on settingsStore that wasn't visible in imports or function signature
+  - Made unit testing difficult as it required mocking dynamic imports instead of simple dependency injection
+  - Was the only instance of dynamic store import in the entire codebase (inconsistent pattern)
+  - **Solution**: Added proper import at top of file and used standard `useSettingsStore.getState()` pattern
+  - **Impact**: Improves code transparency, testability, and consistency with rest of codebase
+  - Modified files: `src/stores/irrStore.ts`
+
 #### Store Encapsulation Violation in App.tsx (2025-07-03)
 - **FIXED: Direct State Manipulation Anti-Pattern** - Fixed architectural violation where App.tsx was directly manipulating pipelineStore state
   - App.tsx was using `usePipelineStore.setState({ shouldStopAutorun: false })` and `setState({ lastHilContext: undefined })`
