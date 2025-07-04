@@ -640,3 +640,136 @@ it('works after Vite dev server port change', async () => {
 8. **Update Settings Panel** (rename "Save State" button)
 
 This focused TDD approach ensures the implementation stays true to the original issue requirements while maintaining robust error handling and user experience.
+
+## Implementation Journal
+
+### Session Start
+- Continued from previous conversation that ran out of context
+- User requested journaling of everything in the TDD document
+- Current status: Working on Phase 3 (Store Integration) - debugging persist integration tests
+
+### Phase 1: Storage Adapter ✅
+**Completed:**
+- Created `src/utils/storage.ts` with localForage adapter
+- Implemented StateStorage interface (getItem, setItem, removeItem)
+- All 7 storage adapter tests passing
+- Successfully handles large data (15MB+)
+
+### Phase 2: Data Migration ✅  
+**Completed:**
+- Created `src/utils/migration.ts` with one-time migration logic
+- Checks migration flag, migrates data, cleans up localStorage
+- All 6 migration tests passing
+- Gracefully handles corrupted data and storage errors
+
+### Phase 3: Store Integration 🚧
+**Completed:**
+- Updated pipelineStore persist configuration
+- Changed storage key to 'upath-autosave-session-v2-localforage'
+- Added custom JSON storage with Map serialization
+- Added onRehydrateStorage callback
+- Updated UIStore with hydration flags (hasRehydrated, sessionWasRestored)
+
+**Current Issues:**
+1. **Persist Integration Tests Failing**
+   - Problem: Mock localForageStorage not being called by persist middleware
+   - Root cause: Zustand persist is debounced, tests need to handle async properly
+   - Attempted fixes:
+     - Added vi.useFakeTimers() in beforeEach
+     - Used vi.advanceTimersByTime(1000) to trigger debounced persist
+     - Changed expectations to use mockLocalForageStorage.setItem
+   - Current status: Still debugging why persist isn't calling our mock
+
+2. **Test Environment Challenges**
+   - Mocking localforage and storage adapter simultaneously
+   - Handling async hydration in tests
+   - Module reset for hydration tests needs refinement
+
+### Key Technical Decisions Made:
+1. **New Storage Key**: Using 'upath-autosave-session-v2-localforage' to avoid migration complexity
+2. **Map Serialization**: Custom JSON storage handles Map<> to Array conversion
+3. **Automatic Migration**: One-time transfer from localStorage with safety checks
+4. **Hydration Flags**: UIStore tracks hasRehydrated and sessionWasRestored states
+
+### Next Steps:
+1. Fix persist integration tests (current focus)
+2. Complete remaining persist tests (partialize behavior)
+3. Create UI components (AppLoadingScreen, SessionRestoreNotification)
+4. Update App.tsx with hydration flow
+5. Write remaining integration tests
+6. Update Settings panel text
+
+### Files Modified:
+- `/src/utils/storage.ts` - Created
+- `/src/utils/migration.ts` - Created
+- `/src/stores/pipelineStore.ts` - Updated persist config
+- `/src/stores/uiStore.ts` - Added hydration state
+- `/src/utils/__tests__/storage.test.ts` - Created
+- `/src/utils/__tests__/migration.test.ts` - Created
+- `/src/stores/__tests__/pipelineStore.persist.test.ts` - Created (debugging)
+
+### Dependencies Added:
+- localforage: ^1.10.0
+
+### Current Working Directory:
+- `/home/enigm/dev/workspace/upath`
+- Branch: `feature/autosave-indexeddb`
+
+### Debug Session Journal:
+
+#### Persist Integration Test Issues (RESOLVED ✅)
+1. **Problem**: Tests failing with "Skipping serialization - invalid state structure"
+2. **Root Cause Analysis**:
+   - Zustand persist middleware expects a specific structure
+   - Our custom JSON storage checks for `value.state` property
+   - The processedData Map was showing as empty object `{}` in the logs
+3. **Key Finding**: 
+   - The persist middleware WAS being called but rejecting the state
+   - processedData was a Map in the store state (confirmed by debug log)
+   - But when it reached the custom storage, it was already converted to `{}`
+4. **Root Cause FOUND**:
+   - The createJSONStorage helper was doing JSON.stringify BEFORE calling our storage adapter
+   - Maps get converted to empty objects `{}` by JSON.stringify
+   - Our custom storage setItem was trying to handle Map->Array conversion but it was too late
+5. **Solution IMPLEMENTED**:
+   - Removed createJSONStorage wrapper
+   - Implemented storage adapter directly with proper Map handling
+   - Now Map ↔ Array conversion happens at the right time
+   - All 6 persist integration tests now passing!
+
+### Summary of Progress:
+- ✅ Phase 1: Storage Adapter (7/7 tests passing)
+- ✅ Phase 2: Data Migration (6/6 tests passing)  
+- ✅ Phase 3: Store Integration (6/6 tests passing)
+- ✅ Phase 4: UI Components (completed)
+  - Created AppLoadingScreen component
+  - Created SessionRestoreNotification component
+  - Note: Tests skipped due to React Testing Library not installed
+- ✅ Phase 5: App Integration (completed)
+  - Updated App.tsx with hydration check
+  - Added loading screen during hydration
+  - Added session restore notification
+  - Updated Settings Panel button text
+- ⏳ Phase 6: Integration Tests (not started)
+- ⏳ Phase 7: Documentation (not started)
+
+**Total Test Coverage**: 19/19 tests passing
+**Components Created**: 2 (AppLoadingScreen, SessionRestoreNotification)
+**Files Modified**: App.tsx, SettingsPanel.tsx
+
+### Phase 5 Implementation Notes:
+1. **App.tsx Hydration Flow**:
+   - Added hasRehydrated check from UIStore
+   - Shows AppLoadingScreen until hydration complete
+   - Displays SessionRestoreNotification when session restored
+   - Wrapped main app content in Fragment to include notification
+
+2. **Settings Panel Update**:
+   - Changed "Save State" to "Export State to File"
+   - Added tooltip explaining purpose
+   - No functional changes, just UI text
+
+3. **Component Integration**:
+   - AppLoadingScreen shows µ-PATH branding and spinner
+   - SessionRestoreNotification offers "Continue Session" or "Start New Session"
+   - "Start New Session" clears autosave data and reloads page

@@ -27,6 +27,10 @@ interface UIState {
   theme: 'light' | 'dark'
   isDraggingOver: boolean
   
+  // Hydration State
+  hasRehydrated: boolean
+  sessionWasRestored: boolean
+  
   // Drag & Drop - now uses callback pattern to avoid circular dependency
   handleDragOver: (event: React.DragEvent<HTMLDivElement>) => void
   handleDragLeave: (event: React.DragEvent<HTMLDivElement>) => void
@@ -64,6 +68,11 @@ interface UIActions {
   // UI State
   toggleTheme: () => void
   setIsDraggingOver: (isDragging: boolean) => void
+  
+  // Hydration
+  setHasRehydrated: (hasRehydrated: boolean) => void
+  setSessionWasRestored: (wasRestored: boolean) => void
+  hideSessionRestoreNotification: () => void
   
   // Dependency injection
   setFileDropCallback: (callback: (files: File[]) => void) => void
@@ -106,6 +115,8 @@ export const useUIStore = create<UIStore>()(
     retrySeedInput: '',
     theme: getInitialTheme(),
     isDraggingOver: false,
+    hasRehydrated: false,
+    sessionWasRestored: false,
     
     // Actions
     navigateToStep: (stepId: StepId) => {
@@ -248,6 +259,19 @@ export const useUIStore = create<UIStore>()(
       set({ retrySeedInput: value })
     },
     
+    // Hydration Actions
+    setHasRehydrated: (hasRehydrated: boolean) => {
+      set({ hasRehydrated })
+    },
+    
+    setSessionWasRestored: (wasRestored: boolean) => {
+      set({ sessionWasRestored: wasRestored })
+    },
+    
+    hideSessionRestoreNotification: () => {
+      set({ sessionWasRestored: false })
+    },
+    
         // Dependency injection
         setFileDropCallback: (callback: (files: File[]) => void) => {
           set({ onFilesDropped: callback })
@@ -350,7 +374,9 @@ Please provide a corrected response addressing the user's feedback.`
         isHilModalOpen: false,
         hilContext: null,
         hilUserGuidance: '',
-        isDraggingOver: false
+        isDraggingOver: false,
+        hasRehydrated: false,
+        sessionWasRestored: false
         // Note: theme is not reset
       })
     },

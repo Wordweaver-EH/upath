@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import { persist, createJSONStorage, subscribeWithSelector } from 'zustand/middleware'
+import { persist, subscribeWithSelector } from 'zustand/middleware'
+import { localForageStorage } from '../utils/storage'
+import { performDataMigration } from '../utils/migration'
+import { useUIStore } from './uiStore'
 import { 
   RawTranscript, 
   TranscriptProcessedData, 
@@ -130,6 +133,7 @@ interface PipelineActions {
   getNextStepDetails: () => { nextStepId: StepId; nextTranscriptIndex: number } | null
   processNextStep: () => void
   resetPipeline: () => void
+  clearAutosaveData: () => Promise<void>
   loadState: (savedState: SavedState) => void
   getSaveState: () => SavedState
   downloadOutput: (stepIdToDownload?: StepId, transcriptId?: string, dataToDownload?: any) => void
@@ -1456,6 +1460,15 @@ export const usePipelineStore = create<PipelineStore>()(
         }))
       },
       
+      clearAutosaveData: async () => {
+        try {
+          await localForageStorage.removeItem('upath-autosave-session-v2-localforage')
+          console.log('Autosave data cleared')
+        } catch (error) {
+          console.error('Failed to clear autosave data:', error)
+        }
+      },
+      
       loadState: (savedState: SavedState) => {
         set((state) => {
           // Load transcript data
@@ -1967,40 +1980,59 @@ export const usePipelineStore = create<PipelineStore>()(
       }
     })),
     {
-      name: 'upath-pipeline',
-      storage: createJSONStorage(() => ({
-        getItem: (name) => {
-          const str = localStorage.getItem(name)
+      name: 'upath-autosave-session-v2-localforage',
+      storage: {
+        getItem: async (name) => {
+          const str = await localForageStorage.getItem(name)
           if (!str) return null
-          const data = JSON.parse(str)
-          return {
-            ...data,
-            state: {
-              ...data.state,
-              // Convert processedData array back to Map - with safety check
-              processedData: new Map(data.state.processedData || [])
+          
+          try {
+            const data = JSON.parse(str)
+            return {
+              ...data,
+              state: {
+                ...data.state,
+                // Convert processedData array back to Map
+                processedData: new Map(data.state.processedData || [])
+              }
             }
+          } catch (e) {
+            console.error('Failed to parse stored data:', e)
+            return null
           }
         },
-        setItem: (name, value) => {
-          // Comprehensive safety checks for persistence
-          if (!value || !value.state) {
-            console.warn('⚠️ [persist] Skipping serialization - invalid state structure:', value);
-            return;
-          }
-          
+        setItem: async (name, value) => {
           const dataToStore = {
             ...value,
             state: {
               ...value.state,
-              // Convert Map to array for storage - with safety check
-              processedData: value.state.processedData ? Array.from(value.state.processedData.entries()) : []
+              // Convert Map to array for storage
+              processedData: value.state.processedData instanceof Map 
+                ? Array.from(value.state.processedData.entries()) 
+                : []
             }
           }
-          localStorage.setItem(name, JSON.stringify(dataToStore))
+          
+          await localForageStorage.setItem(name, JSON.stringify(dataToStore))
         },
-        removeItem: (name) => localStorage.removeItem(name)
-      })),
+        removeItem: async (name) => await localForageStorage.removeItem(name)
+      },
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.error('Failed to rehydrate state from localForage:', error)
+          useUIStore.getState().setHasRehydrated(true)
+          useUIStore.getState().setSessionWasRestored(false)
+        } else {
+          // Set UI flags based on whether data was restored
+          const hasData = state && (
+            state.rawTranscripts?.length > 0 || 
+            state.processedData?.size > 0 ||
+            state.promptHistory?.length > 0
+          )
+          useUIStore.getState().setHasRehydrated(true)
+          useUIStore.getState().setSessionWasRestored(!!hasData)
+        }
+      },
       partialize: (state) => ({
         // Only persist actual data, not UI state
         rawTranscripts: state.rawTranscripts,
@@ -2014,6 +2046,13 @@ export const usePipelineStore = create<PipelineStore>()(
     )
   )
 )
+
+// Perform data migration on app startup
+if (typeof window !== 'undefined') {
+  performDataMigration().catch(error => {
+    console.error('Failed to perform data migration:', error)
+  })
+}
 
 // Selectors for derived state
 export const selectCurrentStepDisplay = (currentStepInfo: CurrentStepInfo, transcriptsLength: number) => {

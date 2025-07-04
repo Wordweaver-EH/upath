@@ -31,6 +31,8 @@ import PipelineOverview, { PipelineStepNode } from './components/PipelineOvervie
 import { Button } from './src/components/ui';
 import IRRModal from './components/IRRModal';
 import GduMappingModal from './components/GduMappingModal';
+import { AppLoadingScreen } from './src/components/AppLoadingScreen';
+import { SessionRestoreNotification } from './src/components/SessionRestoreNotification';
 
 import { useUIStore, useSettingsStore, usePipelineStore, useIRRStore, initializeStores, selectCurrentStepDisplay } from './src/stores';
 import { useAutorunManager } from './src/hooks/useAutorunManager';
@@ -128,7 +130,9 @@ const App: React.FC = () => {
     openHilModal,
     closeHilModal,
     setHilUserGuidance,
-    setCurrentStepInfo
+    setCurrentStepInfo,
+    hasRehydrated,
+    sessionWasRestored
   } = useUIStore();
   
   // Pipeline Store - consolidated selector
@@ -338,8 +342,17 @@ const App: React.FC = () => {
     }
   };
 
+  // Show loading screen until hydration is complete
+  if (!hasRehydrated) {
+    return <AppLoadingScreen message="Loading previous session..." />
+  }
+
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-dark-bg text-dark-text' : 'bg-light-bg text-light-text'} font-serif transition-colors duration-300`}>
+    <>
+      {/* Session Restore Notification */}
+      <SessionRestoreNotification />
+      
+      <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-dark-bg text-dark-text' : 'bg-light-bg text-light-text'} font-serif transition-colors duration-300`}>
       <header className="p-4 flex justify-between items-center border-b border-light-border dark:border-dark-border bg-light-bg-alt dark:bg-dark-bg-alt sticky top-0 z-40">
         <h1 className="text-xl font-bold text-light-accent dark:text-dark-accent">
           <span style={{ fontFamily: "'Times New Roman', serif" }}>µ</span>-<span className="font-logoP">P</span>ATH: Micro-Phenomenological Analysis Threader
@@ -392,6 +405,7 @@ const App: React.FC = () => {
         getHilPreviousResponseDisplay={getHilPreviousResponseDisplay}
       />
     </div>
+    </>
   );
 };
 // export default App; // Assuming this will be added by your system if needed
