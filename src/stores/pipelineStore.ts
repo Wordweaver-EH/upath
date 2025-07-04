@@ -1988,7 +1988,13 @@ export const usePipelineStore = create<PipelineStore>()(
           
           try {
             const data = JSON.parse(str)
-            return {
+            console.log('🔍 [Storage] Parsed data from storage:', {
+              rawTranscriptsLength: data.state?.rawTranscripts?.length || 0,
+              processedDataLength: data.state?.processedData?.length || 0,
+              hasState: !!data.state
+            })
+            
+            const result = {
               ...data,
               state: {
                 ...data.state,
@@ -1996,12 +2002,25 @@ export const usePipelineStore = create<PipelineStore>()(
                 processedData: new Map(data.state.processedData || [])
               }
             }
+            
+            console.log('🔍 [Storage] Returning deserialized data:', {
+              rawTranscriptsLength: result.state?.rawTranscripts?.length || 0,
+              processedDataSize: result.state?.processedData?.size || 0
+            })
+            
+            return result
           } catch (e) {
             console.error('Failed to parse stored data:', e)
             return null
           }
         },
         setItem: async (name, value) => {
+          console.log('💾 [Storage] setItem - incoming value:', {
+            rawTranscriptsLength: value.state?.rawTranscripts?.length || 0,
+            processedDataType: value.state?.processedData?.constructor?.name || 'unknown',
+            processedDataSize: value.state?.processedData instanceof Map ? value.state.processedData.size : (value.state?.processedData?.length || 0)
+          })
+          
           const dataToStore = {
             ...value,
             state: {
@@ -2013,13 +2032,22 @@ export const usePipelineStore = create<PipelineStore>()(
             }
           }
           
+          console.log('💾 [Storage] setItem - final data:', {
+            rawTranscriptsLength: dataToStore.state?.rawTranscripts?.length || 0,
+            processedDataLength: dataToStore.state?.processedData?.length || 0
+          })
+          
           await localForageStorage.setItem(name, JSON.stringify(dataToStore))
         },
         removeItem: async (name) => await localForageStorage.removeItem(name)
       },
       onRehydrateStorage: () => (state, error) => {
+        console.log('🔄 [Rehydration] onRehydrateStorage callback called')
+        console.log('🔄 [Rehydration] state:', state ? 'present' : 'null')
+        console.log('🔄 [Rehydration] error:', error)
+        
         if (error) {
-          console.error('Failed to rehydrate state from localForage:', error)
+          console.error('❌ [Rehydration] Failed to rehydrate state from localForage:', error)
           useUIStore.getState().setHasRehydrated(true)
           useUIStore.getState().setSessionWasRestored(false)
         } else {
@@ -2029,19 +2057,45 @@ export const usePipelineStore = create<PipelineStore>()(
             state.processedData?.size > 0 ||
             state.promptHistory?.length > 0
           )
+          console.log('✅ [Rehydration] hasData check:', hasData)
+          console.log('✅ [Rehydration] rawTranscripts length:', state?.rawTranscripts?.length || 0)
+          console.log('✅ [Rehydration] processedData size:', state?.processedData?.size || 0)
+          
           useUIStore.getState().setHasRehydrated(true)
           useUIStore.getState().setSessionWasRestored(!!hasData)
+          
+          console.log('🔄 [Rehydration] UI flags set - hasRehydrated: true, sessionWasRestored:', !!hasData)
         }
       },
-      partialize: (state) => ({
-        // Only persist actual data, not UI state
-        rawTranscripts: state.rawTranscripts,
-        processedData: state.processedData,
-        genericAnalysisState: state.genericAnalysisState,
-        promptHistory: state.promptHistory,
-        totalInputTokens: state.totalInputTokens,
-        totalOutputTokens: state.totalOutputTokens
-      })
+      partialize: (state) => {
+        // Only persist if there's actually data to save
+        const hasData = state.rawTranscripts.length > 0 || 
+                       state.processedData.size > 0 || 
+                       state.promptHistory.length > 0 ||
+                       state.totalInputTokens > 0 ||
+                       state.totalOutputTokens > 0
+        
+        if (!hasData) {
+          console.log('🚫 [Storage] Skipping persist - no meaningful data to save')
+          return undefined // Don't persist empty state
+        }
+        
+        console.log('✅ [Storage] Persisting meaningful data:', {
+          transcripts: state.rawTranscripts.length,
+          processedData: state.processedData.size,
+          promptHistory: state.promptHistory.length
+        })
+        
+        return {
+          // Only persist actual data, not UI state
+          rawTranscripts: state.rawTranscripts,
+          processedData: state.processedData,
+          genericAnalysisState: state.genericAnalysisState,
+          promptHistory: state.promptHistory,
+          totalInputTokens: state.totalInputTokens,
+          totalOutputTokens: state.totalOutputTokens
+        }
+      }
     }
     )
   )

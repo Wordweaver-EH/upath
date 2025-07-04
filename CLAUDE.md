@@ -31,6 +31,21 @@ REACT_APP_API_KEY=your_gemini_api_key_here
 
 µ-PATH is a React/TypeScript application implementing a 9-part micro-phenomenological analysis pipeline inspired by Valenzuela-Moguillansky & Vásquez-Rosati (2019) and Sheldrake & Dienes (2025).
 
+### Autosave & Session Persistence
+
+The application automatically saves all analysis work to IndexedDB via `localforage`, supporting:
+- **Automatic persistence**: State changes are debounced and saved automatically
+- **Large data support**: Handles 15MB+ of analysis data (vs localStorage's 5-10MB limit)
+- **Session restoration**: On page reload, previous work is automatically restored
+- **User control**: "Start New Session" option to clear saved data
+- **Graceful degradation**: Falls back gracefully if IndexedDB is unavailable (e.g., private browsing)
+
+**Key implementation details**:
+- Storage key: `upath-autosave-session-v2-localforage`
+- One-time migration from old localStorage data
+- Custom serialization for Map<> data structures
+- Only data state is persisted, not UI state
+
 ### State Management Architecture (Zustand)
 
 The application uses **Zustand** with **4 specialized stores** to avoid circular dependencies:
@@ -135,6 +150,11 @@ App.tsx (Main orchestrator)
 - **Manual testing** with real transcript data (no automated e2e tests)
 - **State persistence** for regression testing (save/load JSON states)
 - **Download intermediate outputs** for verification
+
+#### Testing Limitations
+- **Autosave Integration Tests**: The persist middleware integration tests mock the storage adapter rather than testing real IndexedDB operations due to jsdom limitations with async browser APIs
+- **E2E Testing Required**: For full autosave validation, manual testing or Playwright/Cypress E2E tests in a real browser environment are recommended
+- **Test Coverage**: Unit tests cover storage adapter, migration logic, and store actions. Integration tests verify the contract between Zustand persist and the storage adapter
 
 ### Common Development Tasks
 - **Add new pipeline step**: Define in `STEP_CONFIGS`, add to `STEP_ORDER_*` arrays

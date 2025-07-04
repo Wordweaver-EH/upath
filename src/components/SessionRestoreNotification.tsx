@@ -31,8 +31,9 @@ export const SessionRestoreNotification: React.FC = () => {
   }
   
   return (
-    <div className="fixed top-4 right-4 z-40 max-w-md bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg shadow-lg p-4">
-      <div className="flex items-start">
+    <div className="fixed inset-0 bg-light-bg/70 dark:bg-dark-bg/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="max-w-md bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg shadow-2xl p-6">
+        <div className="flex items-start">
         <div className="flex-shrink-0">
           <svg className="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -75,6 +76,7 @@ export const SessionRestoreNotification: React.FC = () => {
               </svg>
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>
