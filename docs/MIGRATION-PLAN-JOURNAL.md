@@ -413,6 +413,96 @@ After initial implementation, senior developer feedback identified several criti
   - Ready for Step 1.5: Service Function Extraction
 - **Senior Dev Review**: Ready for checkpoint and next phase
 
+### Step 1.5: Extract Service Functions (processSingleStep) - Phase 1 ✅
+- **Started**: 2025-07-09
+- **Status**: Phase 1 complete - Deep Analysis & Decomposition
+- **Approach**: "Granular Strangler Fig" pattern for systematic decomposition
+- **Analysis Results**:
+  - **Function Size**: 500+ lines in monolithic processSingleStep function
+  - **Complexity**: Extremely high - 7 distinct functional areas identified
+  - **Functional Areas**: Parameter validation, context preparation, input preparation, step execution, prompt history, error handling, success handling
+  - **Risk Assessment**: Low-risk (pure functions) to high-risk (state management) extractions
+  - **Migration Strategy**: 4-phase approach starting with pure functions
+- **Deliverables Created**:
+  - `docs/STEP-1.5-ANALYSIS.md` - Comprehensive 500+ line function analysis
+  - Detailed decomposition strategy with risk assessment
+  - Service interface definitions and migration timeline
+  - TDD testing strategy for each service
+- **Key Findings**:
+  - Clear natural boundaries exist for service extraction
+  - 7 distinct services can be extracted from monolithic function
+  - Pure functions (parameter validation, input prep) are low-risk extractions
+  - State management functions (error/success handling) are high-risk but high-value
+  - Orchestration layer will be dramatically simplified
+- **Next Phase**: Phase 2 - Service Interface Creation and Pure Function Extraction
+- **Senior Dev Review**: Analysis complete, ready for implementation
+
+### Step 1.5: Extract Service Functions (processSingleStep) - Phase 2 ✅
+- **Started**: 2025-07-09
+- **Status**: Phase 2 complete - Service Interface Creation and Pure Function Extraction
+- **TDD Methodology**: Red-Green-Refactor cycle strictly followed for all services
+- **Services Extracted**:
+  - **StepParameterValidationService**: Pure function for validating step parameters
+  - **StepInputPreparationService**: Pure function for preparing step input data
+  - **PromptHistoryService**: Pure function for creating prompt history entries
+- **Test Results**:
+  - StepParameterValidationService: 7/7 tests passing (100%)
+  - StepInputPreparationService: 7/7 tests passing (100%)
+  - PromptHistoryService: 6/6 tests passing (100%)
+  - **Total**: 20/20 tests passing (100%)
+- **Files Created**:
+  - `src/services/pipeline/types.ts` - Complete service interface definitions
+  - `src/services/pipeline/StepParameterValidationService.ts` - Parameter validation service
+  - `src/services/pipeline/StepInputPreparationService.ts` - Input preparation service
+  - `src/services/pipeline/PromptHistoryService.ts` - Prompt history service
+  - Comprehensive test suites for each service
+- **Key Achievements**:
+  - **Pure Functions**: All three services are pure functions with no side effects
+  - **Full Test Coverage**: Each service has comprehensive unit tests
+  - **Clear Interfaces**: Well-defined TypeScript interfaces for all services
+  - **Error Handling**: Proper error handling and validation in all services
+  - **Type Safety**: Strong typing throughout with proper generic constraints
+- **Architecture Benefits**:
+  - **Testability**: Each service can be tested in isolation
+  - **Reusability**: Services can be reused across different contexts
+  - **Maintainability**: Clear separation of concerns and single responsibility
+  - **Debugging**: Easier to debug individual service functions
+- **Next Phase**: Phase 3 - Context & Execution Service Extraction
+- **Senior Dev Review**: Pure function extraction complete, ready for context services
+
+### Step 1.5: Extract Service Functions (processSingleStep) - Phase 3 ✅
+- **Started**: 2025-07-09
+- **Status**: Phase 3 complete - Context & Execution Service Extraction
+- **TDD Methodology**: Red-Green-Refactor cycle strictly followed
+- **Services Extracted**:
+  - **StepContextPreparationService**: Handles execution context preparation for different step types
+- **Test Results**:
+  - StepContextPreparationService: 11/11 tests passing (100%)
+  - **Phase 3 Total**: 11/11 tests passing (100%)
+- **Files Created**:
+  - `src/services/pipeline/StepContextPreparationService.ts` - Context preparation service
+  - `src/services/pipeline/__tests__/StepContextPreparationService.test.ts` - Comprehensive test suite
+- **Key Features Implemented**:
+  - **P2S Phase Context**: Manages phase-based processing for specific synchronic steps
+  - **P4S GDU Context**: Manages GDU-based processing for generic synchronic steps
+  - **Report Step Detection**: Identifies and handles report generation steps
+  - **Transcript Resolution**: Finds and prepares current transcript context
+  - **State Mutation**: Safely updates store state during context preparation
+  - **Error Handling**: Comprehensive error handling for invalid states
+- **Complex Logic Handled**:
+  - Phase progression logic for P2S steps
+  - GDU progression logic for P4S steps
+  - Store state mutation during context preparation
+  - Validation of processing requirements
+  - First-time phase/GDU assignment
+- **Architecture Benefits**:
+  - **Testable**: Complex context logic can be tested in isolation
+  - **Maintainable**: Clear separation of context preparation concerns
+  - **Debuggable**: Easier to debug context-related issues
+  - **Reusable**: Context logic can be reused across different orchestrators
+- **Next Phase**: Phase 4 - State Management Service Extraction (High Risk)
+- **Senior Dev Review**: Context services complete, ready for state management services
+
 ## Senior Developer Notes
 
 ### Testing Remediation Required - 2025-07-08
