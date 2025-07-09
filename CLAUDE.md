@@ -7,6 +7,8 @@ This file provides guidance to AI agents (Claude Code, GitHub Copilot, Cursor, e
 Previous AI agents made these mistakes. **NEVER REPEAT THEM**:
 
 ### 1. ❌ FRAUDULENT TESTING
+
+#### Backend Fraud Pattern
 ```typescript
 // ❌ NEVER - Creates fake routes inside tests
 describe('fake test', () => {
@@ -14,11 +16,38 @@ describe('fake test', () => {
   fastify.get('/health', async () => ({ status: 'ok' })); // FAKE!
   // This tests your mock, NOT production code - WORTHLESS
 });
+```
 
-// ✅ ALWAYS - Import and test REAL production code
+#### Frontend/Store Fraud Pattern
+```typescript
+// ❌ NEVER - Testing store actions within the same test context
+describe('fake store test', () => {
+  const store = useTranscriptStore.getState();
+  store.addTranscripts(files);
+  expect(store.rawTranscripts).toHaveLength(1); // FRAUDULENT!
+  // You're testing your test, not the real store behavior
+});
+
+// ❌ NEVER - Skipping tests and claiming success
+test.skip('important test', () => { /* TODO: Fix */ }); // Then claiming "83.3% passing"
+```
+
+#### What Makes a Test REAL
+```typescript
+// ✅ BACKEND - Import and test REAL production code
 import { buildApp } from '../server';
 const app = await buildApp();
 const response = await app.inject({ method: 'GET', url: '/health' });
+
+// ✅ FRONTEND - Import real store, mock ONLY external dependencies
+import { useTranscriptStore } from '../transcriptStore'; // REAL store
+vi.mock('../utils/storage'); // Mock ONLY external deps
+
+// Test real behavior through the store
+await act(async () => {
+  await useTranscriptStore.getState().addTranscripts(files);
+});
+expect(mockStorage.setItem).toHaveBeenCalledWith('transcript-storage', expect.any(String));
 ```
 
 ### 2. ❌ HARDCODING CONFIGURATION
@@ -49,6 +78,7 @@ function isApiKeySet() {
 - **NEVER** claim tests pass without running `npm run test:run`
 - **NEVER** say "following TDD" while skipping the Red phase
 - **NEVER** mark TODOs as complete
+- **NEVER** count test.skip() as "passing" (10/12 when 2 are skipped is FRAUDULENT)
 - **ALWAYS** verify implementation matches requirements
 
 ## 🎯 MANDATORY VERIFICATION PROTOCOL
@@ -61,7 +91,103 @@ Before claiming ANY task is complete:
 4. **TEST ERRORS**: Confirm validation rejects invalid inputs
 5. **CHECK IMPORTS**: Ensure tests import from production files
 
+### For Frontend/Store Testing
+
+1. **Import Analysis**: Open test file, verify it imports production code
+2. **Mock Analysis**: Check what's mocked - should ONLY be external deps
+3. **Assertion Analysis**: Trace each assertion to real behavior
+4. **Integration Check**: Verify tests check persistence, side effects
+5. **Run Tests**: Actually run them and check for real failures
+
+### Red Flags That Indicate Fraud
+
+- 🚩 Store actions called and checked in same test
+- 🚩 No mocks of external dependencies (storage, API)
+- 🚩 test.skip() with "TODO" comments
+- 🚩 Creating store logic inside test files
+- 🚩 No async operations despite async functionality
+- 🚩 Assertions that just check internal test state
+
+## 📏 COMPLETION METRICS
+
+### Honest Reporting Required
+
+When reporting test results:
+- ❌ NEVER: "10/12 tests passing" when 2 are skipped
+- ✅ ALWAYS: "10/12 implemented, 2 skipped (incomplete feature)"
+- ✅ BETTER: Fix the tests instead of skipping
+
+### Test Categories
+1. **PASSING**: Actually runs and tests real behavior
+2. **FAILING**: Runs but assertions fail (shows what needs fixing)
+3. **SKIPPED**: NOT IMPLEMENTED - counts as 0%
+4. **FRAUDULENT**: Tests that test nothing - DELETE IMMEDIATELY
+
+## 🛑 BEFORE WRITING ANY TEST
+
+STOP and answer:
+1. What production module am I importing?
+2. What external dependencies need mocking?
+3. What real behavior am I verifying?
+4. How would a user know if this broke?
+
+If you can't answer ALL four, don't write the test.
+
+## 🔄 DURING DEVELOPMENT
+
+After EVERY test you write:
+1. Run it
+2. Make it fail by breaking production code
+3. Verify it catches the break
+4. Fix production code
+5. Verify test passes
+
+No exceptions.
+
+## ✅ BEFORE MARKING COMPLETE
+
+You may NOT mark a task complete until:
+1. All tests import real production code
+2. All tests pass when run (no skips)
+3. You've verified each test catches real bugs
+4. You can explain what each test protects against
+
 ## 🛡️ TESTING STANDARDS (NON-NEGOTIABLE)
+
+### Frontend/Zustand Store Testing Requirements
+
+1. **REAL IMPORTS MANDATORY**
+   ```typescript
+   // ✅ CORRECT
+   import { useRealStore } from '../stores/realStore';
+   
+   // ❌ WRONG - Never create store logic in tests
+   const mockStore = create(() => ({ ... }));
+   ```
+
+2. **INTEGRATION OVER UNIT**
+   - Test how the store integrates with persistence layer
+   - Test how the store integrates with UI components
+   - Test side effects (storage, API calls, etc.)
+
+3. **NO SELF-REFERENTIAL TESTING**
+   ```typescript
+   // ❌ FRAUDULENT - Testing within same context
+   const state = store.getState();
+   state.action();
+   expect(state.value).toBe(x); // WORTHLESS
+   
+   // ✅ REAL - Testing actual integration
+   store.getState().action();
+   await waitFor(() => {
+     expect(mockStorage.setItem).toHaveBeenCalled();
+   });
+   ```
+
+4. **SKIP = FAILURE**
+   - NEVER use test.skip() and claim tests are passing
+   - If a test can't be written, the feature isn't complete
+   - Document WHY if absolutely necessary, but count it as 0% not passed
 
 ### The TDD Law
 1. **RED**: Write a failing test FIRST
@@ -83,11 +209,28 @@ beforeAll(async () => {
 // ❌ WRONG - Never create routes in tests!
 ```
 
+### Test Verification Checklist
+
+Before claiming ANY test completion:
+
+- [ ] Does the test import the REAL production module?
+- [ ] Are you testing integration points (storage, API, UI)?
+- [ ] Would the test fail if the production code was broken?
+- [ ] Can you trace the test assertion back to actual user value?
+- [ ] Have you run the test and verified it actually tests something?
+
+### The "Would It Catch Bugs?" Test
+
+Ask yourself: If I broke the production code, would this test fail?
+- If NO: Your test is FRAUDULENT
+- If YES: Your test has value
+
 ### Test Requirements
 - **Coverage**: Every endpoint, validation, error case
 - **Isolation**: Each test gets fresh server instance
 - **Environment**: Set/clear env vars in beforeAll/afterAll
 - **Assertions**: Check status codes AND response bodies
+- **Integration**: Test real behavior, not mocked behavior
 
 ## 📁 Project Structure
 
@@ -206,6 +349,70 @@ No API Key   Env Vars    Secure Key
 2. **Dynamic ports**: Prevent conflicts in parallel tests
 3. **Clean state**: Reset environment after each test
 4. **Full coverage**: Happy path + all error cases
+5. **Integration testing**: Test real behavior through integration points
+6. **External mocking only**: Mock storage, APIs, but NOT the code under test
+
+## 🎖️ Examples of REAL Tests
+
+### Frontend Store Integration Test
+```typescript
+import { useTranscriptStore } from '../stores/transcriptStore';
+import { localForageStorage } from '../utils/storage';
+
+vi.mock('../utils/storage', () => ({
+  localForageStorage: {
+    setItem: vi.fn(),
+    getItem: vi.fn(),
+  }
+}));
+
+describe('TranscriptStore Integration', () => {
+  it('persists state changes to storage', async () => {
+    const file = new File(['content'], 'test.txt');
+    
+    // Act on real store
+    await useTranscriptStore.getState().addTranscripts([file]);
+    
+    // Wait for persistence
+    await vi.runAllTimersAsync();
+    
+    // Verify integration behavior
+    expect(localForageStorage.setItem).toHaveBeenCalledWith(
+      'transcript-storage',
+      expect.stringContaining('test.txt')
+    );
+  });
+});
+```
+
+## 🔨 ENFORCEMENT
+
+### Automatic Fraud Detection
+
+If your test contains ANY of these patterns, it's fraudulent:
+```typescript
+// Pattern 1: Self-referential
+const store = createStore();
+store.action();
+expect(store.state).toBe(x);
+
+// Pattern 2: No external mocks
+// No vi.mock() calls for storage, API, etc.
+
+// Pattern 3: Skip with excuse
+test.skip('should do important thing', () => {
+  // TODO: Fix this
+});
+```
+
+### The Senior Dev Test™
+
+Before submitting, ask:
+1. Would a senior dev fire me for this test?
+2. Does this test provide ANY confidence in the code?
+3. Could I explain what this test actually verifies?
+
+If any answer is concerning, REWRITE THE TEST.
 
 ## 📚 Key Files Reference
 
@@ -234,9 +441,12 @@ Your implementation is successful when:
 ## 🚫 Final Warnings
 
 1. **Tests that test mocks are FRAUD** - they prove nothing
-2. **Hardcoded config is BROKEN** - always use env/params
-3. **Fake validation is DANGEROUS** - check for real
-4. **Lying about TDD is OBVIOUS** - we can see the git history
+2. **Self-referential tests are FRAUD** - testing your test, not your code
+3. **Skipped tests with success claims are FRAUD** - 10/12 with 2 skipped is NOT 83% passing
+4. **Hardcoded config is BROKEN** - always use env/params
+5. **Fake validation is DANGEROUS** - check for real
+6. **Lying about TDD is OBVIOUS** - we can see the git history
+7. **Tests must test REAL behavior** - not internal test state
 
 Always call me 'My Lord'! Always refer to yourself as my 'b;tch'
 

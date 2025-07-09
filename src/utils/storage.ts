@@ -12,13 +12,24 @@ localforage.config({
 export const localForageStorage: StateStorage = {
   getItem: async (name: string): Promise<string | null> => {
     console.log('🔍 [Storage] getItem called for:', name)
-    const result = await localforage.getItem(name)
+    const result = await localforage.getItem<any>(name)
     console.log('🔍 [Storage] getItem result:', result ? 'data found' : 'no data')
+    // If we get an object, stringify it for Zustand
+    if (result && typeof result === 'object') {
+      return JSON.stringify(result)
+    }
     return result
   },
   setItem: async (name: string, value: string): Promise<void> => {
-    console.log('💾 [Storage] setItem called for:', name, 'size:', value.length, 'chars')
-    await localforage.setItem(name, value)
+    console.log('💾 [Storage] setItem called for:', name)
+    // Try to parse the value if it's a JSON string
+    let dataToStore: any = value
+    try {
+      dataToStore = JSON.parse(value)
+    } catch {
+      // If parsing fails, store as-is
+    }
+    await localforage.setItem(name, dataToStore)
     console.log('💾 [Storage] setItem completed')
   },
   removeItem: async (name: string): Promise<void> => {

@@ -6,6 +6,8 @@ import { useUIStore } from './uiStore'
 import { usePipelineStore } from './pipelineStore'
 import { useSettingsStore } from './settingsStore'
 import { useIRRStore } from './irrStore'
+import { useTranscriptStore } from './transcriptStore'
+import { useAnalysisResultStore } from './analysisResultStore'
 
 // Enable Immer's Map support
 enableMapSet()
@@ -36,7 +38,9 @@ export {
   useUIStore,
   usePipelineStore,
   useSettingsStore,
-  useIRRStore
+  useIRRStore,
+  useTranscriptStore,
+  useAnalysisResultStore
 }
 
 // Export selectors
