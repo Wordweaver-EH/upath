@@ -14,6 +14,10 @@ dist-ssr
 run_log
 .debug_logs
 
+# Environment variables
+.env
+upath-backend/.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
