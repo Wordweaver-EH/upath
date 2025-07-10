@@ -16,7 +16,9 @@ import {
   SavedState,
   P2SPhaseData,
   CurrentStepInfo,
-  HilContext
+  HilContext,
+  P1_4_Output,
+  P3_3_Output
 } from '../../types'
 import { 
   STEP_CONFIGS, 
@@ -49,9 +51,11 @@ import {
   StepParameterValidationService,
   StepContextPreparationService,
   StepInputPreparationService,
+  StepExecutionService,
   PromptHistoryService,
   StepErrorHandlingService,
-  StepSuccessHandlingService
+  StepSuccessHandlingService,
+  PipelineOrchestrator
 } from '../services/pipeline'
 
 // Dependency injection interfaces for breaking circular dependencies
@@ -227,240 +231,141 @@ export const usePipelineStore = create<PipelineStore>()(
       ...createGenericAnalysisSlice(set, get),
       ...createDependencyInjectionSlice(set, get),
       
-      // Main pipeline orchestrator - integrated from pipelineActions.ts
+      // Main pipeline orchestrator - refactored to use PipelineOrchestrator
       processSingleStep: async (params) => {
-        const { genericAnalysisState } = get()
-        
-        // Use transcript data passed from caller, fall back to empty defaults
-        const { rawTranscripts = [], processedData = new Map() } = params.transcriptData || {}
-
         console.groupCollapsed(`🚀 [pipelineStore] processSingleStep: ${params.stepId}`);
         console.log(`- Transcript ID: ${params.transcriptIdToProcess || 'N/A (Global Step)'}`);
         console.log(`- Override Seed: ${params.overrideSeed || 'Default'}`);
         console.log(`- HIL Prompt: ${params.hilMetaPrompt ? 'Yes' : 'No'}`);
-        console.log(`- Raw Transcripts Count: ${rawTranscripts.length}`);
+        console.log(`- Raw Transcripts Count: ${params.transcriptData?.rawTranscripts?.length || 0}`);
 
-        // Initialize services
-        const parameterValidationService = new StepParameterValidationService()
-        const contextPreparationService = new StepContextPreparationService()
-        const inputPreparationService = new StepInputPreparationService()
-        const promptHistoryService = new PromptHistoryService()
-        const errorHandlingService = new StepErrorHandlingService()
-        const successHandlingService = new StepSuccessHandlingService()
-        
-        // Validate parameters
-        const validationResult = parameterValidationService.validate(params)
-        if (!validationResult.success) {
-          console.error(`❌ Parameter validation failed: ${validationResult.error}`);
+        try {
+          // Initialize all services
+          const validationService = new StepParameterValidationService()
+          const contextService = new StepContextPreparationService()
+          const inputService = new StepInputPreparationService()
+          const executionService = new StepExecutionService()
+          const historyService = new PromptHistoryService()
+          const errorService = new StepErrorHandlingService()
+          const successService = new StepSuccessHandlingService()
+          
+          // Create update callbacks
+          const updateStores = (updates: any) => {
+            set(state => {
+              // Update lastStepInfo based on the updates
+              if (updates.stepId && updates.status) {
+                state.lastStepInfo = {
+                  stepId: updates.stepId,
+                  status: updates.status,
+                  transcriptId: updates.transcriptId,
+                  error: updates.error
+                }
+              }
+              
+              // Handle shouldStopAutorun
+              if (updates.status === StepStatus.Error) {
+                state.shouldStopAutorun = true
+              }
+              
+              // Handle generic state updates for specific steps
+              if (updates.output && !updates.transcriptId) {
+                const key = stepIdToDataKeyPrefix[updates.stepId]
+                if (key && typeof key === 'string') {
+                  state.genericAnalysisState[key as keyof GenericAnalysisState] = updates.output
+                  state.genericAnalysisState[`${key.replace('_output','_error')}` as keyof GenericAnalysisState] = undefined
+                }
+              }
+              
+              // Handle special cases like P3.3
+              if (updates.stepId === StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE && updates.output) {
+                const p3_3 = updates.output as P3_3_Output
+                const core = p3_3?.generic_diachronic_structure_definition?.core_gdus || []
+                const mermaid = p3_3 ? transformGenericDiachronicToMermaid(p3_3.generic_diachronic_structure_definition) : undefined
+                
+                state.genericAnalysisState.p3_3_output = p3_3
+                state.genericAnalysisState.p3_3_mermaid_syntax = mermaid
+                state.genericAnalysisState.p3_3_error = undefined
+                state.genericAnalysisState.isFullyProcessedGenericDiachronic = true
+                state.genericAnalysisState.core_gdus_for_sync_analysis = core
+                state.genericAnalysisState.processed_gdus_for_p4s = []
+                state.genericAnalysisState.current_gdu_for_p4s_processing = core[0] || undefined
+                state.genericAnalysisState.p4s_outputs_by_gdu = {}
+                state.genericAnalysisState.p4s_mermaid_syntax_by_gdu = {}
+                state.genericAnalysisState.p4s_1_a_error = undefined
+                state.genericAnalysisState.p4s_1_b_error = undefined
+                state.genericAnalysisState.isFullyProcessedGenericSynchronic = (core.length === 0)
+              }
+              
+              // Handle transcript-specific updates
+              if (updates.transcriptId && updates.output) {
+                const transcriptStore = useTranscriptStore.getState()
+                const processedData = new Map(transcriptStore.processedData)
+                const tData = processedData.get(updates.transcriptId)
+                
+                if (tData) {
+                  const key = stepIdToDataKeyPrefix[updates.stepId]
+                  if (key && typeof key === 'string') {
+                    const updatedData = {
+                      ...tData,
+                      [key as keyof TranscriptProcessedData]: updates.output,
+                      [`${key.replace('_output','_error')}` as keyof TranscriptProcessedData]: undefined
+                    } as TranscriptProcessedData
+                    
+                    // Special handling for P1.4
+                    if (updates.stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && updates.output) {
+                      updatedData.isFullyProcessedSpecificDiachronic = true
+                      updatedData.p1_4_mermaid_syntax = transformDiachronicToMermaid((updates.output as P1_4_Output).specific_diachronic_structure)
+                      const phases = (updates.output as P1_4_Output)?.specific_diachronic_structure?.phases.map(p => p.phase_name) || []
+                      updatedData.phases_for_p2s_processing = phases
+                      updatedData.current_phase_for_p2s_processing = phases[0] || undefined
+                      updatedData.processed_phases_for_p2s = []
+                      updatedData.p2s_outputs_by_phase = {}
+                      updatedData.isFullyProcessedSpecificSynchronic = phases.length === 0
+                    }
+                    
+                    processedData.set(updates.transcriptId, updatedData)
+                    transcriptStore.setProcessedData(processedData)
+                  }
+                }
+              }
+            })
+          }
+          
+          const addPromptEntry = (entry: PromptHistoryEntry) => {
+            const promptHistoryStore = usePromptHistoryStore.getState()
+            promptHistoryStore.addEntry(entry)
+          }
+          
+          // Create orchestrator instance
+          const orchestrator = new PipelineOrchestrator(
+            validationService,
+            contextService,
+            inputService,
+            executionService,
+            historyService,
+            errorService,
+            successService,
+            updateStores,
+            addPromptEntry
+          )
+          
+          // Execute the step
+          await orchestrator.processSingleStep(params)
+          
+        } catch (error) {
+          console.error(`❌ [pipelineStore] Unexpected error in processSingleStep:`, error)
           set(state => ({
             ...state,
-            lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.Idle },
+            lastStepInfo: { 
+              stepId: params.stepId, 
+              status: StepStatus.Error, 
+              error: error instanceof Error ? error.message : 'Unknown error' 
+            },
             shouldStopAutorun: true
           }))
-          console.groupEnd();
-          return
+        } finally {
+          console.groupEnd()
         }
-        
-        const { stepId, transcriptIdToProcess, overrideSeed, hilMetaPrompt, settings } = validationResult.data!
-        const { apiKey, userDvFocus, temperature, seed } = settings
-        
-        console.log(`✅ Step config found for: ${stepId}`);
-        
-        // Prepare execution context
-        const storeState = { rawTranscripts, processedData, genericAnalysisState }
-        const contextResult = contextPreparationService.prepareContext(stepId, transcriptIdToProcess, storeState)
-        if (!contextResult.success) {
-          console.error(`❌ Context preparation failed: ${contextResult.error}`);
-          setTimeout(() => {
-            set(state => ({
-              ...state,
-              lastStepInfo: { stepId, status: StepStatus.Error, error: contextResult.error },
-              shouldStopAutorun: true
-            }))
-          }, 0)
-          console.groupEnd();
-          return
-        }
-        
-        const context = contextResult.data!
-        const { currentTranscript, currentPhase, currentGDU, tempGenericState, isReportStep } = context
-        
-        // Prepare input data
-        console.log('📦 Calling input preparation service with:', {
-          currentTranscript: currentTranscript?.filename || 'None',
-          currentPhase,
-          currentGDU,
-          apiKeyPresent: !!apiKey,
-          userDvFocus
-        });
-        
-        const inputResult = inputPreparationService.prepareInput(stepId, context, storeState, settings)
-        if (!inputResult.success) {
-          console.error(`❌ Input preparation failed: ${inputResult.error}`);
-          setTimeout(() => {
-            set(state => ({
-              ...state,
-              lastStepInfo: { stepId, status: StepStatus.Error, error: inputResult.error },
-              shouldStopAutorun: true
-            }))
-          }, 0)
-          
-          if (stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES) {
-            useAnalysisResultStore.getState().updateGenericState({ p4s_1_a_error: inputResult.error })
-          } else if (stepId === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS) {
-            useAnalysisResultStore.getState().updateGenericState({ p4s_1_b_error: inputResult.error })
-          }
-          
-          console.groupEnd();
-          return
-        }
-        
-        const inputData = inputResult.data!.data
-        // Store synchronization - set processing status
-        set(state => ({
-          ...state,
-          lastStepInfo: { stepId, status: StepStatus.Processing, transcriptId: transcriptIdToProcess }
-        }))
-        
-        // Process the step
-        let output: string | any
-        let apiError: string | undefined
-        let groundingSources: PromptHistoryEntry['groundingSources']
-        let estIn: number | undefined = 0
-        let estOut: number | undefined = 0
-        let promptForHistory = hilMetaPrompt || STEP_CONFIGS[stepId].generatePrompt(inputData)
-        
-        if (isReportStep) {
-          console.log('📝 Generating report programmatically...');
-          // Generate report programmatically
-          try {
-            output = generateMarkdownReportProgrammatically(inputData as ReportData)
-            apiError = undefined
-            console.log('✅ Report generation successful');
-          } catch (e: any) {
-            console.error("❌ Error generating report programmatically:", e)
-            output = ""
-            apiError = `Programmatic report generation failed: ${e.message || String(e)}`
-          }
-          promptForHistory = "Programmatic report generation."
-        } else {
-          console.log('📞 Calling Gemini API...');
-          console.log('- Temperature:', temperature);
-          console.log('- Seed:', overrideSeed !== undefined ? overrideSeed : seed);
-          console.log('- Is JSON Output:', STEP_CONFIGS[stepId].isJsonOutput);
-          
-          // Call Gemini API
-          const effectiveSeed = overrideSeed !== undefined ? overrideSeed : seed
-          const apiResult = await callGeminiAPI(
-            promptForHistory, 
-            STEP_CONFIGS[stepId].isJsonOutput, 
-            false, // useGrounding
-            temperature, 
-            effectiveSeed,
-            1 // maxRetries/attempt
-          )
-          output = STEP_CONFIGS[stepId].isJsonOutput ? apiResult.parsedJson : apiResult.text
-          apiError = apiResult.error
-          
-          console.log('📡 API Response:', {
-            hasOutput: !!output,
-            outputType: typeof output,
-            hasError: !!apiError,
-            error: apiError
-          });
-          
-          // Apply parseOutput validation if available and no API error
-          if (!apiError && output && STEP_CONFIGS[stepId].parseOutput) {
-            try {
-              output = STEP_CONFIGS[stepId].parseOutput(output, inputData)
-            } catch (validationError: any) {
-              apiError = `Output validation failed: ${validationError.message || String(validationError)}`
-              console.error(`Validation failed for ${stepId}:`, validationError)
-            }
-          }
-          
-          groundingSources = apiResult.groundingSources
-          estIn = apiResult.estimatedInputTokens
-          estOut = apiResult.estimatedOutputTokens
-          
-          // Token counts will be updated via promptHistoryStore when entry is added
-        }
-        
-        // Create step output for prompt history service
-        const stepOutput = {
-          output,
-          apiError,
-          groundingSources,
-          estimatedInputTokens: estIn,
-          estimatedOutputTokens: estOut,
-          promptForHistory
-        }
-        
-        // Add to prompt history via the new store
-        const historyEntry = promptHistoryService.createHistoryEntry(stepId, transcriptIdToProcess, stepOutput, context)
-        const promptHistoryStore = usePromptHistoryStore.getState()
-        promptHistoryStore.addPromptEntry(historyEntry)
-        
-        // Handle errors
-        if (apiError) {
-          console.error(`❌ Step Failed: ${stepId}. Error:`, apiError);
-          
-          const errorResult = errorHandlingService.handleError({
-            stepId,
-            transcriptIdToProcess,
-            apiError,
-            storeState: { rawTranscripts, processedData, genericAnalysisState },
-            setStoreState: set
-          })
-          
-          if (!errorResult.success) {
-            console.error('Error handling service failed:', errorResult.error)
-          }
-          
-          console.groupEnd();
-          return
-        }
-        
-        // Handle successful output
-        if (isReportStep) {
-          console.log(`✅ Report Generation Succeeded for: ${stepId}`);
-          
-          const successResult = successHandlingService.handleSuccess({
-            stepId,
-            transcriptIdToProcess,
-            output,
-            inputData,
-            groundingSources,
-            currentGDU,
-            currentPhase,
-            storeState: { rawTranscripts, processedData, genericAnalysisState },
-            setStoreState: set
-          })
-          
-          if (!successResult.success) {
-            console.error('Success handling service failed:', successResult.error)
-          }
-        } else {
-          console.log(`✅ Step Succeeded: ${stepId}`);
-          
-          const successResult = successHandlingService.handleSuccess({
-            stepId,
-            transcriptIdToProcess,
-            output,
-            inputData,
-            groundingSources,
-            currentGDU,
-            currentPhase,
-            storeState: { rawTranscripts, processedData, genericAnalysisState },
-            setStoreState: set
-          })
-          
-          if (!successResult.success) {
-            console.error('Success handling service failed:', successResult.error)
-          }
-        }
-        
-        console.groupEnd();
       },
       
       // Helper functions for step processing - integrated from pipelineActions.ts

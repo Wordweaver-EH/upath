@@ -12,7 +12,8 @@ import {
   TranscriptProcessedData, 
   GenericAnalysisState, 
   PromptHistoryEntry, 
-  GroundingChunk 
+  GroundingChunk,
+  CurrentStepInfo 
 } from '../../../types'
 
 // ============================================================================
@@ -215,4 +216,28 @@ export interface IPipelineServiceFactory {
 
 export interface IPipelineOrchestrator {
   processSingleStep(params: StepExecutionParams): Promise<void>
+}
+
+// ============================================================================
+// Navigation Service Interface
+// ============================================================================
+
+export interface NavigationResult {
+  nextStepId: StepId
+  nextTranscriptIndex: number
+}
+
+/**
+ * Determines the next step in the pipeline based on current state
+ */
+export interface IPipelineNavigationService {
+  getNextStepDetails(
+    currentStepInfo: CurrentStepInfo,
+    currentTranscriptIndex: number,
+    transcriptData: {
+      rawTranscripts: RawTranscript[]
+      processedData: Map<string, TranscriptProcessedData>
+    },
+    genericAnalysisState: any
+  ): NavigationResult | null
 }
