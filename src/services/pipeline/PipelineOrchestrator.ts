@@ -1,3 +1,4 @@
+import { useAnalysisResultStore } from '../../stores/analysisResultStore'
 import { 
   IPipelineOrchestrator,
   IStepParameterValidationService,
@@ -72,11 +73,12 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
       })
 
       // Step 2: Prepare execution context
-      // TODO: Get store state from somewhere - for now using empty state
+      // Get store state from transcriptData if provided, otherwise empty state
+      const analysisStore = useAnalysisResultStore.getState()
       const storeState = {
-        rawTranscripts: [],
-        processedData: new Map(),
-        genericAnalysisState: {}
+        rawTranscripts: params.transcriptData?.rawTranscripts || [],
+        processedData: params.transcriptData?.processedData || new Map(),
+        genericAnalysisState: analysisStore.genericAnalysisState || {}
       }
 
       const contextResult = this.contextService.prepareContext(

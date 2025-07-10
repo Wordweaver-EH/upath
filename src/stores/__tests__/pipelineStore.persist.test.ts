@@ -5,6 +5,7 @@ import { usePipelineStore } from '../pipelineStore'
 import { useUIStore } from '../uiStore'
 import { useTranscriptStore } from '../transcriptStore'
 import { useAnalysisResultStore } from '../analysisResultStore'
+import { usePromptHistoryStore } from '../promptHistoryStore'
 import { useStoreActions } from '../storeComposition'
 import type { RawTranscript } from '../../../types'
 
@@ -70,12 +71,15 @@ describe('Multi-Store Persistence Integration', () => {
     
     // Reset all stores
     usePipelineStore.setState({
-      promptHistory: [],
-      totalInputTokens: 0,
-      totalOutputTokens: 0,
+      genericAnalysisState: {},
+      lastStepInfo: undefined,
+      lastError: undefined,
+      lastHilContext: undefined,
+      shouldStopAutorun: false
     })
     useTranscriptStore.getState().reset()
     useAnalysisResultStore.getState().reset()
+    usePromptHistoryStore.getState().reset()
     useUIStore.setState({
       hasRehydrated: false,
       sessionWasRestored: false,
@@ -113,8 +117,17 @@ describe('Multi-Store Persistence Integration', () => {
       genericAnalysisState: { p3_1_output: { test: 'data' } }
     })
     
-    // Update pipeline store (prompt history and tokens)
-    usePipelineStore.setState({
+    // Update prompt history store
+    usePromptHistoryStore.setState({
+      promptHistory: [{
+        timestamp: new Date().toISOString(),
+        stepId: 'P0_1_TRANSCRIPTION_ADHERENCE' as any,
+        prompt: 'test prompt',
+        requestPayload: { test: 'payload' },
+        responseRaw: 'test response',
+        estimatedInputTokens: 100,
+        estimatedOutputTokens: 200,
+      }],
       totalInputTokens: 100,
       totalOutputTokens: 200
     })
@@ -131,7 +144,8 @@ describe('Multi-Store Persistence Integration', () => {
     
     expect(storageKeys).toContain('transcript-storage')
     expect(storageKeys).toContain('analysis-storage')
-    expect(storageKeys).toContain('upath-autosave-session-v2-localforage')
+    expect(storageKeys).toContain('prompt-history-storage')
+    // Pipeline store doesn't persist anymore since partialize returns undefined
   })
 
   it('handles Map serialization correctly in TranscriptStore', async () => {
@@ -291,8 +305,10 @@ describe('Multi-Store Persistence Integration', () => {
       isReportGenerated: false
     })
     
-    const pipelineState = usePipelineStore.getState()
-    expect(pipelineState.promptHistory).toEqual([])
+    const promptHistoryState = usePromptHistoryStore.getState()
+    expect(promptHistoryState.promptHistory).toEqual([])
+    expect(promptHistoryState.totalInputTokens).toBe(0)
+    expect(promptHistoryState.totalOutputTokens).toBe(0)
   })
 
   it('preserves partialize behavior for each store', async () => {
@@ -318,18 +334,24 @@ describe('Multi-Store Persistence Integration', () => {
       }
     })
     
-    // Add data to pipeline store including UI state that should NOT be persisted
-    usePipelineStore.setState({
+    // Add data to prompt history store
+    usePromptHistoryStore.setState({
       promptHistory: [{
-        timestamp: new Date(),
-        stepId: 'PART_0',
+        timestamp: new Date().toISOString(),
+        stepId: 'P0_1_TRANSCRIPTION_ADHERENCE' as any,
         prompt: 'test prompt',
-        response: 'test response',
-        inputTokens: 50,
-        outputTokens: 100,
+        requestPayload: { test: 'payload' },
+        responseRaw: 'test response',
+        responseParsed: { test: 'parsed' },
+        estimatedInputTokens: 50,
+        estimatedOutputTokens: 100,
       }],
       totalInputTokens: 50,
-      totalOutputTokens: 100,
+      totalOutputTokens: 100
+    })
+    
+    // Add UI state to pipeline store that should NOT be persisted
+    usePipelineStore.setState({
       // Add UI state that should NOT be persisted
       uiCallbacks: {
         setAutorunning: vi.fn(),
@@ -366,21 +388,22 @@ describe('Multi-Store Persistence Integration', () => {
       expect(parsed.state).toHaveProperty('genericAnalysisState')
     }
     
-    // Check pipeline store persistence - should NOT include UI state
-    const pipelineCall = calls.find(call => call[0] === 'upath-autosave-session-v2-localforage')
-    expect(pipelineCall).toBeDefined()
-    if (pipelineCall) {
-      const [key, value] = pipelineCall
+    // Check prompt history store persistence
+    const promptCall = calls.find(call => call[0] === 'prompt-history-storage')
+    expect(promptCall).toBeDefined()
+    if (promptCall) {
+      const [key, value] = promptCall
       const parsed = typeof value === 'string' ? JSON.parse(value) : value
       
-      // Verify only data is persisted, not UI state
+      // Verify only data is persisted
       expect(parsed.state).toHaveProperty('promptHistory')
       expect(parsed.state).toHaveProperty('totalInputTokens')
       expect(parsed.state).toHaveProperty('totalOutputTokens')
-      expect(parsed.state).not.toHaveProperty('uiCallbacks')
-      expect(parsed.state).not.toHaveProperty('lastStepInfo')
-      expect(parsed.state).not.toHaveProperty('shouldStopAutorun')
-      expect(parsed.state).not.toHaveProperty('genericAnalysisState') // This is now in analysisStore
     }
+    
+    // Check pipeline store persistence - should not be persisted since partialize returns undefined
+    const pipelineCall = calls.find(call => call[0] === 'upath-autosave-session-v2-localforage')
+    // Pipeline store's partialize returns undefined, so it shouldn't persist anything
+    expect(pipelineCall).toBeUndefined()
   })
 })

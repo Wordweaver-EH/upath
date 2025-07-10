@@ -944,8 +944,49 @@ Successfully completed Phase 1 of the Strangler Fig migration by updating all re
 - Proper dependency injection maintained
 
 ### Next Steps
-Phase 2: Extract PromptHistoryStore
-- Create dedicated store for prompt history management
-- Move token counting logic
-- Implement persistence
-- Update all consumers
+Phase 2: Extract PromptHistoryStore - ✅ COMPLETED (As part of Phase 3/4)
+- Created dedicated store for prompt history management
+- Moved token counting logic
+- Implemented persistence
+- Updated all consumers
+
+---
+
+## Phase 5: Complete Strangler Fig Pattern
+
+### Initial Assessment - 2025-07-10
+- **Current State**: pipelineStore.ts still 1,381 lines despite service extraction
+- **Services Created**: 13 services extracted but need enhanced functionality
+- **Stores Created**: 4 specialized stores (transcript, analysis, prompt, orchestration)
+- **Test Status**: 423/435 passing (97.2%) after fixing test issues
+- **Goal**: Reduce pipelineStore to < 200 lines of pure state management
+
+### Phase 5.1: Extract Navigation and State Management Services (IN PROGRESS)
+**Started**: 2025-07-10
+**Goal**: Extract remaining complex logic from pipelineStore into dedicated services
+
+#### 5.1.1: Create Enhanced PipelineNavigationService
+- [ ] Extract getNextStepDetails() (lines 496-688) 
+- [ ] Extract processNextStep() (lines 690-726)
+- [ ] Handle phase/GDU progression logic
+- [ ] Write comprehensive TDD tests
+
+#### 5.1.2: Create Enhanced StateInvalidationService
+- [ ] Extract invalidateStateFromStep() (lines 727-752)
+- [ ] Extract getInvalidatedStates() (lines 362-494)
+- [ ] Handle cascade invalidation logic
+- [ ] Write comprehensive TDD tests
+
+#### 5.1.3: Create PipelineStateManagementService
+- [ ] Extract loadState() (lines 787-815)
+- [ ] Extract getSaveState() (lines 816-842)
+- [ ] Extract resetPipeline() (lines 753-759)
+- [ ] Extract resetPromptHistoryOnly() (lines 760-777)
+- [ ] Write comprehensive TDD tests
+
+#### 5.1.4: Create PipelineUIService
+- [ ] Extract getTranscriptStatusDisplay() (lines 1089-1137)
+- [ ] Extract getStepStatusForPipelineView() (lines 1141-1225)
+- [ ] Extract handlePipelineStepClick() (lines 1227-1277)
+- [ ] Extract loadStepData() (lines 1081-1087)
+- [ ] Write comprehensive TDD tests

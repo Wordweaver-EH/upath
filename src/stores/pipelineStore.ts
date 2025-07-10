@@ -146,24 +146,8 @@ interface PipelineActions {
   clearLastHilContext: () => void
 }
 
-
-
-// Pipeline selectors for derived state
-interface PipelineSelectors {
-  isPreviousStepDisabled: () => boolean
-  isNextStepDisabled: () => boolean
-  isRunStepDisabled: () => boolean
-  isHilModalDisabled: () => boolean
-  getPreviousStepDetails: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => { prevStepId: StepId; prevTranscriptIndex: number } | null
-  isDownloadOutputDisabled: () => boolean
-  isDownloadHistoryDisabled: () => boolean
-  isAppendixDataAvailable: () => boolean
-  loadStepData: (stepIdToLoad: StepId, transcriptId?: string, phaseName?: string, gduId?: string) => { inputData?: any, outputData?: any, error?: string, groundingSources?: any[] }
-  getStepStatusForPipelineView: (stepId: StepId, uiState?: { currentStepInfo: CurrentStepInfo; activeTranscriptIndex: number }) => { status: StepStatus; error?: string }
-}
-
 type PipelineState = GenericAnalysisSlice & DependencyInjectionSlice
-type PipelineStore = PipelineState & PipelineActions & PipelineSelectors
+type PipelineStore = PipelineState & PipelineActions
 
 // UI updates are now handled through state changes that App.tsx listens to
 // Create slices
@@ -203,11 +187,18 @@ export const usePipelineStore = create<PipelineStore>()(
       
       // Main pipeline orchestrator - refactored to use PipelineOrchestrator
       processSingleStep: async (params) => {
+        // Get transcript data if not provided
+        const transcriptStore = useTranscriptStore.getState()
+        const transcriptData = params.transcriptData || {
+          rawTranscripts: transcriptStore.rawTranscripts,
+          processedData: transcriptStore.processedData
+        }
+        
         console.groupCollapsed(`🚀 [pipelineStore] processSingleStep: ${params.stepId}`);
         console.log(`- Transcript ID: ${params.transcriptIdToProcess || 'N/A (Global Step)'}`);
         console.log(`- Override Seed: ${params.overrideSeed || 'Default'}`);
         console.log(`- HIL Prompt: ${params.hilMetaPrompt ? 'Yes' : 'No'}`);
-        console.log(`- Raw Transcripts Count: ${params.transcriptData?.rawTranscripts?.length || 0}`);
+        console.log(`- Raw Transcripts Count: ${transcriptData.rawTranscripts.length}`);
 
         // Record execution in orchestration store
         const orchestrationStore = usePipelineOrchestrationStore.getState()
@@ -231,6 +222,75 @@ export const usePipelineStore = create<PipelineStore>()(
           
           // Create update callbacks
           const updateStores = (updates: any) => {
+            // Handle transcript-specific updates BEFORE set() to avoid closure issues
+            if (updates.transcriptId && updates.output) {
+              const transcriptStore = useTranscriptStore.getState()
+              const processedData = new Map(transcriptStore.processedData)
+              const tData = processedData.get(updates.transcriptId)
+              
+              if (tData) {
+                const key = stepIdToDataKeyPrefix[updates.stepId]
+                if (key && typeof key === 'string') {
+                  const updatedData = {
+                    ...tData,
+                    [key as keyof TranscriptProcessedData]: updates.output,
+                    [`${key.replace('_output','_error')}` as keyof TranscriptProcessedData]: undefined
+                  } as TranscriptProcessedData
+                  
+                  // Special handling for P1.4
+                  if (updates.stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && updates.output) {
+                    updatedData.isFullyProcessedSpecificDiachronic = true
+                    updatedData.p1_4_mermaid_syntax = transformDiachronicToMermaid((updates.output as P1_4_Output).specific_diachronic_structure)
+                    const phases = (updates.output as P1_4_Output)?.specific_diachronic_structure?.phases.map(p => p.phase_name) || []
+                    updatedData.phases_for_p2s_processing = phases
+                    updatedData.current_phase_for_p2s_processing = phases[0] || undefined
+                    updatedData.processed_phases_for_p2s = []
+                    updatedData.p2s_outputs_by_phase = {}
+                    updatedData.isFullyProcessedSpecificSynchronic = phases.length === 0
+                  }
+                  
+                  // Update the specific transcript data
+                  transcriptStore.updateProcessedData(updates.transcriptId, updatedData)
+                }
+              }
+            }
+            
+            // Handle generic state updates BEFORE set()
+            if (updates.output && !updates.transcriptId) {
+              const key = stepIdToDataKeyPrefix[updates.stepId]
+              if (key && typeof key === 'string') {
+                // Use updateGenericState to update analysisResultStore
+                get().updateGenericState({
+                  [key as keyof GenericAnalysisState]: updates.output,
+                  [`${key.replace('_output','_error')}` as keyof GenericAnalysisState]: undefined
+                })
+              }
+              
+              // Handle special cases like P3.3
+              if (updates.stepId === StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE && updates.output) {
+                const p3_3 = updates.output as P3_3_Output
+                const core = p3_3?.generic_diachronic_structure_definition?.core_gdus || []
+                const mermaid = p3_3 ? transformGenericDiachronicToMermaid(p3_3.generic_diachronic_structure_definition) : undefined
+                
+                // Use updateGenericState to update analysisResultStore
+                get().updateGenericState({
+                  p3_3_output: p3_3,
+                  p3_3_mermaid_syntax: mermaid,
+                  p3_3_error: undefined,
+                  isFullyProcessedGenericDiachronic: true,
+                  core_gdus_for_sync_analysis: core,
+                  processed_gdus_for_p4s: [],
+                  current_gdu_for_p4s_processing: core[0] || undefined,
+                  p4s_outputs_by_gdu: {},
+                  p4s_mermaid_syntax_by_gdu: {},
+                  p4s_1_a_error: undefined,
+                  p4s_1_b_error: undefined,
+                  isFullyProcessedGenericSynchronic: (core.length === 0)
+                })
+              }
+            }
+            
+            // Update pipeline-specific state
             set(state => {
               // Update lastStepInfo based on the updates
               if (updates.stepId && updates.status) {
@@ -253,74 +313,12 @@ export const usePipelineStore = create<PipelineStore>()(
                 state.shouldStopAutorun = true
                 orchestrationStore.setShouldStopAutorun(true)
               }
-              
-              // Handle generic state updates for specific steps
-              if (updates.output && !updates.transcriptId) {
-                const key = stepIdToDataKeyPrefix[updates.stepId]
-                if (key && typeof key === 'string') {
-                  state.genericAnalysisState[key as keyof GenericAnalysisState] = updates.output
-                  state.genericAnalysisState[`${key.replace('_output','_error')}` as keyof GenericAnalysisState] = undefined
-                }
-              }
-              
-              // Handle special cases like P3.3
-              if (updates.stepId === StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE && updates.output) {
-                const p3_3 = updates.output as P3_3_Output
-                const core = p3_3?.generic_diachronic_structure_definition?.core_gdus || []
-                const mermaid = p3_3 ? transformGenericDiachronicToMermaid(p3_3.generic_diachronic_structure_definition) : undefined
-                
-                state.genericAnalysisState.p3_3_output = p3_3
-                state.genericAnalysisState.p3_3_mermaid_syntax = mermaid
-                state.genericAnalysisState.p3_3_error = undefined
-                state.genericAnalysisState.isFullyProcessedGenericDiachronic = true
-                state.genericAnalysisState.core_gdus_for_sync_analysis = core
-                state.genericAnalysisState.processed_gdus_for_p4s = []
-                state.genericAnalysisState.current_gdu_for_p4s_processing = core[0] || undefined
-                state.genericAnalysisState.p4s_outputs_by_gdu = {}
-                state.genericAnalysisState.p4s_mermaid_syntax_by_gdu = {}
-                state.genericAnalysisState.p4s_1_a_error = undefined
-                state.genericAnalysisState.p4s_1_b_error = undefined
-                state.genericAnalysisState.isFullyProcessedGenericSynchronic = (core.length === 0)
-              }
-              
-              // Handle transcript-specific updates
-              if (updates.transcriptId && updates.output) {
-                const transcriptStore = useTranscriptStore.getState()
-                const processedData = new Map(transcriptStore.processedData)
-                const tData = processedData.get(updates.transcriptId)
-                
-                if (tData) {
-                  const key = stepIdToDataKeyPrefix[updates.stepId]
-                  if (key && typeof key === 'string') {
-                    const updatedData = {
-                      ...tData,
-                      [key as keyof TranscriptProcessedData]: updates.output,
-                      [`${key.replace('_output','_error')}` as keyof TranscriptProcessedData]: undefined
-                    } as TranscriptProcessedData
-                    
-                    // Special handling for P1.4
-                    if (updates.stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && updates.output) {
-                      updatedData.isFullyProcessedSpecificDiachronic = true
-                      updatedData.p1_4_mermaid_syntax = transformDiachronicToMermaid((updates.output as P1_4_Output).specific_diachronic_structure)
-                      const phases = (updates.output as P1_4_Output)?.specific_diachronic_structure?.phases.map(p => p.phase_name) || []
-                      updatedData.phases_for_p2s_processing = phases
-                      updatedData.current_phase_for_p2s_processing = phases[0] || undefined
-                      updatedData.processed_phases_for_p2s = []
-                      updatedData.p2s_outputs_by_phase = {}
-                      updatedData.isFullyProcessedSpecificSynchronic = phases.length === 0
-                    }
-                    
-                    processedData.set(updates.transcriptId, updatedData)
-                    transcriptStore.setProcessedData(processedData)
-                  }
-                }
-              }
             })
           }
           
           const addPromptEntry = (entry: PromptHistoryEntry) => {
             const promptHistoryStore = usePromptHistoryStore.getState()
-            promptHistoryStore.addEntry(entry)
+            promptHistoryStore.addPromptEntry(entry)
           }
           
           // Create orchestrator instance
@@ -336,8 +334,11 @@ export const usePipelineStore = create<PipelineStore>()(
             addPromptEntry
           )
           
-          // Execute the step
-          await orchestrator.processSingleStep(params)
+          // Execute the step with transcript data
+          await orchestrator.processSingleStep({
+            ...params,
+            transcriptData
+          })
           
         } catch (error) {
           console.error(`❌ [pipelineStore] Unexpected error in processSingleStep:`, error)
@@ -838,77 +839,6 @@ export const usePipelineStore = create<PipelineStore>()(
         }
       },
 
-      // Pipeline selectors for derived state
-      getPreviousStepDetails: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => {
-        // Use transcript data passed from caller, fall back to transcript store
-        const { rawTranscripts = [] } = transcriptData || useTranscriptStore.getState()
-        
-        if (currentStepInfo.stepId === StepId.IDLE) return null
-        
-        const currentIndex = ALL_PIPELINE_STEP_IDS_IN_ORDER.indexOf(currentStepInfo.stepId)
-        if (currentIndex <= 0) return null
-        
-        // Handle first step of pipeline for transcripts beyond the first
-        if (currentStepInfo.stepId === STEP_ORDER_PART_NEG1[0] && activeTranscriptIndex > 0) {
-          return { 
-            prevStepId: StepId.IDLE,
-            prevTranscriptIndex: activeTranscriptIndex - 1 
-          }
-        }
-        
-        const prevStepId = ALL_PIPELINE_STEP_IDS_IN_ORDER[currentIndex - 1] as StepId
-        return { prevStepId, prevTranscriptIndex: activeTranscriptIndex }
-      },
-
-      isPreviousStepDisabled: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
-        return currentStepInfo.status === StepStatus.Loading || !get().getPreviousStepDetails(currentStepInfo, activeTranscriptIndex)
-      },
-
-      isNextStepDisabled: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
-        const { genericAnalysisState } = get()
-        
-        return currentStepInfo.status === StepStatus.Loading || 
-               (!get().getNextStepDetails(currentStepInfo, activeTranscriptIndex) && currentStepInfo.stepId !== StepId.COMPLETE && !genericAnalysisState.isReportGenerated)
-      },
-
-      isRunStepDisabled: (currentStepInfo: CurrentStepInfo, apiKeyPresent: boolean, dvFocusError?: string) => {
-        return currentStepInfo.stepId === StepId.IDLE || 
-               currentStepInfo.status === StepStatus.Loading || 
-               currentStepInfo.stepId === StepId.COMPLETE || 
-               (!apiKeyPresent && currentStepInfo.stepId !== StepId.P6_1_GENERATE_MARKDOWN_REPORT) || 
-               !!dvFocusError
-      },
-
-      isHilModalDisabled: (currentStepInfo: CurrentStepInfo) => {
-        
-        return currentStepInfo.stepId === StepId.IDLE || 
-               currentStepInfo.status === StepStatus.Loading || 
-               currentStepInfo.stepId === StepId.COMPLETE || 
-               !currentStepInfo.inputData || 
-               (!currentStepInfo.outputData && !currentStepInfo.error)
-      },
-
-      isDownloadOutputDisabled: (currentStepInfo: CurrentStepInfo) => {
-        const { genericAnalysisState } = get()
-        
-        return currentStepInfo.stepId === StepId.IDLE || 
-               (!currentStepInfo.outputData && !genericAnalysisState.p6_1_output) || 
-               (currentStepInfo.stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT && !genericAnalysisState.p6_1_output)
-      },
-
-      isDownloadHistoryDisabled: () => {
-        // Get prompt history from the new store
-        const promptHistoryStore = usePromptHistoryStore.getState()
-        return promptHistoryStore.promptHistory.length === 0
-      },
-
-      isAppendixDataAvailable: () => {
-        const { genericAnalysisState } = get()
-        // Get transcript data from transcript store
-        const transcriptStore = useTranscriptStore.getState()
-        return transcriptStore.rawTranscripts.length > 0 && genericAnalysisState.isReportGenerated
-      },
-
       // Download and appendix actions
       downloadOutput: (stepIdToDownload?: StepId, transcriptId?: string, dataToDownload?: any, currentStepInfo?: CurrentStepInfo, outputDirectory?: string) => {
         // If not provided, use defaults - but ideally these should be passed in
@@ -994,7 +924,18 @@ export const usePipelineStore = create<PipelineStore>()(
           downloadFile(htmlContent, filename, 'text/html;charset=utf-8')
         } else {
           // Basic markdown implementation
-          const markdownContent = `# Analysis Appendix\n\nGenerated on: ${new Date().toISOString()}\n\n## GDU Counts\n${JSON.stringify(gduCounts, null, 2)}\n\n## GSS Counts\n${JSON.stringify(gssCounts, null, 2)}\n\n## Transition Counts\n${JSON.stringify(transitionCounts, null, 2)}`
+          const markdownContent = `# Analysis Appendix
+
+Generated on: ${new Date().toISOString()}
+
+## GDU Counts
+${JSON.stringify(gduCounts, null, 2)}
+
+## GSS Counts
+${JSON.stringify(gssCounts, null, 2)}
+
+## Transition Counts
+${JSON.stringify(transitionCounts, null, 2)}`
           const filename = `${outputDirectory}/appendix_${new Date().toISOString().slice(0,10)}.md`
           downloadFile(markdownContent, filename, 'text/markdown;charset=utf-8')
         }
@@ -1042,18 +983,20 @@ export const usePipelineStore = create<PipelineStore>()(
         if (files.length === 0) return
 
         try {
-          await get().addTranscripts(files)
+          // Use transcriptStore to add transcripts
+          const transcriptStore = useTranscriptStore.getState()
+          await transcriptStore.addTranscripts(files)
           
           // Reset file input
           event.target.value = ''
           
           // Signal ready state if we're idle
-          const currentState = get()
-          if (!currentState.lastStepInfo || currentState.lastStepInfo.stepId === StepId.IDLE) {
-            set(state => ({
-              ...state,
-              lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.Idle }
-            }))
+          const orchestrationStore = usePipelineOrchestrationStore.getState()
+          if (orchestrationStore.currentStepInfo.stepId === StepId.IDLE) {
+            orchestrationStore.setCurrentStepInfo({
+              stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
+              status: StepStatus.Idle
+            })
           }
         } catch (error) {
           console.error('Failed to upload transcripts:', error)
@@ -1068,17 +1011,19 @@ export const usePipelineStore = create<PipelineStore>()(
               if (files.length === 0) return
       
               try {
-                console.log('📤 Calling addTranscripts...');
-                await get().addTranscripts(files)
+                console.log('📤 Calling transcriptStore.addTranscripts...');
+                // Use transcriptStore to add transcripts
+                const transcriptStore = useTranscriptStore.getState()
+                await transcriptStore.addTranscripts(files)
                 console.log('✅ addTranscripts completed successfully');
                 
                 // Signal ready state if we're idle
-                const currentState = get()
-                if (!currentState.lastStepInfo || currentState.lastStepInfo.stepId === StepId.IDLE) {
-                  set(state => ({
-                    ...state,
-                    lastStepInfo: { stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, status: StepStatus.Idle }
-                  }))
+                const orchestrationStore = usePipelineOrchestrationStore.getState()
+                if (orchestrationStore.currentStepInfo.stepId === StepId.IDLE) {
+                  orchestrationStore.setCurrentStepInfo({
+                    stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
+                    status: StepStatus.Idle
+                  })
                 }
               } catch (error) {
                 console.error('❌ Error in handleDroppedFiles:', error);
@@ -1089,8 +1034,8 @@ export const usePipelineStore = create<PipelineStore>()(
       // Note: setActiveTranscriptByIndex removed - UI operations should be handled by UI store
 
       getTranscriptStatusDisplay: (transcriptId: string): string => {
-        const { processedData } = get()
-        const data = processedData.get(transcriptId)
+        const transcriptStore = useTranscriptStore.getState()
+        const data = transcriptStore.processedData.get(transcriptId)
         
         if (!data) return 'No Data'
         
@@ -1133,7 +1078,9 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       loadStepData: (stepIdToLoad: StepId, transcriptId?: string, phaseName?: string, gduId?: string): { inputData?: any, outputData?: any, error?: string, groundingSources?: any[] } => {
-        const { processedData, genericAnalysisState } = get()
+        const { genericAnalysisState } = get()
+        const transcriptStore = useTranscriptStore.getState()
+        const { processedData } = transcriptStore
         const keyPrefix = stepIdToDataKeyPrefix[stepIdToLoad]
         let output: any
         let error: string | undefined
@@ -1178,7 +1125,9 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       getStepStatusForPipelineView: (stepId: StepId, uiState?: { currentStepInfo: CurrentStepInfo; activeTranscriptIndex: number }): { status: StepStatus; error?: string } => {
-        const { processedData, genericAnalysisState, rawTranscripts } = get()
+        const { genericAnalysisState } = get()
+        const transcriptStore = useTranscriptStore.getState()
+        const { processedData, rawTranscripts } = transcriptStore
         
         // If UI state not provided, try to get it safely
         if (!uiState && typeof window !== 'undefined' && (window as any).__uiStore) {
@@ -1264,7 +1213,11 @@ export const usePipelineStore = create<PipelineStore>()(
       },
       
       handlePipelineStepClick: (clickedStepId: StepId, settings: SettingsData) => {
-        const { rawTranscripts, processedData, uiCallbacks } = get()
+        const { uiCallbacks } = get()
+        const transcriptStore = useTranscriptStore.getState()
+        const { rawTranscripts, processedData } = transcriptStore
+        const orchestrationStore = usePipelineOrchestrationStore.getState()
+        const { activeTranscriptIndex } = orchestrationStore
         
         // Use injected UI callbacks instead of direct store access
         if (uiCallbacks) {
@@ -1369,6 +1322,13 @@ export const usePipelineStore = create<PipelineStore>()(
           }
         },
         setItem: async (name, value) => {
+          // If partialize returns undefined, store will be called with value.state = undefined
+          if (value.state === undefined) {
+            // Don't store anything when partialize returns undefined
+            await localForageStorage.removeItem(name)
+            return
+          }
+          
           console.log('💾 [Storage] setItem - incoming value:', {
             rawTranscriptsLength: value.state?.rawTranscripts?.length || 0,
             processedDataType: value.state?.processedData?.constructor?.name || 'unknown',
@@ -1418,108 +1378,4 @@ if (typeof window !== 'undefined') {
   performDataMigration().catch(error => {
     console.error('Failed to perform data migration:', error)
   })
-}
-
-// Selectors for derived state
-export const selectCurrentStepDisplay = (currentStepInfo: CurrentStepInfo, transcriptsLength: number) => {
-  const state = usePipelineStore.getState()
-  
-  // Loading state
-  if (currentStepInfo.status === StepStatus.Loading) {
-    return {
-      type: 'loading' as const,
-      message: 'Loading output...'
-    }
-  }
-  
-  // Error state with no output
-  if (currentStepInfo.status === StepStatus.Error && !currentStepInfo.outputData) {
-    return {
-      type: 'error' as const,
-      message: 'Error occurred. See status bar for details.'
-    }
-  }
-  
-  // No output yet
-  if (!currentStepInfo.outputData && currentStepInfo.stepId !== StepId.IDLE) {
-    return {
-      type: 'empty' as const,
-      message: 'No output to display for this step yet.'
-    }
-  }
-  
-  // Idle states
-  if (currentStepInfo.stepId === StepId.IDLE && transcriptsLength === 0) {
-    return {
-      type: 'empty' as const,
-      message: 'Upload transcripts to begin.'
-    }
-  }
-  
-  if (currentStepInfo.stepId === StepId.IDLE && transcriptsLength > 0) {
-    return {
-      type: 'empty' as const,
-      message: 'Ready to start. Click "Autorun" or "Next Step".'
-    }
-  }
-  
-  // Check for mermaid chart
-  const mermaidChart = selectMermaidChartForStep(currentStepInfo)
-  if (mermaidChart) {
-    return {
-      type: 'mermaid' as const,
-      chart: mermaidChart
-    }
-  }
-  
-  // Report steps
-  if (currentStepInfo.stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT || currentStepInfo.stepId === StepId.COMPLETE) {
-    if (typeof currentStepInfo.outputData === 'string' && currentStepInfo.outputData.trim() !== "") {
-      return {
-        type: 'report' as const,
-        markdown: currentStepInfo.outputData
-      }
-    }
-    return {
-      type: 'empty' as const,
-      message: 'Report not generated or empty.'
-    }
-  }
-  
-  // Regular output
-  return {
-    type: 'output' as const,
-    data: currentStepInfo.outputData
-  }
-}
-
-export const selectMermaidChartForStep = (stepInfo: CurrentStepInfo): string | undefined => {
-  const state = usePipelineStore.getState()
-  const { processedData, genericAnalysisState } = state
-  const tId = stepInfo.transcriptId
-  const phase = stepInfo.currentPhaseForP2S
-  const gdu = stepInfo.currentGduForP4S
-  
-  switch (stepInfo.stepId) {
-    case StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE:
-      return tId ? processedData.get(tId)?.p1_4_mermaid_syntax : undefined
-      
-    case StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE:
-      return tId && phase ? processedData.get(tId)?.p2s_outputs_by_phase?.[phase]?.p2s_3_mermaid_syntax : undefined
-      
-    case StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE:
-      return genericAnalysisState.p3_3_mermaid_syntax
-      
-    case StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS:
-      return gdu ? genericAnalysisState.p4s_mermaid_syntax_by_gdu?.[gdu] : undefined
-      
-    case StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS:
-      return genericAnalysisState.p7_3_mermaid_syntax_dag
-      
-    case StepId.P7_3B_VALIDATE_AND_CLEAN_DAG:
-      return genericAnalysisState.p7_3b_mermaid_syntax_dag
-      
-    default:
-      return undefined
-  }
 }

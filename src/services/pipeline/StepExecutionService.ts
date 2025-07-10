@@ -69,13 +69,16 @@ export class StepExecutionService implements IStepExecutionService {
         // Make API call
         try {
           const apiResult = await callGeminiAPI(
-            settings.apiKey,
+            input.data, // prompt
+            true, // isJsonOutput - all pipeline steps expect JSON
+            false, // useGrounding
             settings.temperature,
-            input.data,
-            settings.seed
+            settings.seed,
+            1 // attempt
           )
           
-          output = apiResult.output
+          output = apiResult.parsedJson
+          apiError = apiResult.error
           groundingSources = apiResult.groundingSources
           estimatedInputTokens = apiResult.estimatedInputTokens
           estimatedOutputTokens = apiResult.estimatedOutputTokens

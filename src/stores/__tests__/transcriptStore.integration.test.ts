@@ -173,34 +173,29 @@ describe('TranscriptStore Integration Tests', () => {
       
     });
 
-    it('should persist even empty state', async () => {
+    it('should persist a payload with an undefined state when the store is empty', async () => {
       // Clear any previous mock calls
       mockLocalForageStorage.setItem.mockClear();
-      
+
       // Ensure store is empty
       useTranscriptStore.setState({
         rawTranscripts: [],
-        processedData: new Map()
+        processedData: new Map(),
       });
 
-      // Advance timers
+      // Advance timers to trigger debounced persist
       vi.advanceTimersByTime(1000);
       await vi.runAllTimersAsync();
 
-      // The store doesn't have partialize configured to exclude empty state,
-      // so it will persist even empty state. Let's verify the behavior
+      // The store is configured via `partialize` to return undefined for an empty state.
+      // The persist middleware then calls setItem with a value where `state` is undefined.
       expect(mockLocalForageStorage.setItem).toHaveBeenCalled();
-      
+
       const calls = mockLocalForageStorage.setItem.mock.calls;
       const lastCall = calls[calls.length - 1];
-      if (lastCall) {
-        const [key, value] = lastCall;
-        expect(key).toBe('transcript-storage');
-        const data = typeof value === 'string' ? JSON.parse(value) : value;
-        expect(data.state.rawTranscripts).toEqual([]);
-        // processedData is a Map that gets serialized to an object
-        expect(data.state.processedData).toBeDefined();
-      }
+      const [key, value] = lastCall;
+      expect(key).toBe('transcript-storage');
+      expect(value.state).toBeUndefined();
     });
   });
 

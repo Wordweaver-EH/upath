@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useTranscriptStore } from '../stores/transcriptStore'
 import { useAnalysisResultStore } from '../stores/analysisResultStore'
 import { usePipelineStore } from '../stores/pipelineStore'
+import { usePromptHistoryStore } from '../stores/promptHistoryStore'
 import { useUIStore } from '../stores/uiStore'
 import { useStoreActions } from '../stores/storeComposition'
 import { localForageStorage } from '../utils/storage'
@@ -155,7 +156,7 @@ describe('Autosave Integration Tests', () => {
       processedData: new Map()
     })
     useAnalysisResultStore.setState({ genericAnalysisState: {} })
-    usePipelineStore.setState({ promptHistory: [], totalInputTokens: 0, totalOutputTokens: 0 })
+    usePromptHistoryStore.setState({ promptHistory: [], totalInputTokens: 0, totalOutputTokens: 0 })
     
     const storeActions1 = useStoreActions()
     await storeActions1.coordinateRehydration()
@@ -167,7 +168,7 @@ describe('Autosave Integration Tests', () => {
     // Test 2: When only analysis store has data
     useTranscriptStore.setState({ rawTranscripts: [], processedData: new Map() })
     useAnalysisResultStore.setState({ genericAnalysisState: { p3_2_output: { some: 'data' } } })
-    usePipelineStore.setState({ promptHistory: [], totalInputTokens: 0, totalOutputTokens: 0 })
+    usePromptHistoryStore.setState({ promptHistory: [], totalInputTokens: 0, totalOutputTokens: 0 })
     
     const storeActions2 = useStoreActions()
     await storeActions2.coordinateRehydration()
@@ -178,7 +179,7 @@ describe('Autosave Integration Tests', () => {
     // Test 3: When only pipeline store has data
     useTranscriptStore.setState({ rawTranscripts: [], processedData: new Map() })
     useAnalysisResultStore.setState({ genericAnalysisState: {} })
-    usePipelineStore.setState({ promptHistory: [], totalInputTokens: 100, totalOutputTokens: 0 })
+    usePromptHistoryStore.setState({ promptHistory: [], totalInputTokens: 100, totalOutputTokens: 0 })
     
     const storeActions3 = useStoreActions()
     await storeActions3.coordinateRehydration()
@@ -189,7 +190,7 @@ describe('Autosave Integration Tests', () => {
     // Test 4: When no store has data
     useTranscriptStore.setState({ rawTranscripts: [], processedData: new Map() })
     useAnalysisResultStore.setState({ genericAnalysisState: {} })
-    usePipelineStore.setState({ promptHistory: [], totalInputTokens: 0, totalOutputTokens: 0 })
+    usePromptHistoryStore.setState({ promptHistory: [], totalInputTokens: 0, totalOutputTokens: 0 })
     
     const storeActions4 = useStoreActions()
     await storeActions4.coordinateRehydration()
@@ -211,10 +212,10 @@ describe('Autosave Integration Tests', () => {
     expect(transcriptState.rawTranscripts).toEqual([])
     expect(transcriptState.processedData.size).toBe(0)
     
-    // Verify pipeline state remains at initial values
-    const pipelineState = usePipelineStore.getState()
-    expect(pipelineState.totalInputTokens).toBe(0)
-    expect(pipelineState.totalOutputTokens).toBe(0)
+    // Verify prompt history state remains at initial values
+    const promptHistoryState = usePromptHistoryStore.getState()
+    expect(promptHistoryState.totalInputTokens).toBe(0)
+    expect(promptHistoryState.totalOutputTokens).toBe(0)
     
     // Verify UI flags
     const uiState = useUIStore.getState()
@@ -255,12 +256,14 @@ describe('Autosave Integration Tests', () => {
     // Clear storage for all stores
     await useTranscriptStore.persist.clearStorage()
     await useAnalysisResultStore.persist.clearStorage()
+    await usePromptHistoryStore.persist.clearStorage()
     await usePipelineStore.persist.clearStorage()
     
     // Verify removeItem was called for all stores
-    expect(removeItemSpy).toHaveBeenCalledTimes(3)
+    expect(removeItemSpy).toHaveBeenCalledTimes(4)
     expect(removeItemSpy).toHaveBeenCalledWith('transcript-storage')
     expect(removeItemSpy).toHaveBeenCalledWith('analysis-storage')
+    expect(removeItemSpy).toHaveBeenCalledWith('prompt-history-storage')
     expect(removeItemSpy).toHaveBeenCalledWith('upath-autosave-session-v2-localforage')
   })
 
@@ -280,8 +283,8 @@ describe('Autosave Integration Tests', () => {
     // Now set up the rejection for the next call
     setItemSpy.mockRejectedValueOnce(new Error('QuotaExceededError'))
     
-    // Trigger another state change in pipeline store
-    usePipelineStore.setState({
+    // Trigger another state change in prompt history store
+    usePromptHistoryStore.setState({
       totalInputTokens: 100
     })
     
@@ -318,11 +321,15 @@ describe('Autosave Integration Tests', () => {
       genericAnalysisState: { p3_1_output: { some: 'data' } }
     })
     
-    // Update pipeline store with meaningful data (so it will persist)
-    usePipelineStore.setState({
-      totalInputTokens: 100,  // Meaningful data so it will persist
+    // Update prompt history store with meaningful data
+    usePromptHistoryStore.setState({
+      totalInputTokens: 100,
       totalOutputTokens: 200,
-      // These UI-related states should NOT be persisted:
+      promptHistory: []
+    })
+    
+    // Update pipeline store with UI-related states that should NOT be persisted
+    usePipelineStore.setState({
       lastStepInfo: { stepId: StepId.P1_1_INTERVIEW_TRANSCRIPT_SELECTION, status: 'loading' },
       shouldStopAutorun: true,
       lastHilContext: { needsProcessing: true }
@@ -332,10 +339,18 @@ describe('Autosave Integration Tests', () => {
     vi.runAllTimers()
     await Promise.resolve()
     
-    // Find transcript store call
+    // Find each store's call
     const transcriptCall = setItemSpy.mock.calls.find(call => call[0] === 'transcript-storage')
     expect(transcriptCall).toBeDefined()
     const transcriptData = typeof transcriptCall![1] === 'string' ? JSON.parse(transcriptCall![1]) : transcriptCall![1]
+    
+    const promptHistoryCall = setItemSpy.mock.calls.find(call => call[0] === 'prompt-history-storage')
+    expect(promptHistoryCall).toBeDefined()
+    const promptHistoryData = typeof promptHistoryCall![1] === 'string' ? JSON.parse(promptHistoryCall![1]) : promptHistoryCall![1]
+    
+    const pipelineCall = setItemSpy.mock.calls.find(call => call[0] === 'upath-autosave-session-v2-localforage')
+    // Pipeline store should not persist anything after cleanup
+    expect(pipelineCall).toBeUndefined()
     expect(transcriptData.state.rawTranscripts).toHaveLength(1)
     expect(transcriptData.state).toHaveProperty('processedData')
     
@@ -345,29 +360,23 @@ describe('Autosave Integration Tests', () => {
     const analysisData = typeof analysisCall![1] === 'string' ? JSON.parse(analysisCall![1]) : analysisCall![1]
     expect(analysisData.state).toHaveProperty('genericAnalysisState')
     
-    // Find pipeline store call
-    const pipelineCall = setItemSpy.mock.calls.find(call => call[0] === 'upath-autosave-session-v2-localforage')
-    expect(pipelineCall).toBeDefined()
-    const pipelineData = typeof pipelineCall![1] === 'string' ? JSON.parse(pipelineCall![1]) : pipelineCall![1]
-    expect(pipelineData.state).toHaveProperty('promptHistory')
-    expect(pipelineData.state).toHaveProperty('totalInputTokens')
-    expect(pipelineData.state).toHaveProperty('totalOutputTokens')
+    // Verify prompt history store has the data that was previously in pipeline store
+    expect(promptHistoryData.state).toHaveProperty('promptHistory')
+    expect(promptHistoryData.state).toHaveProperty('totalInputTokens')
+    expect(promptHistoryData.state).toHaveProperty('totalOutputTokens')
     
-    // Analysis state should NOT be persisted in pipeline store (now in analysis store)
-    expect(pipelineData.state).not.toHaveProperty('genericAnalysisState')
-    
-    // UI state should NOT be persisted in pipeline store
-    expect(pipelineData.state).not.toHaveProperty('lastStepInfo')
-    expect(pipelineData.state).not.toHaveProperty('shouldStopAutorun')
-    expect(pipelineData.state).not.toHaveProperty('lastHilContext')
+    // UI state should NOT be persisted anywhere
+    expect(transcriptData.state).not.toHaveProperty('lastStepInfo')
+    expect(analysisData.state).not.toHaveProperty('lastStepInfo')
+    expect(promptHistoryData.state).not.toHaveProperty('lastStepInfo')
   })
 
   it('persists final state after multiple changes', async () => {
     const setItemSpy = vi.mocked(localForageStorage.setItem)
     
     // Make multiple rapid state changes
-    usePipelineStore.setState({ totalInputTokens: 10 })
-    usePipelineStore.setState({ totalOutputTokens: 20 })
+    usePromptHistoryStore.setState({ totalInputTokens: 10 })
+    usePromptHistoryStore.setState({ totalOutputTokens: 20 })
     useTranscriptStore.setState({ 
       rawTranscripts: [{ id: '1', filename: 'test.txt', content: 'test' }]
     })
@@ -379,13 +388,13 @@ describe('Autosave Integration Tests', () => {
     // Verify final state was persisted
     expect(setItemSpy).toHaveBeenCalled()
     
-    // Check the final persisted state for pipeline store (get the last call, not the first)
-    const pipelineCalls = setItemSpy.mock.calls.filter(call => call[0] === 'upath-autosave-session-v2-localforage')
-    expect(pipelineCalls.length).toBeGreaterThan(0)
-    const lastPipelineCall = pipelineCalls[pipelineCalls.length - 1]
-    const pipelineData = typeof lastPipelineCall[1] === 'string' ? JSON.parse(lastPipelineCall[1]) : lastPipelineCall[1]
-    expect(pipelineData.state.totalInputTokens).toBe(10)
-    expect(pipelineData.state.totalOutputTokens).toBe(20)
+    // Check the final persisted state for prompt history store (get the last call, not the first)
+    const promptHistoryCalls = setItemSpy.mock.calls.filter(call => call[0] === 'prompt-history-storage')
+    expect(promptHistoryCalls.length).toBeGreaterThan(0)
+    const lastPromptHistoryCall = promptHistoryCalls[promptHistoryCalls.length - 1]
+    const promptHistoryData = typeof lastPromptHistoryCall[1] === 'string' ? JSON.parse(lastPromptHistoryCall[1]) : lastPromptHistoryCall[1]
+    expect(promptHistoryData.state.totalInputTokens).toBe(10)
+    expect(promptHistoryData.state.totalOutputTokens).toBe(20)
     
     // Check the final persisted state for transcript store (if it persisted)
     const transcriptCalls = setItemSpy.mock.calls.filter(call => call[0] === 'transcript-storage')
