@@ -140,23 +140,25 @@ export const useTranscriptStore = create<TranscriptStore>()(
         name: V2_TRANSCRIPT_STORAGE_KEY,
         storage: localForageStorage,
         version: 1,
-        partialize: (state) => ({
-          rawTranscripts: state.rawTranscripts,
-          processedData: state.processedData
-        }),
-        // Handle Map serialization/deserialization
-        serialize: (state) => {
-          return JSON.stringify({
-            ...state,
-            processedData: Array.from(state.processedData.entries())
-          });
-        },
-        deserialize: (str: string) => {
-          const parsed = JSON.parse(str);
+        partialize: (state) => {
+          // Only persist if there's data
+          const hasData = state.rawTranscripts.length > 0 || state.processedData.size > 0;
+          
+          if (!hasData) {
+            return undefined;
+          }
+          
           return {
-            ...parsed,
-            processedData: new Map(parsed.processedData || [])
+            rawTranscripts: state.rawTranscripts,
+            processedData: Array.from(state.processedData.entries())
           };
+        },
+        // Handle Map deserialization on rehydration
+        onRehydrateStorage: () => (state, error) => {
+          if (state && state.processedData && Array.isArray(state.processedData)) {
+            // Convert array back to Map on rehydration
+            state.processedData = new Map(state.processedData);
+          }
         }
       }
     )

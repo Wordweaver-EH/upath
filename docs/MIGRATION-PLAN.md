@@ -144,21 +144,122 @@ Each phase has a clear goal and a set of tasks. For the more complex parts, ther
 
 **For more details on why we're doing this, see:** [Supplementary Doc: Frontend State Refactoring](./plan/01_state_refactoring.md)
 
-### Tasks
+### Current Status: IN PROGRESS (Started 2025-07-09)
 
-1.  **Create New Store Files:**
-    *   In `src/stores`, create the new files: `transcriptStore.ts`, `graphStateStore.ts`, `analysisResultStore.ts`, and `uiStore.ts`.
+**Completed:**
+- ✅ TranscriptStore and AnalysisResultStore extracted and functional
+- ✅ Service functions extracted from processSingleStep (reduced from 500+ to ~241 lines)
+- ✅ 2/8 consumers migrated (useAutorunManager.ts, SessionRestoreNotification.tsx)
+- ✅ Autosave integration tests fixed for multi-store architecture
+- ✅ Store composition layer with coordinateRehydration implemented
 
-2.  **Implement the New Stores:**
-    *   Copy the code for each new store from the original plan into the corresponding file.
+**Active Sub-Plan: Strangler Fig Migration Completion**
 
-3.  **Refactor Components:**
-    *   Go through the components one by one. Find where they use `usePipelineStore()`.
-    *   Change them to use the new, more specific stores. For example, if a component only needs to upload transcripts, it should now use `useTranscriptStore()` instead.
+### Sub-Plan Phase 1: Complete Consumer Migration (2-3 days)
+**Goal:** Migrate remaining 6 consumers to use new stores
 
-4.  **Implement New Save/Load Logic:**
-    *   Create helper functions (`getFullStateForSaving` and `loadFullState`) that work with the new multi-store structure. The original plan provides the code for this.
-    *   This new system will **not** be able to load old save files.
+**1.1 Test File Updates (Day 1)**
+- [ ] Update autosave.integration.test.ts (already partially done)
+- [ ] Update storeComposition.test.ts to test new architecture
+- [ ] Update pipelineStore.persist.test.ts to work with multi-store persistence
+- [ ] Update app-orchestration.test.ts for new orchestration patterns
+- [ ] Update dependency-injection.test.ts for new DI patterns
+
+**1.2 Store Index Cleanup (Day 1)**
+- [ ] Clean up stores/index.ts exports
+- [ ] Remove legacy selectors
+- [ ] Update initialization logic for new architecture
+
+### Sub-Plan Phase 2: Extract Prompt History Store (1 day)
+**Goal:** Move prompt history management to dedicated store
+
+**2.1 Create PromptHistoryStore**
+- [ ] Extract PromptSlice interface and implementation
+- [ ] Move token counting logic
+- [ ] Implement persistence
+- [ ] Create comprehensive tests
+
+**2.2 Update Consumers**
+- [ ] Update all references to use new store
+- [ ] Update PromptHistoryService to work with new store
+
+### Sub-Plan Phase 3: Extract Pipeline Orchestration Logic (3-4 days)
+**Goal:** Move core pipeline logic to service layer
+
+**3.1 Create Navigation Service**
+- [ ] Extract getNextStepDetails logic
+- [ ] Extract getPreviousStepDetails logic
+- [ ] Handle phase and GDU progression
+- [ ] Create comprehensive tests
+
+**3.2 Create State Invalidation Service**
+- [ ] Extract invalidateStateFromStep logic
+- [ ] Handle cascade invalidation
+- [ ] Maintain state consistency
+- [ ] Create comprehensive tests
+
+**3.3 Create File Management Service**
+- [ ] Extract handleDroppedFiles logic
+- [ ] Extract save/load state functionality
+- [ ] Handle file validation
+- [ ] Create comprehensive tests
+
+**3.4 Create Export Service**
+- [ ] Extract downloadOutput logic
+- [ ] Extract downloadHistory logic
+- [ ] Extract generateAppendix logic
+- [ ] Create comprehensive tests
+
+### Sub-Plan Phase 4: Create Pipeline Orchestration Store (2 days)
+**Goal:** Replace monolithic pipelineStore with focused orchestration store
+
+**4.1 Design New Store**
+- [ ] Only orchestration state (no data storage)
+- [ ] Coordinate between other stores
+- [ ] Handle UI synchronization
+- [ ] Minimal surface area
+
+**4.2 Update StoreComposition**
+- [ ] Move remaining orchestration logic
+- [ ] Update all delegated methods
+- [ ] Ensure backward compatibility
+
+### Sub-Plan Phase 5: Complete Strangler Fig Pattern (2 days)
+**Goal:** Remove all duplicate implementations
+
+**5.1 Remove Legacy Code**
+- [ ] Delete unused methods from pipelineStore
+- [ ] Remove delegated implementations
+- [ ] Clean up interfaces
+
+**5.2 Refactor and Optimize**
+- [ ] Consolidate similar logic
+- [ ] Optimize store subscriptions
+- [ ] Reduce re-renders
+
+**5.3 Final Testing**
+- [ ] Run full test suite
+- [ ] Performance testing
+- [ ] Integration testing
+- [ ] Manual testing of all features
+
+### Success Criteria:
+1. pipelineStore.ts reduced to < 200 lines (only essential orchestration)
+2. All 8 consumers using new architecture
+3. No duplicate implementations
+4. All tests passing
+5. Performance equal or better than before
+6. Clear separation of concerns
+
+### Risk Mitigation:
+- Each phase maintains working application
+- Comprehensive testing at each step
+- Gradual migration with rollback points
+- Preserve all existing functionality
+
+### Estimated Timeline: 10-12 days from start
+
+---
 
 ---
 

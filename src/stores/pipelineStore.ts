@@ -3,7 +3,9 @@ import { immer } from 'zustand/middleware/immer'
 import { persist, subscribeWithSelector } from 'zustand/middleware'
 import { localForageStorage } from '../utils/storage'
 import { performDataMigration } from '../utils/migration'
-import { useUIStore } from './uiStore'
+import { useAnalysisResultStore } from './analysisResultStore'
+import { usePromptHistoryStore } from './promptHistoryStore'
+import { useTranscriptStore } from './transcriptStore'
 import { 
   RawTranscript, 
   TranscriptProcessedData, 
@@ -66,13 +68,7 @@ interface SettingsData {
 }
 
 // Slice types
-interface TranscriptSlice {
-  rawTranscripts: RawTranscript[]
-  processedData: Map<string, TranscriptProcessedData>
-  addTranscripts: (files: File[]) => Promise<void>
-  updateProcessedData: (id: string, data: Partial<TranscriptProcessedData>) => void
-  removeTranscript: (id: string) => void
-}
+// TranscriptSlice has been moved to transcriptStore.ts
 
 interface GenericAnalysisSlice {
   genericAnalysisState: GenericAnalysisState
@@ -89,12 +85,7 @@ interface DependencyInjectionSlice {
   setUICallbacks: (callbacks: UICallbacks) => void
 }
 
-interface PromptSlice {
-  promptHistory: PromptHistoryEntry[]
-  totalInputTokens: number
-  totalOutputTokens: number
-  addPromptEntry: (entry: PromptHistoryEntry) => void
-}
+// PromptSlice removed - migrated to promptHistoryStore
 
 // Main pipeline actions
 interface PipelineActions {
@@ -103,7 +94,12 @@ interface PipelineActions {
     transcriptIdToProcess?: string,
     overrideSeed?: number,
     hilMetaPrompt?: string,
-    settings?: SettingsData
+    settings?: SettingsData,
+    // Transcript data passed from caller to avoid circular dependencies
+    transcriptData?: {
+      rawTranscripts: RawTranscript[],
+      processedData: Map<string, TranscriptProcessedData>
+    }
   }) => Promise<void>
   // Helper functions for step processing  
   handleStepError: (
@@ -128,7 +124,7 @@ interface PipelineActions {
     currentPhase: string | undefined,
     processedData: Map<string, TranscriptProcessedData>
   ) => void
-  invalidateStateFromStep: (stepId: StepId, transcriptId?: string) => void
+  invalidateStateFromStep: (stepId: StepId, transcriptId?: string, activeTranscriptIndex?: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => void
   getInvalidatedStates: (
     startInvalidationFromStepId: StepId,
     currentActiveTxId: string | undefined,
@@ -138,9 +134,10 @@ interface PipelineActions {
     invalidatedProcessedData: Map<string, TranscriptProcessedData>
     invalidatedGenericState: GenericAnalysisState
   }
-  getNextStepDetails: () => { nextStepId: StepId; nextTranscriptIndex: number } | null
-  processNextStep: () => void
+  getNextStepDetails: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => { nextStepId: StepId; nextTranscriptIndex: number } | null
+  processNextStep: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => void
   resetPipeline: () => void
+  resetPromptHistoryOnly: () => void
   clearAutosaveData: () => Promise<void>
   loadState: (savedState: SavedState) => void
   getSaveState: () => SavedState
@@ -172,7 +169,7 @@ interface PipelineSelectors {
   isNextStepDisabled: () => boolean
   isRunStepDisabled: () => boolean
   isHilModalDisabled: () => boolean
-  getPreviousStepDetails: () => { prevStepId: StepId; prevTranscriptIndex: number } | null
+  getPreviousStepDetails: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => { prevStepId: StepId; prevTranscriptIndex: number } | null
   isDownloadOutputDisabled: () => boolean
   isDownloadHistoryDisabled: () => boolean
   isAppendixDataAvailable: () => boolean
@@ -180,7 +177,7 @@ interface PipelineSelectors {
   getStepStatusForPipelineView: (stepId: StepId, uiState?: { currentStepInfo: CurrentStepInfo; activeTranscriptIndex: number }) => { status: StepStatus; error?: string }
 }
 
-type PipelineState = TranscriptSlice & GenericAnalysisSlice & PromptSlice & DependencyInjectionSlice
+type PipelineState = GenericAnalysisSlice & DependencyInjectionSlice
 type PipelineStore = PipelineState & PipelineActions & PipelineSelectors
 
 // UI updates are now handled through state changes that App.tsx listens to
@@ -196,113 +193,21 @@ const processFileContent = async (file: File): Promise<RawTranscript> => {
 }
 
 // Create slices
-const createTranscriptSlice = (set: any, get: any): TranscriptSlice => ({
-  rawTranscripts: [],
-  processedData: new Map(),
-  
-  addTranscripts: async (files: File[]) => {
-    console.log('🔄 addTranscripts called with', files.length, 'files');
-    const newTranscripts = await Promise.all(files.map(processFileContent))
-    console.log('✅ Processed transcripts:', newTranscripts);
-    
-    set((state: PipelineState) => {
-      console.log('📝 Starting state update...');
-      state.rawTranscripts = [...state.rawTranscripts, ...newTranscripts]
-      console.log('📋 Updated rawTranscripts, count:', state.rawTranscripts.length);
-      
-      // Initialize processed data for new transcripts
-      console.log('🔄 Initializing processed data...');
-      newTranscripts.forEach(transcript => {
-        console.log('📊 Processing transcript:', transcript.id, transcript.filename);
-        state.processedData.set(transcript.id, {
-          id: transcript.id,
-          filename: transcript.filename,
-          isFullyProcessedSpecificDiachronic: false,
-          isFullyProcessedSpecificSynchronic: false
-        } as TranscriptProcessedData)
-      })
-    })
-  },
-  
-  updateProcessedData: (id: string, updates: Partial<TranscriptProcessedData>) => {
-    set((state: PipelineState) => {
-      const current = state.processedData.get(id)
-      if (current) {
-        state.processedData.set(id, { ...current, ...updates })
-      }
-    })
-  },
-  
-  removeTranscript: (id: string) => {
-    set((state: PipelineState) => {
-      state.rawTranscripts = state.rawTranscripts.filter(t => t.id !== id)
-      state.processedData.delete(id)
-    })
-  }
-})
+// createTranscriptSlice has been moved to transcriptStore.ts
 
 const createGenericAnalysisSlice = (set: any, get: any): GenericAnalysisSlice => ({
-  genericAnalysisState: {
-    isFullyProcessedGenericDiachronic: false,
-    p3_1_output: undefined,
-    p3_1_error: undefined,
-    p3_2_output: undefined,
-    p3_2_error: undefined,
-    p3_3_output: undefined,
-    p3_3_mermaid_syntax: undefined,
-    p3_3_error: undefined,
-    p4s_1_a_outputs_by_gdu: {},
-    p4s_1_a_error: undefined,
-    p4s_outputs_by_gdu: {},
-    p4s_mermaid_syntax_by_gdu: {},
-    p4s_1_b_error: undefined,
-    current_gdu_for_p4s_processing: undefined,
-    core_gdus_for_sync_analysis: [],
-    processed_gdus_for_p4s: [],
-    isFullyProcessedGenericSynchronic: false,
-    p5_1_output: undefined,
-    p5_1_error: undefined,
-    isRefinementDone: false,
-    p7_1_output: undefined,
-    p7_1_error: undefined,
-    p7_2_output: undefined,
-    p7_2_error: undefined,
-    p7_3_output: undefined,
-    p7_3_mermaid_syntax_dag: undefined,
-    p7_3_error: undefined,
-    p7_3b_output: undefined,
-    p7_3b_mermaid_syntax_dag: undefined,
-    p7_3b_error: undefined,
-    p7_4_output: undefined,
-    p7_4_error: undefined,
-    p7_5_output: undefined,
-    p7_5_error: undefined,
-    isCausalModelingDone: false,
-    p6_1_output: undefined,
-    p6_1_error: undefined,
-    isReportGenerated: false
+  // Delegate to analysisResultStore for genericAnalysisState
+  get genericAnalysisState() {
+    return useAnalysisResultStore.getState().genericAnalysisState
   },
   
+  // Delegate to analysisResultStore for updates
   updateGenericState: (updates: Partial<GenericAnalysisState>) => {
-    set((state: PipelineState) => {
-      Object.assign(state.genericAnalysisState, updates)
-    })
+    useAnalysisResultStore.getState().updateGenericState(updates)
   }
 })
 
-const createPromptSlice = (set: any, get: any): PromptSlice => ({
-  promptHistory: [],
-  totalInputTokens: 0,
-  totalOutputTokens: 0,
-  
-  addPromptEntry: (entry: PromptHistoryEntry) => {
-    set((state: PipelineState) => {
-      state.promptHistory.push(entry)
-      state.totalInputTokens += entry.inputTokens || 0
-      state.totalOutputTokens += entry.outputTokens || 0
-    })
-  }
-})
+// createPromptSlice removed - migrated to promptHistoryStore
 
 const createDependencyInjectionSlice = (set: any, get: any): DependencyInjectionSlice => ({
   uiCallbacks: undefined,
@@ -319,14 +224,15 @@ export const usePipelineStore = create<PipelineStore>()(
   subscribeWithSelector(
     persist(
       immer((set, get) => ({
-      ...createTranscriptSlice(set, get),
       ...createGenericAnalysisSlice(set, get),
-      ...createPromptSlice(set, get),
       ...createDependencyInjectionSlice(set, get),
       
       // Main pipeline orchestrator - integrated from pipelineActions.ts
       processSingleStep: async (params) => {
-        const { rawTranscripts, processedData, genericAnalysisState } = get()
+        const { genericAnalysisState } = get()
+        
+        // Use transcript data passed from caller, fall back to empty defaults
+        const { rawTranscripts = [], processedData = new Map() } = params.transcriptData || {}
 
         console.groupCollapsed(`🚀 [pipelineStore] processSingleStep: ${params.stepId}`);
         console.log(`- Transcript ID: ${params.transcriptIdToProcess || 'N/A (Global Step)'}`);
@@ -400,9 +306,9 @@ export const usePipelineStore = create<PipelineStore>()(
           }, 0)
           
           if (stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES) {
-            set((state) => { state.genericAnalysisState.p4s_1_a_error = inputResult.error })
+            useAnalysisResultStore.getState().updateGenericState({ p4s_1_a_error: inputResult.error })
           } else if (stepId === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS) {
-            set((state) => { state.genericAnalysisState.p4s_1_b_error = inputResult.error })
+            useAnalysisResultStore.getState().updateGenericState({ p4s_1_b_error: inputResult.error })
           }
           
           console.groupEnd();
@@ -477,13 +383,7 @@ export const usePipelineStore = create<PipelineStore>()(
           estIn = apiResult.estimatedInputTokens
           estOut = apiResult.estimatedOutputTokens
           
-          // Update token counts
-          if (estIn != null) {
-            set((state) => { state.totalInputTokens += estIn! })
-          }
-          if (estOut != null) {
-            set((state) => { state.totalOutputTokens += estOut! })
-          }
+          // Token counts will be updated via promptHistoryStore when entry is added
         }
         
         // Create step output for prompt history service
@@ -496,12 +396,10 @@ export const usePipelineStore = create<PipelineStore>()(
           promptForHistory
         }
         
-        // Add to prompt history
+        // Add to prompt history via the new store
         const historyEntry = promptHistoryService.createHistoryEntry(stepId, transcriptIdToProcess, stepOutput, context)
-        
-        set((state) => {
-          state.promptHistory.push(historyEntry)
-        })
+        const promptHistoryStore = usePromptHistoryStore.getState()
+        promptHistoryStore.addPromptEntry(historyEntry)
         
         // Handle errors
         if (apiError) {
@@ -702,30 +600,32 @@ export const usePipelineStore = create<PipelineStore>()(
         
         // Handle transcript-specific outputs
         if (transcriptIdToProcess && key && typeof key === 'string' && !STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(stepId)) {
-          set((state: any) => {
-            const d = state.processedData.get(transcriptIdToProcess)
-            if (d) {
-              const nD: TranscriptProcessedData = {
-                ...d,
-                [key as keyof TranscriptProcessedData]: output,
-                [`${key.replace('_output','_error')}` as keyof TranscriptProcessedData]: undefined
-              } as any
-              
-              // Special handling for P1.4
-              if (stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && output) {
-                nD.isFullyProcessedSpecificDiachronic = true
-                nD.p1_4_mermaid_syntax = transformDiachronicToMermaid((output as P1_4_Output).specific_diachronic_structure)
-                const phases = (output as P1_4_Output)?.specific_diachronic_structure?.phases.map(p => p.phase_name) || []
-                nD.phases_for_p2s_processing = phases
-                nD.current_phase_for_p2s_processing = phases[0] || undefined
-                nD.processed_phases_for_p2s = []
-                nD.p2s_outputs_by_phase = {}
-                nD.isFullyProcessedSpecificSynchronic = phases.length === 0
-              }
-              
-              state.processedData.set(transcriptIdToProcess, nD)
+          // Update transcript store directly
+          const transcriptStore = useTranscriptStore.getState()
+          const d = transcriptStore.processedData.get(transcriptIdToProcess)
+          if (d) {
+            const nD: TranscriptProcessedData = {
+              ...d,
+              [key as keyof TranscriptProcessedData]: output,
+              [`${key.replace('_output','_error')}` as keyof TranscriptProcessedData]: undefined
+            } as any
+            
+            // Special handling for P1.4
+            if (stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && output) {
+              nD.isFullyProcessedSpecificDiachronic = true
+              nD.p1_4_mermaid_syntax = transformDiachronicToMermaid((output as P1_4_Output).specific_diachronic_structure)
+              const phases = (output as P1_4_Output)?.specific_diachronic_structure?.phases.map(p => p.phase_name) || []
+              nD.phases_for_p2s_processing = phases
+              nD.current_phase_for_p2s_processing = phases[0] || undefined
+              nD.processed_phases_for_p2s = []
+              nD.p2s_outputs_by_phase = {}
+              nD.isFullyProcessedSpecificSynchronic = phases.length === 0
             }
-          })
+            
+            const updatedProcessedData = new Map(transcriptStore.processedData)
+            updatedProcessedData.set(transcriptIdToProcess, nD)
+            transcriptStore.setProcessedData(updatedProcessedData)
+          }
         }
         
         // Handle P2S phase outputs
@@ -1150,8 +1050,11 @@ export const usePipelineStore = create<PipelineStore>()(
         }
       },
       
-      getNextStepDetails: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
-        const { rawTranscripts, processedData, genericAnalysisState } = get()
+      getNextStepDetails: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => {
+        const { genericAnalysisState } = get()
+        
+        // Use transcript data passed from caller, fall back to empty defaults
+        const { rawTranscripts = [], processedData = new Map() } = transcriptData || {}
         
         const currentTranscriptId = rawTranscripts[activeTranscriptIndex]?.id
         const currentTData = currentTranscriptId ? processedData.get(currentTranscriptId) : undefined
@@ -1341,9 +1244,10 @@ export const usePipelineStore = create<PipelineStore>()(
         return null
       },
       
-      processNextStep: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
-        const { rawTranscripts } = get()
-        const details = get().getNextStepDetails(currentStepInfo, activeTranscriptIndex)
+      processNextStep: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => {
+        // Use transcript data passed from caller, fall back to empty defaults
+        const { rawTranscripts = [] } = transcriptData || {}
+        const details = get().getNextStepDetails(currentStepInfo, activeTranscriptIndex, transcriptData)
         
         if (!details) {
           const { genericAnalysisState } = get()
@@ -1373,41 +1277,52 @@ export const usePipelineStore = create<PipelineStore>()(
         } else {
           const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId)
           const nextTxId = isNextGlobal ? undefined : rawTranscripts[details.nextTranscriptIndex]?.id
-          get().processSingleStep({ stepId: details.nextStepId, transcriptIdToProcess: nextTxId })
+          get().processSingleStep({ stepId: details.nextStepId, transcriptIdToProcess: nextTxId, transcriptData })
         }
       },
       
-      invalidateStateFromStep: (stepId: StepId, transcriptId?: string, activeTranscriptIndex?: number) => {
-        const { rawTranscripts, processedData, genericAnalysisState } = get()
+      invalidateStateFromStep: (stepId: StepId, transcriptId?: string, activeTranscriptIndex?: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => {
+        const { genericAnalysisState } = get()
+        
+        // Use transcript data passed from caller, fall back to empty defaults
+        const { rawTranscripts = [], processedData = new Map() } = transcriptData || {}
         const activeTxId = transcriptId || (activeTranscriptIndex !== undefined ? rawTranscripts[activeTranscriptIndex]?.id : undefined)
         
-        const { invalidatedProcessedData, invalidatedGenericState } = getInvalidatedStates(
+        const { invalidatedProcessedData, invalidatedGenericState } = get().getInvalidatedStates(
           stepId,
           activeTxId,
           processedData,
           genericAnalysisState
         )
         
+        // Update only the generic analysis state in pipeline store
         set((state) => {
-          state.processedData = invalidatedProcessedData
           state.genericAnalysisState = invalidatedGenericState
         })
+        
+        // Update transcript data in transcript store if available
+        if (transcriptData) {
+          const transcriptStore = useTranscriptStore.getState()
+          transcriptStore.setProcessedData(invalidatedProcessedData)
+        }
       },
       
       resetPipeline: () => {
+        // This function now only resets pipeline-specific data
+        // Use Store Composition Layer for full cross-store reset
+        get().resetPromptHistoryOnly()
+      },
+      
+      // Internal function for Store Composition Layer to reset only pipeline-specific data
+      resetPromptHistoryOnly: () => {
         set((state) => {
-          // Reset transcript data
-          state.rawTranscripts = []
-          state.processedData = new Map()
-          
-          // Reset generic analysis
+          // Reset only pipeline-specific data (not transcript data)
           state.genericAnalysisState = createGenericAnalysisSlice(set, get).genericAnalysisState
-          
-          // Reset prompt history
-          state.promptHistory = []
-          state.totalInputTokens = 0
-          state.totalOutputTokens = 0
         })
+        
+        // Reset prompt history via the new store
+        const promptHistoryStore = usePromptHistoryStore.getState()
+        promptHistoryStore.reset()
         
         // Signal that UI should be reset
         set(state => ({
@@ -1427,18 +1342,28 @@ export const usePipelineStore = create<PipelineStore>()(
       },
       
       loadState: (savedState: SavedState) => {
+        // Load transcript data to transcript store
+        const transcriptStore = useTranscriptStore.getState()
+        transcriptStore.reset() // Clear existing data first
+        transcriptStore.addTranscriptsSync(savedState.rawTranscripts)
+        
+        // Restore processed data entries
+        savedState.processedDataArray.forEach(([id, data]) => {
+          transcriptStore.updateProcessedData(id, data)
+        })
+        
+        // Load pipeline-specific data
         set((state) => {
-          // Load transcript data
-          state.rawTranscripts = savedState.rawTranscripts
-          state.processedData = new Map(savedState.processedDataArray)
-          
           // Load generic analysis
           state.genericAnalysisState = savedState.genericAnalysisState
-          
-          // Load prompt history
-          state.promptHistory = savedState.promptHistory
-          state.totalInputTokens = savedState.totalInputTokens
-          state.totalOutputTokens = savedState.totalOutputTokens
+        })
+        
+        // Load prompt history via the new store
+        // For now, we need to recreate the state since we don't have a loadState method
+        const promptHistoryStore = usePromptHistoryStore.getState()
+        promptHistoryStore.reset() // Clear existing data
+        savedState.promptHistory.forEach(entry => {
+          promptHistoryStore.addPromptEntry(entry)
         })
         
         // Note: UI state updates should be handled by the caller or through state synchronization
@@ -1448,16 +1373,22 @@ export const usePipelineStore = create<PipelineStore>()(
       getSaveState: (activeTranscriptIndex: number, currentStepInfo: CurrentStepInfo, settingsData: { userDvFocus: string, temperature: number, seed: number }): SavedState => {
         const state = get()
         
+        // Get transcript data from transcript store
+        const transcriptStore = useTranscriptStore.getState()
+        
+        // Get prompt history data from prompt history store
+        const promptHistoryStore = usePromptHistoryStore.getState()
+        
         return {
           version: '1.0',
           savedAt: new Date().toISOString(),
-          rawTranscripts: state.rawTranscripts,
-          processedDataArray: Array.from(state.processedData.entries()),
+          rawTranscripts: transcriptStore.rawTranscripts,
+          processedDataArray: Array.from(transcriptStore.processedData.entries()),
           genericAnalysisState: state.genericAnalysisState,
-          promptHistory: state.promptHistory,
+          promptHistory: promptHistoryStore.promptHistory,
           activeTranscriptIndex: activeTranscriptIndex,
-          totalInputTokens: state.totalInputTokens,
-          totalOutputTokens: state.totalOutputTokens,
+          totalInputTokens: promptHistoryStore.totalInputTokens,
+          totalOutputTokens: promptHistoryStore.totalOutputTokens,
           userDvFocus: settingsData.userDvFocus,
           temperature: settingsData.temperature,
           seed: settingsData.seed,
@@ -1466,8 +1397,9 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       // Pipeline selectors for derived state
-      getPreviousStepDetails: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
-        const { rawTranscripts } = get()
+      getPreviousStepDetails: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => {
+        // Use transcript data passed from caller, fall back to transcript store
+        const { rawTranscripts = [] } = transcriptData || useTranscriptStore.getState()
         
         if (currentStepInfo.stepId === StepId.IDLE) return null
         
@@ -1523,13 +1455,16 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       isDownloadHistoryDisabled: () => {
-        const { promptHistory } = get()
-        return promptHistory.length === 0
+        // Get prompt history from the new store
+        const promptHistoryStore = usePromptHistoryStore.getState()
+        return promptHistoryStore.promptHistory.length === 0
       },
 
       isAppendixDataAvailable: () => {
-        const { rawTranscripts, genericAnalysisState } = get()
-        return rawTranscripts.length > 0 && genericAnalysisState.isReportGenerated
+        const { genericAnalysisState } = get()
+        // Get transcript data from transcript store
+        const transcriptStore = useTranscriptStore.getState()
+        return transcriptStore.rawTranscripts.length > 0 && genericAnalysisState.isReportGenerated
       },
 
       // Download and appendix actions
@@ -1537,7 +1472,11 @@ export const usePipelineStore = create<PipelineStore>()(
         // If not provided, use defaults - but ideally these should be passed in
         const actualCurrentStepInfo = currentStepInfo || get().lastStepInfo || { stepId: StepId.IDLE, status: StepStatus.Idle }
         const actualOutputDirectory = outputDirectory || ''
-        const { processedData, genericAnalysisState } = get()
+        const { genericAnalysisState } = get()
+        
+        // Get transcript data from transcript store
+        const transcriptStore = useTranscriptStore.getState()
+        const { processedData } = transcriptStore
         
         const stepId = stepIdToDownload || actualCurrentStepInfo.stepId
         const transcriptIdToUse = transcriptId || actualCurrentStepInfo.transcriptId
@@ -1564,7 +1503,9 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       downloadHistory: (format: 'tsv' | 'json', outputDirectory: string) => {
-        const { promptHistory } = get()
+        // Get prompt history from the new store
+        const promptHistoryStore = usePromptHistoryStore.getState()
+        const { promptHistory } = promptHistoryStore
         
         if (promptHistory.length === 0) {
           alert('No history to download.')
@@ -1583,7 +1524,11 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       generateAppendix: (type: 'markdown' | 'html' = 'markdown', outputDirectory: string) => {
-        const { rawTranscripts, processedData, genericAnalysisState } = get()
+        const { genericAnalysisState } = get()
+        
+        // Get transcript data from transcript store
+        const transcriptStore = useTranscriptStore.getState()
+        const { rawTranscripts, processedData } = transcriptStore
         
         if (rawTranscripts.length === 0) {
           alert('No transcripts to generate appendix for.')
@@ -1746,10 +1691,14 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       loadStepData: (stepIdToLoad: StepId, transcriptId?: string, phaseName?: string, gduId?: string): { inputData?: any, outputData?: any, error?: string, groundingSources?: any[] } => {
-        const { processedData, genericAnalysisState, promptHistory } = get()
+        const { processedData, genericAnalysisState } = get()
         const keyPrefix = stepIdToDataKeyPrefix[stepIdToLoad]
         let output: any
         let error: string | undefined
+        
+        // Get prompt history from the new store
+        const promptHistoryStore = usePromptHistoryStore.getState()
+        const { promptHistory } = promptHistoryStore
         
         // Find the most recent prompt history entry for this step
         const reversedHistory = [...promptHistory].reverse()
@@ -1935,6 +1884,8 @@ export const usePipelineStore = create<PipelineStore>()(
           state.lastHilContext = undefined
         })
       }
+      
+      // Removed duplicate resetPromptHistoryOnly function - already defined earlier
     })),
     {
       name: 'upath-autosave-session-v2-localforage',
@@ -1999,59 +1950,17 @@ export const usePipelineStore = create<PipelineStore>()(
         removeItem: async (name) => await localForageStorage.removeItem(name)
       },
       onRehydrateStorage: () => (state, error) => {
-        console.log('🔄 [Rehydration] onRehydrateStorage callback called')
-        console.log('🔄 [Rehydration] state:', state ? 'present' : 'null')
-        console.log('🔄 [Rehydration] error:', error)
-        
-        if (error) {
-          console.error('❌ [Rehydration] Failed to rehydrate state from localForage:', error)
-          useUIStore.getState().setHasRehydrated(true)
-          useUIStore.getState().setSessionWasRestored(false)
-        } else {
-          // Set UI flags based on whether data was restored
-          const hasData = state && (
-            state.rawTranscripts?.length > 0 || 
-            state.processedData?.size > 0 ||
-            state.promptHistory?.length > 0
-          )
-          console.log('✅ [Rehydration] hasData check:', hasData)
-          console.log('✅ [Rehydration] rawTranscripts length:', state?.rawTranscripts?.length || 0)
-          console.log('✅ [Rehydration] processedData size:', state?.processedData?.size || 0)
-          
-          useUIStore.getState().setHasRehydrated(true)
-          useUIStore.getState().setSessionWasRestored(!!hasData)
-          
-          console.log('🔄 [Rehydration] UI flags set - hasRehydrated: true, sessionWasRestored:', !!hasData)
-        }
+        // Note: UI flags are now set by coordinateRehydration in storeComposition
       },
       partialize: (state) => {
-        // Only persist if there's actually data to save
-        const hasData = state.rawTranscripts.length > 0 || 
-                       state.processedData.size > 0 || 
-                       state.promptHistory.length > 0 ||
-                       state.totalInputTokens > 0 ||
-                       state.totalOutputTokens > 0
+        // Only persist pipeline-specific state
+        // Note: rawTranscripts and processedData are now in transcriptStore
+        // Note: genericAnalysisState is now in analysisResultStore
+        // Note: promptHistory and token counts are now in promptHistoryStore
         
-        if (!hasData) {
-          console.log('🚫 [Storage] Skipping persist - no meaningful data to save')
-          return undefined // Don't persist empty state
-        }
-        
-        console.log('✅ [Storage] Persisting meaningful data:', {
-          transcripts: state.rawTranscripts.length,
-          processedData: state.processedData.size,
-          promptHistory: state.promptHistory.length
-        })
-        
-        return {
-          // Only persist actual data, not UI state
-          rawTranscripts: state.rawTranscripts,
-          processedData: state.processedData,
-          genericAnalysisState: state.genericAnalysisState,
-          promptHistory: state.promptHistory,
-          totalInputTokens: state.totalInputTokens,
-          totalOutputTokens: state.totalOutputTokens
-        }
+        // For now, return undefined as all data has been migrated to other stores
+        // This will be updated in Phase 3 when we extract more pipeline logic
+        return undefined
       }
     }
     )

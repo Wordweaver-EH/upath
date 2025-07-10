@@ -8,6 +8,8 @@ import { useSettingsStore } from './settingsStore'
 import { useIRRStore } from './irrStore'
 import { useTranscriptStore } from './transcriptStore'
 import { useAnalysisResultStore } from './analysisResultStore'
+import { usePromptHistoryStore } from './promptHistoryStore'
+import { useStoreActions } from './storeComposition'
 
 // Enable Immer's Map support
 enableMapSet()
@@ -15,22 +17,28 @@ enableMapSet()
 // Initialize stores in proper dependency order
 // UI Store is independent, Pipeline Store will get UI Store injected
 export const initializeStores = () => {
-               // Get store instances
-               const uiStore = useUIStore.getState()
-               const pipelineStore = usePipelineStore.getState()
-               const settingsStore = useSettingsStore.getState()
-               const irrStore = useIRRStore.getState()
-             
-               // Set up dependency injection: UI store gets pipeline store's file handler
-               uiStore.setFileDropCallback(pipelineStore.handleDroppedFiles)
-             
-               return {
-                 uiStore,
-                 pipelineStore,
-                 settingsStore,
-                 irrStore
-               }
-             }
+  // Get store instances
+  const uiStore = useUIStore.getState()
+  const pipelineStore = usePipelineStore.getState()
+  const settingsStore = useSettingsStore.getState()
+  const irrStore = useIRRStore.getState()
+  const transcriptStore = useTranscriptStore.getState()
+  const analysisResultStore = useAnalysisResultStore.getState()
+  const promptHistoryStore = usePromptHistoryStore.getState()
+
+  // Set up dependency injection: UI store gets pipeline store's file handler
+  uiStore.setFileDropCallback(pipelineStore.handleDroppedFiles)
+
+  return {
+    uiStore,
+    pipelineStore,
+    settingsStore,
+    irrStore,
+    transcriptStore,
+    analysisResultStore,
+    promptHistoryStore
+  }
+}
 
 
 // Export store hooks for components
@@ -40,8 +48,10 @@ export {
   useSettingsStore,
   useIRRStore,
   useTranscriptStore,
-  useAnalysisResultStore
+  useAnalysisResultStore,
+  usePromptHistoryStore,
+  useStoreActions
 }
 
-// Export selectors
-export { selectCurrentStepDisplay, selectMermaidChartForStep } from './pipelineStore'
+// Export selectors (temporary - will be moved to storeComposition during Phase 3)
+export { selectCurrentStepDisplay } from './pipelineStore'

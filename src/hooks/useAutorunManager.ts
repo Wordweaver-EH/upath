@@ -2,8 +2,10 @@ import { useEffect } from 'react'
 import { StepId, StepStatus } from '../../types'
 import { ESSENTIAL_STEPS_FOR_AUTODOWNLOAD, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC } from '../../constants'
 import { useUIStore } from '../stores'
-import { usePipelineStore } from '../stores'
+import { useTranscriptStore } from '../stores'
+import { useAnalysisResultStore } from '../stores'
 import { useSettingsStore } from '../stores'
+import { useStoreActions } from '../stores/storeComposition'
 
 /**
  * Custom hook to manage the autorun logic
@@ -21,13 +23,14 @@ export const useAutorunManager = () => {
   const updateElapsedTime = useUIStore(state => state.updateElapsedTime)
   const setProcessStartTime = useUIStore(state => state.setProcessStartTime)
 
-  // Pipeline Store state and actions
-  const rawTranscripts = usePipelineStore(state => state.rawTranscripts)
-  const genericAnalysisState = usePipelineStore(state => state.genericAnalysisState)
-  const getNextStepDetails = usePipelineStore(state => state.getNextStepDetails)
-  const processSingleStep = usePipelineStore(state => state.processSingleStep)
-  const downloadOutput = usePipelineStore(state => state.downloadOutput)
-  const isGlobalStep = usePipelineStore(state => state.isGlobalStep)
+  // Transcript Store state
+  const rawTranscripts = useTranscriptStore(state => state.rawTranscripts)
+  
+  // Analysis Result Store state  
+  const genericAnalysisState = useAnalysisResultStore(state => state.genericAnalysisState)
+  
+  // Store composition actions (orchestration layer)
+  const { getNextStepDetails, processSingleStep, downloadOutput, isGlobalStep } = useStoreActions()
 
   // Settings Store state
   const autoDownloadResults = useSettingsStore(state => state.autoDownloadResults)
@@ -62,7 +65,10 @@ export const useAutorunManager = () => {
     
     if (isAutorunning && currentStepInfo.status === StepStatus.Success) {
       console.log(`✅ Autorun active & step successful - checking next step`);
-      const details = getNextStepDetails(currentStepInfo, activeTranscriptIndex);
+      const details = getNextStepDetails(currentStepInfo, activeTranscriptIndex, {
+        rawTranscripts,
+        processedData: useTranscriptStore.getState().processedData
+      });
       console.log(`- getNextStepDetails result:`, details);
       
       if (details) {
@@ -94,6 +100,10 @@ export const useAutorunManager = () => {
                 temperature,
                 seed,
                 userDvFocus
+              },
+              transcriptData: {
+                rawTranscripts,
+                processedData: useTranscriptStore.getState().processedData
               }
             });
         }

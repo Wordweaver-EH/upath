@@ -1,13 +1,14 @@
 import React from 'react'
 import { useUIStore } from '../stores/uiStore'
-import { usePipelineStore } from '../stores/pipelineStore'
+import { useStoreActions } from '../stores/storeComposition'
 
 export const SessionRestoreNotification: React.FC = () => {
   const sessionWasRestored = useUIStore(state => state.sessionWasRestored)
   const hideNotification = useUIStore(state => state.hideSessionRestoreNotification)
-  const clearAutosaveData = usePipelineStore(state => state.clearAutosaveData)
-  const resetPipeline = usePipelineStore(state => state.resetPipeline)
   const resetUIState = useUIStore(state => state.resetUIState)
+  
+  // Use store composition layer for cross-store operations
+  const { clearAutosaveData, resetPipeline } = useStoreActions()
   
   if (!sessionWasRestored) return null
   
