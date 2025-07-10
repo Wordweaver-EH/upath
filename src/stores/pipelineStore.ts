@@ -6,6 +6,7 @@ import { performDataMigration } from '../utils/migration'
 import { useAnalysisResultStore } from './analysisResultStore'
 import { usePromptHistoryStore } from './promptHistoryStore'
 import { useTranscriptStore } from './transcriptStore'
+import { usePipelineOrchestrationStore } from './pipelineOrchestrationStore'
 import { 
   RawTranscript, 
   TranscriptProcessedData, 
@@ -55,7 +56,9 @@ import {
   PromptHistoryService,
   StepErrorHandlingService,
   StepSuccessHandlingService,
-  PipelineOrchestrator
+  PipelineOrchestrator,
+  FileManagementService,
+  ExportService
 } from '../services/pipeline'
 
 // Dependency injection interfaces for breaking circular dependencies
@@ -163,17 +166,6 @@ type PipelineState = GenericAnalysisSlice & DependencyInjectionSlice
 type PipelineStore = PipelineState & PipelineActions & PipelineSelectors
 
 // UI updates are now handled through state changes that App.tsx listens to
-// Helper function to process file content
-const processFileContent = async (file: File): Promise<RawTranscript> => {
-  const text = await file.text()
-  
-  return {
-    id: `transcript-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    filename: file.name,
-    content: text
-  }
-}
-
 // Create slices
 // createTranscriptSlice has been moved to transcriptStore.ts
 
@@ -217,6 +209,16 @@ export const usePipelineStore = create<PipelineStore>()(
         console.log(`- HIL Prompt: ${params.hilMetaPrompt ? 'Yes' : 'No'}`);
         console.log(`- Raw Transcripts Count: ${params.transcriptData?.rawTranscripts?.length || 0}`);
 
+        // Record execution in orchestration store
+        const orchestrationStore = usePipelineOrchestrationStore.getState()
+        orchestrationStore.recordExecution({
+          stepId: params.stepId,
+          transcriptId: params.transcriptIdToProcess,
+          settings: params.settings,
+          seed: params.overrideSeed,
+          hilMetaPrompt: params.hilMetaPrompt
+        })
+
         try {
           // Initialize all services
           const validationService = new StepParameterValidationService()
@@ -238,11 +240,18 @@ export const usePipelineStore = create<PipelineStore>()(
                   transcriptId: updates.transcriptId,
                   error: updates.error
                 }
+                
+                // Sync with orchestration store
+                orchestrationStore.setCurrentStepInfo({
+                  stepId: updates.stepId,
+                  status: updates.status
+                })
               }
               
               // Handle shouldStopAutorun
               if (updates.status === StepStatus.Error) {
                 state.shouldStopAutorun = true
+                orchestrationStore.setShouldStopAutorun(true)
               }
               
               // Handle generic state updates for specific steps
@@ -904,7 +913,6 @@ export const usePipelineStore = create<PipelineStore>()(
       downloadOutput: (stepIdToDownload?: StepId, transcriptId?: string, dataToDownload?: any, currentStepInfo?: CurrentStepInfo, outputDirectory?: string) => {
         // If not provided, use defaults - but ideally these should be passed in
         const actualCurrentStepInfo = currentStepInfo || get().lastStepInfo || { stepId: StepId.IDLE, status: StepStatus.Idle }
-        const actualOutputDirectory = outputDirectory || ''
         const { genericAnalysisState } = get()
         
         // Get transcript data from transcript store
@@ -915,7 +923,6 @@ export const usePipelineStore = create<PipelineStore>()(
         const transcriptIdToUse = transcriptId || actualCurrentStepInfo.transcriptId
         
         let data = dataToDownload
-        let filename = `${actualOutputDirectory}/${stepId}_output`
         
         // If no specific data provided, get it from current step
         if (!data) {
@@ -927,9 +934,18 @@ export const usePipelineStore = create<PipelineStore>()(
         }
         
         if (data) {
-          const content = typeof data === 'string' ? data : JSON.stringify(data, null, 2)
+          const exportService = new ExportService()
+          let filename = `${stepId}-output`
+          
+          if (transcriptIdToUse) {
+            const transcriptData = processedData.get(transcriptIdToUse)
+            if (transcriptData) {
+              filename = `${stepId}-${transcriptData.filename}-output`
+            }
+          }
+          
           const extension = typeof data === 'string' ? '.txt' : '.json'
-          downloadFile(content, `${filename}${extension}`, 'text/plain;charset=utf-8')
+          exportService.downloadOutput(stepId, data, `${filename}-${Date.now()}${extension}`)
         } else {
           alert('No output data available to download.')
         }
@@ -997,35 +1013,28 @@ export const usePipelineStore = create<PipelineStore>()(
           }
         )
         
-        // Use output directory from passed settings  
-        const outputDirectory = 'upath_outputs' // Default fallback
-        
-        const content = JSON.stringify(savedState, null, 2)
-        const filename = `${outputDirectory}/upath_state_${new Date().toISOString().slice(0,10)}.json`
-        downloadFile(content, filename, 'application/json')
+        const fileService = new FileManagementService()
+        fileService.saveStateToFile(savedState, `upath-session-${Date.now()}.json`)
       },
 
-      loadStateFromFile: (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0]
-        if (!file) return
-
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          try {
-            const content = e.target?.result as string
-            const savedState = JSON.parse(content) as SavedState
-            get().loadState(savedState)
-            
-            // Reset file input
-            event.target.value = ''
-            
-            alert('State loaded successfully!')
-          } catch (error) {
-            console.error('Failed to load state:', error)
-            alert('Failed to load state file. Please check the file format.')
-          }
+      loadStateFromFile: async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const fileService = new FileManagementService()
+        const files = fileService.handleFileInput(event)
+        
+        if (files.length === 0) return
+        
+        try {
+          const savedState = await fileService.loadStateFromFile(files[0])
+          get().loadState(savedState)
+          
+          // Reset file input
+          event.target.value = ''
+          
+          alert('State loaded successfully!')
+        } catch (error) {
+          console.error('Failed to load state:', error)
+          alert('Failed to load state file. Please check the file format.')
         }
-        reader.readAsText(file)
       },
 
       uploadTranscripts: async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1310,12 +1319,16 @@ export const usePipelineStore = create<PipelineStore>()(
         set((state) => {
           state.shouldStopAutorun = false
         })
+        // Also clear in orchestration store
+        usePipelineOrchestrationStore.getState().setShouldStopAutorun(false)
       },
       
       clearLastHilContext: () => {
         set((state) => {
           state.lastHilContext = undefined
         })
+        // Also clear in orchestration store
+        usePipelineOrchestrationStore.getState().clearHilContext()
       }
       
       // Removed duplicate resetPromptHistoryOnly function - already defined earlier

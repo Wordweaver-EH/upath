@@ -5,6 +5,7 @@ import { useTranscriptStore } from './transcriptStore'
 import { useAnalysisResultStore } from './analysisResultStore'
 import { usePipelineStore } from './pipelineStore'
 import { usePromptHistoryStore } from './promptHistoryStore'
+import { usePipelineOrchestrationStore } from './pipelineOrchestrationStore'
 import { useUIStore } from './uiStore'
 import { localForageStorage } from '../utils/storage'
 import { CurrentStepInfo, StepId, RawTranscript, TranscriptProcessedData } from '../../types'
@@ -33,6 +34,10 @@ export const useStoreComposition = () => {
     // Reset prompt history store
     const promptHistoryStore = usePromptHistoryStore.getState()
     promptHistoryStore.reset()
+    
+    // Reset pipeline orchestration store
+    const pipelineOrchestrationStore = usePipelineOrchestrationStore.getState()
+    pipelineOrchestrationStore.reset()
     
     // Reset prompt history in pipelineStore (temporary during migration)
     // TODO: Remove this once pipelineStore is fully migrated
@@ -152,6 +157,46 @@ export const useStoreComposition = () => {
     return promptHistoryStore.promptHistory.length === 0
   }
   
+  /**
+   * Get current orchestration state
+   * Provides read-only access to pipeline orchestration state
+   */
+  const getOrchestrationState = () => {
+    const orchestrationStore = usePipelineOrchestrationStore.getState()
+    return {
+      currentStepInfo: orchestrationStore.currentStepInfo,
+      activeTranscriptIndex: orchestrationStore.activeTranscriptIndex,
+      isAutorunning: orchestrationStore.isAutorunning,
+      shouldStopAutorun: orchestrationStore.shouldStopAutorun,
+      lastExecutionParams: orchestrationStore.lastExecutionParams,
+      lastHilContext: orchestrationStore.lastHilContext
+    }
+  }
+  
+  /**
+   * Set autorun state across stores
+   * Coordinates autorun state between UI and orchestration stores
+   */
+  const setAutorunning = (isAutorunning: boolean) => {
+    const orchestrationStore = usePipelineOrchestrationStore.getState()
+    const uiStore = useUIStore.getState()
+    
+    orchestrationStore.setAutorunning(isAutorunning)
+    uiStore.setAutorunning(isAutorunning)
+  }
+  
+  /**
+   * Clear HIL context across all stores
+   * Ensures HIL state is cleared consistently
+   */
+  const clearHilContext = () => {
+    const pipelineStore = usePipelineStore.getState()
+    const orchestrationStore = usePipelineOrchestrationStore.getState()
+    
+    pipelineStore.clearLastHilContext()
+    // The pipelineStore method already updates orchestration store
+  }
+  
   // TODO: Implement getSaveState and loadState for cross-store operations
   // These will be needed for full state management but are not required for the pilot migration
   
@@ -163,7 +208,11 @@ export const useStoreComposition = () => {
     downloadOutput,
     isGlobalStep,
     coordinateRehydration,
-    isDownloadHistoryDisabled
+    isDownloadHistoryDisabled,
+    // Orchestration methods
+    getOrchestrationState,
+    setAutorunning,
+    clearHilContext
   }
 }
 
@@ -189,6 +238,11 @@ export const useStoreActions = () => {
     isDownloadHistoryDisabled: composition.isDownloadHistoryDisabled,
     
     // Rehydration coordination
-    coordinateRehydration: composition.coordinateRehydration
+    coordinateRehydration: composition.coordinateRehydration,
+    
+    // Orchestration state and actions
+    getOrchestrationState: composition.getOrchestrationState,
+    setAutorunning: composition.setAutorunning,
+    clearHilContext: composition.clearHilContext
   }
 }
