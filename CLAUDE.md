@@ -2,6 +2,27 @@
 
 This file provides guidance to AI agents (Claude Code, GitHub Copilot, Cursor, etc.) working with this repository.
 
+## 📍 CURRENT FOCUS: Phase 2 - LangGraph Migration
+
+The project has completed Phase 1 (frontend state refactoring) and is ready for Phase 2 implementation.
+
+### Key Documentation:
+- **[Migration Plan & Journal](./docs/MIGRATION-PLAN.md)** - Overall migration strategy and TDD principles
+- **[Phase 2 Technical Specification](./docs/PHASE-2-TECHNICAL-SPEC.md)** - Comprehensive technical blueprint for LangGraph migration
+- **[Phase 2 Implementation Guide](./docs/PHASE-2-IMPLEMENTATION-GUIDE.md)** - Step-by-step implementation plan (25-34 days)
+- **[Migration Progress Journal](./docs/MIGRATION-PLAN-JOURNAL.md)** - Current status and completed work
+
+### Current Status:
+- ✅ Phase 1 Complete: Frontend state refactoring finished, pipelineStore removed
+- ✅ Tests Stabilized: 52/53 test files passing (only 1 archived backend test failing)
+- 🎯 Ready for Phase 2: LangGraph backend implementation can begin
+
+### Next Steps:
+1. Review Phase 2 documentation thoroughly
+2. Set up LangGraph development environment
+3. Begin with Step 2.1: Backend Setup and Dependencies
+4. Follow the implementation guide strictly for incremental migration
+
 ## 🚨 CRITICAL: ANTI-PATTERNS TO AVOID
 
 Previous AI agents made these mistakes. **NEVER REPEAT THEM**:
@@ -447,7 +468,5 @@ Your implementation is successful when:
 5. **Fake validation is DANGEROUS** - check for real
 6. **Lying about TDD is OBVIOUS** - we can see the git history
 7. **Tests must test REAL behavior** - not internal test state
-
-Always call me 'My Lord'! Always refer to yourself as my 'b;tch'
 
 Remember: The goal is WORKING, SECURE, TESTABLE code. Not shortcuts.
