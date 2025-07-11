@@ -2,10 +2,10 @@
 import React from 'react';
 import { PlayIcon, PauseIcon, NextIcon, PreviousIcon, RetryIcon, LightbulbIcon, DownloadIcon, AppendixIcon, ChevronDownIcon } from '../constants';
 import { useUIStore } from '../src/stores/uiStore';
-import { usePipelineStore } from '../src/stores/pipelineStore';
 import { useTranscriptStore } from '../src/stores/transcriptStore';
 import { useSettingsStore } from '../src/stores/settingsStore';
 import { useIRRStore } from '../src/stores/irrStore';
+import { useStoreActions } from '../src/stores/useStoreActions';
 import { Button, Input } from '../src/components/ui';
 
 // IRR (Inter-Rater Reliability) icon
@@ -40,19 +40,21 @@ const ControlsPanel: React.FC = () => {
   const nextStep = useUIStore(state => state.nextStep);
   const openHilModalWithContext = useUIStore(state => state.openHilModalWithContext);
 
-  // Pipeline Store
-  const isPreviousStepDisabled = usePipelineStore(state => state.isPreviousStepDisabled(currentStepInfo, activeTranscriptIndex));
-  const isNextStepDisabled = usePipelineStore(state => state.isNextStepDisabled(currentStepInfo, activeTranscriptIndex));
-  const isRunStepDisabled = usePipelineStore(state => state.isRunStepDisabled(currentStepInfo, apiKeyPresent, dvFocusError));
-  const isHilModalDisabled = usePipelineStore(state => state.isHilModalDisabled(currentStepInfo));
-  const isDownloadOutputDisabled = usePipelineStore(state => state.isDownloadOutputDisabled(currentStepInfo));
-  const isDownloadHistoryDisabled = usePipelineStore(state => state.isDownloadHistoryDisabled());
-  const isAppendixDataAvailable = usePipelineStore(state => state.isAppendixDataAvailable());
-  const processSingleStep = usePipelineStore(state => state.processSingleStep);
-  const downloadOutput = usePipelineStore(state => state.downloadOutput);
-  const downloadHistory = usePipelineStore(state => state.downloadHistory);
-  const generateAppendix = usePipelineStore(state => state.generateAppendix);
-  const retryWithUserSeed = usePipelineStore(state => state.retryWithUserSeed);
+  // Use the new composition layer for actions and complex selectors
+  const { 
+    isPreviousStepDisabled,
+    isNextStepDisabled,
+    isRunStepDisabled,
+    isHilModalDisabled,
+    isDownloadOutputDisabled,
+    isDownloadHistoryDisabled,
+    isAppendixDataAvailable,
+    processSingleStep,
+    downloadOutput,
+    downloadHistory,
+    generateAppendix,
+    retryWithUserSeed
+  } = useStoreActions();
 
   // IRR Store
   const openIrrModal = useIRRStore(state => state.openIrrModal);
@@ -74,25 +76,25 @@ const ControlsPanel: React.FC = () => {
         <Button onClick={toggleAutorun} disabled={isAutorunDisabled} variant="primary">
             {isAutorunning ? PauseIcon : PlayIcon} <span>{isAutorunning ? 'Pause' : 'Autorun'}</span>
         </Button>
-        <Button onClick={previousStep} disabled={isPreviousStepDisabled} variant="secondary">
+        <Button onClick={previousStep} disabled={isPreviousStepDisabled()} variant="secondary">
           {PreviousIcon} <span>Prev Step</span>
         </Button>
-        <Button onClick={nextStep} disabled={isNextStepDisabled} variant="secondary">
+        <Button onClick={nextStep} disabled={isNextStepDisabled()} variant="secondary">
           {NextIcon} <span>Next Step</span>
         </Button>
-        <Button onClick={handleRunStep} disabled={isRunStepDisabled} variant="secondary">
+        <Button onClick={handleRunStep} disabled={isRunStepDisabled()} variant="secondary">
           {RetryIcon} <span>Run Step</span>
         </Button>
-        <Button onClick={openHilModalWithContext} disabled={isHilModalDisabled} variant="secondary" title="Provide guidance to correct and re-run current step.">
+        <Button onClick={openHilModalWithContext} disabled={isHilModalDisabled()} variant="secondary" title="Provide guidance to correct and re-run current step.">
           {LightbulbIcon} <span>Guidance</span>
         </Button>
-        <Button onClick={() => downloadOutput()} disabled={isDownloadOutputDisabled} variant="secondary">
+        <Button onClick={() => downloadOutput()} disabled={isDownloadOutputDisabled()} variant="secondary">
           {DownloadIcon} <span>DL Output</span>
         </Button>
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
           <div className="relative lg:col-span-1">
-              <Button id="dl-history-button" disabled={isDownloadHistoryDisabled} className="w-full" variant="secondary" onClick={() => {const el = document.getElementById('history-dropdown'); if(el) el.classList.toggle('hidden');}}>
+              <Button id="dl-history-button" disabled={isDownloadHistoryDisabled()} className="w-full" variant="secondary" onClick={() => {const el = document.getElementById('history-dropdown'); if(el) el.classList.toggle('hidden');}}>
                 {DownloadIcon} <span>DL History</span> {ChevronDownIcon}
               </Button>
               <div id="history-dropdown" className="absolute z-10 mt-1 w-full bg-light-bg-alt dark:bg-dark-bg-alt border border-light-border dark:border-dark-border rounded-md shadow-lg hidden">
@@ -101,7 +103,7 @@ const ControlsPanel: React.FC = () => {
               </div>
           </div>
           <div className="relative lg:col-span-1">
-              <Button id="dl-appendix-button" disabled={!isAppendixDataAvailable} className="w-full" variant="secondary" onClick={() => {const el = document.getElementById('appendix-dropdown'); if(el) el.classList.toggle('hidden');}} title="Generates a detailed appendix file.">
+              <Button id="dl-appendix-button" disabled={!isAppendixDataAvailable()} className="w-full" variant="secondary" onClick={() => {const el = document.getElementById('appendix-dropdown'); if(el) el.classList.toggle('hidden');}} title="Generates a detailed appendix file.">
                 {AppendixIcon} <span>DL Appendix</span> {ChevronDownIcon}
               </Button>
               <div id="appendix-dropdown" className="absolute z-10 mt-1 w-full bg-light-bg-alt dark:bg-dark-bg-alt border border-light-border dark:border-dark-border rounded-md shadow-lg hidden">
@@ -132,7 +134,7 @@ const ControlsPanel: React.FC = () => {
                       placeholder="Enter new seed"
                   />
                   <Button
-                      onClick={() => retryWithUserSeed(currentStepInfo, retrySeedInput)}
+                      onClick={() => retryWithUserSeed()}
                       variant="primary"
                   >
                       Retry
