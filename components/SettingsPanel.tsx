@@ -4,8 +4,8 @@ import { StepId, StepStatus } from '../types';
 import { UploadIcon, FileTextIcon, SaveIcon, LoadIcon, InfoIcon } from '../constants';
 import { useSettingsStore } from '../src/stores/settingsStore';
 import { useUIStore } from '../src/stores/uiStore';
-import { usePipelineStore } from '../src/stores/pipelineStore';
 import { useTranscriptStore } from '../src/stores/transcriptStore';
+import { useStoreActions } from '../src/stores/useStoreActions';
 import { Button, Input } from '../src/components/ui';
 
 // No props needed - component gets all data from stores
@@ -49,12 +49,30 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   // Transcript store - state
   const rawTranscripts = useTranscriptStore(state => state.rawTranscripts)
   
-  // Pipeline store - actions (these still delegate to PipelineService)
-  const saveStateToFile = usePipelineStore(state => state.saveStateToFile)
-  const loadStateFromFile = usePipelineStore(state => state.loadStateFromFile)
-  const uploadTranscripts = usePipelineStore(state => state.uploadTranscripts)
-  const getTranscriptStatusDisplay = usePipelineStore(state => state.getTranscriptStatusDisplay)
-  const isGlobalStep = usePipelineStore(state => state.isGlobalStep)
+  // Use the new composition layer for actions
+  const {
+    saveStateToFile,
+    loadStateFromFile,
+    uploadTranscripts,
+    getTranscriptStatusDisplay
+  } = useStoreActions()
+  
+  // Helper function to check if step is global
+  const isGlobalStep = (stepId: StepId) => {
+    // Global steps are those that don't operate on specific transcripts
+    const globalSteps = [
+      StepId.P3_1_MERGE_RESULTS,
+      StepId.P3_2_DEFINE_GENERIC_DIACHRONIC_STRUCTURE,
+      StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES,
+      StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS,
+      StepId.P4S_2_ANALYZE_SCD,
+      StepId.P4S_3_REVIEW_GDC,
+      StepId.P4S_4_DRAFT_REFINED_GENERIC_STRUCTURE,
+      StepId.P5_1_CONSTRUCT_CAUSAL_MODELS,
+      StepId.P5_2_GENERATE_REPORTS
+    ]
+    return globalSteps.includes(stepId)
+  }
 
   // Check API key on component mount
   useEffect(() => {
@@ -133,12 +151,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       <div className="flex items-center"> <input id="autoDownload" type="checkbox" checked={autoDownloadResults} onChange={(e) => updateSettings({ autoDownloadResults: e.target.checked })} className="h-4 w-4 rounded border-light-border dark:border-dark-border text-light-accent dark:text-dark-accent focus:ring-light-accent dark:focus:ring-dark-accent bg-light-input-bg dark:bg-dark-input-bg" /> <label htmlFor="autoDownload" className="ml-2 block text-sm text-light-text dark:text-dark-text">Autodownload essential results</label> </div>
       <div className="grid grid-cols-2 gap-2">
           <Button
-            onClick={() => saveStateToFile(activeTranscriptIndex, currentStepInfo, {
-              apiKey: apiKeyPresent ? 'present' : '',
-              temperature,
-              seed,
-              userDvFocus
-            })}
+            onClick={() => saveStateToFile()}
             disabled={rawTranscripts.length === 0 && currentStepInfo.stepId === StepId.IDLE}
             variant="secondary"
             className="w-full"
