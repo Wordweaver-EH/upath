@@ -191,29 +191,24 @@ describe('PipelineInvalidationService - Orchestration', () => {
       }).toThrow('Dependencies required for orchestration')
     })
 
-    test('should use passed dependencies over constructor dependencies', () => {
-      const overrideDependencies: InvalidationDependencies = {
-        getTranscriptData: vi.fn().mockReturnValue({
-          rawTranscripts: [],
-          processedData: new Map()
-        }),
-        updateGenericState: vi.fn(),
-        updateProcessedData: vi.fn()
-      }
-
-      service.orchestrateInvalidation(
+    test('should enforce constructor-only dependency injection', () => {
+      // Service with constructor dependencies should work
+      mockDependencies.getTranscriptData.mockReturnValue({
+        rawTranscripts: [],
+        processedData: new Map()
+      })
+      
+      const result = service.orchestrateInvalidation(
         StepId.P3_1_ALIGN_STRUCTURES,
         undefined,
-        {},
-        overrideDependencies
+        {}
       )
-
-      // Should use override dependencies
-      expect(overrideDependencies.getTranscriptData).toHaveBeenCalled()
-      expect(overrideDependencies.updateGenericState).toHaveBeenCalled()
-
-      // Should NOT use constructor dependencies
-      expect(mockDependencies.getTranscriptData).not.toHaveBeenCalled()
+      
+      expect(result).toBeDefined()
+      expect(mockDependencies.getTranscriptData).toHaveBeenCalled()
+      
+      // Method-level dependencies are no longer supported
+      // This ensures clean architecture with constructor-only DI
     })
 
     test('should handle complex cascade scenario', () => {

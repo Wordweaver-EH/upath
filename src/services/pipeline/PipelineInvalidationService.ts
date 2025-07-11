@@ -28,6 +28,53 @@ export interface OrchestrationResult {
   updatedTranscriptIds: string[]
   genericStateUpdated: boolean
 }
+// Utility function for deep comparison of transcript data
+function isTranscriptDataEqual(a: TranscriptProcessedData | undefined, b: TranscriptProcessedData): boolean {
+  if (!a) return false;
+  
+  // Compare all properties efficiently
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof TranscriptProcessedData>;
+  
+  for (const key of keys) {
+    const aVal = a[key];
+    const bVal = b[key];
+    
+    // Handle undefined values
+    if (aVal === undefined && bVal === undefined) continue;
+    if (aVal === undefined || bVal === undefined) return false;
+    
+    // Handle different types
+    if (typeof aVal !== typeof bVal) return false;
+    
+    // Handle objects (including Maps)
+    if (typeof aVal === 'object' && aVal !== null) {
+      // Special handling for Map objects like processedData
+      if (aVal instanceof Map && bVal instanceof Map) {
+        if (aVal.size !== bVal.size) return false;
+        for (const [k, v] of aVal) {
+          if (!bVal.has(k) || bVal.get(k) !== v) return false;
+        }
+        continue;
+      }
+      
+      // For other objects, do a shallow comparison of properties
+      // This is sufficient for our use case as TranscriptProcessedData doesn't have deeply nested objects
+      const aKeys = Object.keys(aVal);
+      const bKeys = Object.keys(bVal);
+      if (aKeys.length !== bKeys.length) return false;
+      
+      for (const objKey of aKeys) {
+        if ((aVal as any)[objKey] !== (bVal as any)[objKey]) return false;
+      }
+      continue;
+    }
+    
+    // Primitive comparison
+    if (aVal !== bVal) return false;
+  }
+  
+  return true;
+}
 
 export class PipelineInvalidationService {
   private dependencies?: InvalidationDependencies
@@ -37,51 +84,49 @@ export class PipelineInvalidationService {
   }
 
   orchestrateInvalidation(
-    stepId: StepId,
-    transcriptId: string | undefined,
-    currentGenericState: GenericAnalysisState,
-    dependencies?: InvalidationDependencies
-  ): OrchestrationResult {
-    const deps = dependencies || this.dependencies
-    if (!deps) {
-      throw new Error('Dependencies required for orchestration')
-    }
-
-    // Get transcript data from stores
-    const { rawTranscripts, processedData } = deps.getTranscriptData()
-
-    // Call existing getInvalidatedStates method
-    const { invalidatedProcessedData, invalidatedGenericState } = this.getInvalidatedStates(
-      stepId,
-      transcriptId,
-      processedData,
-      currentGenericState
-    )
-
-    // Update generic state
-    deps.updateGenericState(invalidatedGenericState)
-
-    // Track which transcripts were updated
-    const updatedTranscriptIds: string[] = []
-
-    // Update all affected transcripts in the processedData map
-    // This is important because cascading invalidation might affect multiple transcripts
-    invalidatedProcessedData.forEach((updatedData, id) => {
-      // Only update if the data has actually changed
+      stepId: StepId,
+      transcriptId: string | undefined,
+      currentGenericState: GenericAnalysisState
+    ): OrchestrationResult {
+      if (!this.dependencies) {
+        throw new Error('Dependencies required for orchestration - must be provided in constructor')
+      }
+  
+      // Get transcript data from stores
+      const { rawTranscripts, processedData } = this.dependencies.getTranscriptData()
+  
+      // Call existing getInvalidatedStates method
+      const { invalidatedProcessedData, invalidatedGenericState } = this.getInvalidatedStates(
+        stepId,
+        transcriptId,
+        processedData,
+        currentGenericState
+      )
+  
+      // Update generic state
+      this.dependencies.updateGenericState(invalidatedGenericState)
+  
+      // Track which transcripts were updated
+      const updatedTranscriptIds: string[] = []
+  
+      // Update all affected transcripts in the processedData map
+      // This is important because cascading invalidation might affect multiple transcripts
+      invalidatedProcessedData.forEach((updatedData, id) => {
+        // Only update if the data has actually changed
       const originalData = processedData.get(id)
-      // Use JSON comparison to check if data has actually changed
-      // This is necessary because the invalidation process creates new objects
-      if (!originalData || JSON.stringify(originalData) !== JSON.stringify(updatedData)) {
-        deps.updateProcessedData(id, updatedData)
+      // Use efficient deep comparison instead of JSON.stringify
+      if (!isTranscriptDataEqual(originalData, updatedData)) {
+        this.dependencies.updateProcessedData(id, updatedData)
         updatedTranscriptIds.push(id)
       }
-    })
-
-    return {
-      updatedTranscriptIds,
-      genericStateUpdated: true // Currently always true when orchestration is called
+      })
+  
+      return {
+        updatedTranscriptIds,
+        genericStateUpdated: true // Currently always true when orchestration is called
+      }
     }
-  }
+
 
   invalidateStep(
     stepId: StepId,

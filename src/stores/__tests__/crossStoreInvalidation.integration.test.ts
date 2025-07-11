@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import { usePipelineStore } from '../pipelineStore'
 import { useTranscriptStore } from '../transcriptStore'
+import { useAnalysisResultStore } from '../analysisResultStore'
 import { StepId, TranscriptProcessedData, RawTranscript } from '../../../types'
 
 // Note: This is an integration test that uses real stores and services
@@ -9,11 +10,8 @@ import { StepId, TranscriptProcessedData, RawTranscript } from '../../../types'
 describe('Cross-Store Invalidation Integration', () => {
   beforeEach(() => {
     // Reset stores to clean state
-    usePipelineStore.setState({
-      genericAnalysisState: {
-        p3_1_output: 'initial output',
-        isFullyProcessedGenericDiachronic: true
-      }
+    useAnalysisResultStore.setState({
+      genericAnalysisState: {}
     })
     
     useTranscriptStore.setState({
@@ -72,16 +70,14 @@ describe('Cross-Store Invalidation Integration', () => {
   })
 
   test('should properly update generic state when invalidating global steps', () => {
-    // Setup initial generic state
-    usePipelineStore.setState({
-      genericAnalysisState: {
-        p3_1_output: 'core message',
-        p3_2_output: 'GDUs identified',
-        p3_3_output: 'diachronic structure',
-        isFullyProcessedGenericDiachronic: true,
-        p3_3_mermaid_syntax: 'graph TD...',
-        core_gdus_for_sync_analysis: ['gdu1', 'gdu2']
-      }
+    // Setup initial generic state (via analysisResultStore since that's where it lives)
+    useAnalysisResultStore.getState().updateGenericState({
+      p3_1_output: 'core message',
+      p3_2_output: 'GDUs identified',
+      p3_3_output: 'diachronic structure',
+      isFullyProcessedGenericDiachronic: true,
+      p3_3_mermaid_syntax: 'graph TD...',
+      core_gdus_for_sync_analysis: ['gdu1', 'gdu2']
     })
     
     // Invalidate from P3_2
@@ -119,12 +115,10 @@ describe('Cross-Store Invalidation Integration', () => {
     })
     
     // Setup generic state
-    usePipelineStore.setState({
-      genericAnalysisState: {
-        p3_1_output: 'core message',
-        p3_3_output: 'generic structure',
-        isFullyProcessedGenericDiachronic: true
-      }
+    useAnalysisResultStore.getState().updateGenericState({
+      p3_1_output: 'core message',
+      p3_3_output: 'generic structure',
+      isFullyProcessedGenericDiachronic: true
     })
     
     // Invalidate from a transcript step (should cascade to global)

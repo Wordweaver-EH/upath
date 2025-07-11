@@ -12,7 +12,53 @@ import { PipelineInvalidationService } from '../services/pipeline'
 
 // Create a single instance of the navigation service
 const navigationService = new EnhancedPipelineNavigationService()
-const invalidationService = new PipelineInvalidationService()
+
+// Factory function to create invalidation service with proper dependencies
+const createInvalidationService = () => {
+  return new PipelineInvalidationService({
+    getTranscriptData: () => {
+      const transcriptStore = useTranscriptStore.getState()
+      return {
+        rawTranscripts: transcriptStore.rawTranscripts,
+        processedData: transcriptStore.processedData
+      }
+    },
+    updateGenericState: (state: GenericAnalysisState) => {
+      // The service provides the full invalidated state
+      // We need to compare with current state and only update changed fields
+      const currentState = useAnalysisResultStore.getState().genericAnalysisState
+      const updates: Partial<GenericAnalysisState> = {}
+      
+      // Include all properties from the new state, including undefined values
+      // This ensures fields get properly cleared during invalidation
+      for (const key in state) {
+        const newValue = state[key as keyof GenericAnalysisState]
+        const currentValue = currentState[key as keyof GenericAnalysisState]
+        if (newValue !== currentValue) {
+          updates[key as keyof GenericAnalysisState] = newValue
+        }
+      }
+      
+      // Also check for properties that exist in current state but not in new state
+      // These should be explicitly set to undefined
+      for (const key in currentState) {
+        if (!(key in state) && currentState[key as keyof GenericAnalysisState] !== undefined) {
+          updates[key as keyof GenericAnalysisState] = undefined as any
+        }
+      }
+      
+      // Only update if there are actual changes
+      if (Object.keys(updates).length > 0) {
+        useAnalysisResultStore.getState().updateGenericState(updates)
+      }
+    },
+    updateProcessedData: (id: string, data: TranscriptProcessedData) => {
+      const transcriptStore = useTranscriptStore.getState()
+      // Use replaceProcessedData to ensure deleted fields are properly removed
+      transcriptStore.replaceProcessedData(id, data)
+    }
+  })
+}
 
 import { 
   RawTranscript, 
@@ -372,8 +418,9 @@ export const usePipelineStore = create<PipelineStore>()(
         currentProcessedData: Map<string, TranscriptProcessedData>,
         currentGenericState: GenericAnalysisState
       ) => {
-        // Delegate to the invalidation service
-        return invalidationService.getInvalidatedStates(
+        // Create service instance with dependencies for this operation
+        const service = createInvalidationService()
+        return service.getInvalidatedStates(
           startInvalidationFromStepId,
           currentActiveTxId,
           currentProcessedData,
@@ -438,39 +485,13 @@ export const usePipelineStore = create<PipelineStore>()(
       invalidateStateFromStep: (stepId: StepId, transcriptId?: string, activeTranscriptIndex?: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => {
         const { genericAnalysisState } = get()
         
-        // Create invalidation service with proper dependencies
-        const invalidationService = new PipelineInvalidationService({
-          getTranscriptData: () => {
-            if (transcriptData) {
-              return transcriptData
-            }
-            // Fall back to getting data from transcript store if not provided
-            const transcriptStore = useTranscriptStore.getState()
-            return {
-              rawTranscripts: transcriptStore.rawTranscripts,
-              processedData: transcriptStore.processedData
-            }
-          },
-          updateGenericState: (state: GenericAnalysisState) => {
-            set((s) => {
-              s.genericAnalysisState = state
-            })
-          },
-          updateProcessedData: (id: string, data: TranscriptProcessedData) => {
-            const transcriptStore = useTranscriptStore.getState()
-            // Use replaceProcessedData to ensure invalidated fields are properly cleared
-            transcriptStore.replaceProcessedData(id, data)
-          }
-        })
+        // Create service with dependencies and delegate ALL logic to it
+        const service = createInvalidationService()
         
-        // Use transcript data passed from caller to determine active transcript ID
-        const { rawTranscripts = [] } = transcriptData || {}
-        const activeTxId = transcriptId || (activeTranscriptIndex !== undefined ? rawTranscripts[activeTranscriptIndex]?.id : undefined)
-        
-        // Delegate all invalidation logic to the service
-        invalidationService.orchestrateInvalidation(
+        // Let the service handle everything including determining active transcript
+        service.orchestrateInvalidation(
           stepId,
-          activeTxId,
+          transcriptId || (activeTranscriptIndex !== undefined && transcriptData?.rawTranscripts[activeTranscriptIndex]?.id) || undefined,
           genericAnalysisState
         )
       },
