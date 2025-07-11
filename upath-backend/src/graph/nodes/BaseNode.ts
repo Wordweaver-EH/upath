@@ -27,12 +27,14 @@ export abstract class BaseNode {
    */
   async executeWithRetry(state: GraphState, context: ExecutionContext): Promise<NodeExecutionResult> {
     // Validate input state first
-    if (!this.validateInput(state)) {
+    try {
+      this.validateInputOrThrow(state);
+    } catch (error: any) {
       return {
         success: false,
         error: {
           stepId: this.id,
-          message: 'Invalid state: missing required fields',
+          message: error.message,
           timestamp: Date.now(),
           recoverable: false
         }
@@ -117,6 +119,28 @@ export abstract class BaseNode {
       state.errors !== undefined &&
       state.metadata !== undefined
     );
+  }
+
+  /**
+   * Validate input and throw if invalid
+   * Can be overridden by subclasses for specific validation
+   */
+  protected validateInputOrThrow(state: GraphState): void {
+    if (!state || !state.sessionId) {
+      throw new Error('Invalid state: missing sessionId');
+    }
+    if (!state.transcripts) {
+      throw new Error('Invalid state: missing transcripts');
+    }
+    if (!state.stepOutputs) {
+      throw new Error('Invalid state: missing stepOutputs');
+    }
+    if (!state.errors) {
+      throw new Error('Invalid state: missing errors');
+    }
+    if (!state.metadata) {
+      throw new Error('Invalid state: missing metadata');
+    }
   }
 
   /**
