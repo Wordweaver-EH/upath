@@ -1,4 +1,4 @@
-import { StepId, TranscriptProcessedData, GenericAnalysisState, P2SPhaseData } from '../../../types'
+import { StepId, TranscriptProcessedData, GenericAnalysisState, P2SPhaseData, RawTranscript } from '../../../types'
 import { stepIdToDataKeyPrefix, isGlobalStep } from '../../utils/stepIdToDataKeyPrefix'
 import { 
   ALL_PIPELINE_STEP_IDS_IN_ORDER,
@@ -18,7 +18,71 @@ interface CascadeInvalidationResult {
   invalidatedGenericState: GenericAnalysisState
 }
 
+export interface InvalidationDependencies {
+  getTranscriptData: () => { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }
+  updateGenericState: (state: GenericAnalysisState) => void
+  updateProcessedData: (id: string, data: TranscriptProcessedData | Partial<TranscriptProcessedData>) => void
+}
+
+export interface OrchestrationResult {
+  updatedTranscriptIds: string[]
+  genericStateUpdated: boolean
+}
+
 export class PipelineInvalidationService {
+  private dependencies?: InvalidationDependencies
+
+  constructor(dependencies?: InvalidationDependencies) {
+    this.dependencies = dependencies
+  }
+
+  orchestrateInvalidation(
+    stepId: StepId,
+    transcriptId: string | undefined,
+    currentGenericState: GenericAnalysisState,
+    dependencies?: InvalidationDependencies
+  ): OrchestrationResult {
+    const deps = dependencies || this.dependencies
+    if (!deps) {
+      throw new Error('Dependencies required for orchestration')
+    }
+
+    // Get transcript data from stores
+    const { rawTranscripts, processedData } = deps.getTranscriptData()
+
+    // Call existing getInvalidatedStates method
+    const { invalidatedProcessedData, invalidatedGenericState } = this.getInvalidatedStates(
+      stepId,
+      transcriptId,
+      processedData,
+      currentGenericState
+    )
+
+    // Update generic state
+    deps.updateGenericState(invalidatedGenericState)
+
+    // Track which transcripts were updated
+    const updatedTranscriptIds: string[] = []
+
+    // Update all affected transcripts in the processedData map
+    // This is important because cascading invalidation might affect multiple transcripts
+    invalidatedProcessedData.forEach((updatedData, id) => {
+      // Only update if the data has actually changed
+      const originalData = processedData.get(id)
+      // Use JSON comparison to check if data has actually changed
+      // This is necessary because the invalidation process creates new objects
+      if (!originalData || JSON.stringify(originalData) !== JSON.stringify(updatedData)) {
+        deps.updateProcessedData(id, updatedData)
+        updatedTranscriptIds.push(id)
+      }
+    })
+
+    return {
+      updatedTranscriptIds,
+      genericStateUpdated: true // Currently always true when orchestration is called
+    }
+  }
+
   invalidateStep(
     stepId: StepId,
     transcriptId: string | undefined,

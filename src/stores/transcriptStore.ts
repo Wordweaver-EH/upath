@@ -31,6 +31,7 @@ interface TranscriptActions {
   addTranscripts: (files: File[]) => Promise<void>;
   addTranscriptsSync: (transcripts: RawTranscript[]) => void;
   updateProcessedData: (id: string, updates: Partial<TranscriptProcessedData>) => void;
+  replaceProcessedData: (id: string, data: TranscriptProcessedData) => void;
   removeTranscript: (id: string) => void;
   reset: () => void;
 }
@@ -110,6 +111,12 @@ export const useTranscriptStore = create<TranscriptStore>()(
                 ...updates
               } as TranscriptProcessedData);
             }
+          });
+        },
+        
+        replaceProcessedData: (id: string, data: TranscriptProcessedData) => {
+          set((state: TranscriptState) => {
+            state.processedData.set(id, data);
           });
         },
         

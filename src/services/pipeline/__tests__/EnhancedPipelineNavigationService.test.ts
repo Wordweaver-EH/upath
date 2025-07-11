@@ -166,7 +166,7 @@ describe('EnhancedPipelineNavigationService', () => {
         } as TranscriptProcessedData)
 
         const currentStepInfo: CurrentStepInfo = { 
-          stepId: StepId.P0_1_EXTRACT_HIGH_LEVEL_THEMES, 
+          stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE, 
           status: StepStatus.Success 
         }
         
@@ -509,7 +509,7 @@ describe('EnhancedPipelineNavigationService', () => {
         mockGenericState.isReportGenerated = true
 
         const currentStepInfo: CurrentStepInfo = { 
-          stepId: StepId.P6_1_REPORT, 
+          stepId: StepId.P6_1_GENERATE_MARKDOWN_REPORT, 
           status: StepStatus.Success 
         }
         
@@ -611,7 +611,8 @@ describe('EnhancedPipelineNavigationService', () => {
     })
 
     it('should handle global steps without transcript ID', () => {
-      mockGenericState.isFullyProcessedGenericDiachronic = true
+      // Don't set isFullyProcessedGenericDiachronic to true 
+      // so it will continue to next Part 3 step
 
       const currentStepInfo: CurrentStepInfo = { 
         stepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0], 

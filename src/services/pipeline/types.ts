@@ -227,6 +227,36 @@ export interface NavigationResult {
   nextTranscriptIndex: number
 }
 
+export interface ProcessNextStepResult {
+  stepId: StepId
+  transcriptIndex: number
+  transcriptId?: string
+  isComplete: boolean
+  report?: string
+}
+
+export interface IEnhancedPipelineNavigationService {
+  getNextStepDetails(
+    currentStepInfo: CurrentStepInfo,
+    activeTranscriptIndex: number,
+    transcriptData: {
+      rawTranscripts: RawTranscript[]
+      processedData: Map<string, TranscriptProcessedData>
+    },
+    genericAnalysisState: GenericAnalysisState
+  ): NavigationResult | null
+  
+  processNextStep(
+    currentStepInfo: CurrentStepInfo,
+    activeTranscriptIndex: number,
+    transcriptData: {
+      rawTranscripts: RawTranscript[]
+      processedData: Map<string, TranscriptProcessedData>
+    },
+    genericAnalysisState: GenericAnalysisState
+  ): ProcessNextStepResult | null
+}
+
 /**
  * Determines the next step in the pipeline based on current state
  */

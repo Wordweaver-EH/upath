@@ -7,6 +7,13 @@ import { useAnalysisResultStore } from './analysisResultStore'
 import { usePromptHistoryStore } from './promptHistoryStore'
 import { useTranscriptStore } from './transcriptStore'
 import { usePipelineOrchestrationStore } from './pipelineOrchestrationStore'
+import { EnhancedPipelineNavigationService } from '../services/pipeline/EnhancedPipelineNavigationService'
+import { PipelineInvalidationService } from '../services/pipeline'
+
+// Create a single instance of the navigation service
+const navigationService = new EnhancedPipelineNavigationService()
+const invalidationService = new PipelineInvalidationService()
+
 import { 
   RawTranscript, 
   TranscriptProcessedData, 
@@ -365,132 +372,13 @@ export const usePipelineStore = create<PipelineStore>()(
         currentProcessedData: Map<string, TranscriptProcessedData>,
         currentGenericState: GenericAnalysisState
       ) => {
-        let newProcessedData = new Map(currentProcessedData)
-        let newGenericState = { ...currentGenericState }
-        
-        // Flag to track when per-transcript changes require global cascade
-        let globalCascadeRequired = false
-        
-        const startIndex = ALL_PIPELINE_STEP_IDS_IN_ORDER.indexOf(startInvalidationFromStepId)
-        if (startIndex === -1) return { invalidatedProcessedData: newProcessedData, invalidatedGenericState: newGenericState }
-        
-        for (let i = startIndex; i < ALL_PIPELINE_STEP_IDS_IN_ORDER.length; i++) {
-          const stepToInvalidate = ALL_PIPELINE_STEP_IDS_IN_ORDER[i]
-          if (stepToInvalidate === StepId.COMPLETE || stepToInvalidate === StepId.IDLE) continue
-          
-          const keyPrefix = stepIdToDataKeyPrefix[stepToInvalidate]
-          if (!keyPrefix) continue
-          const errorKey = `${String(keyPrefix).replace('_output', '_error')}` as any
-          
-          // Per-transcript invalidation logic
-          if (currentActiveTxId && !isGlobalStep(stepToInvalidate)) {
-            if (STEP_ORDER_PART_NEG1.includes(stepToInvalidate) || 
-                STEP_ORDER_PART_0.includes(stepToInvalidate) || 
-                STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.includes(stepToInvalidate)) {
-              const tData = newProcessedData.get(currentActiveTxId)
-              if (tData) {
-                let updatedTData = { ...tData, [keyPrefix]: undefined, [errorKey]: undefined }
-                if (stepToInvalidate === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
-                  updatedTData = { 
-                    ...updatedTData, 
-                    isFullyProcessedSpecificDiachronic: false, 
-                    p1_4_mermaid_syntax: undefined, 
-                    phases_for_p2s_processing: [], 
-                    current_phase_for_p2s_processing: undefined, 
-                    processed_phases_for_p2s: [], 
-                    p2s_outputs_by_phase: {}, 
-                    isFullyProcessedSpecificSynchronic: false 
-                  }
-                }
-                newProcessedData.set(currentActiveTxId, updatedTData as TranscriptProcessedData)
-              }
-            } else if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepToInvalidate)) {
-              const tData = newProcessedData.get(currentActiveTxId)
-              if (tData) {
-                // Invalidation for P2S steps is scoped to the currently active phase.
-                const currentPhase = tData.current_phase_for_p2s_processing
-                
-                if (currentPhase && tData.p2s_outputs_by_phase?.[currentPhase]) {
-                  const keyPrefixToClear = stepIdToDataKeyPrefix[stepToInvalidate] as keyof P2SPhaseData
-                  if (keyPrefixToClear) {
-                    // Create a mutable copy of the data for the specific phase we are invalidating
-                    const phaseDataToUpdate = { ...tData.p2s_outputs_by_phase[currentPhase] }
-                    
-                    // Delete the output and error for this specific step
-                    delete phaseDataToUpdate[keyPrefixToClear]
-                    const errorKeyToClear = `${String(keyPrefixToClear).replace('_output', '_error')}` as keyof P2SPhaseData
-                    delete phaseDataToUpdate[errorKeyToClear]
-                    
-                    // Special handling for P2S.3 which also generates mermaid syntax
-                    if (stepToInvalidate === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
-                      delete phaseDataToUpdate.p2s_3_mermaid_syntax
-                    }
-                    
-                    // Construct the new state for p2s_outputs_by_phase
-                    const updatedP2SOutputs = {
-                      ...tData.p2s_outputs_by_phase,
-                      [currentPhase]: phaseDataToUpdate,
-                    }
-                    
-                    // Since we are invalidating a step, this phase is no longer fully processed.
-                    // We must remove it from the list of completed phases.
-                    const newProcessedPhases = tData.processed_phases_for_p2s?.filter(p => p !== currentPhase) || []
-                    
-                    // Update the transcript data in the map
-                    newProcessedData.set(currentActiveTxId, {
-                      ...tData,
-                      p2s_outputs_by_phase: updatedP2SOutputs,
-                      isFullyProcessedSpecificSynchronic: false, // The transcript is no longer fully synchronic processed
-                      processed_phases_for_p2s: newProcessedPhases,
-                    })
-                  }
-                }
-              }
-            }
-            globalCascadeRequired = true
-          } else if (isGlobalStep(stepToInvalidate) || globalCascadeRequired) {
-            // Invalidate global step if downstream OR if cascade required from per-transcript changes
-            newGenericState = { ...newGenericState, [keyPrefix]: undefined, [errorKey]: undefined }
-            if (stepToInvalidate === StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE) {
-              newGenericState.isFullyProcessedGenericDiachronic = false
-              newGenericState.p3_3_mermaid_syntax = undefined
-              newGenericState.core_gdus_for_sync_analysis = []
-              newGenericState.p4s_1_a_outputs_by_gdu = {}
-              newGenericState.p4s_1_a_error = undefined
-              newGenericState.p4s_outputs_by_gdu = {}
-              newGenericState.p4s_mermaid_syntax_by_gdu = {}
-              newGenericState.p4s_1_b_error = undefined
-              newGenericState.current_gdu_for_p4s_processing = undefined
-              newGenericState.processed_gdus_for_p4s = []
-              newGenericState.isFullyProcessedGenericSynchronic = false
-            } else if (stepToInvalidate === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES && globalCascadeRequired) {
-              newGenericState.p4s_1_a_outputs_by_gdu = {}
-              newGenericState.p4s_1_a_error = undefined
-              newGenericState.p4s_outputs_by_gdu = {}
-              newGenericState.p4s_mermaid_syntax_by_gdu = {}
-              newGenericState.p4s_1_b_error = undefined
-              newGenericState.processed_gdus_for_p4s = []
-              newGenericState.isFullyProcessedGenericSynchronic = false
-            } else if (stepToInvalidate === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS && globalCascadeRequired) {
-              newGenericState.p4s_outputs_by_gdu = {}
-              newGenericState.p4s_mermaid_syntax_by_gdu = {}
-              newGenericState.p4s_1_b_error = undefined
-              newGenericState.processed_gdus_for_p4s = []
-              newGenericState.isFullyProcessedGenericSynchronic = false
-            } else if (stepToInvalidate === StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS) {
-              newGenericState.p7_3_mermaid_syntax_dag = undefined
-            } else if (stepToInvalidate === StepId.P7_3B_VALIDATE_AND_CLEAN_DAG) {
-              newGenericState.p7_3b_mermaid_syntax_dag = undefined
-            } else if (stepToInvalidate === StepId.P6_1_GENERATE_MARKDOWN_REPORT) {
-              newGenericState.isReportGenerated = false
-            }
-          }
-        }
-        
-        return {
-          invalidatedProcessedData: newProcessedData,
-          invalidatedGenericState: newGenericState
-        }
+        // Delegate to the invalidation service
+        return invalidationService.getInvalidatedStates(
+          startInvalidationFromStepId,
+          currentActiveTxId,
+          currentProcessedData,
+          currentGenericState
+        )
       },
       
       getNextStepDetails: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => {
@@ -499,255 +387,92 @@ export const usePipelineStore = create<PipelineStore>()(
         // Use transcript data passed from caller, fall back to empty defaults
         const { rawTranscripts = [], processedData = new Map() } = transcriptData || {}
         
-        const currentTranscriptId = rawTranscripts[activeTranscriptIndex]?.id
-        const currentTData = currentTranscriptId ? processedData.get(currentTranscriptId) : undefined
-        
-        if (currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length > 0) {
-          return { nextStepId: STEP_ORDER_PART_NEG1[0], nextTranscriptIndex: 0 }
-        }
-        
-        // Handle Part -1 steps
-        const currentPartNeg1StepIndex = STEP_ORDER_PART_NEG1.indexOf(currentStepInfo.stepId)
-        if (currentPartNeg1StepIndex !== -1) {
-          const pNeg1DoneThisTranscript = currentTData?.p_neg1_1_output || currentTData?.p_neg1_1_error
-          if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || pNeg1DoneThisTranscript) {
-            if (activeTranscriptIndex < rawTranscripts.length - 1) return { nextStepId: STEP_ORDER_PART_NEG1[0], nextTranscriptIndex: activeTranscriptIndex + 1 }
-            const allVarIdDone = rawTranscripts.every(rt => processedData.get(rt.id)?.p_neg1_1_output || processedData.get(rt.id)?.p_neg1_1_error)
-            if (allVarIdDone) return { nextStepId: STEP_ORDER_PART_0[0], nextTranscriptIndex: 0 }
-          }
-        }
-        
-        // Handle Part 0 steps
-        const currentPart0StepIndex = STEP_ORDER_PART_0.indexOf(currentStepInfo.stepId)
-        if (currentPart0StepIndex !== -1) {
-          const key = stepIdToDataKeyPrefix[currentStepInfo.stepId] as keyof TranscriptProcessedData
-          const part0OutputExists = key && (currentTData?.[key] || currentTData?.[`${key.replace('_output', '_error')}` as keyof TranscriptProcessedData])
-          if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || part0OutputExists) {
-            if (currentPart0StepIndex < STEP_ORDER_PART_0.length - 1) return { nextStepId: STEP_ORDER_PART_0[currentPart0StepIndex + 1], nextTranscriptIndex: activeTranscriptIndex }
-            if (activeTranscriptIndex < rawTranscripts.length - 1) return { nextStepId: STEP_ORDER_PART_0[0], nextTranscriptIndex: activeTranscriptIndex + 1 }
-            if (rawTranscripts.every(rt => STEP_ORDER_PART_0.every(s => { 
-              const k = stepIdToDataKeyPrefix[s] as keyof TranscriptProcessedData
-              return k && (processedData.get(rt.id)?.[k] || processedData.get(rt.id)?.[`${k.replace('_output','_error')}` as keyof TranscriptProcessedData])
-            }))) {
-              return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: 0 }
-            }
-          }
-        }
-        
-        // Handle Part 1 steps
-        const currentPart1StepIndex = STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.indexOf(currentStepInfo.stepId)
-        if (currentPart1StepIndex !== -1) {
-          const key = stepIdToDataKeyPrefix[currentStepInfo.stepId] as keyof TranscriptProcessedData
-          const part1OutputExists = key && (currentTData?.[key] || currentTData?.[`${key.replace('_output', '_error')}` as keyof TranscriptProcessedData])
-          if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || part1OutputExists) {
-            if (currentPart1StepIndex < STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.length - 1) {
-              return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[currentPart1StepIndex + 1], nextTranscriptIndex: activeTranscriptIndex }
-            }
-            if (currentStepInfo.stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && currentTData?.isFullyProcessedSpecificDiachronic) {
-              if ((currentTData?.phases_for_p2s_processing?.length || 0) > 0 && !currentTData?.isFullyProcessedSpecificSynchronic) {
-                return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex }
-              }
-              if (activeTranscriptIndex < rawTranscripts.length - 1) {
-                return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: activeTranscriptIndex + 1 }
-              }
-              if (rawTranscripts.every(rt => processedData.get(rt.id)?.isFullyProcessedSpecificDiachronic) && 
-                  rawTranscripts.every(rt => { 
-                    const d = processedData.get(rt.id)
-                    return !d || (!d.phases_for_p2s_processing?.length || d.isFullyProcessedSpecificSynchronic)
-                  })) {
-                return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0], nextTranscriptIndex: 0 }
-              }
-            }
-          }
-        }
-        
-        // Handle Part 2 steps
-        const currentP2SStepIndex = STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.indexOf(currentStepInfo.stepId)
-        if (currentP2SStepIndex !== -1 && currentTData) {
-          const phaseDone = currentStepInfo.currentPhaseForP2S
-          let p2sOutputForCurrentPhaseAndStepExists = false
-          if (phaseDone) {
-            const key = stepIdToDataKeyPrefix[currentStepInfo.stepId] as keyof P2SPhaseData
-            if (key) {
-              const pData = currentTData.p2s_outputs_by_phase?.[phaseDone]
-              p2sOutputForCurrentPhaseAndStepExists = !!(pData?.[key] || pData?.[`${key.replace('_output', '_error')}` as keyof P2SPhaseData])
-            }
-          } else if (currentTData.isFullyProcessedSpecificSynchronic && !currentTData.phases_for_p2s_processing?.length) {
-            p2sOutputForCurrentPhaseAndStepExists = true
-          }
-          
-          if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || p2sOutputForCurrentPhaseAndStepExists) {
-            if (currentP2SStepIndex < STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.length - 1) {
-              return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[currentP2SStepIndex + 1], nextTranscriptIndex: activeTranscriptIndex }
-            }
-            if (currentStepInfo.stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
-              const totalPhases = currentTData.phases_for_p2s_processing || []
-              const processedPhases = currentTData.processed_phases_for_p2s || []
-              const allPhasesProcessed = totalPhases.length > 0 && totalPhases.every(phase => processedPhases.includes(phase))
-              
-              if (!allPhasesProcessed && totalPhases.length > 0) {
-                return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex }
-              } else {
-                if (activeTranscriptIndex < rawTranscripts.length - 1) {
-                  return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: activeTranscriptIndex + 1 }
-                } else {
-                  return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0], nextTranscriptIndex: 0 }
-                }
-              }
-            }
-          }
-        }
-        
-        // Handle Part 3 steps
-        const currentPart3StepIndex = STEP_ORDER_PART_3_GENERIC_DIACHRONIC.indexOf(currentStepInfo.stepId)
-        if (currentPart3StepIndex !== -1 && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || genericAnalysisState.isFullyProcessedGenericDiachronic)) {
-          if (genericAnalysisState.isFullyProcessedGenericDiachronic) {
-            if ((genericAnalysisState.core_gdus_for_sync_analysis?.length || 0) > 0 && !genericAnalysisState.isFullyProcessedGenericSynchronic) {
-              return { nextStepId: StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, nextTranscriptIndex: 0 }
-            }
-            if (STEP_ORDER_PART_5_REFINEMENT.length > 0 && !genericAnalysisState.isRefinementDone) {
-              return { nextStepId: STEP_ORDER_PART_5_REFINEMENT[0], nextTranscriptIndex: 0 }
-            }
-            if (STEP_ORDER_PART_7_CAUSAL_MODELING.length > 0 && !genericAnalysisState.isCausalModelingDone) {
-              return { nextStepId: STEP_ORDER_PART_7_CAUSAL_MODELING[0], nextTranscriptIndex: 0 }
-            }
-            return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 }
-          }
-          if (currentPart3StepIndex < STEP_ORDER_PART_3_GENERIC_DIACHRONIC.length - 1) {
-            return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[currentPart3StepIndex + 1], nextTranscriptIndex: 0 }
-          }
-        }
-        
-        // Handle Part 4 steps
-        const currentP4SStepIndex = STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.indexOf(currentStepInfo.stepId)
-        if (currentP4SStepIndex !== -1) {
-          const stepErrorExists = currentStepInfo.stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES ? genericAnalysisState.p4s_1_a_error : genericAnalysisState.p4s_1_b_error
-          const gduContextIsDone = (
-            currentStepInfo.stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES && genericAnalysisState.p4s_1_a_outputs_by_gdu?.[currentStepInfo.currentGduForP4S || '']
-          ) || (
-            currentStepInfo.stepId === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS && genericAnalysisState.processed_gdus_for_p4s?.includes(currentStepInfo.currentGduForP4S || '')
-          )
-          
-          if (currentStepInfo.status === StepStatus.Success || (currentStepInfo.status === StepStatus.Error && stepErrorExists) || gduContextIsDone) {
-            if (currentStepInfo.stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES) {
-              return { nextStepId: StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS, nextTranscriptIndex: 0 }
-            } else if (currentStepInfo.stepId === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS) {
-              if (genericAnalysisState.isFullyProcessedGenericSynchronic) {
-                if (STEP_ORDER_PART_5_REFINEMENT.length > 0) return { nextStepId: STEP_ORDER_PART_5_REFINEMENT[0], nextTranscriptIndex: 0 }
-                if (STEP_ORDER_PART_7_CAUSAL_MODELING.length > 0) return { nextStepId: STEP_ORDER_PART_7_CAUSAL_MODELING[0], nextTranscriptIndex: 0 }
-                return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 }
-              } else {
-                return { nextStepId: StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, nextTranscriptIndex: 0 }
-              }
-            }
-          }
-        }
-        
-        // Handle Part 5 steps
-        const currentPart5StepIndex = STEP_ORDER_PART_5_REFINEMENT.indexOf(currentStepInfo.stepId)
-        if (currentPart5StepIndex !== -1 && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || genericAnalysisState.isRefinementDone)) {
-          if (genericAnalysisState.isRefinementDone) {
-            if (STEP_ORDER_PART_7_CAUSAL_MODELING.length > 0 && !genericAnalysisState.isCausalModelingDone) {
-              return { nextStepId: STEP_ORDER_PART_7_CAUSAL_MODELING[0], nextTranscriptIndex: 0 }
-            }
-            if (STEP_ORDER_PART_6_REPORT.length > 0 && !genericAnalysisState.isReportGenerated) {
-              return { nextStepId: STEP_ORDER_PART_6_REPORT[0], nextTranscriptIndex: 0 }
-            }
-            return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 }
-          }
-          if (currentPart5StepIndex < STEP_ORDER_PART_5_REFINEMENT.length - 1) {
-            return { nextStepId: STEP_ORDER_PART_5_REFINEMENT[currentPart5StepIndex + 1], nextTranscriptIndex: 0 }
-          }
-        }
-        
-        // Handle Part 7 steps
-        const currentPart7StepIndex = STEP_ORDER_PART_7_CAUSAL_MODELING.indexOf(currentStepInfo.stepId)
-        if (currentPart7StepIndex !== -1 && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || genericAnalysisState.isCausalModelingDone)) {
-          if (genericAnalysisState.isCausalModelingDone) {
-            if (STEP_ORDER_PART_6_REPORT.length > 0 && !genericAnalysisState.isReportGenerated) {
-              return { nextStepId: STEP_ORDER_PART_6_REPORT[0], nextTranscriptIndex: 0 }
-            }
-            return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 }
-          }
-          if (currentPart7StepIndex < STEP_ORDER_PART_7_CAUSAL_MODELING.length - 1) {
-            return { nextStepId: STEP_ORDER_PART_7_CAUSAL_MODELING[currentPart7StepIndex + 1], nextTranscriptIndex: 0 }
-          }
-        }
-        
-        // Handle Part 6 steps
-        const currentPart6StepIndex = STEP_ORDER_PART_6_REPORT.indexOf(currentStepInfo.stepId)
-        if (currentPart6StepIndex !== -1 && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || genericAnalysisState.isReportGenerated)) {
-          if (genericAnalysisState.isReportGenerated) return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 }
-          if (currentPart6StepIndex < STEP_ORDER_PART_6_REPORT.length - 1) {
-            return { nextStepId: STEP_ORDER_PART_6_REPORT[currentPart6StepIndex + 1], nextTranscriptIndex: 0 }
-          }
-        }
-        
-        if (currentStepInfo.stepId === StepId.COMPLETE) return null
-        return null
+        // Delegate to navigation service
+        return navigationService.getNextStepDetails(
+          currentStepInfo,
+          activeTranscriptIndex,
+          { rawTranscripts, processedData },
+          genericAnalysisState
+        )
       },
       
       processNextStep: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => {
-        // Use transcript data passed from caller, fall back to empty defaults
-        const { rawTranscripts = [] } = transcriptData || {}
-        const details = get().getNextStepDetails(currentStepInfo, activeTranscriptIndex, transcriptData)
+        const { genericAnalysisState } = get()
         
-        if (!details) {
-          const { genericAnalysisState } = get()
-          if (currentStepInfo.stepId !== StepId.COMPLETE && genericAnalysisState.isReportGenerated) {
-            const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All processing complete."
-            // Update pipeline state - App.tsx will handle UI updates
-            set(state => ({
-              ...state,
-              lastStepInfo: { stepId: StepId.COMPLETE, status: StepStatus.Success, outputData: report },
-              shouldStopAutorun: true
-            }))
-          }
+        // Use transcript data passed from caller, fall back to empty defaults
+        const { rawTranscripts = [], processedData = new Map() } = transcriptData || {}
+        
+        // Delegate to navigation service
+        const result = navigationService.processNextStep(
+          currentStepInfo,
+          activeTranscriptIndex,
+          { rawTranscripts, processedData },
+          genericAnalysisState
+        )
+        
+        if (!result) {
           return
         }
         
-        // Note: activeTranscript update should be handled by the caller
-        
-        if (details.nextStepId === StepId.COMPLETE) {
-          const { genericAnalysisState } = get()
-          const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "Processing complete."
+        if (result.isComplete) {
           // Update pipeline state - App.tsx will handle UI updates
           set(state => ({
             ...state,
-            lastStepInfo: { stepId: StepId.COMPLETE, status: StepStatus.Success, outputData: report },
+            lastStepInfo: { 
+              stepId: StepId.COMPLETE, 
+              status: StepStatus.Success, 
+              outputData: result.report || "Processing complete." 
+            },
             shouldStopAutorun: true
           }))
         } else {
-          const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId)
-          const nextTxId = isNextGlobal ? undefined : rawTranscripts[details.nextTranscriptIndex]?.id
-          get().processSingleStep({ stepId: details.nextStepId, transcriptIdToProcess: nextTxId, transcriptData })
+          // Process the next step
+          get().processSingleStep({ 
+            stepId: result.stepId, 
+            transcriptIdToProcess: result.transcriptId, 
+            transcriptData 
+          })
         }
       },
       
       invalidateStateFromStep: (stepId: StepId, transcriptId?: string, activeTranscriptIndex?: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => {
         const { genericAnalysisState } = get()
         
-        // Use transcript data passed from caller, fall back to empty defaults
-        const { rawTranscripts = [], processedData = new Map() } = transcriptData || {}
-        const activeTxId = transcriptId || (activeTranscriptIndex !== undefined ? rawTranscripts[activeTranscriptIndex]?.id : undefined)
-        
-        const { invalidatedProcessedData, invalidatedGenericState } = get().getInvalidatedStates(
-          stepId,
-          activeTxId,
-          processedData,
-          genericAnalysisState
-        )
-        
-        // Update only the generic analysis state in pipeline store
-        set((state) => {
-          state.genericAnalysisState = invalidatedGenericState
+        // Create invalidation service with proper dependencies
+        const invalidationService = new PipelineInvalidationService({
+          getTranscriptData: () => {
+            if (transcriptData) {
+              return transcriptData
+            }
+            // Fall back to getting data from transcript store if not provided
+            const transcriptStore = useTranscriptStore.getState()
+            return {
+              rawTranscripts: transcriptStore.rawTranscripts,
+              processedData: transcriptStore.processedData
+            }
+          },
+          updateGenericState: (state: GenericAnalysisState) => {
+            set((s) => {
+              s.genericAnalysisState = state
+            })
+          },
+          updateProcessedData: (id: string, data: TranscriptProcessedData) => {
+            const transcriptStore = useTranscriptStore.getState()
+            // Use replaceProcessedData to ensure invalidated fields are properly cleared
+            transcriptStore.replaceProcessedData(id, data)
+          }
         })
         
-        // Update transcript data in transcript store if available
-        if (transcriptData) {
-          const transcriptStore = useTranscriptStore.getState()
-          transcriptStore.setProcessedData(invalidatedProcessedData)
-        }
+        // Use transcript data passed from caller to determine active transcript ID
+        const { rawTranscripts = [] } = transcriptData || {}
+        const activeTxId = transcriptId || (activeTranscriptIndex !== undefined ? rawTranscripts[activeTranscriptIndex]?.id : undefined)
+        
+        // Delegate all invalidation logic to the service
+        invalidationService.orchestrateInvalidation(
+          stepId,
+          activeTxId,
+          genericAnalysisState
+        )
       },
       
       resetPipeline: () => {

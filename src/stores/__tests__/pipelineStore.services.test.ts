@@ -29,13 +29,13 @@ describe('pipelineStore with services', () => {
     ;(useTranscriptStore.getState as Mock).mockReturnValue({
       rawTranscripts: [],
       processedData: new Map(),
-      setProcessedData: vi.fn()
+      updateProcessedData: vi.fn()
     })
     
     // Setup prompt history store mock
     ;(usePromptHistoryStore.getState as Mock).mockReturnValue({
       promptHistory: [],
-      addEntry: vi.fn(),
+      addPromptEntry: vi.fn(),
       reset: vi.fn()
     })
     
@@ -191,7 +191,7 @@ describe('pipelineStore with services', () => {
       capturedAddPromptEntry(mockEntry)
       
       // Verify prompt history was updated
-      expect(mockPromptHistoryStore.addEntry).toHaveBeenCalledWith(mockEntry)
+      expect(mockPromptHistoryStore.addPromptEntry).toHaveBeenCalledWith(mockEntry)
     })
   })
 })
