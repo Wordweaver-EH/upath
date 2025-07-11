@@ -3,12 +3,12 @@
 
 import { useTranscriptStore } from './transcriptStore'
 import { useAnalysisResultStore } from './analysisResultStore'
-import { usePipelineStore } from './pipelineStore'
 import { usePromptHistoryStore } from './promptHistoryStore'
 import { usePipelineOrchestrationStore } from './pipelineOrchestrationStore'
 import { useUIStore } from './uiStore'
 import { localForageStorage } from '../utils/storage'
 import { CurrentStepInfo, StepId, RawTranscript, TranscriptProcessedData } from '../../types'
+import { getPipelineService } from '../services/pipeline/pipelineServiceFactory'
 
 /**
  * Store composition layer that provides cross-store operations
@@ -39,11 +39,6 @@ export const useStoreComposition = () => {
     const pipelineOrchestrationStore = usePipelineOrchestrationStore.getState()
     pipelineOrchestrationStore.reset()
     
-    // Reset prompt history in pipelineStore (temporary during migration)
-    // TODO: Remove this once pipelineStore is fully migrated
-    const pipelineStore = usePipelineStore.getState()
-    pipelineStore.resetPromptHistoryOnly()
-    
     console.log('✅ [StoreComposition] All pipeline stores reset')
   }
   
@@ -62,44 +57,34 @@ export const useStoreComposition = () => {
   
   /**
    * Get next step details for pipeline progression
-   * Temporary delegation to pipelineStore during migration
    */
-  const getNextStepDetails = (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number, transcriptData?: { rawTranscripts: RawTranscript[]; processedData: Map<string, TranscriptProcessedData> }) => {
-    // During migration: delegate to pipelineStore for now
-    // This will be refactored to use new stores once migration is complete
-    const pipelineStore = usePipelineStore.getState()
-    return pipelineStore.getNextStepDetails(currentStepInfo, activeTranscriptIndex, transcriptData)
+  const getNextStepDetails = (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
+    const pipelineService = getPipelineService()
+    return pipelineService.getNextStepDetails(currentStepInfo, activeTranscriptIndex)
   }
   
   /**
    * Process a single pipeline step
-   * Temporary delegation to pipelineStore during migration 
    */
   const processSingleStep = async (params: any) => {
-    // During migration: delegate to pipelineStore for now
-    // This will be refactored to use extracted services once migration is complete
-    const pipelineStore = usePipelineStore.getState()
-    return pipelineStore.processSingleStep(params)
+    const pipelineService = getPipelineService()
+    return pipelineService.processSingleStep(params)
   }
   
   /**
    * Download output for a pipeline step
-   * Temporary delegation to pipelineStore during migration
    */
   const downloadOutput = (stepIdToDownload?: StepId, transcriptId?: string, dataToDownload?: any) => {
-    // During migration: delegate to pipelineStore for now
-    const pipelineStore = usePipelineStore.getState()
-    return pipelineStore.downloadOutput(stepIdToDownload, transcriptId, dataToDownload)
+    const pipelineService = getPipelineService()
+    return pipelineService.downloadOutput(stepIdToDownload, transcriptId, dataToDownload)
   }
   
   /**
    * Check if a step is global (not transcript-specific)
-   * Temporary delegation to pipelineStore during migration
    */
   const isGlobalStep = (stepId: StepId) => {
-    // During migration: delegate to pipelineStore for now
-    const pipelineStore = usePipelineStore.getState()
-    return pipelineStore.isGlobalStep(stepId)
+    const pipelineService = getPipelineService()
+    return pipelineService.isGlobalStep(stepId)
   }
   
   /**
