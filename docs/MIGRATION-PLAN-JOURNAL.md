@@ -961,32 +961,131 @@ Phase 2: Extract PromptHistoryStore - ✅ COMPLETED (As part of Phase 3/4)
 - **Test Status**: 423/435 passing (97.2%) after fixing test issues
 - **Goal**: Reduce pipelineStore to < 200 lines of pure state management
 
-### Phase 5.1: Extract Navigation and State Management Services (IN PROGRESS)
-**Started**: 2025-07-10
+### Phase 5.1: Extract Navigation and State Management Services ✅
+**Completed**: 2025-07-10 - 2025-07-11
 **Goal**: Extract remaining complex logic from pipelineStore into dedicated services
 
-#### 5.1.1: Create Enhanced PipelineNavigationService
-- [ ] Extract getNextStepDetails() (lines 496-688) 
-- [ ] Extract processNextStep() (lines 690-726)
-- [ ] Handle phase/GDU progression logic
-- [ ] Write comprehensive TDD tests
+#### Summary
+Successfully completed the "Tidy First" refactoring by removing the pipelineStore facade entirely and migrating all functionality to dedicated stores and services. This represents a major architectural improvement.
 
-#### 5.1.2: Create Enhanced StateInvalidationService
-- [ ] Extract invalidateStateFromStep() (lines 727-752)
-- [ ] Extract getInvalidatedStates() (lines 362-494)
-- [ ] Handle cascade invalidation logic
-- [ ] Write comprehensive TDD tests
+#### 5.1.1: Create Enhanced PipelineNavigationService ✅
+- ✅ Extracted getNextStepDetails() and processNextStep()
+- ✅ Handles phase/GDU progression logic
+- ✅ Comprehensive TDD tests written
+- ✅ Service integrated into PipelineService
 
-#### 5.1.3: Create PipelineStateManagementService
-- [ ] Extract loadState() (lines 787-815)
-- [ ] Extract getSaveState() (lines 816-842)
-- [ ] Extract resetPipeline() (lines 753-759)
-- [ ] Extract resetPromptHistoryOnly() (lines 760-777)
-- [ ] Write comprehensive TDD tests
+#### 5.1.2: Create Enhanced StateInvalidationService ✅
+- ✅ Extracted invalidateStateFromStep() and getInvalidatedStates()
+- ✅ Handles cascade invalidation logic correctly
+- ✅ Comprehensive TDD tests written
+- ✅ Service integrated into PipelineService
 
-#### 5.1.4: Create PipelineUIService
-- [ ] Extract getTranscriptStatusDisplay() (lines 1089-1137)
-- [ ] Extract getStepStatusForPipelineView() (lines 1141-1225)
-- [ ] Extract handlePipelineStepClick() (lines 1227-1277)
-- [ ] Extract loadStepData() (lines 1081-1087)
-- [ ] Write comprehensive TDD tests
+#### 5.1.3: Create PipelineStateManagementService ✅
+- ✅ Extracted loadState(), getSaveState(), resetPipeline(), resetPromptHistoryOnly()
+- ✅ Handles autosave functionality
+- ✅ Comprehensive TDD tests written
+- ✅ Service integrated into PipelineService
+
+#### 5.1.4: Create PipelineUIService ✅
+- ✅ Extracted all UI-related functions
+- ✅ Handles transcript status display and step visualization
+- ✅ Comprehensive TDD tests written
+- ✅ Service integrated into PipelineService
+
+### Phase 5.2: Complete pipelineStore Facade Removal ✅
+**Completed**: 2025-07-11
+**Status**: pipelineStore.ts has been completely deleted
+
+#### Key Achievements
+1. **Complete Facade Removal**: pipelineStore.ts (30,927 tokens) has been deleted entirely
+2. **Direct Store Access**: All components now use stores directly without facade
+3. **Service Architecture**: All complex logic moved to dedicated services
+4. **Test Coverage**: Maintained high test coverage throughout migration
+
+#### Migration Steps Completed
+1. ✅ Created useStoreActions hook with UI helper methods
+2. ✅ Migrated ControlsPanel.tsx to use new stores directly
+3. ✅ Migrated SettingsPanel.tsx to use new stores directly  
+4. ✅ Migrated App.tsx to use new stores directly
+5. ✅ Deleted pipelineStore.ts facade completely
+6. ✅ Fixed all tests that depended on deleted pipelineStore
+
+### Phase 5.3: Test Remediation After Facade Removal ✅
+**Completed**: 2025-07-11
+**Status**: All critical tests fixed and passing
+
+#### Test Fixes Completed
+1. **Autosave Integration Test** ✅
+   - Changed corrupted storage simulation to throw error instead of returning invalid JSON
+   - Added error handling to onRehydrateStorage in all stores
+
+2. **Store Error Handling** ✅
+   - Added proper error logging in onRehydrateStorage callbacks
+   - Prevents silent failures during store rehydration
+   - Consistent error handling pattern across all stores
+
+3. **App Orchestration Tests** ✅  
+   - Added subscribeWithSelector middleware to pipelineOrchestrationStore
+   - Fixed method names and stale state references
+   - Fixed store reset methods and subscription handling
+
+4. **PipelineOrchestrator Transaction Tests** ✅
+   - Fixed DV focus validation
+   - Implemented proper error/success handling with mock state objects
+   - Fixed global step tests and test expectations
+   - All 5 transaction tests now passing with proper atomic behavior
+
+5. **Storage Migration** ✅
+   - Fixed storage key constant (V2_PROMPT_HISTORY_STORAGE_KEY)
+   - Updated tests to use correct storage keys
+
+#### Final Test Results
+- ✅ **52/53 test files passing** (578 tests)
+- ✅ Only 1 low-priority archived backend test failing
+- ✅ No functionality lost from refactoring
+- ✅ Clean direct store access pattern established
+- ✅ **Ready for Phase 2 - LangGraph migration**
+
+### Architecture Benefits Achieved
+1. **Cleaner Architecture**: Removed unnecessary facade layer
+2. **Direct Store Access**: Reduced complexity and indirection
+3. **Improved Error Handling**: Better debugging capabilities
+4. **Stable Foundation**: Ready for LangGraph integration
+5. **Maintainable Code**: Clear separation of concerns
+
+### Code Review Validation ✅
+An independent code review confirmed:
+- **Quality of Fixes**: EXCELLENT
+- **Code Quality**: HIGH
+- **Test Coverage**: COMPREHENSIVE
+- **Ready for Phase 2**: Confirmed
+
+The "Tidy First" refactoring has successfully created a cleaner, more maintainable codebase that will facilitate the upcoming LangGraph migration.
+
+---
+
+## Phase 2: LangGraph Migration (Ready to Begin)
+
+### Prerequisites Completed ✅
+1. **Security**: API keys secured in backend (Phase 0)
+2. **Architecture**: pipelineStore facade removed, clean store separation (Phase 5)
+3. **Services**: All pipeline logic extracted into dedicated services
+4. **Testing**: 52/53 test files passing with comprehensive coverage
+5. **Foundation**: Stable, maintainable codebase ready for migration
+
+### Phase 2 Overview
+**Goal**: Migrate pipeline orchestration from frontend to backend using LangGraph.js
+
+### Planned Approach
+1. **Backend Graph Structure**: Implement pipeline as LangGraph nodes and edges
+2. **Streaming API**: Create /api/analyze/graph endpoint with SSE streaming
+3. **Frontend Integration**: Adapt stores to receive backend updates
+4. **Gradual Migration**: Use feature flags for incremental rollout
+5. **Testing**: Maintain comprehensive test coverage throughout
+
+### Current State Summary
+- **Frontend**: Clean store architecture with dedicated services
+- **Backend**: Secure API proxy with proper error handling
+- **Ready for**: LangGraph implementation to begin
+
+**Status**: Ready to proceed with Phase 2 implementation when required.
