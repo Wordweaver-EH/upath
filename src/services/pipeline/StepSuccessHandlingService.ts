@@ -56,6 +56,8 @@ export class StepSuccessHandlingService implements IStepSuccessHandlingService {
     if (stepId === StepId.P0_1_TRANSCRIPTION_ADHERENCE) {
       setStoreState(state => {
         const tData = state.processedData.get(transcriptIdToProcess!)
+        console.log(`[StepSuccessHandlingService] P0_1 - Found transcript data:`, tData ? 'yes' : 'no')
+        console.log(`[StepSuccessHandlingService] P0_1 - Setting output:`, output)
         if (tData) {
           const updated = { ...tData, p0_1_output: output, p0_1_error: undefined }
           state.processedData.set(transcriptIdToProcess!, updated)
@@ -127,6 +129,7 @@ export class StepSuccessHandlingService implements IStepSuccessHandlingService {
       })
     } else if (stepId === StepId.P3_1_ALIGN_STRUCTURES) {
       setStoreState(state => {
+        console.log(`[StepSuccessHandlingService] Setting P3_1 output:`, output)
         state.genericAnalysisState.p3_1_output = output
         state.genericAnalysisState.p3_1_error = undefined
       })

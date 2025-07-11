@@ -54,8 +54,10 @@ export class StepErrorHandlingService implements IStepErrorHandlingService {
     if (stepId === StepId.P0_1_TRANSCRIPTION_ADHERENCE) {
       setStoreState(state => {
         const tData = state.processedData.get(transcriptIdToProcess!)
+        console.log(`[StepErrorHandlingService] Found transcript data:`, tData ? 'yes' : 'no')
         if (tData) {
           const updated = { ...tData, p0_1_error: apiError }
+          console.log(`[StepErrorHandlingService] Setting p0_1_error to:`, apiError)
           state.processedData.set(transcriptIdToProcess!, updated)
         }
       })

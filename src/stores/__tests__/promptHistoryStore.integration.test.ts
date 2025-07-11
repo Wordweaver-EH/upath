@@ -184,6 +184,7 @@ describe('PromptHistoryStore Integration', () => {
       expect(updatedState.promptHistory[0]).toEqual(entry)
       
       // Verify service can check download availability
+      const storeActions = useStoreActions()
       const isDownloadDisabled = storeActions.isDownloadHistoryDisabled()
       expect(isDownloadDisabled).toBe(false) // Should be enabled with 1 entry
     })

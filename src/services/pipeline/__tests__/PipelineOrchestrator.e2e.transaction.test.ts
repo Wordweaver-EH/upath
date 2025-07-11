@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { PipelineService } from '../PipelineService'
+import { getPipelineService, resetPipelineService } from '../pipelineServiceFactory'
 import { StepId, StepStatus } from '../../../../types'
 import { useTranscriptStore } from '../../../stores/transcriptStore'
 import { useAnalysisResultStore } from '../../../stores/analysisResultStore'
@@ -28,10 +29,13 @@ describe.sequential('PipelineOrchestrator E2E Transaction Tests', () => {
     apiKey: 'test-key',
     temperature: 0.7,
     seed: undefined,
-    userDvFocus: { dv_focus: [] }
+    userDvFocus: { dv_focus: ['test'] }  // Add a value to pass DV focus validation
   }
   
   beforeEach(() => {
+    // Reset the pipeline service singleton
+    resetPipelineService()
+    
     // Clear all stores
     useTranscriptStore.setState({ rawTranscripts: [], processedData: new Map() })
     useAnalysisResultStore.setState({ 
@@ -58,50 +62,8 @@ describe.sequential('PipelineOrchestrator E2E Transaction Tests', () => {
       shouldStopAutorun: false
     })
     
-    // Create pipeline service with real store dependencies
-    pipelineService = new PipelineService({
-      // Store getters
-      getTranscriptData: () => useTranscriptStore.getState(),
-      getGenericAnalysisState: () => useAnalysisResultStore.getState().genericAnalysisState,
-      getPromptHistory: () => usePromptHistoryStore.getState().promptHistory,
-      getCurrentStepInfo: () => usePipelineOrchestrationStore.getState().currentStepInfo,
-      getActiveTranscriptIndex: () => usePipelineOrchestrationStore.getState().activeTranscriptIndex,
-      getSettings: () => ({
-        apiKey: 'test-key',
-        temperature: 0.7,
-        userDvFocus: { dv_focus: ['test'] }
-      }),
-      
-      // Store setters
-      updateTranscriptData: (id, data) => useTranscriptStore.getState().updateProcessedData(id, data),
-      replaceProcessedData: (id, data) => useTranscriptStore.getState().replaceProcessedData(id, data),
-      updateGenericState: (updates) => useAnalysisResultStore.getState().updateGenericState(updates),
-      addPromptEntry: (entry) => usePromptHistoryStore.getState().addPromptEntry(entry),
-      setCurrentStepInfo: (info) => usePipelineOrchestrationStore.getState().setCurrentStepInfo(info),
-      setAutorunning: (value) => usePipelineOrchestrationStore.getState().setAutorunning(value),
-      
-      // Transcript store operations
-      addTranscripts: async (files) => {
-        const transcripts = await Promise.all(files.map(async (file) => ({
-          id: `t-${Date.now()}-${Math.random()}`,
-          name: file.name,
-          content: await file.text(),
-          uploadedAt: Date.now()
-        })))
-        useTranscriptStore.getState().addTranscriptsSync(transcripts)
-      },
-      addTranscriptsSync: (transcripts) => useTranscriptStore.getState().addTranscriptsSync(transcripts),
-      resetTranscripts: () => useTranscriptStore.getState().reset(),
-      
-      // Prompt history operations
-      resetPromptHistory: () => usePromptHistoryStore.getState().reset(),
-      
-      // Analysis result operations
-      resetAnalysisState: () => useAnalysisResultStore.getState().reset(),
-      
-      // Orchestration operations
-      resetOrchestrationState: () => usePipelineOrchestrationStore.getState().reset()
-    })
+    // Get the pipeline service from the factory
+    pipelineService = getPipelineService()
     
     // Setup test data
     useTranscriptStore.getState().addTranscriptsSync([{
@@ -123,6 +85,8 @@ describe.sequential('PipelineOrchestrator E2E Transaction Tests', () => {
     it('should handle API errors atomically across multiple stores', async () => {
       // Setup initial state in multiple stores
       useTranscriptStore.getState().updateProcessedData('t1', {
+        id: 't1',
+        filename: 'test.txt',
         p0_1_output: 'initial output',
         p0_2_output: 'initial p0_2'
       })
@@ -212,6 +176,17 @@ describe.sequential('PipelineOrchestrator E2E Transaction Tests', () => {
     })
 
     it('should handle global step transactions correctly', async () => {
+      // Set up required data for P3_1 - it needs P1_4 outputs from transcripts
+      useTranscriptStore.getState().updateProcessedData('t1', {
+        id: 't1',
+        filename: 'test.txt',
+        p1_4_output: {
+          specific_diachronic_structure: {
+            phases: ['Phase 1', 'Phase 2']
+          }
+        }
+      })
+      
       // Mock successful API response for global step
       vi.mocked(callGeminiAPI).mockResolvedValueOnce({
         parsedJson: { 
@@ -270,7 +245,7 @@ describe.sequential('PipelineOrchestrator E2E Transaction Tests', () => {
       // Prompt history should still be added (contains the attempt)
       const promptHistory = usePromptHistoryStore.getState().promptHistory
       expect(promptHistory).toHaveLength(1)
-      expect(promptHistory[0].output).toBeNull()
+      expect(promptHistory[0].responseParsed).toBeNull()
       expect(promptHistory[0].error).toBe('Rate limit exceeded')
     })
 

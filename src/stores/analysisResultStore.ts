@@ -130,7 +130,12 @@ export const useAnalysisResultStore = create<AnalysisResultStore>()(
         version: 1,
         partialize: (state) => ({
           genericAnalysisState: state.genericAnalysisState
-        })
+        }),
+        onRehydrateStorage: () => (state, error) => {
+          if (error) {
+            console.error('[AnalysisResultStore] Error during rehydration:', error);
+          }
+        }
       }
     )
   )

@@ -162,6 +162,10 @@ export const useTranscriptStore = create<TranscriptStore>()(
         },
         // Handle Map deserialization on rehydration
         onRehydrateStorage: () => (state, error) => {
+          if (error) {
+            console.error('[TranscriptStore] Error during rehydration:', error);
+            return;
+          }
           if (state && state.processedData && Array.isArray(state.processedData)) {
             // Convert array back to Map on rehydration
             state.processedData = new Map(state.processedData);

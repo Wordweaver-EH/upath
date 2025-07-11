@@ -445,6 +445,28 @@ export class PipelineService {
     this.exportService.exportVisualization(mermaidSyntax, filename, format)
   }
   
+  // State invalidation
+  invalidateStateFromStep(
+    stepId: StepId,
+    transcriptId?: string,
+    activeTranscriptIndex?: number
+  ): void {
+    // Get current state
+    const currentGenericState = useAnalysisResultStore.getState().genericAnalysisState
+    
+    // Use the invalidation service to handle the invalidation
+    const result = this.invalidationService.orchestrateInvalidation(
+      stepId,
+      transcriptId,
+      currentGenericState
+    )
+    
+    console.log(`🗑️ [PipelineService] Invalidated state from step ${stepId}`, {
+      updatedTranscripts: result.updatedTranscriptIds,
+      genericStateUpdated: result.genericStateUpdated
+    })
+  }
+
   // Utility methods
   isGlobalStep(stepId: StepId): boolean {
     return isGlobalStep(stepId)

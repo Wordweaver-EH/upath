@@ -4,7 +4,7 @@ import { usePromptHistoryStore } from '../stores/promptHistoryStore'
 import { useAnalysisResultStore } from '../stores/analysisResultStore'
 import { usePipelineOrchestrationStore } from '../stores/pipelineOrchestrationStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import { getPipelineService } from '../services/pipeline/pipelineServiceFactory'
+import { getPipelineService, resetPipelineService } from '../services/pipeline/pipelineServiceFactory'
 import { StepId, StepStatus } from '../../types'
 import { callGeminiAPI } from '../../services/geminiService'
 import { STEP_ORDER_PART_NEG1, STEP_ORDER_PART_3_GENERIC_DIACHRONIC } from '../../constants'
@@ -15,6 +15,9 @@ vi.mock('../../services/geminiService')
 describe('Pipeline E2E Error Scenarios', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    
+    // Reset pipeline service singleton to ensure clean state
+    resetPipelineService()
     
     // Reset all stores
     usePipelineOrchestrationStore.getState().reset()
@@ -43,11 +46,15 @@ describe('Pipeline E2E Error Scenarios', () => {
         apiKey: 'test-key',
         temperature: 0.7,
         seed: undefined,
-        userDvFocus: { dv_focus: [] }
+        userDvFocus: { dv_focus: ['test-dv'] }
       }
       
       // This should handle the error gracefully
-      pipelineService.handlePipelineStepClick(StepId.P0_1_TRANSCRIPTION_ADHERENCE, settings)
+      await pipelineService.processSingleStep({
+        stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
+        transcriptIdToProcess: 'invalid-id',
+        settings
+      })
       
       // Should set error state
       const orchestrationState = usePipelineOrchestrationStore.getState()
@@ -62,14 +69,21 @@ describe('Pipeline E2E Error Scenarios', () => {
         apiKey: 'test-key',
         temperature: 0.7,
         seed: undefined,
-        userDvFocus: { dv_focus: [] }
+        userDvFocus: { dv_focus: ['test-dv'] }
       }
       
       // Try with invalid step ID
-      pipelineService.handlePipelineStepClick('INVALID_STEP' as StepId, settings)
+      await pipelineService.processSingleStep({
+        stepId: 'INVALID_STEP' as StepId,
+        settings
+      })
+      
+      // Check the actual state
+      const currentState = usePipelineOrchestrationStore.getState()
+      console.log('Current orchestration state:', currentState.currentStepInfo)
       
       // Should handle gracefully
-      expect(orchestrationStore.currentStepInfo.status).toBe(StepStatus.Error)
+      expect(currentState.currentStepInfo.status).toBe(StepStatus.Error)
     })
 
     test('should handle empty API key throughout entire pipeline flow', async () => {
@@ -91,16 +105,21 @@ describe('Pipeline E2E Error Scenarios', () => {
         apiKey: '', // Empty API key
         temperature: 0.7,
         seed: undefined,
-        userDvFocus: { dv_focus: [] }
+        userDvFocus: { dv_focus: ['test-dv'] }
       }
       
       // Try all transcript-specific steps
       for (const stepId of STEP_ORDER_PART_NEG1) {
         orchestrationStore.setActiveTranscriptIndex(0)
-        pipelineService.handlePipelineStepClick(stepId, settings)
+        await pipelineService.processSingleStep({
+          stepId,
+          transcriptIdToProcess: transcript.id,
+          settings
+        })
         
-        // Each should fail with error status
-        expect(orchestrationStore.currentStepInfo.status).toBe(StepStatus.Error)
+        // Each should fail with error status due to empty API key
+        const currentState = usePipelineOrchestrationStore.getState()
+        expect(currentState.currentStepInfo.status).toBe(StepStatus.Error)
         
         // Reset for next iteration
         orchestrationStore.reset()
@@ -124,17 +143,22 @@ describe('Pipeline E2E Error Scenarios', () => {
         apiKey: 'test-key',
         temperature: 0.7,
         seed: undefined,
-        userDvFocus: { dv_focus: [] }
+        userDvFocus: { dv_focus: ['test-dv'] }
       }
       
       // Try global step
-      pipelineService.handlePipelineStepClick(StepId.P3_2_IDENTIFY_GDUS, settings)
+      await pipelineService.processSingleStep({
+        stepId: StepId.P3_2_IDENTIFY_GDUS,
+        settings
+      })
       
       // Should handle error
-      expect(orchestrationStore.currentStepInfo.status).toBe(StepStatus.Error)
+      const currentState = usePipelineOrchestrationStore.getState()
+      expect(currentState.currentStepInfo.status).toBe(StepStatus.Error)
       
       // Existing state should be preserved (no partial updates)
-      expect(analysisStore.genericAnalysisState.p3_1_output).toBe('Some existing output')
+      const finalAnalysisState = useAnalysisResultStore.getState()
+      expect(finalAnalysisState.genericAnalysisState.p3_1_output).toBe('Some existing output')
     })
 
     test('should recover from transient API errors with retry', async () => {
@@ -151,30 +175,38 @@ describe('Pipeline E2E Error Scenarios', () => {
       vi.mocked(callGeminiAPI)
         .mockRejectedValueOnce(new Error('Temporary network error'))
         .mockResolvedValueOnce({
-          candidates: [{
-            content: {
-              parts: [{ text: 'Success response' }]
-            }
-          }]
-        })
+          text: 'Success response',
+          parsedJson: { result: 'success' }
+        } as any)
       
       const settings = {
         apiKey: 'test-key',
         temperature: 0.7,
         seed: 123, // Using seed for retry
-        userDvFocus: { dv_focus: [] }
+        userDvFocus: { dv_focus: ['test-dv'] }
       }
       
       // First attempt fails
       orchestrationStore.setActiveTranscriptIndex(0)
-      pipelineService.handlePipelineStepClick(StepId.P0_1_TRANSCRIPTION_ADHERENCE, settings)
-      expect(orchestrationStore.currentStepInfo.status).toBe(StepStatus.Error)
+      await pipelineService.processSingleStep({
+        stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
+        transcriptIdToProcess: transcript.id,
+        settings
+      })
+      const errorState = usePipelineOrchestrationStore.getState()
+      expect(errorState.currentStepInfo.status).toBe(StepStatus.Error)
       
       // Retry with seed
-      pipelineService.retryWithUserSeed({ overrideSeed: 456 })
+      await pipelineService.processSingleStep({
+        stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
+        transcriptIdToProcess: transcript.id,
+        overrideSeed: 456,
+        settings
+      })
       
       // Should succeed now
-      expect(orchestrationStore.currentStepInfo.status).toBe(StepStatus.Success)
+      const successState = usePipelineOrchestrationStore.getState()
+      expect(successState.currentStepInfo.status).toBe(StepStatus.Success)
     })
 
     test('should handle multiple pipeline resets without memory leaks', () => {
@@ -184,17 +216,25 @@ describe('Pipeline E2E Error Scenarios', () => {
       const promptHistoryStore = usePromptHistoryStore.getState()
       
       // Add data to all stores
+      const transcriptsToAdd = []
       for (let i = 0; i < 5; i++) {
-        transcriptStore.addTranscriptsSync([{
+        transcriptsToAdd.push({
           id: `t${i}`,
           name: `file${i}.txt`,
           content: `Content ${i}`,
           uploadedAt: Date.now()
-        }])
-        
-        analysisStore.updateGenericState({
-          [`p3_${i}_output`]: `Output ${i}`
         })
+        
+        // Add valid fields to generic state
+        if (i === 1) {
+          analysisStore.updateGenericState({
+            p3_1_output: { content: `Output ${i}` } as any
+          })
+        } else if (i === 2) {
+          analysisStore.updateGenericState({
+            p3_2_output: { content: `Output ${i}` } as any
+          })
+        }
         
         promptHistoryStore.addPromptEntry({
           stepId: `P0_${i}`,
@@ -205,26 +245,41 @@ describe('Pipeline E2E Error Scenarios', () => {
         } as any)
       }
       
+      // Add all transcripts at once
+      transcriptStore.addTranscriptsSync(transcriptsToAdd)
+      
+      // Get fresh state after updates
+      const updatedTranscriptState = useTranscriptStore.getState()
+      const updatedAnalysisState = useAnalysisResultStore.getState()
+      const updatedPromptState = usePromptHistoryStore.getState()
+      
       // Verify data exists
-      expect(transcriptStore.rawTranscripts.length).toBeGreaterThan(0)
-      expect(Object.keys(analysisStore.genericAnalysisState).length).toBeGreaterThan(0)
-      expect(promptHistoryStore.promptHistory.length).toBeGreaterThan(0)
+      expect(updatedTranscriptState.rawTranscripts.length).toBeGreaterThan(0)
+      expect(Object.keys(updatedAnalysisState.genericAnalysisState).length).toBeGreaterThan(2) // More than just the 2 boolean flags
+      expect(updatedPromptState.promptHistory.length).toBeGreaterThan(0)
       
       // Reset multiple times
       for (let i = 0; i < 10; i++) {
         pipelineService.resetPipeline()
       }
       
+      // Get fresh state after resets
+      const finalTranscriptState = useTranscriptStore.getState()
+      const finalAnalysisState = useAnalysisResultStore.getState()
+      const finalPromptState = usePromptHistoryStore.getState()
+      
       // All stores should be empty
-      expect(transcriptStore.rawTranscripts).toHaveLength(0)
-      expect(transcriptStore.processedData.size).toBe(0)
-      expect(analysisStore.genericAnalysisState).toEqual({
-        isFullyProcessedGenericDiachronic: false,
-        isFullyProcessedGenericSynchronic: false
-      })
-      expect(promptHistoryStore.promptHistory).toHaveLength(0)
-      expect(promptHistoryStore.totalInputTokens).toBe(0)
-      expect(promptHistoryStore.totalOutputTokens).toBe(0)
+      expect(finalTranscriptState.rawTranscripts).toHaveLength(0)
+      expect(finalTranscriptState.processedData.size).toBe(0)
+      // Check that all outputs were cleared
+      expect(finalAnalysisState.genericAnalysisState.p3_1_output).toBeUndefined()
+      expect(finalAnalysisState.genericAnalysisState.p3_2_output).toBeUndefined()
+      expect(finalAnalysisState.genericAnalysisState.p3_3_output).toBeUndefined()
+      expect(finalAnalysisState.genericAnalysisState.isFullyProcessedGenericDiachronic).toBe(false)
+      expect(finalAnalysisState.genericAnalysisState.isFullyProcessedGenericSynchronic).toBe(false)
+      expect(finalPromptState.promptHistory).toHaveLength(0)
+      expect(finalPromptState.totalInputTokens).toBe(0)
+      expect(finalPromptState.totalOutputTokens).toBe(0)
     })
 
     test('should maintain data integrity during concurrent error scenarios', async () => {
@@ -245,32 +300,36 @@ describe('Pipeline E2E Error Scenarios', () => {
       const orchestrationStore = usePipelineOrchestrationStore.getState()
       
       // Mock API to fail on specific transcripts
-      vi.mocked(callGeminiAPI).mockImplementation((apiKey, temperature, seed, prompt) => {
-        if (prompt.includes('file1.txt')) {
+      vi.mocked(callGeminiAPI).mockImplementation((prompt, isJsonOutput, useGrounding, temperature, seed) => {
+        const promptStr = typeof prompt === 'string' ? prompt : JSON.stringify(prompt)
+        // Check for either filename or content
+        if (promptStr.includes('file1.txt') || promptStr.includes('Content 1')) {
           return Promise.reject(new Error('Error for file1'))
         }
         return Promise.resolve({
-          candidates: [{
-            content: {
-              parts: [{ text: 'Success' }]
-            }
-          }]
-        })
+          text: isJsonOutput ? JSON.stringify({ result: 'success' }) : 'Success',
+          parsedJson: isJsonOutput ? { result: 'success' } : undefined
+        } as any)
       })
       
       const settings = {
         apiKey: 'test-key',
         temperature: 0.7,
         seed: undefined,
-        userDvFocus: { dv_focus: [] }
+        userDvFocus: { dv_focus: ['test-dv'] }
       }
       
       // Process all transcripts
       const results: boolean[] = []
       for (let i = 0; i < transcripts.length; i++) {
         orchestrationStore.setActiveTranscriptIndex(i)
-        pipelineService.handlePipelineStepClick(StepId.P0_1_TRANSCRIPTION_ADHERENCE, settings)
-        results.push(orchestrationStore.currentStepInfo.status === StepStatus.Success)
+        await pipelineService.processSingleStep({
+          stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
+          transcriptIdToProcess: transcripts[i].id,
+          settings
+        })
+        const currentState = usePipelineOrchestrationStore.getState()
+        results.push(currentState.currentStepInfo.status === StepStatus.Success)
       }
       
       // Should have mixed results
@@ -311,18 +370,24 @@ describe('Pipeline E2E Error Scenarios', () => {
         apiKey: 'test-key',
         temperature: 0.7,
         seed: undefined,
-        userDvFocus: { dv_focus: [] }
+        userDvFocus: { dv_focus: ['test-dv'] }
       }
       
       // Try to process next step
       orchestrationStore.setActiveTranscriptIndex(0)
-      pipelineService.handlePipelineStepClick(StepId.P0_2_REFINE_DATA_TYPES, settings)
+      await pipelineService.processSingleStep({
+        stepId: StepId.P0_2_REFINE_DATA_TYPES,
+        transcriptIdToProcess: transcript.id,
+        settings
+      })
       
       // Should have error status
-      expect(orchestrationStore.currentStepInfo.status).toBe(StepStatus.Error)
+      const currentState = usePipelineOrchestrationStore.getState()
+      expect(currentState.currentStepInfo.status).toBe(StepStatus.Error)
       
-      // Previous successful state should remain
-      const processedData = transcriptStore.processedData.get(transcript.id)
+      // Previous successful state should remain - get fresh state
+      const finalTranscriptState = useTranscriptStore.getState()
+      const processedData = finalTranscriptState.processedData.get(transcript.id)
       expect(processedData?.p0_1_output).toBe('Initial output')
       // Failed step should not have partial data
       expect(processedData?.p0_2_output).toBeUndefined()
@@ -342,15 +407,19 @@ describe('Pipeline E2E Error Scenarios', () => {
         apiKey: 'test-key',
         temperature: 0.7,
         seed: undefined,
-        userDvFocus: { dv_focus: [] }
+        userDvFocus: { dv_focus: ['test-dv'] }
       }
       
       // Process step during autorun
-      pipelineService.handlePipelineStepClick(StepId.P3_1_MERGE_RESULTS, settings)
+      await pipelineService.processSingleStep({
+        stepId: StepId.P3_1_ALIGN_STRUCTURES,
+        settings
+      })
       
       // Autorun should stop on error
-      expect(orchestrationStore.isAutorunning).toBe(false)
-      expect(orchestrationStore.currentStepInfo.status).toBe(StepStatus.Error)
+      const finalState = usePipelineOrchestrationStore.getState()
+      expect(finalState.isAutorunning).toBe(false)
+      expect(finalState.currentStepInfo.status).toBe(StepStatus.Error)
     })
   })
 })

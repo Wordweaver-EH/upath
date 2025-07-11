@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { persist, subscribeWithSelector } from 'zustand/middleware'
 import { localForageStorage } from '../utils/storage'
+import { V2_PROMPT_HISTORY_STORAGE_KEY } from '../utils/storeMigration'
 import type { PromptHistoryEntry } from '../../types'
 
 /**
@@ -76,7 +77,7 @@ export const usePromptHistoryStore = create<PromptHistoryState>()(
       }))
     ),
     {
-      name: 'prompt-history-storage',
+      name: V2_PROMPT_HISTORY_STORAGE_KEY,
       storage: localForageStorage,
       partialize: (state) => {
         // Don't persist empty state to save storage space
@@ -94,6 +95,11 @@ export const usePromptHistoryStore = create<PromptHistoryState>()(
           promptHistory: state.promptHistory,
           totalInputTokens: state.totalInputTokens,
           totalOutputTokens: state.totalOutputTokens
+        }
+      },
+      onRehydrateStorage: () => (state, error) => {
+        if (error) {
+          console.error('[PromptHistoryStore] Error during rehydration:', error);
         }
       }
     }

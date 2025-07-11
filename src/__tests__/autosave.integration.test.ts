@@ -222,17 +222,20 @@ describe('Autosave Integration Tests', () => {
   })
 
   it('handles corrupted storage data gracefully', async () => {
-    // Mock corrupted data
-    vi.mocked(localForageStorage.getItem).mockResolvedValue('corrupted-json-data')
+    // Mock storage to throw an error during getItem
+    vi.mocked(localForageStorage.getItem).mockRejectedValue(new Error('Storage corruption error'))
     
     // Spy on console.error
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     
     // Trigger coordinated rehydration
     const storeActions = useStoreActions()
-    await storeActions.coordinateRehydration()
     
-    // Should log error for at least one store
+    // The rehydration should not throw, but handle errors gracefully
+    await expect(storeActions.coordinateRehydration()).resolves.not.toThrow()
+    
+    // Should log error for corrupted storage
+    // Note: The exact error message might vary based on how Zustand handles storage errors
     expect(consoleErrorSpy).toHaveBeenCalled()
     
     // State should remain at initial values

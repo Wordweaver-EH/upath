@@ -27,6 +27,7 @@ export class StepParameterValidationService implements IStepParameterValidationS
   
   validate(params: StepExecutionParams): ServiceResult<ValidationResult> {
     const { stepId, transcriptIdToProcess, overrideSeed, hilMetaPrompt, settings } = params
+    console.log('[StepParameterValidationService] Validating params for step:', stepId)
 
     // Validate settings presence
     if (!settings) {

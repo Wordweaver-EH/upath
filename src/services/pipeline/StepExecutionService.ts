@@ -67,6 +67,7 @@ export class StepExecutionService implements IStepExecutionService {
         }
       } else {
         // Make API call
+        console.log('[StepExecutionService] About to call Gemini API')
         try {
           const apiResult = await callGeminiAPI(
             input.data, // prompt
@@ -83,6 +84,7 @@ export class StepExecutionService implements IStepExecutionService {
           estimatedInputTokens = apiResult.estimatedInputTokens
           estimatedOutputTokens = apiResult.estimatedOutputTokens
         } catch (error) {
+          console.log('[StepExecutionService] API call failed:', error)
           return {
             success: false,
             error: error instanceof Error ? error.message : 'Unknown error during API call'

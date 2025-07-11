@@ -91,19 +91,18 @@ export const useStoreComposition = () => {
    * Coordinates rehydration across multiple stores to determine if session was restored
    */
   const coordinateRehydration = async () => {
-    // Rehydrate all stores
+    // Rehydrate all stores that have persistence
     await Promise.all([
       useTranscriptStore.persist.rehydrate(),
       useAnalysisResultStore.persist.rehydrate(),
-      usePromptHistoryStore.persist.rehydrate(),
-      usePipelineOrchestrationStore.persist.rehydrate()
+      usePromptHistoryStore.persist.rehydrate()
+      // Note: pipelineOrchestrationStore doesn't have persistence - it's ephemeral state
     ]);
     
     // Check if any store has data
     const transcriptState = useTranscriptStore.getState();
     const analysisState = useAnalysisResultStore.getState();
     const promptHistoryState = usePromptHistoryStore.getState();
-    const orchestrationState = usePipelineOrchestrationStore.getState();
     
     const hasTranscriptData = transcriptState.rawTranscripts.length > 0 || 
                              transcriptState.processedData.size > 0;
@@ -121,11 +120,9 @@ export const useStoreComposition = () => {
                                 promptHistoryState.totalInputTokens > 0 ||
                                 promptHistoryState.totalOutputTokens > 0;
     
-    // Check orchestration store data
-    const hasOrchestrationData = orchestrationState.currentStepInfo.stepId !== StepId.IDLE ||
-                                orchestrationState.activeTranscriptIndex > 0;
+    // Orchestration store is ephemeral - we don't check it for restored data
     
-    const hasAnyData = hasTranscriptData || hasAnalysisData || hasPromptHistoryData || hasOrchestrationData;
+    const hasAnyData = hasTranscriptData || hasAnalysisData || hasPromptHistoryData;
     
     // Set UI flags based on combined state
     const uiStore = useUIStore.getState();

@@ -15,7 +15,7 @@ const V1_PIPELINE_STORAGE_KEY = 'pipeline-storage';
 // V2 Storage Keys
 export const V2_TRANSCRIPT_STORAGE_KEY = 'transcript-storage';
 export const V2_ANALYSIS_STORAGE_KEY = 'analysis-storage';
-export const V2_PROMPT_STORAGE_KEY = 'prompt-storage';
+export const V2_PROMPT_HISTORY_STORAGE_KEY = 'prompt-history-storage';
 
 interface V1State {
   rawTranscripts?: RawTranscript[];
@@ -78,7 +78,7 @@ async function writeV2StateToStorage(v2State: V2State): Promise<void> {
       version: 1,
       state: v2State.analysis
     }),
-    localForageStorage.setItem(V2_PROMPT_STORAGE_KEY, {
+    localForageStorage.setItem(V2_PROMPT_HISTORY_STORAGE_KEY, {
       version: 1,
       state: v2State.prompt
     })

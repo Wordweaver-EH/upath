@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
+import { subscribeWithSelector } from 'zustand/middleware'
 import { CurrentStepInfo, StepId, StepStatus, HilContext } from '../../types'
 
 interface ExecutionParams {
@@ -49,8 +50,9 @@ const initialState: PipelineOrchestrationState = {
 }
 
 export const usePipelineOrchestrationStore = create<PipelineOrchestrationStore>()(
-  immer((set, get) => ({
-    ...initialState,
+  subscribeWithSelector(
+    immer((set, get) => ({
+      ...initialState,
     
     setCurrentStepInfo: (info) => {
       set(state => {
@@ -110,5 +112,5 @@ export const usePipelineOrchestrationStore = create<PipelineOrchestrationStore>(
         lastExecutionParams: undefined
       }))
     }
-  }))
+  })))
 )

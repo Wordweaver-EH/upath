@@ -100,26 +100,37 @@ describe('App Store Orchestration', () => {
   });
   
   test('App.tsx style orchestration should work', () => {
-    // Simulate what App.tsx does for store orchestration
-    const orchestrationStore = usePipelineOrchestrationStore.getState();
-    const uiStore = useUIStore.getState();
+    // Reset stores first
+    usePipelineOrchestrationStore.getState().reset();
+    useUIStore.getState().resetUIState();
+    
+    // Track subscription calls
+    let subscriptionCalled = false;
     
     // Subscribe to orchestration changes to update UI
     const unsubscribe = usePipelineOrchestrationStore.subscribe(
       state => state.currentStepInfo,
       (currentStepInfo) => {
-        uiStore.setCurrentStepInfo(currentStepInfo);
+        subscriptionCalled = true;
+        // Update UI store
+        useUIStore.getState().setCurrentStepInfo(currentStepInfo);
       }
     );
     
     // Simulate a step change
-    orchestrationStore.setCurrentStepInfo({
-      stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
-      status: StepStatus.Processing
+    usePipelineOrchestrationStore.setState({
+      currentStepInfo: {
+        stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
+        status: StepStatus.Processing
+      }
     });
     
-    // UI should be updated
-    expect(uiStore.getState().currentStepInfo).toEqual({
+    // Check if subscription was called
+    expect(subscriptionCalled).toBe(true);
+    
+    // UI should be updated synchronously - get fresh state
+    const updatedUIState = useUIStore.getState();
+    expect(updatedUIState.currentStepInfo).toEqual({
       stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
       status: StepStatus.Processing
     });
@@ -148,7 +159,8 @@ describe('App Store Orchestration', () => {
     pipelineService.handlePipelineStepClick(StepId.P0_1_TRANSCRIPTION_ADHERENCE, mockSettings);
     
     // Orchestration store should be updated
-    expect(orchestrationStore.currentStepInfo.stepId).toBe(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
+    const updatedOrchestrationState = usePipelineOrchestrationStore.getState();
+    expect(updatedOrchestrationState.currentStepInfo.stepId).toBe(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
   });
   
   test('settings should be passed as parameters not accessed directly', () => {
@@ -226,17 +238,24 @@ describe('App Store Orchestration', () => {
       userDvFocus: { dv_focus: ['test'] }
     };
     
-    // Add a transcript first
-    const mockFile = new File(['test content'], 'test.txt', { type: 'text/plain' });
-    await transcriptStore.addTranscripts([mockFile]);
+    // Add a transcript directly (since File.text() doesn't work in tests)
+    const mockTranscript = {
+      id: 't1',
+      name: 'test.txt',
+      content: 'test content',
+      uploadedAt: Date.now()
+    };
+    transcriptStore.addTranscriptsSync([mockTranscript]);
     
-    // Verify transcript was added
-    expect(transcriptStore.rawTranscripts).toHaveLength(1);
+    // Verify transcript was added - get fresh state
+    const updatedTranscriptState = useTranscriptStore.getState();
+    expect(updatedTranscriptState.rawTranscripts).toHaveLength(1);
     
     // Trigger pipeline step
     pipelineService.handlePipelineStepClick(StepId.P0_1_TRANSCRIPTION_ADHERENCE, mockSettings);
     
-    // Orchestration state should be updated
-    expect(orchestrationStore.currentStepInfo.stepId).toBe(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
+    // Orchestration state should be updated - get fresh state
+    const updatedOrchestrationState = usePipelineOrchestrationStore.getState();
+    expect(updatedOrchestrationState.currentStepInfo.stepId).toBe(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
   });
 });

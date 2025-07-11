@@ -108,6 +108,7 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
       const context = contextResult.data
 
       // Step 3: Prepare input
+      console.log(`[Orchestrator] Preparing input for ${stepId}`)
       const inputResult = this.inputService.prepareInput(
         stepId,
         context,
@@ -116,6 +117,7 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
       )
 
       if (!inputResult.success || !inputResult.data) {
+        console.log(`[Orchestrator] Input preparation failed:`, inputResult.error)
         this.updateStores({
           stepId,
           status: StepStatus.Error,
@@ -127,6 +129,7 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
       const input = inputResult.data
 
       // Step 4: Execute step
+      console.log(`[Orchestrator] About to execute step ${stepId}`)
       const executionResult = await this.executionService.executeStep(
         stepId,
         input,
@@ -140,6 +143,8 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
       if (!executionResult.success || !executionResult.data) {
         const error = executionResult.error || 'Execution failed'
         
+        console.log(`[Orchestrator] Execution failed for ${stepId}, error:`, error)
+        
         // Use transaction for atomic error handling
         await this.transactionService.executeInTransaction(async (txContext) => {
           this.errorService.handleError({
@@ -152,15 +157,41 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
               if (transcriptIdToProcess) {
                 const transcriptState = this.storeOperations.getTranscriptState()
                 const processedData = new Map(transcriptState.processedData)
-                const tData = processedData.get(transcriptIdToProcess)
-                if (tData) {
-                  const updated = { ...tData }
-                  // Call the updater function with a mock state that captures changes
-                  const mockState = { processedData }
-                  updater(mockState)
-                  // Apply changes back to the store
-                  this.storeOperations.replaceProcessedData(transcriptIdToProcess, processedData.get(transcriptIdToProcess)!)
+                const genericAnalysisState = { ...this.storeOperations.getAnalysisState().genericAnalysisState }
+                
+                // Create a mock state that matches what the error service expects
+                const mockState = { 
+                  processedData,
+                  genericAnalysisState,
+                  lastStepInfo: {},
+                  lastError: undefined
                 }
+                
+                // Call the updater function to apply mutations
+                updater(mockState)
+                
+                // Apply changes back to the store - check if processedData was modified
+                const updatedData = processedData.get(transcriptIdToProcess)
+                if (updatedData) {
+                  console.log(`[Orchestrator] Applying error update for ${transcriptIdToProcess}:`, updatedData)
+                  this.storeOperations.replaceProcessedData(transcriptIdToProcess, updatedData)
+                } else {
+                  console.log(`[Orchestrator] No updated data found for ${transcriptIdToProcess}`)
+                }
+              } else {
+                // Handle global steps
+                const genericAnalysisState = { ...this.storeOperations.getAnalysisState().genericAnalysisState }
+                const mockState = { 
+                  processedData: new Map(),
+                  genericAnalysisState,
+                  lastStepInfo: {},
+                  lastError: undefined
+                }
+                
+                updater(mockState)
+                
+                // Apply generic state changes
+                this.storeOperations.updateGenericState(mockState.genericAnalysisState)
               }
             }
           })
@@ -209,30 +240,42 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
               // Update transcript store for transcript-specific steps
               if (transcriptIdToProcess) {
                 const transcriptState = this.storeOperations.getTranscriptState()
-                const tData = transcriptState.processedData.get(transcriptIdToProcess)
-                if (tData) {
-                  const keyPrefix = stepIdToDataKeyPrefix[stepId]
-                  const outputKey = keyPrefix || `${stepId.toLowerCase()}_output`
-                  const errorKey = keyPrefix ? keyPrefix.replace('_output', '_error') : `${stepId.toLowerCase()}_error`
-                  
-                  const updated = {
-                    ...tData,
-                    [outputKey]: undefined,
-                    [errorKey]: output.apiError
-                  }
-                  
-                  this.storeOperations.replaceProcessedData(transcriptIdToProcess, updated)
+                const processedData = new Map(transcriptState.processedData)
+                const genericAnalysisState = { ...this.storeOperations.getAnalysisState().genericAnalysisState }
+                
+                // Create a mock state that matches what the error service expects
+                const mockState = { 
+                  processedData,
+                  genericAnalysisState,
+                  lastStepInfo: {},
+                  lastError: undefined
+                }
+                
+                // Call the updater function to apply mutations
+                updater(mockState)
+                
+                // Apply changes back to the store - check if processedData was modified
+                const updatedData = processedData.get(transcriptIdToProcess)
+                if (updatedData) {
+                  console.log(`[Orchestrator] Applying error update for ${transcriptIdToProcess}:`, updatedData)
+                  this.storeOperations.replaceProcessedData(transcriptIdToProcess, updatedData)
+                } else {
+                  console.log(`[Orchestrator] No updated data found for ${transcriptIdToProcess}`)
                 }
               } else {
-                // Handle global step errors
-                const keyPrefix = stepIdToDataKeyPrefix[stepId]
-                const outputKey = keyPrefix || `${stepId.toLowerCase()}_output`
-                const errorKey = keyPrefix ? keyPrefix.replace('_output', '_error') : `${stepId.toLowerCase()}_error`
+                // Handle global steps
+                const genericAnalysisState = { ...this.storeOperations.getAnalysisState().genericAnalysisState }
+                const mockState = { 
+                  processedData: new Map(),
+                  genericAnalysisState,
+                  lastStepInfo: {},
+                  lastError: undefined
+                }
                 
-                this.storeOperations.updateGenericState({
-                  [outputKey]: undefined,
-                  [errorKey]: output.apiError
-                })
+                updater(mockState)
+                
+                // Apply generic state changes
+                this.storeOperations.updateGenericState(mockState.genericAnalysisState)
               }
             }
           })
@@ -264,38 +307,46 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
             // Handle transcript-specific updates
             if (transcriptIdToProcess) {
               const transcriptState = this.storeOperations.getTranscriptState()
-              const tData = transcriptState.processedData.get(transcriptIdToProcess)
-              if (tData) {
-                // Get the correct key from the mapping
-                const keyPrefix = stepIdToDataKeyPrefix[stepId]
-                const outputKey = keyPrefix || `${stepId.toLowerCase()}_output`
-                const errorKey = keyPrefix ? keyPrefix.replace('_output', '_error') : `${stepId.toLowerCase()}_error`
-                
-                // Update the transcript data
-                const updated = {
-                  ...tData,
-                  [outputKey]: output.output,
-                  [errorKey]: undefined
-                }
-                
+              const processedData = new Map(transcriptState.processedData)
+              const genericAnalysisState = { ...this.storeOperations.getAnalysisState().genericAnalysisState }
+              
+              // Create a mock state that matches what the success service expects
+              const mockState = { 
+                processedData,
+                genericAnalysisState,
+                lastStepInfo: {},
+                lastError: undefined
+              }
+              
+              // Call the updater function to apply mutations
+              updater(mockState)
+              
+              // Apply changes back to the store - check if processedData was modified
+              const updatedData = processedData.get(transcriptIdToProcess)
+              if (updatedData) {
                 console.log(`[Orchestrator] Updating transcript data:`, {
                   transcriptId: transcriptIdToProcess,
-                  outputKey,
-                  output: output.output
+                  updatedData
                 })
-                
-                this.storeOperations.replaceProcessedData(transcriptIdToProcess, updated)
+                this.storeOperations.replaceProcessedData(transcriptIdToProcess, updatedData)
               }
             } else {
-              // Handle global step updates
-              const keyPrefix = stepIdToDataKeyPrefix[stepId]
-              const outputKey = keyPrefix || `${stepId.toLowerCase()}_output`
-              const errorKey = keyPrefix ? keyPrefix.replace('_output', '_error') : `${stepId.toLowerCase()}_error`
+              // Handle global steps
+              const genericAnalysisState = { ...this.storeOperations.getAnalysisState().genericAnalysisState }
+              const mockState = { 
+                processedData: new Map(),
+                genericAnalysisState,
+                lastStepInfo: {},
+                lastError: undefined
+              }
               
-              this.storeOperations.updateGenericState({
-                [outputKey]: output.output,
-                [errorKey]: undefined
-              })
+              updater(mockState)
+              
+              console.log(`[Orchestrator] Applying global state update for ${stepId}:`)
+              console.log('  genericAnalysisState:', mockState.genericAnalysisState)
+              
+              // Apply generic state changes
+              this.storeOperations.updateGenericState(mockState.genericAnalysisState)
             }
           }
         })

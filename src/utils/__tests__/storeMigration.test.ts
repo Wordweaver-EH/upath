@@ -160,7 +160,7 @@ describe('Storage Migration', () => {
       expect(result).toBe(true);
       expect(mockSetItem).toHaveBeenCalledWith('transcript-storage', expect.any(Object));
       expect(mockSetItem).toHaveBeenCalledWith('analysis-storage', expect.any(Object));
-      expect(mockSetItem).toHaveBeenCalledWith('prompt-storage', expect.any(Object));
+      expect(mockSetItem).toHaveBeenCalledWith('prompt-history-storage', expect.any(Object));
       expect(mockSetItem).toHaveBeenCalledWith(MIGRATION_VERSION_KEY, STORAGE_VERSION);
     });
 

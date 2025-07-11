@@ -42,6 +42,7 @@ interface SettingsActions {
   checkApiKey: () => void
   setTemperature: (temp: number) => void
   setOutputDirectory: (dir: string) => void
+  reset: () => void
 }
 
 type SettingsStore = SettingsState & SettingsActions
@@ -120,6 +121,23 @@ export const useSettingsStore = create<SettingsStore>()(
       
       setOutputDirectory: (dir: string) => {
         set({ outputDirectory: dir })
+      },
+      
+      reset: () => {
+        const initialDvFocusArray = parseDvFocusString(DEFAULT_DV_FOCUS_INPUT)
+        set({
+          // Reset all state to initial values
+          apiKeyPresent: false,
+          userDvFocus: { dv_focus: initialDvFocusArray },
+          dvFocusInput: DEFAULT_DV_FOCUS_INPUT,
+          dvFocusError: '',
+          temperature: 0.0,
+          seedInput: '42',
+          seed: 42,
+          retrySeedInput: '',
+          outputDirectory: 'MicroPheno_Analysis_Outputs',
+          autoDownloadResults: false
+        })
       }
       }
     },
