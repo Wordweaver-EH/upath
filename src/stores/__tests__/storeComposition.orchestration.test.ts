@@ -2,7 +2,7 @@ import { describe, test, expect, vi, beforeEach } from 'vitest'
 import { useStoreComposition } from '../storeComposition'
 import { usePipelineOrchestrationStore } from '../pipelineOrchestrationStore'
 import { useUIStore } from '../uiStore'
-import { usePipelineStore } from '../pipelineStore'
+// Removed pipelineStore import
 import { StepId, StepStatus } from '../../../types'
 
 describe('Store Composition - Orchestration Integration', () => {
@@ -103,11 +103,7 @@ describe('Store Composition - Orchestration Integration', () => {
   })
   
   describe('clearHilContext', () => {
-    test('should clear HIL context through pipelineStore', () => {
-      // Mock the pipelineStore clearLastHilContext method
-      const mockClearLastHilContext = vi.fn()
-      vi.spyOn(usePipelineStore.getState(), 'clearLastHilContext').mockImplementation(mockClearLastHilContext)
-      
+    test('should clear HIL context through orchestration store', () => {
       // Set HIL context
       const hilContext = {
         stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
@@ -119,8 +115,9 @@ describe('Store Composition - Orchestration Integration', () => {
       const composition = useStoreComposition()
       composition.clearHilContext()
       
-      // Verify pipelineStore method was called
-      expect(mockClearLastHilContext).toHaveBeenCalled()
+      // Verify HIL context was cleared
+      const orchestrationState = usePipelineOrchestrationStore.getState()
+      expect(orchestrationState.lastHilContext).toBeUndefined()
     })
   })
 })

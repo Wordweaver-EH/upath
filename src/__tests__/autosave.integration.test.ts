@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useTranscriptStore } from '../stores/transcriptStore'
 import { useAnalysisResultStore } from '../stores/analysisResultStore'
-import { usePipelineStore } from '../stores/pipelineStore'
 import { usePromptHistoryStore } from '../stores/promptHistoryStore'
 import { useUIStore } from '../stores/uiStore'
 import { useStoreActions } from '../stores/storeComposition'
@@ -37,7 +36,7 @@ describe('Autosave Integration Tests', () => {
     // Force stores to clear their persisted state
     await useTranscriptStore.persist.clearStorage()
     await useAnalysisResultStore.persist.clearStorage()
-    await usePipelineStore.persist.clearStorage()
+    await usePromptHistoryStore.persist.clearStorage()
     
     // Reset stores to initial state
     useTranscriptStore.setState({
@@ -47,8 +46,7 @@ describe('Autosave Integration Tests', () => {
     useAnalysisResultStore.setState({
       genericAnalysisState: {}
     })
-    // Keep using pipelineStore for prompt history and tokens (not yet migrated)
-    usePipelineStore.setState({
+    usePromptHistoryStore.setState({
       promptHistory: [],
       totalInputTokens: 0,
       totalOutputTokens: 0,
@@ -257,14 +255,12 @@ describe('Autosave Integration Tests', () => {
     await useTranscriptStore.persist.clearStorage()
     await useAnalysisResultStore.persist.clearStorage()
     await usePromptHistoryStore.persist.clearStorage()
-    await usePipelineStore.persist.clearStorage()
     
     // Verify removeItem was called for all stores
-    expect(removeItemSpy).toHaveBeenCalledTimes(4)
+    expect(removeItemSpy).toHaveBeenCalledTimes(3)
     expect(removeItemSpy).toHaveBeenCalledWith('transcript-storage')
     expect(removeItemSpy).toHaveBeenCalledWith('analysis-storage')
     expect(removeItemSpy).toHaveBeenCalledWith('prompt-history-storage')
-    expect(removeItemSpy).toHaveBeenCalledWith('upath-autosave-session-v2-localforage')
   })
 
   it('handles storage errors during save gracefully', async () => {
@@ -328,11 +324,11 @@ describe('Autosave Integration Tests', () => {
       promptHistory: []
     })
     
-    // Update pipeline store with UI-related states that should NOT be persisted
-    usePipelineStore.setState({
-      lastStepInfo: { stepId: StepId.P1_1_INTERVIEW_TRANSCRIPT_SELECTION, status: 'loading' },
-      shouldStopAutorun: true,
-      lastHilContext: { needsProcessing: true }
+    // Update UI store with UI-related states that should NOT be persisted
+    useUIStore.setState({
+      isAutorunning: true,
+      processingStepId: StepId.P1_1_INTERVIEW_TRANSCRIPT_SELECTION,
+      currentStepInfo: { stepId: StepId.P1_1_INTERVIEW_TRANSCRIPT_SELECTION, status: 'loading' }
     })
     
     // Trigger persist
@@ -348,13 +344,9 @@ describe('Autosave Integration Tests', () => {
     expect(promptHistoryCall).toBeDefined()
     const promptHistoryData = typeof promptHistoryCall![1] === 'string' ? JSON.parse(promptHistoryCall![1]) : promptHistoryCall![1]
     
-    const pipelineCall = setItemSpy.mock.calls.find(call => call[0] === 'upath-autosave-session-v2-localforage')
-    // Pipeline store should not persist any actual state after cleanup (only version metadata)
-    if (pipelineCall) {
-      const pipelineData = typeof pipelineCall[1] === 'string' ? JSON.parse(pipelineCall[1]) : pipelineCall[1]
-      expect(pipelineData.state).toBeUndefined() // No actual state persisted (partialize returns undefined)
-      expect(pipelineData.version).toBeDefined() // Only version metadata
-    }
+    // UI store should not persist any state (no persist middleware)
+    const uiCall = setItemSpy.mock.calls.find(call => call[0] === 'ui-storage')
+    expect(uiCall).toBeUndefined() // UI store doesn't persist
     expect(transcriptData.state.rawTranscripts).toHaveLength(1)
     expect(transcriptData.state).toHaveProperty('processedData')
     

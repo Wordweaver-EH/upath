@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useStoreActions } from '../storeComposition'
 import { useTranscriptStore } from '../transcriptStore'
 import { useAnalysisResultStore } from '../analysisResultStore'
-import { usePipelineStore } from '../pipelineStore'
+import { usePromptHistoryStore } from '../promptHistoryStore'
+import { usePipelineOrchestrationStore } from '../pipelineOrchestrationStore'
 
 // Mock the storage utility
 vi.mock('../../utils/storage', () => ({
@@ -20,8 +21,8 @@ describe('Store Composition Layer', () => {
     // Reset all stores to clean state
     useTranscriptStore.getState().reset()
     useAnalysisResultStore.getState().reset()
-    // Reset pipeline store using existing resetPipeline method
-    usePipelineStore.getState().resetPipeline()
+    usePromptHistoryStore.getState().reset()
+    usePipelineOrchestrationStore.getState().reset()
   })
 
   describe('resetPipeline', () => {

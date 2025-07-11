@@ -1,11 +1,11 @@
 import { describe, test, expect, beforeEach, vi } from 'vitest'
-import { usePipelineStore } from '../pipelineStore'
 import { useTranscriptStore } from '../transcriptStore'
 import { useAnalysisResultStore } from '../analysisResultStore'
 import { StepId, TranscriptProcessedData, RawTranscript } from '../../../types'
+import { getPipelineService } from '../../services/pipeline/pipelineServiceFactory'
 
 // Note: This is an integration test that uses real stores and services
-// The invalidation service is instantiated within pipelineStore.invalidateStateFromStep
+// The invalidation service is accessed through PipelineService
 
 describe('Cross-Store Invalidation Integration', () => {
   beforeEach(() => {
@@ -50,15 +50,12 @@ describe('Cross-Store Invalidation Integration', () => {
     expect(initialData?.p1_1_output).toBe('initial diachronic')
     
     // Invalidate from P0_2 step - this should trigger the invalidation service
-    // Pass transcript data to ensure the service has access to it
-    usePipelineStore.getState().invalidateStateFromStep(
+    // Use PipelineService to handle invalidation
+    const pipelineService = getPipelineService();
+    pipelineService.invalidateStateFromStep(
       StepId.P0_2_REFINE_DATA_TYPES,
       't1',
-      0,
-      {
-        rawTranscripts: [transcript],
-        processedData: useTranscriptStore.getState().processedData
-      }
+      0
     )
     
     // Verify invalidation cascaded properly
@@ -81,7 +78,8 @@ describe('Cross-Store Invalidation Integration', () => {
     })
     
     // Invalidate from P3_2
-    usePipelineStore.getState().invalidateStateFromStep(
+    const pipelineService = getPipelineService();
+    pipelineService.invalidateStateFromStep(
       StepId.P3_2_IDENTIFY_GDUS
     )
     
@@ -122,14 +120,11 @@ describe('Cross-Store Invalidation Integration', () => {
     })
     
     // Invalidate from a transcript step (should cascade to global)
-    usePipelineStore.getState().invalidateStateFromStep(
+    const pipelineService = getPipelineService();
+    pipelineService.invalidateStateFromStep(
       StepId.P1_1_INITIAL_SEGMENTATION,
       't1',
-      0,
-      {
-        rawTranscripts: [transcript],
-        processedData: useTranscriptStore.getState().processedData
-      }
+      0
     )
     
     // Verify transcript invalidation
@@ -139,7 +134,7 @@ describe('Cross-Store Invalidation Integration', () => {
     expect(updatedTranscriptData?.isFullyProcessedSpecificDiachronic).toBe(false)
     
     // Verify global invalidation (should cascade from transcript changes)
-    const updatedGenericState = usePipelineStore.getState().genericAnalysisState
+    const updatedGenericState = useAnalysisResultStore.getState().genericAnalysisState
     expect(updatedGenericState.p3_1_output).toBeUndefined()
     expect(updatedGenericState.p3_3_output).toBeUndefined()
     expect(updatedGenericState.isFullyProcessedGenericDiachronic).toBe(false)

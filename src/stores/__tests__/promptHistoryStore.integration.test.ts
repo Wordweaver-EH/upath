@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, vi, afterEach } from 'vitest'
 import { usePromptHistoryStore } from '../promptHistoryStore'
-import { usePipelineStore } from '../pipelineStore'
 import { useStoreActions } from '../storeComposition'
+import { getPipelineService } from '../../services/pipeline/pipelineServiceFactory'
 import { localForageStorage } from '../../utils/storage'
 import type { PromptHistoryEntry } from '../../../types'
 
@@ -161,9 +161,9 @@ describe('PromptHistoryStore Integration', () => {
   })
 
   describe('Migration Compatibility', () => {
-    test('should maintain compatibility with existing pipelineStore usage', () => {
+    test('should work with new architecture through service layer', () => {
       const promptStore = usePromptHistoryStore.getState()
-      const pipelineStore = usePipelineStore.getState()
+      const pipelineService = getPipelineService()
       
       // Add entry via prompt store
       const entry: PromptHistoryEntry = {
@@ -178,12 +178,14 @@ describe('PromptHistoryStore Integration', () => {
       
       promptStore.addPromptEntry(entry)
       
-      // Pipeline store should be able to access the data
-      // (This will be implemented in the migration phase)
-      // For now, just verify the data exists in prompt store
+      // Service layer should be able to access the data for export
       const updatedState = usePromptHistoryStore.getState()
       expect(updatedState.promptHistory).toHaveLength(1)
       expect(updatedState.promptHistory[0]).toEqual(entry)
+      
+      // Verify service can check download availability
+      const isDownloadDisabled = storeActions.isDownloadHistoryDisabled()
+      expect(isDownloadDisabled).toBe(false) // Should be enabled with 1 entry
     })
 
     test('should not create circular dependencies', () => {

@@ -47,10 +47,12 @@ describe('StepExecutionService', () => {
         }
 
         const mockApiResponse = {
-          output: { result: 'success' },
+          parsedJson: { result: 'success' },
+          error: undefined,
           groundingSources: [{ text: 'source', score: 0.9 }],
           estimatedInputTokens: 100,
-          estimatedOutputTokens: 50
+          estimatedOutputTokens: 50,
+          text: 'raw response'
         }
 
         vi.mocked(callGeminiAPI).mockResolvedValueOnce(mockApiResponse)
@@ -64,17 +66,19 @@ describe('StepExecutionService', () => {
 
         expect(result.success).toBe(true)
         expect(result.data).toBeDefined()
-        expect(result.data?.output).toEqual(mockApiResponse.output)
+        expect(result.data?.output).toEqual(mockApiResponse.parsedJson)
         expect(result.data?.groundingSources).toEqual(mockApiResponse.groundingSources)
         expect(result.data?.estimatedInputTokens).toBe(100)
         expect(result.data?.estimatedOutputTokens).toBe(50)
 
         // Verify API was called with correct parameters
         expect(callGeminiAPI).toHaveBeenCalledWith(
-          'test-key',
-          0.7,
-          mockInput.data,
-          123
+          mockInput.data, // prompt
+          true, // isJsonOutput
+          false, // useGrounding
+          0.7, // temperature
+          123, // seed
+          1 // attempt
         )
       })
 
@@ -127,7 +131,12 @@ describe('StepExecutionService', () => {
         }
 
         vi.mocked(callGeminiAPI).mockResolvedValueOnce({
-          output: { result: 'success' }
+          parsedJson: { result: 'success' },
+          error: undefined,
+          groundingSources: [],
+          estimatedInputTokens: 100,
+          estimatedOutputTokens: 50,
+          text: 'raw response'
         })
 
         await service.executeStep(
@@ -138,10 +147,12 @@ describe('StepExecutionService', () => {
         )
 
         expect(callGeminiAPI).toHaveBeenCalledWith(
-          'test-key',
-          0.7,
-          mockInput.data,
-          999
+          mockInput.data, // prompt
+          true, // isJsonOutput
+          false, // useGrounding
+          0.7, // temperature
+          999, // seed (overridden)
+          1 // attempt
         )
       })
     })

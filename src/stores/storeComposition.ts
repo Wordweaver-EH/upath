@@ -95,15 +95,15 @@ export const useStoreComposition = () => {
     await Promise.all([
       useTranscriptStore.persist.rehydrate(),
       useAnalysisResultStore.persist.rehydrate(),
-      usePipelineStore.persist.rehydrate(),
-      usePromptHistoryStore.persist.rehydrate()
+      usePromptHistoryStore.persist.rehydrate(),
+      usePipelineOrchestrationStore.persist.rehydrate()
     ]);
     
     // Check if any store has data
     const transcriptState = useTranscriptStore.getState();
     const analysisState = useAnalysisResultStore.getState();
-    const pipelineState = usePipelineStore.getState();
     const promptHistoryState = usePromptHistoryStore.getState();
+    const orchestrationState = usePipelineOrchestrationStore.getState();
     
     const hasTranscriptData = transcriptState.rawTranscripts.length > 0 || 
                              transcriptState.processedData.size > 0;
@@ -121,10 +121,11 @@ export const useStoreComposition = () => {
                                 promptHistoryState.totalInputTokens > 0 ||
                                 promptHistoryState.totalOutputTokens > 0;
     
-    // Pipeline store might have other data in the future
-    const hasPipelineData = false; // Currently no data persisted in pipelineStore
+    // Check orchestration store data
+    const hasOrchestrationData = orchestrationState.currentStepInfo.stepId !== StepId.IDLE ||
+                                orchestrationState.activeTranscriptIndex > 0;
     
-    const hasAnyData = hasTranscriptData || hasAnalysisData || hasPipelineData || hasPromptHistoryData;
+    const hasAnyData = hasTranscriptData || hasAnalysisData || hasPromptHistoryData || hasOrchestrationData;
     
     // Set UI flags based on combined state
     const uiStore = useUIStore.getState();
@@ -175,11 +176,10 @@ export const useStoreComposition = () => {
    * Ensures HIL state is cleared consistently
    */
   const clearHilContext = () => {
-    const pipelineStore = usePipelineStore.getState()
     const orchestrationStore = usePipelineOrchestrationStore.getState()
     
-    pipelineStore.clearLastHilContext()
-    // The pipelineStore method already updates orchestration store
+    // Clear HIL context directly in orchestration store
+    orchestrationStore.clearHilContext()
   }
   
   // TODO: Implement getSaveState and loadState for cross-store operations

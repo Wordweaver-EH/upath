@@ -1,36 +1,78 @@
 import { describe, test, expect, vi, beforeEach } from 'vitest';
 import { 
-  usePipelineStore, 
   useUIStore, 
   useSettingsStore,
   useTranscriptStore,
   useAnalysisResultStore,
+  usePipelineOrchestrationStore,
+  usePromptHistoryStore,
   useStoreActions
 } from '../index';
+import { getPipelineService } from '../../services/pipeline/pipelineServiceFactory';
+import { StepId, StepStatus } from '../../../types';
 
 // Mock window.alert
 global.alert = vi.fn();
 
+// Mock geminiService
+vi.mock('../../../services/geminiService');
+
 describe('App Store Orchestration', () => {
-  test('stores should be properly connected via dependency injection', () => {
-    // This test verifies that stores can be connected without circular imports
-    const pipelineStore = usePipelineStore.getState();
+  beforeEach(() => {
+    // Reset all stores to initial state
+    useUIStore.setState({
+      isAutorunning: false,
+      lastStepTimestamp: null,
+      processingStepId: null,
+      successfulStepIds: [],
+      errorStepIds: []
+    });
+    
+    usePipelineOrchestrationStore.setState({
+      currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle },
+      activeTranscriptIndex: 0,
+      isAutorunning: false,
+      shouldStopAutorun: false,
+      lastExecutionParams: undefined,
+      lastHilContext: undefined
+    });
+    
+    useTranscriptStore.setState({
+      rawTranscripts: [],
+      processedData: new Map()
+    });
+    
+    useAnalysisResultStore.setState({
+      genericAnalysisState: {
+        isFullyProcessedGenericDiachronic: false,
+        isFullyProcessedGenericSynchronic: false
+      }
+    });
+    
+    usePromptHistoryStore.setState({
+      promptHistory: [],
+      totalInputTokens: 0,
+      totalOutputTokens: 0
+    });
+  });
+
+  test('stores should be properly connected via service layer', () => {
+    // This test verifies that stores work together through the service layer
+    const pipelineService = getPipelineService();
     const uiStore = useUIStore.getState();
+    const orchestrationStore = usePipelineOrchestrationStore.getState();
     
     // UI store should have the required methods
     expect(typeof uiStore.setAutorunning).toBe('function');
     expect(typeof uiStore.setCurrentStepInfo).toBe('function');
     
-    // Pipeline store should have callback setter
-    expect(typeof pipelineStore.setUICallbacks).toBe('function');
+    // Pipeline service should orchestrate between stores
+    expect(typeof pipelineService.handlePipelineStepClick).toBe('function');
+    expect(typeof pipelineService.processSingleStep).toBe('function');
     
-    // Should be able to connect them
-    expect(() => {
-      pipelineStore.setUICallbacks({
-        setAutorunning: uiStore.setAutorunning,
-        setCurrentStepInfo: uiStore.setCurrentStepInfo
-      });
-    }).not.toThrow();
+    // Orchestration store should track state
+    expect(typeof orchestrationStore.setCurrentStepInfo).toBe('function');
+    expect(typeof orchestrationStore.setAutorunning).toBe('function');
   });
   
   test('new stores should be accessible and properly initialized', () => {
@@ -59,59 +101,58 @@ describe('App Store Orchestration', () => {
   
   test('App.tsx style orchestration should work', () => {
     // Simulate what App.tsx does for store orchestration
-    const pipelineStore = usePipelineStore.getState();
+    const orchestrationStore = usePipelineOrchestrationStore.getState();
     const uiStore = useUIStore.getState();
     
-    // Should be able to inject UI callbacks into pipeline store
-    expect(() => {
-      pipelineStore.setUICallbacks({
-        setAutorunning: uiStore.setAutorunning,
-        setCurrentStepInfo: uiStore.setCurrentStepInfo
-      });
-    }).not.toThrow();
+    // Subscribe to orchestration changes to update UI
+    const unsubscribe = usePipelineOrchestrationStore.subscribe(
+      state => state.currentStepInfo,
+      (currentStepInfo) => {
+        uiStore.setCurrentStepInfo(currentStepInfo);
+      }
+    );
     
-    // Callbacks should be stored in pipeline store state
-    const storeState = usePipelineStore.getState();
-    expect(storeState.uiCallbacks).toBeDefined();
-    expect(typeof storeState.uiCallbacks!.setAutorunning).toBe('function');
-    expect(typeof storeState.uiCallbacks!.setCurrentStepInfo).toBe('function');
-  });
-  
-  test('stores should communicate through injected callbacks', () => {
-    const pipelineStore = usePipelineStore.getState();
-    const uiStore = useUIStore.getState();
-    
-    // Mock UI store methods
-    const mockSetAutorunning = vi.fn();
-    const mockSetCurrentStepInfo = vi.fn();
-    
-    // Override UI store methods with mocks
-    uiStore.setAutorunning = mockSetAutorunning;
-    uiStore.setCurrentStepInfo = mockSetCurrentStepInfo;
-    
-    // Inject callbacks
-    pipelineStore.setUICallbacks({
-      setAutorunning: mockSetAutorunning,
-      setCurrentStepInfo: mockSetCurrentStepInfo
+    // Simulate a step change
+    orchestrationStore.setCurrentStepInfo({
+      stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
+      status: StepStatus.Processing
     });
     
-    // Simulate pipeline action that should trigger UI updates
+    // UI should be updated
+    expect(uiStore.getState().currentStepInfo).toEqual({
+      stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
+      status: StepStatus.Processing
+    });
+    
+    unsubscribe();
+  });
+  
+  test('stores should communicate through service layer', () => {
+    const pipelineService = getPipelineService();
+    const orchestrationStore = usePipelineOrchestrationStore.getState();
+    const uiStore = useUIStore.getState();
+    
+    // Mock UI store methods to track calls
+    const mockSetAutorunning = vi.spyOn(uiStore, 'setAutorunning');
+    const mockSetCurrentStepInfo = vi.spyOn(uiStore, 'setCurrentStepInfo');
+    
+    // Settings for pipeline operations
     const mockSettings = {
       apiKey: 'test-key',
       temperature: 0.7,
+      seed: undefined,
       userDvFocus: { dv_focus: ['test'] }
     };
     
-    pipelineStore.handlePipelineStepClick('P0_1', mockSettings);
+    // Trigger pipeline action through service
+    pipelineService.handlePipelineStepClick(StepId.P0_1_TRANSCRIPTION_ADHERENCE, mockSettings);
     
-    // UI methods should have been called via injected callbacks
-    expect(mockSetAutorunning).toHaveBeenCalled();
-    expect(mockSetCurrentStepInfo).toHaveBeenCalled();
+    // Orchestration store should be updated
+    expect(orchestrationStore.currentStepInfo.stepId).toBe(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
   });
   
   test('settings should be passed as parameters not accessed directly', () => {
-    const settingsStore = useSettingsStore.getState();
-    const pipelineStore = usePipelineStore.getState();
+    const pipelineService = getPipelineService();
     
     // Settings should be passed to pipeline methods
     const testSettings = {
@@ -123,11 +164,14 @@ describe('App Store Orchestration', () => {
     
     // Should be able to call pipeline methods with settings
     expect(() => {
-      pipelineStore.processSingleStep('P0_1', testSettings);
+      pipelineService.processSingleStep({
+        stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
+        settings: testSettings
+      });
     }).not.toThrow();
     
     expect(() => {
-      pipelineStore.handlePipelineStepClick('P0_1', testSettings);
+      pipelineService.handlePipelineStepClick(StepId.P0_1_TRANSCRIPTION_ADHERENCE, testSettings);
     }).not.toThrow();
   });
   
@@ -135,7 +179,22 @@ describe('App Store Orchestration', () => {
     const storeActions = useStoreActions();
     const transcriptStore = useTranscriptStore.getState();
     const analysisStore = useAnalysisResultStore.getState();
-    const pipelineStore = usePipelineStore.getState();
+    const promptHistoryStore = usePromptHistoryStore.getState();
+    const orchestrationStore = usePipelineOrchestrationStore.getState();
+    
+    // Add some test data
+    promptHistoryStore.addPromptEntry({
+      stepId: 'P0_1',
+      timestamp: '2024-01-01T00:00:00Z',
+      prompt: 'Test prompt',
+      requestPayload: {},
+      responseRaw: 'Test response'
+    } as any);
+    
+    orchestrationStore.setCurrentStepInfo({
+      stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
+      status: StepStatus.Success
+    });
     
     // Reset pipeline should clear all stores
     storeActions.resetPipeline();
@@ -147,45 +206,37 @@ describe('App Store Orchestration', () => {
       isFullyProcessedGenericDiachronic: false,
       isFullyProcessedGenericSynchronic: false
     });
-    expect(pipelineStore.promptHistory).toEqual([]);
+    expect(promptHistoryStore.promptHistory).toEqual([]);
+    expect(orchestrationStore.currentStepInfo).toEqual({
+      stepId: StepId.IDLE,
+      status: StepStatus.Idle
+    });
   });
   
   test('pipeline operations should update appropriate stores', async () => {
-    const pipelineStore = usePipelineStore.getState();
+    const pipelineService = getPipelineService();
     const transcriptStore = useTranscriptStore.getState();
-    const analysisStore = useAnalysisResultStore.getState();
-    
-    // Mock UI callbacks
-    const mockSetAutorunning = vi.fn();
-    const mockSetCurrentStepInfo = vi.fn();
-    
-    pipelineStore.setUICallbacks({
-      setAutorunning: mockSetAutorunning,
-      setCurrentStepInfo: mockSetCurrentStepInfo
-    });
+    const orchestrationStore = usePipelineOrchestrationStore.getState();
     
     // Settings for pipeline operations
     const mockSettings = {
       apiKey: 'test-key',
       temperature: 0.7,
+      seed: undefined,
       userDvFocus: { dv_focus: ['test'] }
     };
     
-    // Simulate adding transcripts (which would happen through file drop)
+    // Add a transcript first
     const mockFile = new File(['test content'], 'test.txt', { type: 'text/plain' });
+    await transcriptStore.addTranscripts([mockFile]);
     
-    // Since handleDroppedFiles depends on store connections that may not be set up in tests,
-    // we'll test that the method exists and can be called
-    expect(typeof pipelineStore.handleDroppedFiles).toBe('function');
+    // Verify transcript was added
+    expect(transcriptStore.rawTranscripts).toHaveLength(1);
     
-    // The actual file handling would fail in tests because it depends on 
-    // addTranscripts which is now in TranscriptStore and needs proper store wiring
-    // This is expected behavior in the migration - the integration is tested elsewhere
+    // Trigger pipeline step
+    pipelineService.handlePipelineStepClick(StepId.P0_1_TRANSCRIPTION_ADHERENCE, mockSettings);
     
-    // Test that we can trigger pipeline steps with UI callbacks
-    pipelineStore.handlePipelineStepClick('P0_1', mockSettings);
-    
-    // UI callbacks should have been called
-    expect(mockSetAutorunning).toHaveBeenCalled();
+    // Orchestration state should be updated
+    expect(orchestrationStore.currentStepInfo.stepId).toBe(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
   });
 });

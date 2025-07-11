@@ -24,6 +24,13 @@ vi.mock('../../../../services/geminiService', () => ({
 describe.sequential('PipelineOrchestrator E2E Transaction Tests', () => {
   let pipelineService: PipelineService
   
+  const defaultSettings = {
+    apiKey: 'test-key',
+    temperature: 0.7,
+    seed: undefined,
+    userDvFocus: { dv_focus: [] }
+  }
+  
   beforeEach(() => {
     // Clear all stores
     useTranscriptStore.setState({ rawTranscripts: [], processedData: new Map() })
@@ -134,7 +141,8 @@ describe.sequential('PipelineOrchestrator E2E Transaction Tests', () => {
       // Execute step that will fail
       await pipelineService.processSingleStep({
         stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
-        transcriptIdToProcess: 't1'
+        transcriptIdToProcess: 't1',
+        settings: defaultSettings
       })
       
       // Verify transaction rolled back - store state should be preserved
@@ -178,7 +186,8 @@ describe.sequential('PipelineOrchestrator E2E Transaction Tests', () => {
       // Execute step
       await pipelineService.processSingleStep({
         stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
-        transcriptIdToProcess: 't1'
+        transcriptIdToProcess: 't1',
+        settings: defaultSettings
       })
       
       // Verify all stores updated atomically
@@ -217,7 +226,8 @@ describe.sequential('PipelineOrchestrator E2E Transaction Tests', () => {
       
       // Execute global step
       await pipelineService.processSingleStep({
-        stepId: StepId.P3_1_ALIGN_STRUCTURES
+        stepId: StepId.P3_1_ALIGN_STRUCTURES,
+        settings: defaultSettings
       })
       
       // Verify global state updated
@@ -248,7 +258,8 @@ describe.sequential('PipelineOrchestrator E2E Transaction Tests', () => {
       // Execute step
       await pipelineService.processSingleStep({
         stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
-        transcriptIdToProcess: 't1'
+        transcriptIdToProcess: 't1',
+        settings: defaultSettings
       })
       
       // Verify error handled correctly
@@ -295,11 +306,13 @@ describe.sequential('PipelineOrchestrator E2E Transaction Tests', () => {
       const [result1, result2] = await Promise.all([
         pipelineService.processSingleStep({
           stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
-          transcriptIdToProcess: 't1'
+          transcriptIdToProcess: 't1',
+          settings: defaultSettings
         }),
         pipelineService.processSingleStep({
           stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
-          transcriptIdToProcess: 't2'
+          transcriptIdToProcess: 't2',
+          settings: defaultSettings
         })
       ])
       
