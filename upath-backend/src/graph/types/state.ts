@@ -59,7 +59,7 @@ export function createInitialGraphState(
   const now = Date.now();
   return {
     sessionId,
-    currentStep: 'IDLE',
+    currentStep: 'P0_1_TRANSCRIPTION_ADHERENCE', // Start with first step
     transcripts,
     stepOutputs: {},
     errors: {},

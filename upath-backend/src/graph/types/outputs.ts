@@ -27,10 +27,10 @@ export interface SelectedUtterance {
 
 export interface P0_3_Output {
   transcript_id: string;
-  selected_procedural_utterances: SelectedUtterance[];
-  discarded_info_summary?: string;
-  independent_variable_details: string;
-  dependent_variable_focus: string[];
+  procedural_utterances: RefinedLine[];
+  non_procedural_count: number;
+  total_utterance_count: number;
+  selection_summary: string;
 }
 
 // Additional output types will be added as we implement more nodes
