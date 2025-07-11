@@ -5,6 +5,7 @@ import { UploadIcon, FileTextIcon, SaveIcon, LoadIcon, InfoIcon } from '../const
 import { useSettingsStore } from '../src/stores/settingsStore';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
+import { useTranscriptStore } from '../src/stores/transcriptStore';
 import { Button, Input } from '../src/components/ui';
 
 // No props needed - component gets all data from stores
@@ -45,8 +46,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const handleDrop = useUIStore(state => state.handleDrop)
   const setActiveTranscript = useUIStore(state => state.setActiveTranscript)
 
-  // Pipeline store - state and actions
-  const rawTranscripts = usePipelineStore(state => state.rawTranscripts)
+  // Transcript store - state
+  const rawTranscripts = useTranscriptStore(state => state.rawTranscripts)
+  
+  // Pipeline store - actions (these still delegate to PipelineService)
   const saveStateToFile = usePipelineStore(state => state.saveStateToFile)
   const loadStateFromFile = usePipelineStore(state => state.loadStateFromFile)
   const uploadTranscripts = usePipelineStore(state => state.uploadTranscripts)

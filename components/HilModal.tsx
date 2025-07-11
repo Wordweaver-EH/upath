@@ -1,7 +1,7 @@
 import React from 'react';
-import { STEP_CONFIGS, getStepDisplayName } from '../constants';
+import { getStepDisplayName } from '../constants';
 import { useUIStore } from '../src/stores/uiStore';
-import { usePipelineStore } from '../src/stores/pipelineStore';
+import { useTranscriptStore } from '../src/stores/transcriptStore';
 import CollapsibleSection from './CollapsibleSection';
 import { Button, TextArea } from '../src/components/ui';
 
@@ -21,7 +21,7 @@ const HilModal: React.FC<HilModalProps> = ({
   
   const closeHilModal = useUIStore(state => state.closeHilModal);
   const setHilUserGuidance = useUIStore(state => state.setHilUserGuidance);
-  const processedData = usePipelineStore(state => state.processedData);
+  const processedData = useTranscriptStore(state => state.processedData);
 
   if (!isHilModalOpen || !hilContext) return null;
 

@@ -15,6 +15,7 @@ interface AnalysisResultState {
 
 interface AnalysisResultActions {
   updateGenericState: (updates: Partial<GenericAnalysisState>) => void;
+  replaceGenericState: (newState: GenericAnalysisState) => void;
   reset: () => void;
 }
 
@@ -48,7 +49,16 @@ export const useAnalysisResultStore = create<AnalysisResultStore>()(
         // Actions
         updateGenericState: (updates: Partial<GenericAnalysisState>) => {
           set((state: AnalysisResultState) => {
-            Object.assign(state.genericAnalysisState, updates);
+            state.genericAnalysisState = {
+              ...state.genericAnalysisState,
+              ...updates
+            };
+          });
+        },
+        
+        replaceGenericState: (newState: GenericAnalysisState) => {
+          set((state: AnalysisResultState) => {
+            state.genericAnalysisState = newState;
           });
         },
         

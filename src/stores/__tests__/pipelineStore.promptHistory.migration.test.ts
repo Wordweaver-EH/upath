@@ -2,7 +2,9 @@ import { describe, test, expect, beforeEach, vi, afterEach } from 'vitest'
 import { usePipelineStore } from '../pipelineStore'
 import { usePromptHistoryStore } from '../promptHistoryStore'
 import { useTranscriptStore } from '../transcriptStore'
-import { StepId } from '../../../types'
+import { useAnalysisResultStore } from '../analysisResultStore'
+import { usePipelineOrchestrationStore } from '../pipelineOrchestrationStore'
+import { StepId, StepStatus } from '../../../types'
 
 // Mock external dependencies
 vi.mock('../../services/geminiService')
@@ -18,9 +20,22 @@ describe('PipelineStore → PromptHistoryStore Migration', () => {
     vi.clearAllMocks()
     vi.useFakeTimers()
     
-    // Reset all stores
-    usePipelineStore.setState({
-      genericAnalysisState: {}
+    // Reset all stores - pipelineStore no longer has state
+    usePipelineOrchestrationStore.setState({
+      currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle },
+      activeTranscriptIndex: 0,
+      isAutorunning: false,
+      shouldStopAutorun: false
+    })
+    
+    useAnalysisResultStore.setState({
+      genericAnalysisState: {
+        isFullyProcessedGenericDiachronic: false,
+        isFullyProcessedGenericSynchronic: false,
+        isRefinementDone: false,
+        isCausalModelingDone: false,
+        isReportGenerated: false
+      }
     })
     
     usePromptHistoryStore.setState({
@@ -70,10 +85,11 @@ describe('PipelineStore → PromptHistoryStore Migration', () => {
       // Note: We can't easily test processSingleStep due to complex dependencies
       // Instead, we verify the migration points work correctly
       
-      // Test that pipelineStore no longer has prompt history state (removed in Phase 2.8)
-      expect(pipelineStore.promptHistory).toBeUndefined()
-      expect(pipelineStore.totalInputTokens).toBeUndefined()
-      expect(pipelineStore.totalOutputTokens).toBeUndefined()
+      // Test that pipelineStore delegates prompt history to promptHistoryStore
+      // Using compatibility getters
+      expect(pipelineStore.promptHistory).toEqual([])
+      expect(pipelineStore.totalInputTokens).toBe(0)
+      expect(pipelineStore.totalOutputTokens).toBe(0)
     })
   })
 

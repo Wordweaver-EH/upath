@@ -3,6 +3,7 @@ import { usePipelineStore } from '../pipelineStore'
 import { useTranscriptStore } from '../transcriptStore'
 import { usePromptHistoryStore } from '../promptHistoryStore'
 import { useAnalysisResultStore } from '../analysisResultStore'
+import { usePipelineOrchestrationStore } from '../pipelineOrchestrationStore'
 import { StepId, StepStatus, RawTranscript } from '../../../types'
 import { callGeminiAPI } from '../../../services/geminiService'
 import { STEP_CONFIGS } from '../../constants'
@@ -17,14 +18,28 @@ vi.mock('../../services/pipeline/PipelineNavigationService', () => ({
   }))
 }))
 
+// Mock the PipelineService to ensure it actually calls the API
+vi.mock('../../services/pipeline/PipelineService', async () => {
+  const actual = await vi.importActual('../../services/pipeline/PipelineService')
+  return {
+    ...actual,
+    PipelineService: vi.fn().mockImplementation((dependencies) => {
+      const service = new actual.PipelineService(dependencies)
+      // Return the real service instance so tests work as expected
+      return service
+    })
+  }
+})
+
 describe('pipelineStore integration tests', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     
     // Reset all stores to initial state
-    usePipelineStore.setState({
-      genericAnalysisState: {},
-      lastStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle },
+    usePipelineOrchestrationStore.setState({
+      currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle },
+      activeTranscriptIndex: 0,
+      isAutorunning: false,
       shouldStopAutorun: false
     })
     
@@ -35,11 +50,18 @@ describe('pipelineStore integration tests', () => {
     
     usePromptHistoryStore.setState({
       promptHistory: [],
-      tokenStats: { totalInputTokens: 0, totalOutputTokens: 0 }
+      totalInputTokens: 0,
+      totalOutputTokens: 0
     })
     
     useAnalysisResultStore.setState({
-      genericAnalysisState: {}
+      genericAnalysisState: {
+        isFullyProcessedGenericDiachronic: false,
+        isFullyProcessedGenericSynchronic: false,
+        isRefinementDone: false,
+        isCausalModelingDone: false,
+        isReportGenerated: false
+      }
     })
   })
 
@@ -65,15 +87,23 @@ describe('pipelineStore integration tests', () => {
         recommendation: 'Proceed with analysis'
       }
       
-      ;(callGeminiAPI as Mock).mockResolvedValueOnce({
-        parsedJson: mockOutput,
-        text: JSON.stringify(mockOutput),
-        error: undefined,
-        estimatedInputTokens: 100,
-        estimatedOutputTokens: 50
+      ;(callGeminiAPI as Mock).mockImplementationOnce(async () => {
+        console.log('[Mock] callGeminiAPI called, returning:', mockOutput)
+        return {
+          parsedJson: mockOutput,
+          text: JSON.stringify(mockOutput),
+          error: undefined,
+          estimatedInputTokens: 100,
+          estimatedOutputTokens: 50
+        }
       })
       
       // Execute the step
+      console.log('Transcript store state before execution:', {
+        rawTranscripts: useTranscriptStore.getState().rawTranscripts,
+        processedData: Array.from(useTranscriptStore.getState().processedData.entries())
+      })
+      
       await usePipelineStore.getState().processSingleStep({
         stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
         transcriptIdToProcess: 't1',
@@ -83,6 +113,9 @@ describe('pipelineStore integration tests', () => {
           userDvFocus: { dv_focus: ['focus1'] }
         }
       })
+      
+      // Add a small delay to ensure all async updates complete
+      await new Promise(resolve => setTimeout(resolve, 200))
       
       // Verify API was called with correct parameters
       expect(callGeminiAPI).toHaveBeenCalledWith(
@@ -97,12 +130,20 @@ describe('pipelineStore integration tests', () => {
         1 // attempt
       )
       
+      // Wait for async updates
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       // Verify pipeline state was updated
       const pipelineState = usePipelineStore.getState()
-      expect(pipelineState.lastStepInfo).toEqual({
+      const orchestrationState = usePipelineOrchestrationStore.getState()
+      
+      expect(orchestrationState.currentStepInfo).toEqual({
         stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
         status: StepStatus.Success,
-        transcriptId: 't1'
+        transcriptId: 't1',
+        error: undefined,
+        inputData: undefined,
+        outputData: undefined
       })
       
       // Verify transcript data was updated
@@ -119,10 +160,8 @@ describe('pipelineStore integration tests', () => {
         estimatedInputTokens: 100,
         estimatedOutputTokens: 50
       })
-      expect(history.tokenStats).toEqual({
-        totalInputTokens: 100,
-        totalOutputTokens: 50
-      })
+      expect(history.totalInputTokens).toBe(100)
+      expect(history.totalOutputTokens).toBe(50)
     })
 
     test('should process global step successfully', async () => {
@@ -138,12 +177,22 @@ describe('pipelineStore integration tests', () => {
           ['t1', { 
             id: 't1', 
             filename: 'test1.txt',
-            p0_1_output: { hasCleanSpeakerLabels: true }
+            p0_1_output: { hasCleanSpeakerLabels: true },
+            p1_4_output: {
+              independent_variable_details: { var1: 'value1' },
+              dependent_variable_focus: ['dv1'],
+              specific_diachronic_structure: { phases: ['phase1'] }
+            }
           }],
           ['t2', { 
             id: 't2', 
             filename: 'test2.txt',
-            p0_1_output: { hasCleanSpeakerLabels: true }
+            p0_1_output: { hasCleanSpeakerLabels: true },
+            p1_4_output: {
+              independent_variable_details: { var2: 'value2' },
+              dependent_variable_focus: ['dv2'],
+              specific_diachronic_structure: { phases: ['phase2'] }
+            }
           }]
         ])
       })
@@ -156,15 +205,21 @@ describe('pipelineStore integration tests', () => {
         ]
       }
       
-      ;(callGeminiAPI as Mock).mockResolvedValueOnce({
-        parsedJson: mockOutput,
-        text: JSON.stringify(mockOutput),
-        error: undefined,
-        estimatedInputTokens: 200,
-        estimatedOutputTokens: 100
+      ;(callGeminiAPI as Mock).mockImplementationOnce(async () => {
+        console.log('[Mock] callGeminiAPI called for global step, returning:', mockOutput)
+        return {
+          parsedJson: mockOutput,
+          text: JSON.stringify(mockOutput),
+          error: undefined,
+          estimatedInputTokens: 200,
+          estimatedOutputTokens: 100
+        }
       })
       
       // Execute the global step
+      console.log('Executing global step P3_1_ALIGN_STRUCTURES')
+      console.log('Analysis state before:', useAnalysisResultStore.getState().genericAnalysisState)
+      
       await usePipelineStore.getState().processSingleStep({
         stepId: StepId.P3_1_ALIGN_STRUCTURES,
         settings: {
@@ -173,6 +228,9 @@ describe('pipelineStore integration tests', () => {
           userDvFocus: { dv_focus: ['focus1'] }
         }
       })
+      
+      // Wait for async updates
+      await new Promise(resolve => setTimeout(resolve, 200))
       
       // Verify global state was updated through analysisResultStore
       const analysisState = useAnalysisResultStore.getState().genericAnalysisState
@@ -190,6 +248,9 @@ describe('pipelineStore integration tests', () => {
     })
 
     test('should handle API errors properly', async () => {
+      // Clear any previous mocks
+      vi.clearAllMocks()
+      
       // Setup test data
       const transcript: RawTranscript = {
         id: 't1',
@@ -204,12 +265,15 @@ describe('pipelineStore integration tests', () => {
       })
       
       // Mock API error
-      ;(callGeminiAPI as Mock).mockResolvedValueOnce({
-        parsedJson: null,
-        text: '',
-        error: 'API rate limit exceeded',
-        estimatedInputTokens: 50,
-        estimatedOutputTokens: 0
+      ;(callGeminiAPI as Mock).mockImplementationOnce(async () => {
+        console.log('[Mock] callGeminiAPI called for error test, returning error')
+        return {
+          parsedJson: null,
+          text: '',
+          error: 'API rate limit exceeded',
+          estimatedInputTokens: 50,
+          estimatedOutputTokens: 0
+        }
       })
       
       // Execute the step
@@ -223,15 +287,20 @@ describe('pipelineStore integration tests', () => {
         }
       })
       
+      // Wait for async updates
+      await new Promise(resolve => setTimeout(resolve, 200))
+      
       // Verify error state
-      const pipelineState = usePipelineStore.getState()
-      expect(pipelineState.lastStepInfo).toEqual({
+      const orchestrationState = usePipelineOrchestrationStore.getState()
+      expect(orchestrationState.currentStepInfo).toEqual({
         stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
         status: StepStatus.Error,
         transcriptId: 't1',
-        error: 'API rate limit exceeded'
+        error: 'API rate limit exceeded',
+        inputData: undefined,
+        outputData: undefined
       })
-      expect(pipelineState.shouldStopAutorun).toBe(true)
+      expect(orchestrationState.shouldStopAutorun).toBe(true)
       
       // Verify transcript error was recorded
       const transcriptData = useTranscriptStore.getState().processedData.get('t1')
@@ -241,7 +310,7 @@ describe('pipelineStore integration tests', () => {
       // Verify prompt history still recorded the attempt
       const history = usePromptHistoryStore.getState()
       expect(history.promptHistory).toHaveLength(1)
-      expect(history.promptHistory[0].apiError).toBe('API rate limit exceeded')
+      expect(history.promptHistory[0].error).toBe('API rate limit exceeded')
     })
 
     test('should handle validation errors', async () => {
@@ -249,13 +318,17 @@ describe('pipelineStore integration tests', () => {
       await usePipelineStore.getState().processSingleStep({
         stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
         transcriptIdToProcess: 't1'
-        // Missing settings - should fail validation
+        // Missing settings - should use defaults which have empty API key
       })
       
-      // Verify error state
-      const pipelineState = usePipelineStore.getState()
-      expect(pipelineState.lastStepInfo.status).toBe(StepStatus.Error)
-      expect(pipelineState.lastStepInfo.error).toContain('settings')
+      // Wait for state updates
+      await new Promise(resolve => setTimeout(resolve, 50))
+      
+      // Verify error state in orchestration store
+      const orchestrationState = usePipelineOrchestrationStore.getState()
+      expect(orchestrationState.currentStepInfo.status).toBe(StepStatus.Error)
+      expect(orchestrationState.currentStepInfo.error).toContain('API key')
+      expect(orchestrationState.shouldStopAutorun).toBe(true)
     })
 
     test('should handle HIL (human-in-the-loop) prompts', async () => {
@@ -387,8 +460,8 @@ describe('pipelineStore integration tests', () => {
       
       // Capture state changes
       const stateChanges: any[] = []
-      const unsubPipeline = usePipelineStore.subscribe((state) => {
-        stateChanges.push({ type: 'pipeline', state: state.lastStepInfo })
+      const unsubOrchestration = usePipelineOrchestrationStore.subscribe((state) => {
+        stateChanges.push({ type: 'orchestration', state: state.currentStepInfo })
       })
       const unsubTranscript = useTranscriptStore.subscribe((state) => {
         stateChanges.push({ type: 'transcript', hasData: state.processedData.has('t1') })
@@ -408,13 +481,16 @@ describe('pipelineStore integration tests', () => {
         }
       })
       
+      // Wait for async updates
+      await new Promise(resolve => setTimeout(resolve, 200))
+      
       // Cleanup subscriptions
-      unsubPipeline()
+      unsubOrchestration()
       unsubTranscript()
       unsubPrompt()
       
       // Verify all stores were updated
-      expect(stateChanges.some(c => c.type === 'pipeline' && c.state.status === StepStatus.Success)).toBe(true)
+      expect(stateChanges.some(c => c.type === 'orchestration' && c.state.status === StepStatus.Success)).toBe(true)
       expect(stateChanges.some(c => c.type === 'transcript' && c.hasData)).toBe(true)
       expect(stateChanges.some(c => c.type === 'prompt' && c.count === 1)).toBe(true)
     })

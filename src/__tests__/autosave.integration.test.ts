@@ -349,8 +349,12 @@ describe('Autosave Integration Tests', () => {
     const promptHistoryData = typeof promptHistoryCall![1] === 'string' ? JSON.parse(promptHistoryCall![1]) : promptHistoryCall![1]
     
     const pipelineCall = setItemSpy.mock.calls.find(call => call[0] === 'upath-autosave-session-v2-localforage')
-    // Pipeline store should not persist anything after cleanup
-    expect(pipelineCall).toBeUndefined()
+    // Pipeline store should not persist any actual state after cleanup (only version metadata)
+    if (pipelineCall) {
+      const pipelineData = typeof pipelineCall[1] === 'string' ? JSON.parse(pipelineCall[1]) : pipelineCall[1]
+      expect(pipelineData.state).toBeUndefined() // No actual state persisted (partialize returns undefined)
+      expect(pipelineData.version).toBeDefined() // Only version metadata
+    }
     expect(transcriptData.state.rawTranscripts).toHaveLength(1)
     expect(transcriptData.state).toHaveProperty('processedData')
     

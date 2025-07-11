@@ -84,6 +84,70 @@ export interface StepOutput {
 }
 
 // ============================================================================
+// Store Interfaces (for dependency injection)
+// ============================================================================
+
+export type TranscriptStoreGetter = () => {
+  rawTranscripts: RawTranscript[]
+  processedData: Map<string, TranscriptProcessedData>
+}
+
+/**
+ * Store operations interface for PipelineOrchestrator dependency injection
+ * Provides all store access operations needed by the orchestrator
+ */
+export interface StoreOperations {
+  // Get current state
+  getTranscriptState: () => {
+    rawTranscripts: RawTranscript[]
+    processedData: Map<string, TranscriptProcessedData>
+  }
+  getAnalysisState: () => {
+    genericAnalysisState: GenericAnalysisState
+  }
+  
+  // Update operations
+  replaceProcessedData: (id: string, data: TranscriptProcessedData) => void
+  updateGenericState: (updates: Partial<GenericAnalysisState>) => void
+}
+
+/**
+ * Extended store operations for StoreTransactionService
+ * Includes all store operations needed for transactions
+ */
+export interface TransactionStoreOperations extends StoreOperations {
+  // Get prompt history state
+  getPromptHistoryState: () => {
+    promptHistory: PromptHistoryEntry[]
+    totalInputTokens: number
+    totalOutputTokens: number
+  }
+  
+  // Get orchestration state
+  getOrchestrationState: () => {
+    currentStepInfo: CurrentStepInfo
+    activeTranscriptIndex: number
+    isAutorunning: boolean
+    shouldStopAutorun: boolean
+    lastHilContext?: any
+    lastExecutionParams?: any
+  }
+  
+  // Reset operations
+  resetTranscripts: () => void
+  addTranscriptsSync: (transcripts: RawTranscript[]) => void
+  resetAnalysisState: () => void
+  resetPromptHistory: () => void
+  addPromptEntry: (entry: PromptHistoryEntry) => void
+  resetOrchestration: () => void
+  setCurrentStepInfo: (info: CurrentStepInfo) => void
+  setActiveTranscriptIndex: (index: number) => void
+  setAutorunning: (value: boolean) => void
+  setShouldStopAutorun: (value: boolean) => void
+  setHilContext: (context: any) => void
+}
+
+// ============================================================================
 // Service Interfaces
 // ============================================================================
 
@@ -270,4 +334,130 @@ export interface IPipelineNavigationService {
     },
     genericAnalysisState: any
   ): NavigationResult | null
+}
+
+// ============================================================================
+// Master Pipeline Service Interface
+// ============================================================================
+
+/**
+ * Comprehensive pipeline service that orchestrates all pipeline operations
+ */
+export interface IPipelineService {
+  // Pipeline execution
+  processSingleStep(params: StepExecutionParams): Promise<void>
+  
+  // Navigation
+  getNextStepDetails(
+    currentStepInfo: CurrentStepInfo,
+    activeTranscriptIndex: number
+  ): NavigationResult | null
+  
+  processNextStep(
+    currentStepInfo: CurrentStepInfo,
+    activeTranscriptIndex: number
+  ): ProcessNextStepResult | null
+  
+  // Invalidation
+  orchestrateInvalidation(
+    stepId: StepId,
+    transcriptId?: string,
+    phaseId?: string,
+    gduId?: string
+  ): void
+  
+  // State management
+  loadState(savedState: any): void
+  getSaveState(
+    activeTranscriptIndex: number,
+    currentStepInfo: CurrentStepInfo,
+    settings: any
+  ): any
+  resetPipeline(): void
+  resetPromptHistoryOnly(): void
+  clearAutosaveData(): Promise<void>
+  
+  // UI operations
+  getTranscriptStatusDisplay(transcriptId: string): string
+  loadStepData(
+    stepId: StepId,
+    transcriptId?: string,
+    phaseId?: string,
+    gduId?: string
+  ): { inputData?: any; outputData?: any; error?: string; groundingSources?: any[] }
+  getStepStatusForPipelineView(
+    stepId: StepId,
+    uiState?: { currentStepInfo: CurrentStepInfo; activeTranscriptIndex: number }
+  ): { status: StepStatus; error?: string }
+  handlePipelineStepClick(
+    stepId: StepId,
+    settings: SettingsData
+  ): {
+    stepId: StepId
+    transcriptId?: string
+    phaseId?: string
+    gduId?: string
+    status: StepStatus
+    error?: string
+  }
+  
+  // File operations
+  uploadTranscripts(event: React.ChangeEvent<HTMLInputElement>): Promise<void>
+  handleDroppedFiles(files: File[]): Promise<void>
+  saveStateToFile(state: any, filename: string): void
+  loadStateFromFile(file: File): Promise<any>
+  
+  // Export operations
+  downloadOutput(
+    stepIdToDownload?: StepId,
+    transcriptId?: string,
+    dataToDownload?: any,
+    currentStepInfo?: CurrentStepInfo,
+    outputDirectory?: string
+  ): void
+  downloadPromptHistory(
+    format: 'tsv' | 'json',
+    outputDirectory: string
+  ): void
+  generateAppendix(
+    type: 'markdown' | 'html',
+    outputDirectory: string
+  ): void
+  generateMarkdownReport(reportData: any, outputDirectory: string): void
+  exportVisualization(
+    mermaidSyntax: string,
+    filename: string,
+    format: 'svg' | 'mermaid'
+  ): void
+  
+  // Utility methods
+  isGlobalStep(stepId: StepId): boolean
+  retryWithUserSeed(
+    currentStepInfo: CurrentStepInfo,
+    retrySeedInput: string,
+    settings: SettingsData
+  ): void
+  
+  // UI state helper methods
+  getPreviousStepDetails(
+    currentStepInfo: CurrentStepInfo,
+    activeTranscriptIndex: number
+  ): { prevStepId: StepId; prevTranscriptIndex: number } | null
+  isPreviousStepDisabled(
+    currentStepInfo: CurrentStepInfo,
+    activeTranscriptIndex: number
+  ): boolean
+  isNextStepDisabled(
+    currentStepInfo: CurrentStepInfo,
+    activeTranscriptIndex: number
+  ): boolean
+  isRunStepDisabled(
+    currentStepInfo: CurrentStepInfo,
+    apiKeyPresent: boolean,
+    dvFocusError?: string
+  ): boolean
+  isHilModalDisabled(currentStepInfo: CurrentStepInfo): boolean
+  isDownloadOutputDisabled(currentStepInfo: CurrentStepInfo): boolean
+  isDownloadHistoryDisabled(): boolean
+  isAppendixDataAvailable(): boolean
 }

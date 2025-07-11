@@ -1,6 +1,13 @@
-import { RawTranscript, SavedState } from '../../../types'
+import { RawTranscript, SavedState, StepId, StepStatus, CurrentStepInfo } from '../../../types'
+
+export interface FileManagementDependencies {
+  addTranscripts?: (files: File[]) => Promise<void>
+  getCurrentStepInfo?: () => CurrentStepInfo
+  setCurrentStepInfo?: (info: CurrentStepInfo) => void
+}
 
 export class FileManagementService {
+  constructor(private dependencies: FileManagementDependencies = {}) {}
   async processFileContent(file: File): Promise<RawTranscript> {
     const text = await file.text()
     
@@ -80,10 +87,11 @@ export class FileManagementService {
     const validExtensions = ['.txt', '.md', '.csv', '.tsv']
     
     files.forEach(file => {
-      const isValidType = validTypes.includes(file.type) || file.type === ''
+      const isValidType = validTypes.includes(file.type)
       const hasValidExtension = validExtensions.some(ext => file.name.toLowerCase().endsWith(ext))
       
-      if (isValidType || hasValidExtension) {
+      // Accept if has valid type, or if type is empty/unknown but has valid extension
+      if (isValidType || (file.type === '' && hasValidExtension)) {
         valid.push(file)
       } else {
         invalid.push(file)
@@ -91,5 +99,73 @@ export class FileManagementService {
     })
     
     return { valid, invalid }
+  }
+  
+  /**
+   * Enhanced uploadTranscripts that handles file input events and updates pipeline state
+   */
+  async uploadTranscripts(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const files = Array.from(event.target.files || [])
+    if (files.length === 0) return
+    
+    try {
+      // Use dependencies to add transcripts
+      if (this.dependencies.addTranscripts) {
+        await this.dependencies.addTranscripts(files)
+      }
+      
+      // Reset file input
+      event.target.value = ''
+      
+      // Signal ready state if we're idle
+      const currentStepInfo = this.dependencies.getCurrentStepInfo?.() || { stepId: StepId.IDLE, status: 'idle' }
+      if (currentStepInfo.stepId === StepId.IDLE && this.dependencies.setCurrentStepInfo) {
+        this.dependencies.setCurrentStepInfo({
+          stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
+          status: StepStatus.Idle
+        })
+      }
+    } catch (error) {
+      console.error('Failed to upload transcripts:', error)
+      if (typeof window !== 'undefined') {
+        alert('Failed to upload transcripts. Please try again.')
+      }
+      throw error
+    }
+  }
+  
+  /**
+   * Enhanced handleDroppedFiles that handles drag-and-drop file uploads
+   */
+  async handleDroppedFiles(files: File[]): Promise<void> {
+    console.log('🗂️ handleDroppedFiles called with', files.length, 'files')
+    if (files.length === 0) return
+    
+    try {
+      console.log('📤 Calling addTranscripts...')
+      // Use dependencies to add transcripts
+      if (this.dependencies.addTranscripts) {
+        await this.dependencies.addTranscripts(files)
+        console.log('✅ addTranscripts completed successfully')
+      }
+      
+      // Signal ready state if we're idle
+      const currentStepInfo = this.dependencies.getCurrentStepInfo?.() || { stepId: StepId.IDLE, status: 'idle' }
+      if (currentStepInfo.stepId === StepId.IDLE && this.dependencies.setCurrentStepInfo) {
+        this.dependencies.setCurrentStepInfo({
+          stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
+          status: StepStatus.Idle
+        })
+      }
+    } catch (error) {
+      console.error('❌ Error in handleDroppedFiles:', error)
+      if (error instanceof Error) {
+        console.error('❌ Error stack:', error.stack)
+      }
+      if (typeof window !== 'undefined') {
+        alert('Failed to upload files. Please try again.')
+      }
+      throw error
+    }
   }
 }

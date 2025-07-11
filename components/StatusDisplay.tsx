@@ -1,8 +1,9 @@
 import React from 'react';
 import { StepId, StepStatus } from '../types';
-import { STEP_CONFIGS, CheckCircleIcon, getStepDisplayName } from '../constants';
+import { CheckCircleIcon, getStepDisplayName } from '../constants';
 import { useUIStore } from '../src/stores/uiStore';
-import { usePipelineStore } from '../src/stores/pipelineStore';
+import { useTranscriptStore } from '../src/stores/transcriptStore';
+import { usePromptHistoryStore } from '../src/stores/promptHistoryStore';
 import { formatElapsedTime } from '../src/utils/timeHelper';
 
 // No props needed - component gets all data from stores
@@ -14,9 +15,10 @@ const StatusDisplay: React.FC<StatusDisplayProps> = () => {
   const processStartTime = useUIStore(state => state.processStartTime);
   const elapsedTime = useUIStore(state => state.elapsedTime);
   
-  const processedData = usePipelineStore(state => state.processedData);
-  const totalInputTokens = usePipelineStore(state => state.totalInputTokens);
-  const totalOutputTokens = usePipelineStore(state => state.totalOutputTokens);
+  // Use specific stores instead of pipelineStore
+  const processedData = useTranscriptStore(state => state.processedData);
+  const totalInputTokens = usePromptHistoryStore(state => state.totalInputTokens);
+  const totalOutputTokens = usePromptHistoryStore(state => state.totalOutputTokens);
   
   // Get filename if transcript-specific step
   const filename = currentStepInfo.transcriptId 

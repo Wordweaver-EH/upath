@@ -51,7 +51,31 @@ export class StepErrorHandlingService implements IStepErrorHandlingService {
     }))
 
     // Set specific step error fields based on step type
-    if (stepId === StepId.P1_1_INITIAL_SEGMENTATION) {
+    if (stepId === StepId.P0_1_TRANSCRIPTION_ADHERENCE) {
+      setStoreState(state => {
+        const tData = state.processedData.get(transcriptIdToProcess!)
+        if (tData) {
+          const updated = { ...tData, p0_1_error: apiError }
+          state.processedData.set(transcriptIdToProcess!, updated)
+        }
+      })
+    } else if (stepId === StepId.P0_2_ILP_DETECTION) {
+      setStoreState(state => {
+        const tData = state.processedData.get(transcriptIdToProcess!)
+        if (tData) {
+          const updated = { ...tData, p0_2_error: apiError }
+          state.processedData.set(transcriptIdToProcess!, updated)
+        }
+      })
+    } else if (stepId === StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES) {
+      setStoreState(state => {
+        const tData = state.processedData.get(transcriptIdToProcess!)
+        if (tData) {
+          const updated = { ...tData, p0_3_error: apiError }
+          state.processedData.set(transcriptIdToProcess!, updated)
+        }
+      })
+    } else if (stepId === StepId.P1_1_INITIAL_SEGMENTATION) {
       setStoreState(state => {
         const tData = state.processedData.get(transcriptIdToProcess!)
         if (tData) {
@@ -59,7 +83,7 @@ export class StepErrorHandlingService implements IStepErrorHandlingService {
           state.processedData.set(transcriptIdToProcess!, updated)
         }
       })
-    } else if (stepId === StepId.P1_2_TOKEN_IDENTIFICATION) {
+    } else if (stepId === StepId.P1_2_DIACHRONIC_UNIT_ID) {
       setStoreState(state => {
         const tData = state.processedData.get(transcriptIdToProcess!)
         if (tData) {
@@ -67,7 +91,7 @@ export class StepErrorHandlingService implements IStepErrorHandlingService {
           state.processedData.set(transcriptIdToProcess!, updated)
         }
       })
-    } else if (stepId === StepId.P1_3_SYNTACTIC_ANALYSIS) {
+    } else if (stepId === StepId.P1_3_REFINE_DIACHRONIC_UNITS) {
       setStoreState(state => {
         const tData = state.processedData.get(transcriptIdToProcess!)
         if (tData) {
@@ -75,7 +99,7 @@ export class StepErrorHandlingService implements IStepErrorHandlingService {
           state.processedData.set(transcriptIdToProcess!, updated)
         }
       })
-    } else if (stepId === StepId.P1_4_SEMANTIC_ANALYSIS) {
+    } else if (stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
       setStoreState(state => {
         const tData = state.processedData.get(transcriptIdToProcess!)
         if (tData) {
@@ -99,15 +123,15 @@ export class StepErrorHandlingService implements IStepErrorHandlingService {
           state.processedData.set(transcriptIdToProcess!, updated)
         }
       })
-    } else if (stepId === StepId.P3_1_IDENTIFY_GENERIC_DIACHRONIC_UNITS) {
+    } else if (stepId === StepId.P3_1_ALIGN_STRUCTURES) {
       setStoreState(state => {
         state.genericAnalysisState.p3_1_error = apiError
       })
-    } else if (stepId === StepId.P3_2_ASSIGN_RDUS_TO_GDUS) {
+    } else if (stepId === StepId.P3_2_IDENTIFY_GDUS) {
       setStoreState(state => {
         state.genericAnalysisState.p3_2_error = apiError
       })
-    } else if (stepId === StepId.P3_3_MERMAID_VISUALIZATION) {
+    } else if (stepId === StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE) {
       setStoreState(state => {
         state.genericAnalysisState.p3_3_error = apiError
       })
@@ -119,35 +143,39 @@ export class StepErrorHandlingService implements IStepErrorHandlingService {
       setStoreState(state => {
         state.genericAnalysisState.p4s_1_b_error = apiError
       })
-    } else if (stepId === StepId.P5_1_REFINEMENT_AND_ANALYSIS) {
+    } else if (stepId === StepId.P5_1_IV_COMPARATIVE_ANALYSIS) {
       setStoreState(state => {
         state.genericAnalysisState.p5_1_error = apiError
+      })
+    } else if (stepId === StepId.P5_2_HOLISTIC_REFINEMENT) {
+      setStoreState(state => {
+        state.genericAnalysisState.p5_2_error = apiError
       })
     } else if (stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT) {
       setStoreState(state => {
         state.genericAnalysisState.p6_1_error = apiError
       })
-    } else if (stepId === StepId.P7_1_IDENTIFY_CAUSAL_VARIABLES) {
+    } else if (stepId === StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION) {
       setStoreState(state => {
         state.genericAnalysisState.p7_1_error = apiError
       })
-    } else if (stepId === StepId.P7_2_IDENTIFY_CAUSAL_RELATIONSHIPS) {
+    } else if (stepId === StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS) {
       setStoreState(state => {
         state.genericAnalysisState.p7_2_error = apiError
       })
-    } else if (stepId === StepId.P7_3_CAUSAL_NETWORK_ANALYSIS) {
+    } else if (stepId === StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS) {
       setStoreState(state => {
         state.genericAnalysisState.p7_3_error = apiError
       })
-    } else if (stepId === StepId.P7_3B_CAUSAL_NETWORK_ANALYSIS_ALTERNATE) {
+    } else if (stepId === StepId.P7_3B_VALIDATE_AND_CLEAN_DAG) {
       setStoreState(state => {
         state.genericAnalysisState.p7_3b_error = apiError
       })
-    } else if (stepId === StepId.P7_4_IDENTIFY_FEEDBACK_LOOPS) {
+    } else if (stepId === StepId.P7_4_ANALYZE_PATHS_AND_BIASES) {
       setStoreState(state => {
         state.genericAnalysisState.p7_4_error = apiError
       })
-    } else if (stepId === StepId.P7_5_EMERGENT_PROPERTIES) {
+    } else if (stepId === StepId.P7_5_GENERATE_FORMAL_HYPOTHESES) {
       setStoreState(state => {
         state.genericAnalysisState.p7_5_error = apiError
       })

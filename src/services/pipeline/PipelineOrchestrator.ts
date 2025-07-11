@@ -1,4 +1,4 @@
-import { useAnalysisResultStore } from '../../stores/analysisResultStore'
+import { stepIdToDataKeyPrefix } from '../../utils/stepIdToDataKeyPrefix'
 import { 
   IPipelineOrchestrator,
   IStepParameterValidationService,
@@ -9,9 +9,11 @@ import {
   IStepErrorHandlingService,
   IStepSuccessHandlingService,
   StepExecutionParams,
-  PromptHistoryEntry
+  PromptHistoryEntry,
+  StoreOperations
 } from './types'
 import { StepStatus } from '../../../types'
+import { StoreTransactionService } from './StoreTransactionService'
 
 /**
  * Orchestrates the execution of pipeline steps by coordinating all services
@@ -25,6 +27,8 @@ import { StepStatus } from '../../../types'
  * @implements IPipelineOrchestrator
  */
 export class PipelineOrchestrator implements IPipelineOrchestrator {
+  private transactionService: StoreTransactionService
+
   constructor(
     private validationService: IStepParameterValidationService,
     private contextService: IStepContextPreparationService,
@@ -34,8 +38,12 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
     private errorService: IStepErrorHandlingService,
     private successService: IStepSuccessHandlingService,
     private updateStores: (updates: any) => void,
-    private addPromptEntry: (entry: PromptHistoryEntry) => void
-  ) {}
+    private addPromptEntry: (entry: PromptHistoryEntry) => void,
+    private storeOperations: StoreOperations,
+    transactionService?: StoreTransactionService
+  ) {
+    this.transactionService = transactionService || new StoreTransactionService()
+  }
 
   /**
    * Main orchestration method that coordinates all services to execute a single pipeline step
@@ -73,12 +81,13 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
       })
 
       // Step 2: Prepare execution context
-      // Get store state from transcriptData if provided, otherwise empty state
-      const analysisStore = useAnalysisResultStore.getState()
+      // Get store state using injected operations
+      const transcriptState = this.storeOperations.getTranscriptState()
+      const analysisState = this.storeOperations.getAnalysisState()
       const storeState = {
-        rawTranscripts: params.transcriptData?.rawTranscripts || [],
-        processedData: params.transcriptData?.processedData || new Map(),
-        genericAnalysisState: analysisStore.genericAnalysisState || {}
+        rawTranscripts: transcriptState.rawTranscripts,
+        processedData: transcriptState.processedData,
+        genericAnalysisState: analysisState.genericAnalysisState || {}
       }
 
       const contextResult = this.contextService.prepareContext(
@@ -130,17 +139,40 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
 
       if (!executionResult.success || !executionResult.data) {
         const error = executionResult.error || 'Execution failed'
-        this.errorService.handleError({
-          stepId,
-          transcriptIdToProcess,
-          apiError: error,
-          storeState,
-          setStoreState: () => {} // TODO: Implement proper state update
-        })
-        this.updateStores({
-          stepId,
-          status: StepStatus.Error,
-          error
+        
+        // Use transaction for atomic error handling
+        await this.transactionService.executeInTransaction(async (txContext) => {
+          this.errorService.handleError({
+            stepId,
+            transcriptIdToProcess,
+            apiError: error,
+            storeState,
+            setStoreState: (updater) => {
+              // Update transcript store for transcript-specific steps
+              if (transcriptIdToProcess) {
+                const transcriptState = this.storeOperations.getTranscriptState()
+                const processedData = new Map(transcriptState.processedData)
+                const tData = processedData.get(transcriptIdToProcess)
+                if (tData) {
+                  const updated = { ...tData }
+                  // Call the updater function with a mock state that captures changes
+                  const mockState = { processedData }
+                  updater(mockState)
+                  // Apply changes back to the store
+                  this.storeOperations.replaceProcessedData(transcriptIdToProcess, processedData.get(transcriptIdToProcess)!)
+                }
+              }
+            }
+          })
+          this.updateStores({
+            stepId,
+            status: StepStatus.Error,
+            error,
+            transcriptId: transcriptIdToProcess
+          })
+          
+          // Record mutations for debugging
+          this.transactionService.recordMutation(txContext, 'transcript', 'handleError', [stepId, transcriptIdToProcess])
         })
         return
       }
@@ -155,24 +187,7 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
         groundingSources: output.groundingSources
       })
 
-      // Step 5: Check for API errors in output
-      if (output.apiError) {
-        this.errorService.handleError({
-          stepId,
-          transcriptIdToProcess,
-          apiError: output.apiError,
-          storeState,
-          setStoreState: () => {} // TODO: Implement proper state update
-        })
-        this.updateStores({
-          stepId,
-          status: StepStatus.Error,
-          error: output.apiError
-        })
-        return
-      }
-
-      // Step 6: Create and store prompt history entry
+      // Step 5: Create and store prompt history entry (regardless of error)
       const historyEntry = this.historyService.createHistoryEntry(
         stepId,
         transcriptIdToProcess,
@@ -181,24 +196,124 @@ export class PipelineOrchestrator implements IPipelineOrchestrator {
       )
       this.addPromptEntry(historyEntry)
 
-      // Step 7: Handle success
-      this.successService.handleSuccess({
-        stepId,
-        transcriptIdToProcess,
-        output: output.output,
-        inputData: input.data,
-        groundingSources: output.groundingSources,
-        currentGDU: context.currentGDU,
-        currentPhase: context.currentPhase,
-        storeState,
-        setStoreState: () => {} // TODO: Implement proper state update
-      })
+      // Step 6: Check for API errors in output
+      if (output.apiError) {
+        // Use transaction for atomic error handling
+        await this.transactionService.executeInTransaction(async (txContext) => {
+          this.errorService.handleError({
+            stepId,
+            transcriptIdToProcess,
+            apiError: output.apiError,
+            storeState,
+            setStoreState: (updater) => {
+              // Update transcript store for transcript-specific steps
+              if (transcriptIdToProcess) {
+                const transcriptState = this.storeOperations.getTranscriptState()
+                const tData = transcriptState.processedData.get(transcriptIdToProcess)
+                if (tData) {
+                  const keyPrefix = stepIdToDataKeyPrefix[stepId]
+                  const outputKey = keyPrefix || `${stepId.toLowerCase()}_output`
+                  const errorKey = keyPrefix ? keyPrefix.replace('_output', '_error') : `${stepId.toLowerCase()}_error`
+                  
+                  const updated = {
+                    ...tData,
+                    [outputKey]: undefined,
+                    [errorKey]: output.apiError
+                  }
+                  
+                  this.storeOperations.replaceProcessedData(transcriptIdToProcess, updated)
+                }
+              } else {
+                // Handle global step errors
+                const keyPrefix = stepIdToDataKeyPrefix[stepId]
+                const outputKey = keyPrefix || `${stepId.toLowerCase()}_output`
+                const errorKey = keyPrefix ? keyPrefix.replace('_output', '_error') : `${stepId.toLowerCase()}_error`
+                
+                this.storeOperations.updateGenericState({
+                  [outputKey]: undefined,
+                  [errorKey]: output.apiError
+                })
+              }
+            }
+          })
+          this.updateStores({
+            stepId,
+            status: StepStatus.Error,
+            error: output.apiError,
+            transcriptId: transcriptIdToProcess
+          })
+          
+          // Record mutations for debugging
+          this.transactionService.recordMutation(txContext, 'transcript', 'handleApiError', [stepId, output.apiError])
+        })
+        return
+      }
 
-      // Final update
-      this.updateStores({
-        stepId,
-        status: StepStatus.Success,
-        transcriptId: transcriptIdToProcess
+      // Step 7: Handle success - use transaction for atomic updates
+      await this.transactionService.executeInTransaction(async (txContext) => {
+        this.successService.handleSuccess({
+          stepId,
+          transcriptIdToProcess,
+          output: output.output,
+          inputData: input.data,
+          groundingSources: output.groundingSources,
+          currentGDU: context.currentGDU,
+          currentPhase: context.currentPhase,
+          storeState,
+          setStoreState: (updater) => {
+            // Handle transcript-specific updates
+            if (transcriptIdToProcess) {
+              const transcriptState = this.storeOperations.getTranscriptState()
+              const tData = transcriptState.processedData.get(transcriptIdToProcess)
+              if (tData) {
+                // Get the correct key from the mapping
+                const keyPrefix = stepIdToDataKeyPrefix[stepId]
+                const outputKey = keyPrefix || `${stepId.toLowerCase()}_output`
+                const errorKey = keyPrefix ? keyPrefix.replace('_output', '_error') : `${stepId.toLowerCase()}_error`
+                
+                // Update the transcript data
+                const updated = {
+                  ...tData,
+                  [outputKey]: output.output,
+                  [errorKey]: undefined
+                }
+                
+                console.log(`[Orchestrator] Updating transcript data:`, {
+                  transcriptId: transcriptIdToProcess,
+                  outputKey,
+                  output: output.output
+                })
+                
+                this.storeOperations.replaceProcessedData(transcriptIdToProcess, updated)
+              }
+            } else {
+              // Handle global step updates
+              const keyPrefix = stepIdToDataKeyPrefix[stepId]
+              const outputKey = keyPrefix || `${stepId.toLowerCase()}_output`
+              const errorKey = keyPrefix ? keyPrefix.replace('_output', '_error') : `${stepId.toLowerCase()}_error`
+              
+              this.storeOperations.updateGenericState({
+                [outputKey]: output.output,
+                [errorKey]: undefined
+              })
+            }
+          }
+        })
+
+        // Final update
+        this.updateStores({
+          stepId,
+          status: StepStatus.Success,
+          transcriptId: transcriptIdToProcess
+        })
+        
+        // Record mutations for debugging
+        this.transactionService.recordMutation(txContext, 'transcript', 'handleSuccess', [stepId, transcriptIdToProcess])
+        if (transcriptIdToProcess) {
+          this.transactionService.recordMutation(txContext, 'transcript', 'updateProcessedData', [transcriptIdToProcess])
+        } else {
+          this.transactionService.recordMutation(txContext, 'analysisResult', 'updateGenericState', [stepId])
+        }
       })
 
     } catch (error) {

@@ -125,5 +125,51 @@ describe('StepParameterValidationService', () => {
       expect(result.success).toBe(true)
       expect(result.data?.isValid).toBe(true)
     })
+
+    it('should validate transcript existence when store is provided', () => {
+      const mockStore = {
+        rawTranscripts: [{ id: 'existing-transcript', name: 'test.txt', content: 'test', uploadedAt: Date.now() }],
+        processedData: new Map()
+      }
+      const serviceWithStore = new StepParameterValidationService(() => mockStore)
+
+      const params: StepExecutionParams = {
+        stepId: StepId.P1_1_INITIAL_SEGMENTATION,
+        transcriptIdToProcess: 'non-existent-transcript',
+        settings: {
+          apiKey: 'test-key',
+          temperature: 0.7,
+          userDvFocus: { dv_focus: ['test'] }
+        }
+      }
+
+      const result = serviceWithStore.validate(params)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toBe('Transcript not found: non-existent-transcript')
+    })
+
+    it('should pass validation when transcript exists', () => {
+      const mockStore = {
+        rawTranscripts: [{ id: 'existing-transcript', name: 'test.txt', content: 'test', uploadedAt: Date.now() }],
+        processedData: new Map()
+      }
+      const serviceWithStore = new StepParameterValidationService(() => mockStore)
+
+      const params: StepExecutionParams = {
+        stepId: StepId.P1_1_INITIAL_SEGMENTATION,
+        transcriptIdToProcess: 'existing-transcript',
+        settings: {
+          apiKey: 'test-key',
+          temperature: 0.7,
+          userDvFocus: { dv_focus: ['test'] }
+        }
+      }
+
+      const result = serviceWithStore.validate(params)
+
+      expect(result.success).toBe(true)
+      expect(result.data?.isValid).toBe(true)
+    })
   })
 })

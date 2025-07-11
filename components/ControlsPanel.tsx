@@ -1,9 +1,9 @@
 
 import React from 'react';
-import { StepId, StepStatus } from '../types';
 import { PlayIcon, PauseIcon, NextIcon, PreviousIcon, RetryIcon, LightbulbIcon, DownloadIcon, AppendixIcon, ChevronDownIcon } from '../constants';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
+import { useTranscriptStore } from '../src/stores/transcriptStore';
 import { useSettingsStore } from '../src/stores/settingsStore';
 import { useIRRStore } from '../src/stores/irrStore';
 import { Button, Input } from '../src/components/ui';
@@ -30,12 +30,12 @@ const ControlsPanel: React.FC = () => {
   const dvFocusError = useSettingsStore(state => state.dvFocusError);
   const outputDirectory = useSettingsStore(state => state.outputDirectory);
   
-  // Pipeline Store
-  const rawTranscripts = usePipelineStore(state => state.rawTranscripts);
+  // Transcript Store
+  const rawTranscripts = useTranscriptStore(state => state.rawTranscripts);
   
   // Use selector from UI store for autorun disabled state
   const selectIsAutorunDisabled = useUIStore(state => state.selectIsAutorunDisabled);
-  const isAutorunDisabled = selectIsAutorunDisabled(apiKeyPresent, dvFocusError, rawTranscripts.length);
+  const isAutorunDisabled = selectIsAutorunDisabled(apiKeyPresent, dvFocusError || '', rawTranscripts.length);
   const previousStep = useUIStore(state => state.previousStep);
   const nextStep = useUIStore(state => state.nextStep);
   const openHilModalWithContext = useUIStore(state => state.openHilModalWithContext);
@@ -132,7 +132,7 @@ const ControlsPanel: React.FC = () => {
                       placeholder="Enter new seed"
                   />
                   <Button
-                      onClick={retryWithUserSeed}
+                      onClick={() => retryWithUserSeed(currentStepInfo, retrySeedInput)}
                       variant="primary"
                   >
                       Retry

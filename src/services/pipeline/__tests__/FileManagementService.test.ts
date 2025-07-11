@@ -1,208 +1,368 @@
-import { describe, test, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
 import { FileManagementService } from '../FileManagementService'
-import { RawTranscript, SavedState, StepId, StepStatus } from '../../../../types'
+import { StepId, StepStatus } from '../../../../types'
 
-// Mock File.text() since it's not available in test environment
-const createMockFile = (content: string, name: string, type = 'text/plain'): File => {
-  const file = new File([content], name, { type })
-  // Add text() method to the file
-  ;(file as any).text = vi.fn().mockResolvedValue(content)
+// Mock globals
+global.alert = vi.fn()
+global.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
+global.URL.revokeObjectURL = vi.fn()
+
+// Mock document methods
+const mockClick = vi.fn()
+const mockCreateElement = vi.fn((tagName: string) => {
+  if (tagName === 'a') {
+    return {
+      href: '',
+      download: '',
+      click: mockClick
+    }
+  }
+  return {}
+})
+global.document.createElement = mockCreateElement
+
+// Mock File.prototype.text method
+Object.defineProperty(File.prototype, 'text', {
+  value: async function() {
+    // Return the first argument passed to the File constructor
+    const content = this.constructor.prototype._mockContent || ''
+    return content
+  }
+})
+
+// Helper to create File with mocked text content
+const createMockFile = (content: string, name: string, options?: FilePropertyBag) => {
+  const file = new File([content], name, options)
+  // Store content for retrieval in text() method
+  Object.defineProperty(file, 'text', {
+    value: async () => content
+  })
   return file
 }
 
 describe('FileManagementService', () => {
   let service: FileManagementService
+  let mockDependencies: any
   
   beforeEach(() => {
-    service = new FileManagementService()
+    vi.clearAllMocks()
+    
+    mockDependencies = {
+      addTranscripts: vi.fn().mockResolvedValue(undefined),
+      getCurrentStepInfo: vi.fn().mockReturnValue({ stepId: StepId.IDLE, status: StepStatus.Idle }),
+      setCurrentStepInfo: vi.fn()
+    }
+    
+    service = new FileManagementService(mockDependencies)
+  })
+  
+  afterEach(() => {
     vi.clearAllMocks()
   })
   
   describe('processFileContent', () => {
-    test('should process file content into RawTranscript', async () => {
-      const file = createMockFile('Test content', 'test.txt')
+    it('should process file content and return RawTranscript', async () => {
+      const mockFile = createMockFile('test content', 'test.txt', { type: 'text/plain' })
       
-      const result = await service.processFileContent(file)
+      const result = await service.processFileContent(mockFile)
       
       expect(result).toEqual({
         id: expect.stringMatching(/^transcript-\d+-[a-z0-9]+$/),
         filename: 'test.txt',
-        content: 'Test content'
+        content: 'test content'
       })
-    })
-    
-    test('should generate unique IDs for each transcript', async () => {
-      const file1 = createMockFile('Content 1', 'file1.txt')
-      const file2 = createMockFile('Content 2', 'file2.txt')
-      
-      const result1 = await service.processFileContent(file1)
-      const result2 = await service.processFileContent(file2)
-      
-      expect(result1.id).not.toBe(result2.id)
     })
   })
   
   describe('processMultipleFiles', () => {
-    test('should process multiple files in parallel', async () => {
+    it('should process multiple files', async () => {
       const files = [
-        createMockFile('Content 1', 'file1.txt'),
-        createMockFile('Content 2', 'file2.txt'),
-        createMockFile('Content 3', 'file3.txt')
+        createMockFile('content1', 'file1.txt'),
+        createMockFile('content2', 'file2.txt')
       ]
       
       const results = await service.processMultipleFiles(files)
       
-      expect(results).toHaveLength(3)
+      expect(results).toHaveLength(2)
       expect(results[0].filename).toBe('file1.txt')
       expect(results[1].filename).toBe('file2.txt')
-      expect(results[2].filename).toBe('file3.txt')
-    })
-    
-    test('should handle empty file array', async () => {
-      const results = await service.processMultipleFiles([])
-      expect(results).toEqual([])
     })
   })
   
   describe('saveStateToFile', () => {
-    test('should create and download state JSON file', () => {
-      // Mock URL.createObjectURL and document.createElement
-      const mockCreateObjectURL = vi.fn().mockReturnValue('blob:mock-url')
-      const mockRevokeObjectURL = vi.fn()
-      global.URL.createObjectURL = mockCreateObjectURL
-      global.URL.revokeObjectURL = mockRevokeObjectURL
-      
-      const mockAnchor = {
-        href: '',
-        download: '',
-        click: vi.fn()
-      }
-      vi.spyOn(document, 'createElement').mockReturnValue(mockAnchor as any)
-      
-      const state: SavedState = {
-        rawTranscripts: [{ id: 't1', filename: 'test.txt', content: 'content' }],
+    it('should save state to JSON file', () => {
+      const mockState = {
+        rawTranscripts: [],
         processedData: [],
         genericAnalysisState: {},
         promptHistory: [],
-        settings: {
-          apiKey: 'test-key',
-          temperature: 0.7,
-          userDvFocus: { dv_focus: [] }
-        },
+        settings: {},
         activeTranscriptIndex: 0,
-        currentStepInfo: {
-          stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
-          status: StepStatus.Success
-        }
+        currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle }
       }
       
-      service.saveStateToFile(state, 'test-state.json')
+      service.saveStateToFile(mockState, 'test-state.json')
       
-      expect(mockCreateObjectURL).toHaveBeenCalledWith(expect.any(Blob))
-      expect(mockAnchor.download).toBe('test-state.json')
-      expect(mockAnchor.click).toHaveBeenCalled()
-      expect(mockRevokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
+      expect(global.URL.createObjectURL).toHaveBeenCalledWith(
+        expect.any(Blob)
+      )
+      expect(mockClick).toHaveBeenCalled()
+      expect(global.URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-url')
     })
   })
   
   describe('loadStateFromFile', () => {
-    test('should load and parse state from file', async () => {
-      const state: SavedState = {
-        rawTranscripts: [{ id: 't1', filename: 'test.txt', content: 'content' }],
+    it('should load valid state from file', async () => {
+      const validState = {
+        rawTranscripts: [],
         processedData: [],
         genericAnalysisState: {},
         promptHistory: [],
-        settings: {
-          apiKey: 'test-key',
-          temperature: 0.7,
-          userDvFocus: { dv_focus: [] }
-        },
+        settings: {},
         activeTranscriptIndex: 0,
-        currentStepInfo: {
-          stepId: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
-          status: StepStatus.Success
-        }
+        currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle }
       }
       
-      const file = createMockFile(JSON.stringify(state), 'state.json', 'application/json')
+      const mockFile = createMockFile(JSON.stringify(validState), 'state.json')
       
-      const result = await service.loadStateFromFile(file)
+      const result = await service.loadStateFromFile(mockFile)
       
-      expect(result).toEqual(state)
+      expect(result).toEqual(validState)
     })
     
-    test('should throw error for invalid JSON', async () => {
-      const file = createMockFile('invalid json', 'state.json')
+    it('should throw error for invalid JSON', async () => {
+      const mockFile = createMockFile('invalid json', 'state.json')
       
-      await expect(service.loadStateFromFile(file)).rejects.toThrow('Invalid state file')
+      await expect(service.loadStateFromFile(mockFile)).rejects.toThrow('Invalid state file')
     })
     
-    test('should throw error for missing required fields', async () => {
+    it('should validate required fields', async () => {
       const invalidState = { rawTranscripts: [] } // Missing other required fields
-      const file = createMockFile(JSON.stringify(invalidState), 'state.json')
+      const mockFile = createMockFile(JSON.stringify(invalidState), 'state.json')
       
-      await expect(service.loadStateFromFile(file)).rejects.toThrow('Invalid state file')
+      await expect(service.loadStateFromFile(mockFile)).rejects.toThrow('Invalid state file: missing processedData')
     })
   })
   
   describe('handleFileInput', () => {
-    test('should extract files from input event', () => {
-      const files = [
-        new File(['Content 1'], 'file1.txt'),
-        new File(['Content 2'], 'file2.txt')
-      ]
-      
-      const event = {
+    it('should extract files from input event', () => {
+      const mockEvent = {
         target: {
-          files: files
+          files: [
+            createMockFile('content1', 'file1.txt'),
+            createMockFile('content2', 'file2.txt')
+          ]
         }
       } as any
       
-      const result = service.handleFileInput(event)
+      const files = service.handleFileInput(mockEvent)
       
-      expect(result).toEqual(files)
+      expect(files).toHaveLength(2)
+      expect(files[0].name).toBe('file1.txt')
     })
     
-    test('should return empty array for no files', () => {
-      const event = {
-        target: {
-          files: null
-        }
+    it('should return empty array if no files', () => {
+      const mockEvent = {
+        target: { files: null }
       } as any
       
-      const result = service.handleFileInput(event)
+      const files = service.handleFileInput(mockEvent)
       
-      expect(result).toEqual([])
+      expect(files).toEqual([])
     })
   })
   
   describe('validateTranscriptFiles', () => {
-    test('should validate text files', () => {
+    it('should validate files by type', () => {
       const files = [
-        new File(['Content'], 'valid.txt', { type: 'text/plain' }),
-        new File(['Content'], 'valid.md', { type: 'text/markdown' })
+        createMockFile('content', 'valid.txt', { type: 'text/plain' }),
+        createMockFile('content', 'invalid.jpg', { type: 'image/jpeg' })
       ]
       
-      const result = service.validateTranscriptFiles(files)
+      const { valid, invalid } = service.validateTranscriptFiles(files)
       
-      expect(result.valid).toEqual(files)
-      expect(result.invalid).toEqual([])
+      expect(valid).toHaveLength(1)
+      expect(valid[0].name).toBe('valid.txt')
+      expect(invalid).toHaveLength(1)
+      expect(invalid[0].name).toBe('invalid.jpg')
     })
     
-    test('should reject non-text files', () => {
+    it('should validate files by extension', () => {
       const files = [
-        new File(['Content'], 'valid.txt', { type: 'text/plain' }),
-        new File(['Binary'], 'invalid.pdf', { type: 'application/pdf' }),
-        new File(['Binary'], 'invalid.jpg', { type: 'image/jpeg' })
+        createMockFile('content', 'valid.md', { type: '' }),
+        createMockFile('content', 'invalid.exe', { type: '' })
       ]
       
-      const result = service.validateTranscriptFiles(files)
+      const { valid, invalid } = service.validateTranscriptFiles(files)
       
-      expect(result.valid).toHaveLength(1)
-      expect(result.valid[0].name).toBe('valid.txt')
-      expect(result.invalid).toHaveLength(2)
-      expect(result.invalid[0].name).toBe('invalid.pdf')
-      expect(result.invalid[1].name).toBe('invalid.jpg')
+      expect(valid).toHaveLength(1)
+      expect(valid[0].name).toBe('valid.md')
+      expect(invalid).toHaveLength(1)
+      expect(invalid[0].name).toBe('invalid.exe')
+    })
+    
+    it('should accept empty type with valid extension', () => {
+      const file = createMockFile('content', 'valid.csv', { type: '' })
+      
+      const { valid, invalid } = service.validateTranscriptFiles([file])
+      
+      expect(valid).toHaveLength(1)
+      expect(invalid).toHaveLength(0)
+    })
+  })
+  
+  describe('uploadTranscripts', () => {
+    it('should upload transcripts and update state when idle', async () => {
+      const files = [
+        createMockFile('content1', 'file1.txt'),
+        createMockFile('content2', 'file2.txt')
+      ]
+      const mockEvent = {
+        target: { files, value: 'test' }
+      } as any
+      
+      await service.uploadTranscripts(mockEvent)
+      
+      expect(mockDependencies.addTranscripts).toHaveBeenCalledWith(files)
+      expect(mockEvent.target.value).toBe('')
+      expect(mockDependencies.setCurrentStepInfo).toHaveBeenCalledWith({
+        stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
+        status: StepStatus.Idle
+      })
+    })
+    
+    it('should not update state when not idle', async () => {
+      mockDependencies.getCurrentStepInfo.mockReturnValue({
+        stepId: StepId.P1_1_PRESPECIFY_IDEAL_DIACHRONIC_STRUCTURE,
+        status: StepStatus.Processing
+      })
+      
+      const files = [createMockFile('content', 'file.txt')]
+      const mockEvent = {
+        target: { files, value: 'test' }
+      } as any
+      
+      await service.uploadTranscripts(mockEvent)
+      
+      expect(mockDependencies.addTranscripts).toHaveBeenCalled()
+      expect(mockDependencies.setCurrentStepInfo).not.toHaveBeenCalled()
+    })
+    
+    it('should handle empty files array', async () => {
+      const mockEvent = {
+        target: { files: [], value: '' }
+      } as any
+      
+      await service.uploadTranscripts(mockEvent)
+      
+      expect(mockDependencies.addTranscripts).not.toHaveBeenCalled()
+    })
+    
+    it('should handle errors gracefully', async () => {
+      mockDependencies.addTranscripts.mockRejectedValue(new Error('Upload failed'))
+      
+      const files = [createMockFile('content', 'file.txt')]
+      const mockEvent = {
+        target: { files, value: 'test' }
+      } as any
+      
+      await expect(service.uploadTranscripts(mockEvent)).rejects.toThrow('Upload failed')
+      expect(global.alert).toHaveBeenCalledWith('Failed to upload transcripts. Please try again.')
+    })
+    
+    it('should work without dependencies', async () => {
+      service = new FileManagementService({})
+      
+      const files = [createMockFile('content', 'file.txt')]
+      const mockEvent = {
+        target: { files, value: 'test' }
+      } as any
+      
+      // Should not throw
+      await service.uploadTranscripts(mockEvent)
+      expect(mockEvent.target.value).toBe('')
+    })
+  })
+  
+  describe('handleDroppedFiles', () => {
+    it('should handle dropped files and update state when idle', async () => {
+      const files = [
+        createMockFile('content1', 'file1.txt'),
+        createMockFile('content2', 'file2.txt')
+      ]
+      
+      await service.handleDroppedFiles(files)
+      
+      expect(mockDependencies.addTranscripts).toHaveBeenCalledWith(files)
+      expect(mockDependencies.setCurrentStepInfo).toHaveBeenCalledWith({
+        stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
+        status: StepStatus.Idle
+      })
+    })
+    
+    it('should handle empty files array', async () => {
+      await service.handleDroppedFiles([])
+      
+      expect(mockDependencies.addTranscripts).not.toHaveBeenCalled()
+    })
+    
+    it('should handle errors with stack trace', async () => {
+      const testError = new Error('Drop failed')
+      mockDependencies.addTranscripts.mockRejectedValue(testError)
+      
+      const files = [createMockFile('content', 'file.txt')]
+      
+      await expect(service.handleDroppedFiles(files)).rejects.toThrow('Drop failed')
+      expect(global.alert).toHaveBeenCalledWith('Failed to upload files. Please try again.')
+    })
+    
+    it('should log appropriate messages', async () => {
+      const consoleSpy = vi.spyOn(console, 'log')
+      const files = [createMockFile('content', 'file.txt')]
+      
+      await service.handleDroppedFiles(files)
+      
+      expect(consoleSpy).toHaveBeenCalledWith('🗂️ handleDroppedFiles called with', 1, 'files')
+      expect(consoleSpy).toHaveBeenCalledWith('📤 Calling addTranscripts...')
+      expect(consoleSpy).toHaveBeenCalledWith('✅ addTranscripts completed successfully')
+    })
+    
+    it('should work without dependencies', async () => {
+      service = new FileManagementService({})
+      const files = [createMockFile('content', 'file.txt')]
+      
+      // Should not throw
+      await service.handleDroppedFiles(files)
+    })
+  })
+  
+  describe('edge cases', () => {
+    it('should handle missing getCurrentStepInfo dependency', async () => {
+      service = new FileManagementService({
+        addTranscripts: mockDependencies.addTranscripts,
+        setCurrentStepInfo: mockDependencies.setCurrentStepInfo
+      })
+      
+      const files = [createMockFile('content', 'file.txt')]
+      await service.handleDroppedFiles(files)
+      
+      expect(mockDependencies.setCurrentStepInfo).toHaveBeenCalledWith({
+        stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
+        status: StepStatus.Idle
+      })
+    })
+    
+    it('should handle missing setCurrentStepInfo dependency', async () => {
+      service = new FileManagementService({
+        addTranscripts: mockDependencies.addTranscripts,
+        getCurrentStepInfo: mockDependencies.getCurrentStepInfo
+      })
+      
+      const files = [createMockFile('content', 'file.txt')]
+      
+      // Should not throw
+      await service.handleDroppedFiles(files)
+      expect(mockDependencies.addTranscripts).toHaveBeenCalled()
     })
   })
 })

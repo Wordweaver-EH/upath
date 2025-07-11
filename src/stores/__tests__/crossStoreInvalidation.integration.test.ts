@@ -85,8 +85,8 @@ describe('Cross-Store Invalidation Integration', () => {
       StepId.P3_2_IDENTIFY_GDUS
     )
     
-    // Verify invalidation
-    const updatedState = usePipelineStore.getState().genericAnalysisState
+    // Verify invalidation - get state directly from analysisResultStore
+    const updatedState = useAnalysisResultStore.getState().genericAnalysisState
     expect(updatedState.p3_1_output).toBe('core message') // Should remain
     expect(updatedState.p3_2_output).toBeUndefined() // Should be cleared
     expect(updatedState.p3_3_output).toBeUndefined() // Should be cleared (cascaded)
