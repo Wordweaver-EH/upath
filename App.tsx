@@ -34,7 +34,12 @@ import GduMappingModal from './components/GduMappingModal';
 import { AppLoadingScreen } from './src/components/AppLoadingScreen';
 import { SessionRestoreNotification } from './src/components/SessionRestoreNotification';
 
-import { useUIStore, useSettingsStore, usePipelineStore, useIRRStore, initializeStores, selectCurrentStepDisplay } from './src/stores';
+import { useUIStore, useSettingsStore, useIRRStore, initializeStores, selectCurrentStepDisplay } from './src/stores';
+import { useTranscriptStore } from './src/stores/transcriptStore';
+import { useAnalysisResultStore } from './src/stores/analysisResultStore';
+import { usePromptHistoryStore } from './src/stores/promptHistoryStore';
+import { usePipelineOrchestrationStore } from './src/stores/pipelineOrchestrationStore';
+import { useStoreActions } from './src/stores/useStoreActions';
 import { useAutorunManager } from './src/hooks/useAutorunManager';
 import packageJson from './package.json';
 
@@ -135,19 +140,37 @@ const App: React.FC = () => {
     sessionWasRestored
   } = useUIStore();
   
-  // Pipeline Store - consolidated selector
+  // Get data from specific stores
+  const rawTranscripts = useTranscriptStore(state => state.rawTranscripts);
+  const processedData = useTranscriptStore(state => state.processedData);
+  const genericAnalysisState = useAnalysisResultStore(state => state.genericAnalysisState);
+  const promptHistory = usePromptHistoryStore(state => state.promptHistory);
+  const totalInputTokens = usePromptHistoryStore(state => state.totalInputTokens);
+  const totalOutputTokens = usePromptHistoryStore(state => state.totalOutputTokens);
+  
+  // Get actions from useStoreActions
   const {
-    rawTranscripts,
-    processedData,
-    genericAnalysisState,
-    promptHistory,
-    totalInputTokens,
-    totalOutputTokens,
-    isGlobalStep,
     processSingleStep,
     loadStepData,
-    getStepStatusForPipelineView
-  } = usePipelineStore();
+    getStepStatusForPipelineView,
+    handlePipelineStepClick
+  } = useStoreActions();
+  
+  // Helper function for isGlobalStep
+  const isGlobalStep = (stepId: StepId) => {
+    const globalSteps = [
+      StepId.P3_1_MERGE_RESULTS,
+      StepId.P3_2_DEFINE_GENERIC_DIACHRONIC_STRUCTURE,
+      StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES,
+      StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS,
+      StepId.P4S_2_ANALYZE_SCD,
+      StepId.P4S_3_REVIEW_GDC,
+      StepId.P4S_4_DRAFT_REFINED_GENERIC_STRUCTURE,
+      StepId.P5_1_CONSTRUCT_CAUSAL_MODELS,
+      StepId.P5_2_GENERATE_REPORTS
+    ];
+    return globalSteps.includes(stepId);
+  };
   
   // Settings Store - consolidated selector
   const {
@@ -171,15 +194,6 @@ const App: React.FC = () => {
   // Initialize stores with dependency injection to avoid circular dependencies
   useEffect(() => {
     initializeStores()
-    
-    // Inject UI callbacks into pipeline store
-    const pipelineStore = usePipelineStore.getState()
-    const uiStore = useUIStore.getState()
-    
-    pipelineStore.setUICallbacks({
-      setAutorunning: uiStore.setAutorunning,
-      setCurrentStepInfo: uiStore.setCurrentStepInfo
-    })
   }, [])
   
   // Listen for HIL context changes that need processing
@@ -195,13 +209,7 @@ const App: React.FC = () => {
           processSingleStep({
             stepId: stepInfo.stepId,
             transcriptIdToProcess: stepInfo.transcriptId,
-            hilMetaPrompt: metaPrompt,
-            settings: {
-              apiKey: settings.apiKeyPresent ? 'test-key' : '', // In real app, use actual key
-              temperature: settings.temperature,
-              seed: settings.seed,
-              userDvFocus: settings.userDvFocus
-            }
+            hilMetaPrompt: metaPrompt
           })
           
           // Clear the needsProcessing flag
@@ -217,49 +225,37 @@ const App: React.FC = () => {
     return unsubscribe
   }, [processSingleStep])
   
-  // Get actions from the store
-  const handlePipelineStepClick = usePipelineStore(state => state.handlePipelineStepClick);
-  const clearShouldStopAutorunFlag = usePipelineStore(state => state.clearShouldStopAutorunFlag);
-  const clearLastHilContext = usePipelineStore(state => state.clearLastHilContext);
+  // Get orchestration state and actions
+  const shouldStopAutorun = usePipelineOrchestrationStore(state => state.shouldStopAutorun);
+  const lastHilContext = usePipelineOrchestrationStore(state => state.lastHilContext);
+  const clearShouldStopAutorun = usePipelineOrchestrationStore(state => state.clearShouldStopAutorun);
+  const clearHilContext = usePipelineOrchestrationStore(state => state.clearHilContext);
   
-  // Listen for pipeline state changes to update UI
+  // Listen for orchestration state changes to update UI
   useEffect(() => {
-    console.log('📡 [App.tsx] Setting up pipeline store subscription...');
-    const unsubscribe = usePipelineStore.subscribe(
-      (state) => {
-        const selected = {
-          lastStepInfo: state.lastStepInfo,
-          lastError: state.lastError,
-          shouldStopAutorun: state.shouldStopAutorun,
-          lastHilContext: state.lastHilContext
-        };
-        console.log('🔍 [App.tsx] Pipeline state selector called:', selected);
-        return selected;
-      },
-      (pipelineUpdates, prevUpdates) => {
-        console.log('🔄 [App.tsx] Pipeline subscription triggered:', { 
-          current: pipelineUpdates, 
-          previous: prevUpdates 
-        });
+    console.log('📡 [App.tsx] Setting up orchestration store subscription...');
+    const unsubscribe = usePipelineOrchestrationStore.subscribe(
+      (state) => ({
+        shouldStopAutorun: state.shouldStopAutorun,
+        lastHilContext: state.lastHilContext
+      }),
+      (orchestrationUpdates) => {
+        console.log('🔄 [App.tsx] Orchestration subscription triggered:', orchestrationUpdates);
         
-        if (pipelineUpdates.lastStepInfo) {
-          console.log('🔄 [App.tsx] Pipeline sync: updating UI with lastStepInfo:', pipelineUpdates.lastStepInfo);
-          setCurrentStepInfo(pipelineUpdates.lastStepInfo)
-        }
-        if (pipelineUpdates.shouldStopAutorun) {
+        if (orchestrationUpdates.shouldStopAutorun) {
           setAutorunning(false)
           // Clear the flag
-          clearShouldStopAutorunFlag()
+          clearShouldStopAutorun()
         }
-        if (pipelineUpdates.lastHilContext) {
-          openHilModal(pipelineUpdates.lastHilContext)
+        if (orchestrationUpdates.lastHilContext) {
+          openHilModal(orchestrationUpdates.lastHilContext)
           // Clear after handling
-          clearLastHilContext()
+          clearHilContext()
         }
       }
     )
     return unsubscribe
-  }, [setCurrentStepInfo, setAutorunning, openHilModal, clearShouldStopAutorunFlag, clearLastHilContext])
+  }, [setAutorunning, openHilModal, clearShouldStopAutorun, clearHilContext])
 
   // Autorun logic extracted to custom hook for better separation of concerns
   useAutorunManager();
