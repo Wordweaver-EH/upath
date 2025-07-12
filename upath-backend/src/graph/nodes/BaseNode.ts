@@ -182,49 +182,4 @@ export abstract class BaseNode {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  /**
-   * Calculate progress percentage based on current step
-   */
-  calculateProgress(currentStep: StepId | string): number {
-    // Order of all steps
-    const stepOrder = [
-      StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
-      StepId.P0_1_TRANSCRIPTION_ADHERENCE,
-      StepId.P0_2_REFINE_DATA_TYPES,
-      StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
-      StepId.P1_1_INITIAL_SEGMENTATION,
-      StepId.P1_2_DIACHRONIC_UNIT_ID,
-      StepId.P1_3_REFINE_DIACHRONIC_UNITS,
-      StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
-      StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC,
-      StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS,
-      StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
-      StepId.P3_1_ALIGN_STRUCTURES,
-      StepId.P3_2_IDENTIFY_GDUS,
-      StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE,
-      StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES,
-      StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS,
-      StepId.P5_1_IV_COMPARATIVE_ANALYSIS,
-      StepId.P5_2_HOLISTIC_REFINEMENT,
-      StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION,
-      StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS,
-      StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS,
-      StepId.P7_3B_VALIDATE_AND_CLEAN_DAG,
-      StepId.P7_4_ANALYZE_PATHS_AND_BIASES,
-      StepId.P7_5_GENERATE_FORMAL_HYPOTHESES,
-      StepId.P6_1_GENERATE_MARKDOWN_REPORT,
-      StepId.COMPLETE
-    ];
-
-    if (currentStep === StepId.COMPLETE) {
-      return 100;
-    }
-
-    const currentIndex = stepOrder.indexOf(currentStep as StepId);
-    if (currentIndex === -1) {
-      return 0;
-    }
-
-    return Math.round(((currentIndex + 1) / stepOrder.length) * 100);
-  }
 }

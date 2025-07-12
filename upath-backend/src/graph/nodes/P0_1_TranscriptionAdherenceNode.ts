@@ -52,7 +52,7 @@ export class P0_1_TranscriptionAdherenceNode extends BaseNode {
         ...state.metadata,
         lastUpdateTime: Date.now()
       },
-      progress: this.calculateProgress(this.id)
+      progress: context.progress?.percentage
     };
   }
 

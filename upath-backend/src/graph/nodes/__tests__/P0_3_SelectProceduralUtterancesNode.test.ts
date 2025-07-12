@@ -262,12 +262,22 @@ describe('P0_3_SelectProceduralUtterancesNode', () => {
 
   describe('State updates', () => {
     it('should update state correctly on success', async () => {
-      const result = await node.execute(testState, mockContext);
+      // Add progress to context
+      const contextWithProgress = {
+        ...mockContext,
+        progress: {
+          percentage: 75,
+          currentStepIndex: 2,
+          totalSteps: 4
+        }
+      };
+      
+      const result = await node.execute(testState, contextWithProgress);
       
       expect(result.currentStep).toBe(StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES);
       expect(result.lastCompletedStep).toBe(StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES);
       expect(result.metadata?.lastUpdateTime).toBeDefined();
-      expect(result.progress).toBeGreaterThan(0);
+      expect(result.progress).toBe(75);
     });
 
     it('should preserve previous step outputs', async () => {

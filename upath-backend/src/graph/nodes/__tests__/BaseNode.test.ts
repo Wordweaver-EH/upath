@@ -234,22 +234,4 @@ describe('BaseNode', () => {
     });
   });
 
-  describe('Progress calculation', () => {
-    it('should calculate progress based on step completion', () => {
-      const node = new TestNode();
-      
-      const progress = node.calculateProgress(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
-      
-      expect(progress).toBeGreaterThan(0);
-      expect(progress).toBeLessThanOrEqual(100);
-    });
-
-    it('should return 100 for COMPLETE step', () => {
-      const node = new TestNode();
-      
-      const progress = node.calculateProgress(StepId.COMPLETE);
-      
-      expect(progress).toBe(100);
-    });
-  });
 });

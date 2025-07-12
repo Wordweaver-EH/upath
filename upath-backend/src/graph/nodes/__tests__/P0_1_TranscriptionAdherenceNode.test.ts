@@ -205,7 +205,7 @@ Participant: It's been quite helpful, actually. First, I open the application...
       expect(result.metadata?.lastUpdateTime).toBeDefined();
     });
 
-    it('should calculate progress correctly', async () => {
+    it('should use progress from context if available', async () => {
       const mockResponse = {
         transcript_id: 'transcript-1',
         line_numbered_transcript: ['1: Line'],
@@ -219,11 +219,19 @@ Participant: It's been quite helpful, actually. First, I open the application...
         }
       });
 
-      const result = await node.execute(testState, mockContext);
+      // Add progress to context
+      const contextWithProgress = {
+        ...mockContext,
+        progress: {
+          percentage: 25,
+          currentStepIndex: 0,
+          totalSteps: 4
+        }
+      };
 
-      expect(result.progress).toBeDefined();
-      expect(result.progress).toBeGreaterThan(0);
-      expect(result.progress).toBeLessThan(100); // Not complete yet
+      const result = await node.execute(testState, contextWithProgress);
+
+      expect(result.progress).toBe(25);
     });
   });
 

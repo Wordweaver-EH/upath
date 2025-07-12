@@ -98,7 +98,7 @@ describe('GraphExecutor', () => {
       expect(sessionId).toBeDefined();
       expect(sessionId).toMatch(/^session-/);
       
-      const session = executor.getSession(sessionId);
+      const session = await executor.getSession(sessionId);
       expect(session).toBeDefined();
       expect(session?.state.sessionId).toBe(sessionId);
     });
@@ -114,7 +114,7 @@ describe('GraphExecutor', () => {
         settings: {}
       });
       
-      const sessions = executor.listSessions();
+      const sessions = await executor.listSessions();
       expect(sessions).toHaveLength(2);
       expect(sessions).toContain(sessionId1);
       expect(sessions).toContain(sessionId2);
@@ -126,12 +126,12 @@ describe('GraphExecutor', () => {
         settings: {}
       });
       
-      expect(executor.hasSession(sessionId)).toBe(true);
+      expect(await executor.hasSession(sessionId)).toBe(true);
       
-      executor.deleteSession(sessionId);
+      await executor.deleteSession(sessionId);
       
-      expect(executor.hasSession(sessionId)).toBe(false);
-      expect(executor.getSession(sessionId)).toBeUndefined();
+      expect(await executor.hasSession(sessionId)).toBe(false);
+      expect(await executor.getSession(sessionId)).toBeUndefined();
     });
   });
 
@@ -152,7 +152,7 @@ describe('GraphExecutor', () => {
       expect(result.completedStep).toBe(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
       expect(result.nextStep).toBe(StepId.P0_2_REFINE_DATA_TYPES);
       
-      const session = executor.getSession(sessionId);
+      const session = await executor.getSession(sessionId);
       expect(session?.state.currentStep).toBe(StepId.P0_2_REFINE_DATA_TYPES);
       expect(session?.state.lastCompletedStep).toBe(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
     });
@@ -176,7 +176,7 @@ describe('GraphExecutor', () => {
       expect(result.error).toBeDefined();
       expect(result.error?.message).toContain('LLM error');
       
-      const session = executor.getSession(sessionId);
+      const session = await executor.getSession(sessionId);
       expect(session?.state.errors[StepId.P0_1_TRANSCRIPTION_ADHERENCE]).toBeDefined();
     });
 
@@ -186,9 +186,9 @@ describe('GraphExecutor', () => {
         settings: {}
       });
       
-      executor.pauseSession(sessionId);
+      await executor.pauseSession(sessionId);
       
-      const session = executor.getSession(sessionId);
+      const session = await executor.getSession(sessionId);
       expect(session?.state.status).toBe('paused');
       
       // Should not execute when paused
@@ -207,10 +207,10 @@ describe('GraphExecutor', () => {
         settings: {}
       });
       
-      executor.pauseSession(sessionId);
-      executor.resumeSession(sessionId);
+      await executor.pauseSession(sessionId);
+      await executor.resumeSession(sessionId);
       
-      const session = executor.getSession(sessionId);
+      const session = await executor.getSession(sessionId);
       expect(session?.state.status).toBe('running');
       
       // Should execute after resume
@@ -272,13 +272,13 @@ describe('GraphExecutor', () => {
       expect(results[0].completedStep).toBe(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
       expect(results[1].completedStep).toBe(StepId.P0_2_REFINE_DATA_TYPES);
       
-      const session = executor.getSession(sessionId);
+      const session = await executor.getSession(sessionId);
       expect(session?.state.currentStep).toBe(StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES);
     });
   });
 
   describe('State recovery', () => {
-    it('should restore session from state', () => {
+    it('should restore session from state', async () => {
       const existingState: GraphState = {
         sessionId: 'existing-session',
         currentStep: StepId.P0_2_REFINE_DATA_TYPES,
@@ -305,9 +305,9 @@ describe('GraphExecutor', () => {
         status: 'idle'
       };
       
-      executor.restoreSession(existingState);
+      await executor.restoreSession(existingState);
       
-      const session = executor.getSession('existing-session');
+      const session = await executor.getSession('existing-session');
       expect(session).toBeDefined();
       expect(session?.state.currentStep).toBe(StepId.P0_2_REFINE_DATA_TYPES);
       expect(session?.state.lastCompletedStep).toBe(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
@@ -361,12 +361,26 @@ describe('GraphExecutor', () => {
         settings: {}
       });
       
-      // Manually set to completed state
-      const session = executor.getSession(sessionId);
-      if (session) {
-        session.state.status = 'completed';
-        session.state.currentStep = StepId.COMPLETE;
-      }
+      // Manually set to completed state by restoring a completed state
+      const completedState: GraphState = {
+        sessionId,
+        currentStep: StepId.COMPLETE,
+        lastCompletedStep: StepId.P0_2_REFINE_DATA_TYPES,
+        transcripts: [{
+          id: 'transcript-1',
+          filename: 'test.txt',
+          content: 'Interview content'
+        }],
+        stepOutputs: {},
+        errors: {},
+        metadata: {
+          startTime: Date.now(),
+          lastUpdateTime: Date.now(),
+          settings: {}
+        },
+        status: 'completed'
+      };
+      await executor.restoreSession(completedState);
       
       const result = await executor.executeStep(sessionId, mockContext);
       

@@ -47,7 +47,7 @@ export class P0_3_SelectProceduralUtterancesNode extends BaseNode {
         ...state.metadata,
         lastUpdateTime: Date.now()
       },
-      progress: this.calculateProgress(this.id)
+      progress: context.progress?.percentage
     };
   }
 

@@ -97,4 +97,9 @@ export interface ExecutionContext {
     debug: (message: string, data?: any) => void;
   };
   settings: PipelineSettings;
+  progress?: {
+    percentage: number;
+    currentStepIndex: number;
+    totalSteps: number;
+  };
 }

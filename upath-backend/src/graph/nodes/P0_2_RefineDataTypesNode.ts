@@ -53,7 +53,7 @@ export class P0_2_RefineDataTypesNode extends BaseNode {
         ...state.metadata,
         lastUpdateTime: Date.now()
       },
-      progress: this.calculateProgress(this.id)
+      progress: context.progress?.percentage
     };
   }
 

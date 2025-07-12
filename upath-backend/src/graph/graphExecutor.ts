@@ -3,6 +3,9 @@ import { Graph } from './graphBuilder';
 import { GraphState, ExecutionContext, StepId } from './types';
 import { createInitialGraphState } from './types/state';
 import { v4 as uuidv4 } from 'uuid';
+import { ISessionStore } from './types/sessionStore';
+import { InMemorySessionStore } from './stores/InMemorySessionStore';
+import { ProgressCalculator } from './services/ProgressCalculator';
 
 export interface SessionInit {
   transcripts: GraphState['transcripts'];
@@ -28,12 +31,14 @@ export interface Session {
 
 export class GraphExecutor extends EventEmitter {
   private graph: Graph;
-  private sessions: Map<string, Session>;
+  private sessionStore: ISessionStore;
+  private progressCalculator: ProgressCalculator;
 
-  constructor(graph: Graph) {
+  constructor(graph: Graph, sessionStore?: ISessionStore) {
     super();
     this.graph = graph;
-    this.sessions = new Map();
+    this.sessionStore = sessionStore || new InMemorySessionStore();
+    this.progressCalculator = new ProgressCalculator(graph);
   }
 
   async createSession(init: SessionInit): Promise<string> {
@@ -43,8 +48,11 @@ export class GraphExecutor extends EventEmitter {
       init.transcripts,
       init.settings as any
     );
+    
+    // Set initial progress
+    state.progress = this.progressCalculator.calculateProgress(state.currentStep);
 
-    this.sessions.set(sessionId, {
+    await this.sessionStore.set(sessionId, {
       state,
       createdAt: Date.now()
     });
@@ -52,38 +60,40 @@ export class GraphExecutor extends EventEmitter {
     return sessionId;
   }
 
-  getSession(sessionId: string): Session | undefined {
-    return this.sessions.get(sessionId);
+  async getSession(sessionId: string): Promise<Session | undefined> {
+    return await this.sessionStore.get(sessionId);
   }
 
-  hasSession(sessionId: string): boolean {
-    return this.sessions.has(sessionId);
+  async hasSession(sessionId: string): Promise<boolean> {
+    return await this.sessionStore.has(sessionId);
   }
 
-  listSessions(): string[] {
-    return Array.from(this.sessions.keys());
+  async listSessions(): Promise<string[]> {
+    return await this.sessionStore.list();
   }
 
-  deleteSession(sessionId: string): void {
-    this.sessions.delete(sessionId);
+  async deleteSession(sessionId: string): Promise<void> {
+    await this.sessionStore.delete(sessionId);
   }
 
-  pauseSession(sessionId: string): void {
-    const session = this.getSession(sessionId);
+  async pauseSession(sessionId: string): Promise<void> {
+    const session = await this.getSession(sessionId);
     if (session) {
       session.state.status = 'paused';
+      await this.sessionStore.set(sessionId, session);
     }
   }
 
-  resumeSession(sessionId: string): void {
-    const session = this.getSession(sessionId);
+  async resumeSession(sessionId: string): Promise<void> {
+    const session = await this.getSession(sessionId);
     if (session) {
       session.state.status = 'running';
+      await this.sessionStore.set(sessionId, session);
     }
   }
 
-  restoreSession(state: GraphState): void {
-    this.sessions.set(state.sessionId, {
+  async restoreSession(state: GraphState): Promise<void> {
+    await this.sessionStore.set(state.sessionId, {
       state,
       createdAt: Date.now()
     });
@@ -93,7 +103,7 @@ export class GraphExecutor extends EventEmitter {
     sessionId: string,
     context: ExecutionContext
   ): Promise<ExecutionResult> {
-    const session = this.sessions.get(sessionId);
+    const session = await this.sessionStore.get(sessionId);
     if (!session) {
       throw new Error(`Session ${sessionId} not found`);
     }
@@ -110,7 +120,7 @@ export class GraphExecutor extends EventEmitter {
     }
 
     // Check if already completed
-    if (state.status === 'completed' || state.currentStep === StepId.COMPLETE) {
+    if (state.status === 'completed') {
       return {
         success: false,
         hasMore: false,
@@ -142,8 +152,21 @@ export class GraphExecutor extends EventEmitter {
     });
 
     try {
+      // Calculate progress for current step
+      const progressInfo = this.progressCalculator.getProgressInfo(state.currentStep);
+      
+      // Create enhanced context with progress
+      const enhancedContext: ExecutionContext = {
+        ...context,
+        progress: {
+          percentage: progressInfo.percentage,
+          currentStepIndex: progressInfo.currentStepIndex,
+          totalSteps: progressInfo.totalSteps
+        }
+      };
+      
       // Execute the node
-      const result = await currentNode.executeWithRetry(state, context);
+      const result = await currentNode.executeWithRetry(state, enhancedContext);
 
       if (result.success && result.state) {
         // Update state with node results
@@ -167,6 +190,9 @@ export class GraphExecutor extends EventEmitter {
           state.currentStep = nextStep;
         }
 
+        // Update progress based on the new current step
+        state.progress = this.progressCalculator.calculateProgress(state.currentStep);
+        
         // Update session
         session.lastExecutedAt = Date.now();
 
@@ -178,17 +204,24 @@ export class GraphExecutor extends EventEmitter {
           timestamp: Date.now()
         });
 
+        // Check if we have more steps to execute
+        // hasMore is true if currentStep is a valid node that hasn't been completed yet
         const hasMore = state.currentStep !== StepId.COMPLETE && 
-                       edges.length > 0;
+                       this.graph.nodes.has(state.currentStep) &&
+                       state.currentStep !== result.state.lastCompletedStep;
 
-        if (!hasMore) {
+        // Mark as completed only after COMPLETE step has been executed
+        if (result.state.lastCompletedStep === StepId.COMPLETE) {
           state.status = 'completed';
         }
+
+        // Persist the updated session
+        await this.sessionStore.set(sessionId, session);
 
         return {
           success: true,
           completedStep: result.state.lastCompletedStep,
-          nextStep: hasMore ? state.currentStep : undefined,
+          nextStep: state.currentStep !== result.state.lastCompletedStep ? state.currentStep : undefined,
           hasMore
         };
       } else {
@@ -207,6 +240,9 @@ export class GraphExecutor extends EventEmitter {
 
         state.status = 'failed';
 
+        // Persist the updated session
+        await this.sessionStore.set(sessionId, session);
+
         return {
           success: false,
           hasMore: false,
@@ -219,6 +255,9 @@ export class GraphExecutor extends EventEmitter {
     } catch (error: any) {
       // Handle unexpected errors
       state.status = 'failed';
+      
+      // Persist the updated session
+      await this.sessionStore.set(sessionId, session);
       
       this.emit('stepError', {
         sessionId,
