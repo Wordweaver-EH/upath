@@ -302,6 +302,25 @@ CORS_ORIGINS=http://localhost:5173       # Optional
 - [ ] Backend starts without errors
 - [ ] Health check returns 200 OK
 
+## 🛠️ Working with Large Files
+
+### Using Gemini CLI
+When working with files larger than 30,000 characters (like constants.tsx), use the Gemini CLI to analyze them:
+
+```bash
+# Analyze a large file with a specific prompt
+cat large_file.tsx | gemini -p "Analyze the P1_4 implementation and extract the prompt structure"
+
+# Compare multiple large files
+cat file1.tsx file2.ts | gemini -p "Compare these two implementations focusing on differences"
+```
+
+**When to use Gemini CLI:**
+- Files over 30,000 characters that get truncated with Read tool
+- When you need to analyze patterns across large codebases
+- For extracting specific sections from verbose files
+- When comparing implementations between large files
+
 ## 🏗️ Architecture Overview
 
 ### Security Architecture

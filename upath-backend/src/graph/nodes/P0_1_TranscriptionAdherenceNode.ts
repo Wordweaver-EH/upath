@@ -1,6 +1,7 @@
 import { BaseNode } from './BaseNode';
 import { GraphState, ExecutionContext, StepId } from '../types';
 import { P0_1_Output, RawTranscript } from '../types/outputs';
+import { LLMResponseError } from '../errors/LLMResponseError';
 
 export class P0_1_TranscriptionAdherenceNode extends BaseNode {
   id = StepId.P0_1_TRANSCRIPTION_ADHERENCE;
@@ -38,7 +39,16 @@ export class P0_1_TranscriptionAdherenceNode extends BaseNode {
 
     // Parse the response
     const responseText = response.response.text();
-    const output: P0_1_Output = JSON.parse(responseText);
+    let output: P0_1_Output;
+    
+    try {
+      output = JSON.parse(responseText);
+    } catch (error) {
+      throw new LLMResponseError(
+        `Failed to parse LLM JSON response: ${error.message}`,
+        responseText
+      );
+    }
 
     // Update state
     return {

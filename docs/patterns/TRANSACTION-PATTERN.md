@@ -1,5 +1,7 @@
 # Transaction Pattern Documentation
 
+**Navigation:** [📚 Docs Home](../README.md) | [📋 Migration Plan](../MIGRATION-PLAN.md) | [🔧 Store Migration Pattern](STORE-MIGRATION-PATTERN.md) | [📚 State Refactoring](../plan/01_state_refactoring.md)
+
 ## Overview
 
 The Transaction Pattern implemented in Phase 3 provides atomic operations across multiple Zustand stores in the µ-PATH application. This ensures data consistency during complex pipeline operations that modify multiple stores.

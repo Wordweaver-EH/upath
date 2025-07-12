@@ -1,9 +1,14 @@
 import { BaseNode } from './nodes/BaseNode';
 import { StepId } from './types';
 import {
+  P_NEG1_1_VariableIdentificationNode,
   P0_1_TranscriptionAdherenceNode,
   P0_2_RefineDataTypesNode,
-  P0_3_SelectProceduralUtterancesNode
+  P0_3_SelectProceduralUtterancesNode,
+  P1_1_InitialSegmentationNode,
+  P1_2_DiachronicUnitIdNode,
+  P1_3_RefineDiachronicUnitsNode,
+  P1_4_ConstructSpecificDiachronicStructureNode
 } from './nodes';
 
 export type NodeConstructor = new () => BaseNode;
@@ -32,9 +37,14 @@ export class NodeRegistry {
    */
   private registerDefaultNodes(): void {
     // Register all implemented nodes
+    this.nodes.set(StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, P_NEG1_1_VariableIdentificationNode);
     this.nodes.set(StepId.P0_1_TRANSCRIPTION_ADHERENCE, P0_1_TranscriptionAdherenceNode);
     this.nodes.set(StepId.P0_2_REFINE_DATA_TYPES, P0_2_RefineDataTypesNode);
     this.nodes.set(StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES, P0_3_SelectProceduralUtterancesNode);
+    this.nodes.set(StepId.P1_1_INITIAL_SEGMENTATION, P1_1_InitialSegmentationNode);
+    this.nodes.set(StepId.P1_2_DIACHRONIC_UNIT_ID, P1_2_DiachronicUnitIdNode);
+    this.nodes.set(StepId.P1_3_REFINE_DIACHRONIC_UNITS, P1_3_RefineDiachronicUnitsNode);
+    this.nodes.set(StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE, P1_4_ConstructSpecificDiachronicStructureNode);
   }
 
   /**

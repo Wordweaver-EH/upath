@@ -1,5 +1,79 @@
 # Phase 2 Implementation Guide: LangGraph Migration
 
+**Navigation:** [📚 Docs Home](../README.md) | [📋 Migration Plan](../MIGRATION-PLAN.md) | [🔧 Technical Spec](PHASE-2-TECHNICAL-SPEC.md) | [🚨 Production Issues](PRODUCTION-READINESS.md)
+
+## Implementation Status
+
+### Overall Progress: ~67% Complete (8/12 core nodes implemented)
+
+#### ✅ Completed Steps
+- **Step 2.1: Backend Setup and Dependencies** - COMPLETED (2025-07-12)
+- **Step 2.2: Create Base Graph Infrastructure** - COMPLETED (2025-07-12)
+- **Step 2.3: Implement Part I Nodes** - COMPLETED (2025-07-12)
+- **Step 2.4: Build the Graph Structure** - COMPLETED (2025-07-12)
+
+#### ✅ Part I Implementation Complete (8/8 nodes)
+  - ✅ P_NEG1_1_VARIABLE_IDENTIFICATION (2025-07-12)
+  - ✅ P0_1_TRANSCRIPTION_ADHERENCE (2025-07-12)
+  - ✅ P0_2_REFINE_DATA_TYPES (2025-07-12)
+  - ✅ P0_3_SELECT_PROCEDURAL_UTTERANCES (2025-07-12)
+  - ✅ P1_1_INITIAL_SEGMENTATION (2025-07-12)
+  - ✅ P1_2_DIACHRONIC_UNIT_ID (2025-07-12)
+  - ✅ P1_3_REFINE_DIACHRONIC_UNITS (2025-07-12)
+  - ✅ P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE (2025-07-12)
+
+#### ⚠️ Critical Issues Identified (Code Review 2025-07-12)
+**MUST FIX BEFORE PRODUCTION:**
+1. **P1_4 Error Handling Bug**: Incorrect LLMResponseError constructor usage
+2. **Session Memory Leak**: No TTL on Redis sessions - could exhaust memory
+3. **Security Gap**: No input sanitization for prompt injection protection
+4. **Progress Bug**: Calculation gives 100% before COMPLETE step executes
+
+**See Critical Issues Section below for detailed fixes**
+
+#### ⏳ Remaining Implementation
+- ⏳ P2S nodes (3 synchronic nodes)
+- ⏳ P3 nodes (3 generic diachronic)
+- ⏳ P4S nodes (2 generic synchronic)
+- ⏳ P5 nodes (2 refinement)
+- ⏳ COMPLETE node
+
+#### ❌ Pending Steps
+- Step 2.5: Add Streaming API
+- Step 2.6: Frontend Integration
+- Step 2.7: Testing and Validation
+- Step 2.8: Migration and Rollout
+
+### Key Learnings and Patterns Established
+
+#### Migration TDD Pattern
+1. **Study Phase**: Analyze existing MVP implementation to understand behavior
+2. **Red Phase**: Write tests that capture existing functionality
+3. **Green Phase**: Implement LangGraph node to match behavior
+4. **Refactor Phase**: Improve internals while maintaining outputs
+5. **Enhancement Phase**: Add error handling, retries, better validation
+
+#### Node Implementation Pattern
+1. **Find Existing Logic**: Locate the MVP implementation in frontend
+2. **Understand Prompts**: Study the existing prompts and expected outputs
+3. **Extend BaseNode**: Leverage retry logic and error handling
+4. **Validate Input**: Check prerequisites (can be stricter than MVP)
+5. **Build Prompt**: Adapt existing prompt for LangGraph context
+6. **Handle LLM Response**: Parse JSON with proper error handling
+7. **Update State**: Return partial GraphState with required fields
+
+#### Common Issues and Solutions
+1. **Missing GraphState Fields**: Always return currentStep, lastCompletedStep
+2. **JSON Parsing Errors**: Use LLMResponseError for proper retry handling
+3. **Input Validation**: Fail fast with clear error messages
+4. **Non-Recoverable Errors**: Properly classify in `isRecoverable()`
+
+#### Testing Best Practices
+1. **Mock LLM Client**: Use vitest mocks for consistent testing
+2. **Test Error Scenarios**: Cover parsing failures, missing inputs, validation errors
+3. **Verify State Updates**: Check all GraphState fields are properly updated
+4. **Integration Points**: Test node works within graph execution context
+
 ## Overview
 
 This guide provides a step-by-step approach to migrating the UPath pipeline system from its current service-based architecture to a LangGraph-based implementation. The migration will be done incrementally, allowing both systems to run in parallel during the transition.
@@ -927,6 +1001,137 @@ Phase 2 is complete when:
 3. **Early Testing**: Set up comparison tests from day 1
 4. **Feature Flags**: Allow quick rollback at any stage
 
+## Critical Issues Requiring Immediate Attention
+
+### Code Review Findings (2025-07-12)
+
+A comprehensive code review of the Part I LangGraph implementation has identified several critical issues that must be addressed before production deployment.
+
+#### 1. P1_4 Error Handling Bug (CRITICAL)
+
+**Issue**: Incorrect LLMResponseError constructor usage in `P1_4_ConstructSpecificDiachronicStructureNode.ts`
+
+**Current Code (Line ~51)**:
+```typescript
+} catch (error) {
+  throw new LLMResponseError('Failed to parse LLM JSON response', error as Error);
+}
+```
+
+**Fix Required**:
+```typescript
+} catch (error) {
+  throw new LLMResponseError(
+    `Failed to parse P1_4 response: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    responseText
+  );
+}
+```
+
+**Impact**: High - Could cause cryptic error messages and improper retry behavior.
+
+#### 2. Session Memory Leak (CRITICAL)
+
+**Issue**: Redis sessions have no TTL (Time To Live), causing unlimited memory growth.
+
+**Current Code**: No expiration set in `RedisSessionStore.set()`
+
+**Fix Required**: Add TTL to Redis operations:
+```typescript
+// In RedisSessionStore.set()
+await this.client.setex(`session:${sessionId}`, 24 * 60 * 60, JSON.stringify(session)); // 24 hour TTL
+```
+
+**Impact**: Critical - Production system will exhaust memory over time.
+
+#### 3. Security Gap: Prompt Injection (HIGH)
+
+**Issue**: User inputs go directly into LLM prompts without sanitization.
+
+**Fix Required**: Add input sanitization function:
+```typescript
+function sanitizeForPrompt(text: string): string {
+  return text
+    .replace(/```/g, '\\`\\`\\`')
+    .replace(/\{/g, '\\{')
+    .replace(/\}/g, '\\}')
+    .replace(/\n\n\n+/g, '\n\n'); // Limit excessive newlines
+}
+```
+
+Apply to all user-controlled inputs in prompt building.
+
+**Impact**: High - Could allow prompt injection attacks affecting LLM behavior.
+
+#### 4. Progress Calculation Bug (MEDIUM)
+
+**Issue**: Progress reaches 100% before COMPLETE step executes.
+
+**Current Code**: `Math.round(((currentIndex + 1) / this.sortedNodes.length) * 100)`
+
+**Fix Required**: Account for COMPLETE step in calculation or adjust indexing.
+
+**Impact**: Medium - UX issue causing confusion about completion status.
+
+### Additional Important Issues
+
+#### 5. Type Safety Improvements (MEDIUM)
+
+- Remove `any` type assertions in settings handling
+- Improve StepOutput type discrimination in GraphState
+- Add proper validation before type casting
+
+#### 6. Resource Management (MEDIUM)
+
+- Implement session cleanup job for expired sessions
+- Add memory usage monitoring
+- Consider implementing session archival
+
+#### 7. Error Type Hierarchy (LOW)
+
+Create specific error types:
+```typescript
+export class ValidationError extends Error { /* ... */ }
+export class SessionError extends Error { /* ... */ }
+export class ExecutionError extends Error { /* ... */ }
+```
+
+### Implementation Priority
+
+1. **Week 1**: Fix critical issues #1-3
+2. **Week 2**: Address progress calculation and type safety
+3. **Week 3**: Implement comprehensive error types and monitoring
+
+### Verification Checklist
+
+Before production deployment:
+- [ ] All critical issues fixed and tested
+- [ ] Memory leak testing completed (24+ hour runs)
+- [ ] Security testing with malicious inputs
+- [ ] Progress calculation verified with all node types
+- [ ] Error scenarios tested thoroughly
+
+## Major Successes
+
+### IV/DV Context Threading (SUCCESS ✅)
+
+The implementation successfully preserves Independent Variable and Dependent Variable context throughout the entire pipeline:
+
+- **P_NEG1_1**: Extracts IV/DV from user input
+- **P0_1-P0_3**: Preserve IV/DV through preparatory steps
+- **P1_1-P1_4**: Maintain context through Part I analysis
+- **Verification**: All tests confirm proper threading
+
+This ensures research integrity and maintains compatibility with the MVP analysis approach.
+
+### Architecture Quality (SUCCESS ✅)
+
+- Clean separation of concerns
+- Proper TDD implementation with 248 passing tests
+- Scalable graph-based execution model
+- Event-driven progress tracking
+- Robust session persistence
+
 ## Next Steps
 
 1. Review and approve this implementation guide
@@ -938,3 +1143,17 @@ Phase 2 is complete when:
 ---
 
 This guide provides a practical, step-by-step approach to migrating the UPath pipeline to LangGraph. The emphasis is on incremental progress, thorough testing, and the ability to rollback if needed. Each step builds on the previous one, ensuring a stable foundation throughout the migration process.
+
+---
+
+**Related Documents:**
+- [📚 Documentation Home](../README.md) - Complete project overview and navigation
+- [🔧 Phase 2 Technical Specification](PHASE-2-TECHNICAL-SPEC.md) - Detailed technical blueprint
+- [🚨 Production Readiness Checklist](PRODUCTION-READINESS.md) - Critical issues requiring immediate attention
+- [📋 Migration Plan](../MIGRATION-PLAN.md) - Overall strategy and TDD principles
+- [📚 LangGraph Migration Explanation](../plan/02_langgraph_migration.md) - Why we're using LangGraph
+
+**Next Actions:**
+- Address critical issues in [Production Readiness Checklist](PRODUCTION-READINESS.md)
+- Continue with Part II node implementation following established patterns
+- Review technical architecture in [Technical Specification](PHASE-2-TECHNICAL-SPEC.md)

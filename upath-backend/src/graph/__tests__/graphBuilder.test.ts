@@ -19,13 +19,14 @@ describe('GraphBuilder', () => {
       expect(graph).toBeDefined();
       expect(graph.nodes).toBeDefined();
       expect(graph.edges).toBeDefined();
-      expect(graph.entryPoint).toBe(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
+      expect(graph.entryPoint).toBe(StepId.P_NEG1_1_VARIABLE_IDENTIFICATION);
     });
 
     it('should include all registered nodes', () => {
       const graph = builder.build();
       const nodeIds = Array.from(graph.nodes.keys());
       
+      expect(nodeIds).toContain(StepId.P_NEG1_1_VARIABLE_IDENTIFICATION);
       expect(nodeIds).toContain(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
       expect(nodeIds).toContain(StepId.P0_2_REFINE_DATA_TYPES);
       expect(nodeIds).toContain(StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES);
@@ -33,6 +34,11 @@ describe('GraphBuilder', () => {
 
     it('should create edges in correct sequence', () => {
       const graph = builder.build();
+      
+      // Check P_NEG1_1 -> P0_1 edge
+      const p_neg1_1_edges = graph.edges.get(StepId.P_NEG1_1_VARIABLE_IDENTIFICATION);
+      expect(p_neg1_1_edges).toBeDefined();
+      expect(p_neg1_1_edges).toContain(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
       
       // Check P0_1 -> P0_2 edge
       const p0_1_edges = graph.edges.get(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
@@ -105,7 +111,7 @@ describe('GraphBuilder', () => {
       const sorted = graph.topologicalSort();
       
       expect(sorted).toBeDefined();
-      expect(sorted).toHaveLength(3);
+      expect(sorted).toHaveLength(8);
       
       // P0_1 should come before P0_2
       const p0_1_index = sorted.indexOf(StepId.P0_1_TRANSCRIPTION_ADHERENCE);
@@ -115,6 +121,10 @@ describe('GraphBuilder', () => {
       // P0_2 should come before P0_3
       const p0_3_index = sorted.indexOf(StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES);
       expect(p0_2_index).toBeLessThan(p0_3_index);
+      
+      // P0_3 should come before P1_1
+      const p1_1_index = sorted.indexOf(StepId.P1_1_INITIAL_SEGMENTATION);
+      expect(p0_3_index).toBeLessThan(p1_1_index);
     });
 
     it('should return null for topological sort on cyclic graph', () => {
@@ -179,7 +189,7 @@ describe('GraphBuilder', () => {
       const graph = builder.build();
       
       expect(graph.metadata).toBeDefined();
-      expect(graph.metadata.nodeCount).toBe(3);
+      expect(graph.metadata.nodeCount).toBe(8);
       expect(graph.metadata.edgeCount).toBeGreaterThan(0);
       expect(graph.metadata.createdAt).toBeDefined();
     });

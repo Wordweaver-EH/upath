@@ -1,6 +1,7 @@
 import { BaseNode } from './BaseNode';
 import { GraphState, ExecutionContext, StepId } from '../types';
 import { P0_1_Output, P0_2_Output, RefinedLine } from '../types/outputs';
+import { LLMResponseError } from '../errors/LLMResponseError';
 
 export class P0_2_RefineDataTypesNode extends BaseNode {
   id = StepId.P0_2_REFINE_DATA_TYPES;
@@ -34,7 +35,16 @@ export class P0_2_RefineDataTypesNode extends BaseNode {
 
     // Parse and validate the response
     const responseText = response.response.text();
-    const output: P0_2_Output = JSON.parse(responseText);
+    let output: P0_2_Output;
+    
+    try {
+      output = JSON.parse(responseText);
+    } catch (error) {
+      throw new LLMResponseError(
+        `Failed to parse LLM JSON response: ${error.message}`,
+        responseText
+      );
+    }
 
     // Basic validation
     if (!output.refined_data_transcript) {
@@ -90,65 +100,41 @@ export class P0_2_RefineDataTypesNode extends BaseNode {
   }
 
   buildPrompt(p0_1_output: P0_1_Output): string {
-    const transcriptLines = p0_1_output.line_numbered_transcript.join('\n');
+    return `You are a micro-phenomenological data preparation analyst. Your task is to refine the line-numbered transcript by identifying different types of information.
+Input:
+The JSON output from the previous step (Prompt 0.1) for transcript ID ${p0_1_output.transcript_id}.
+${JSON.stringify(p0_1_output, null, 2)}
 
-    return `# DATA TYPE REFINEMENT
+Instructions:
+1. Re-read and categorize each line:
+   For each numbered line, determine if it primarily contains:
+    - "procedural_information": Utterances related to the interview process itself (e.g., interviewer's questions, participant's reflections on the question or process, meta-comments).
+    - "experiential_content": Utterances directly describing the lived experience being investigated.
+    - "ambiguous_or_mixed": Lines that are hard to categorize or contain both.
+2. Tagging:
+   Based on this, assign one or more \`information_tags\` to each line (e.g., ["procedural_information"], ["experiential_content"], ["procedural_information", "experiential_content"]).
+3. Decision Notes (Optional):
+   If a line is particularly complex or its categorization is non-obvious, add a brief \`decision_notes\` explaining your reasoning.
 
-You are analyzing a line-numbered transcript to identify and tag different types of information in each utterance.
-
-## Line-Numbered Transcript (from line_numbered_transcript):
-${transcriptLines}
-
-## Your Task:
-
-Analyze each line and assign appropriate information tags based on the content:
-
-### Information Tags:
-- **I-tag**: Informational utterances that provide context, descriptions, or explanations
-- **L-tag**: Leading questions or statements that guide the conversation
-- **P-tag**: Procedural utterances that describe steps, actions, or processes
-
-### Guidelines:
-1. Each line can have multiple tags if it contains multiple types of information
-2. Some lines may have no tags if they are purely conversational fillers
-3. Focus on the semantic content, not just the speaker role
-4. Procedural content (P-tag) is especially important to identify accurately
-
-## Output Format:
-Please provide your analysis in the following JSON format:
-
+Output:
+A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
 {
   "transcript_id": "${p0_1_output.transcript_id}",
   "refined_data_transcript": [
     {
       "line_num": 1,
-      "text": "[The text from line 1]",
-      "information_tags": ["array", "of", "tags"],
-      "decision_notes": "Optional: Brief explanation of tagging decision"
-    },
-    // ... continue for all lines
-  ]
-}
-
-### Example Output:
-{
-  "transcript_id": "example-123",
-  "refined_data_transcript": [
-    {
-      "line_num": 1,
-      "text": "Interviewer: Can you describe how you prepare the materials?",
-      "information_tags": ["L-tag"],
-      "decision_notes": "Leading question asking for procedural information"
+      "text": "text of line 1...",
+      "information_tags": ["tag1", "tag2"],
+      "decision_notes": "Optional notes for line 1."
     },
     {
       "line_num": 2,
-      "text": "Participant: First, I gather all the documents from the filing cabinet.",
-      "information_tags": ["P-tag"],
-      "decision_notes": "Describes first step in the process"
+      "text": "text of line 2...",
+      "information_tags": ["tag1"],
+      "decision_notes": null
     }
+    // ... and so on for all lines
   ]
-}
-
-Ensure the JSON is valid and includes all lines from the transcript.`;
+}`;
   }
 }

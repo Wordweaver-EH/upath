@@ -1,5 +1,7 @@
 # Supplementary Doc: Backend Architecture
 
+**Navigation:** [📚 Docs Home](../README.md) | [📋 Migration Plan](../MIGRATION-PLAN.md) | [📚 State Refactoring](01_state_refactoring.md) | [📚 LangGraph Migration](02_langgraph_migration.md)
+
 This document explains the "why" and "how" of the new backend being introduced in Phase 0 of the migration.
 
 ## Why Are We Creating a Backend?

@@ -100,12 +100,12 @@ describe('P0_2_RefineDataTypesNode', () => {
       const p0_1_output = testState.stepOutputs[StepId.P0_1_TRANSCRIPTION_ADHERENCE] as P0_1_Output;
       const prompt = node.buildPrompt(p0_1_output);
       
-      expect(prompt).toContain('DATA TYPE REFINEMENT');
+      expect(prompt).toContain('micro-phenomenological data preparation analyst');
       expect(prompt).toContain('line_numbered_transcript');
       expect(prompt).toContain('information_tags');
-      expect(prompt).toContain('I-tag');
-      expect(prompt).toContain('L-tag');
-      expect(prompt).toContain('P-tag');
+      expect(prompt).toContain('procedural_information');
+      expect(prompt).toContain('experiential_content');
+      expect(prompt).toContain('ambiguous_or_mixed');
     });
 
     it('should include all transcript lines in prompt', () => {
@@ -121,7 +121,7 @@ describe('P0_2_RefineDataTypesNode', () => {
       const p0_1_output = testState.stepOutputs[StepId.P0_1_TRANSCRIPTION_ADHERENCE] as P0_1_Output;
       const prompt = node.buildPrompt(p0_1_output);
       
-      expect(prompt).toContain('JSON format');
+      expect(prompt).toContain('JSON object');
       expect(prompt).toContain('refined_data_transcript');
     });
   });
@@ -134,32 +134,32 @@ describe('P0_2_RefineDataTypesNode', () => {
           {
             line_num: 1,
             text: 'Interviewer: Tell me about your process.',
-            information_tags: ['L-tag'],
-            decision_notes: 'Leading question'
+            information_tags: ['procedural_information'],
+            decision_notes: 'Interviewer question about the process'
           },
           {
             line_num: 2,
             text: 'Participant: Well, first I gather all the materials.',
-            information_tags: ['P-tag'],
-            decision_notes: 'Procedural step 1'
+            information_tags: ['experiential_content'],
+            decision_notes: 'Describes experiential process step 1'
           },
           {
             line_num: 3,
             text: 'Participant: Then I organize them by type.',
-            information_tags: ['P-tag'],
-            decision_notes: 'Procedural step 2'
+            information_tags: ['experiential_content'],
+            decision_notes: 'Describes experiential process step 2'
           },
           {
             line_num: 4,
             text: 'Interviewer: What types are there?',
-            information_tags: ['L-tag'],
-            decision_notes: 'Clarification question'
+            information_tags: ['procedural_information'],
+            decision_notes: 'Interviewer clarification question'
           },
           {
             line_num: 5,
             text: 'Participant: There are documents, images, and data files.',
-            information_tags: ['I-tag'],
-            decision_notes: 'Information about categories'
+            information_tags: ['experiential_content'],
+            decision_notes: 'Describes details of the experience'
           }
         ]
       };
@@ -175,7 +175,7 @@ describe('P0_2_RefineDataTypesNode', () => {
       expect(mockContext.llmClient.generateContent).toHaveBeenCalledWith({
         contents: [{ 
           role: 'user', 
-          parts: [{ text: expect.stringContaining('DATA TYPE REFINEMENT') }]
+          parts: [{ text: expect.stringContaining('micro-phenomenological data preparation analyst') }]
         }],
         generationConfig: {
           temperature: 0.2,
@@ -218,7 +218,7 @@ describe('P0_2_RefineDataTypesNode', () => {
           {
             line_num: 1,
             text: 'Line 1',
-            information_tags: ['I-tag']
+            information_tags: ['experiential_content']
           }
         ]
       };
@@ -266,7 +266,7 @@ describe('P0_2_RefineDataTypesNode', () => {
           {
             line_num: 1,
             text: 'Text',
-            information_tags: ['I-tag', 'L-tag', 'P-tag']
+            information_tags: ['procedural_information', 'experiential_content']
           }
         ]
       };

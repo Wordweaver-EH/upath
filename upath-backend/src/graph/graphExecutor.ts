@@ -10,6 +10,7 @@ import { ProgressCalculator } from './services/ProgressCalculator';
 export interface SessionInit {
   transcripts: GraphState['transcripts'];
   settings: Partial<GraphState['metadata']['settings']>;
+  userDvFocus?: GraphState['userDvFocus'];
 }
 
 export interface ExecutionResult {
@@ -29,6 +30,27 @@ export interface Session {
   lastExecutedAt?: number;
 }
 
+/**
+ * GraphExecutor manages the execution of a processing graph
+ * 
+ * KNOWN ISSUE: Race Condition in Concurrent Updates
+ * --------------------------------------------------
+ * The current implementation has a race condition when multiple requests
+ * try to update the same session concurrently. The pattern is:
+ * 1. Read session
+ * 2. Execute node
+ * 3. Update session
+ * 
+ * If two requests execute concurrently, one will overwrite the other's changes.
+ * 
+ * FUTURE FIX: Implement optimistic locking with version numbers:
+ * - Add version field to Session
+ * - Use compare-and-swap operations (Redis WATCH/MULTI/EXEC)
+ * - Retry on version conflicts
+ * 
+ * CURRENT MITIGATION: In production, ensure only one request per session
+ * is processed at a time using external coordination (e.g., message queue).
+ */
 export class GraphExecutor extends EventEmitter {
   private graph: Graph;
   private sessionStore: ISessionStore;
@@ -48,6 +70,11 @@ export class GraphExecutor extends EventEmitter {
       init.transcripts,
       init.settings as any
     );
+    
+    // Set userDvFocus if provided
+    if (init.userDvFocus) {
+      state.userDvFocus = init.userDvFocus;
+    }
     
     // Set initial progress
     state.progress = this.progressCalculator.calculateProgress(state.currentStep);
@@ -169,25 +196,38 @@ export class GraphExecutor extends EventEmitter {
       const result = await currentNode.executeWithRetry(state, enhancedContext);
 
       if (result.success && result.state) {
+        const completedStepId = state.currentStep;
+
         // Update state with node results
         Object.assign(state, result.state);
+        // Explicitly set lastCompletedStep for clarity
+        state.lastCompletedStep = completedStepId;
         
-        // Find next step
-        const edges = this.graph.edges.get(state.currentStep) || [];
-        const nextStep = edges[0]; // For now, just take the first edge
-        
-        // Check conditional edges
-        const conditionalEdges = this.graph.conditionalEdges.get(state.currentStep) || [];
+        // Determine the next step
+        let nextStepId: string | undefined;
+
+        // 1. Check for a conditional edge match
+        const conditionalEdges = this.graph.conditionalEdges.get(completedStepId) || [];
         for (const edge of conditionalEdges) {
           if (edge.condition(state)) {
-            state.currentStep = edge.target;
+            nextStepId = edge.target;
             break;
           }
         }
         
-        // If no conditional edge matched, use regular edge
-        if (state.currentStep === result.state.currentStep && nextStep) {
-          state.currentStep = nextStep;
+        // 2. If no conditional edge, find a regular edge
+        if (!nextStepId) {
+          const edges = this.graph.edges.get(completedStepId) || [];
+          nextStepId = edges[0]; // Assumes single outgoing path
+        }
+
+        // 3. Update currentStep or transition to COMPLETE
+        if (nextStepId) {
+          state.currentStep = nextStepId;
+        } else {
+          // No next step found, this was a terminal node.
+          state.currentStep = StepId.COMPLETE;
+          state.status = 'completed';
         }
 
         // Update progress based on the new current step
@@ -220,8 +260,8 @@ export class GraphExecutor extends EventEmitter {
 
         return {
           success: true,
-          completedStep: result.state.lastCompletedStep,
-          nextStep: state.currentStep !== result.state.lastCompletedStep ? state.currentStep : undefined,
+          completedStep: completedStepId,
+          nextStep: state.currentStep !== completedStepId ? state.currentStep : undefined,
           hasMore
         };
       } else {

@@ -1,5 +1,7 @@
 # Supplementary Doc: LangGraph.js Migration
 
+**Navigation:** [📚 Docs Home](../README.md) | [📋 Migration Plan](../MIGRATION-PLAN.md) | [📚 Backend Architecture](00_backend_architecture.md) | [📚 State Refactoring](01_state_refactoring.md)
+
 This document explains the LangGraph.js migration in Phase 2.
 
 ## The Problem: A Brittle, Hardcoded Pipeline

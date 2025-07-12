@@ -53,7 +53,13 @@ export class RedisSessionStore implements ISessionStore {
       return undefined;
     }
     
-    return JSON.parse(value);
+    try {
+      return JSON.parse(value);
+    } catch (error) {
+      console.error(`Failed to parse session data for ${sessionId}:`, error);
+      // Treat corrupted data as not found
+      return undefined;
+    }
   }
 
   async has(sessionId: string): Promise<boolean> {
@@ -69,7 +75,21 @@ export class RedisSessionStore implements ISessionStore {
 
   async list(): Promise<string[]> {
     const pattern = `${this.keyPrefix}*`;
-    const keys = await this.redis.keys(pattern);
+    const keys: string[] = [];
+    let cursor = '0';
+    
+    // Use SCAN instead of KEYS to avoid blocking Redis
+    do {
+      const [nextCursor, batch] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        100
+      );
+      cursor = nextCursor;
+      keys.push(...batch);
+    } while (cursor !== '0');
     
     // Remove the prefix from keys
     return keys.map(key => key.substring(this.keyPrefix.length));
@@ -77,7 +97,21 @@ export class RedisSessionStore implements ISessionStore {
 
   async clear(): Promise<void> {
     const pattern = `${this.keyPrefix}*`;
-    const keys = await this.redis.keys(pattern);
+    const keys: string[] = [];
+    let cursor = '0';
+    
+    // Use SCAN instead of KEYS to avoid blocking Redis
+    do {
+      const [nextCursor, batch] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        100
+      );
+      cursor = nextCursor;
+      keys.push(...batch);
+    } while (cursor !== '0');
     
     if (keys.length > 0) {
       await this.redis.del(...keys);

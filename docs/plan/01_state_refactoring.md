@@ -1,5 +1,7 @@
 # Supplementary Doc: Frontend State Refactoring
 
+**Navigation:** [📚 Docs Home](../README.md) | [📋 Migration Plan](../MIGRATION-PLAN.md) | [📚 Backend Architecture](00_backend_architecture.md) | [📚 LangGraph Migration](02_langgraph_migration.md)
+
 This document explains the state management changes in Phase 1 of the migration.
 
 ## What is "State"?

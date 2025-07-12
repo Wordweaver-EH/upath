@@ -18,6 +18,10 @@ export interface GraphMetadata {
   parentCheckpointId?: string;
 }
 
+export interface UserDVFocus {
+  dv_focus: string[];
+}
+
 export interface GraphState {
   sessionId: string;
   currentStep: string;
@@ -29,6 +33,7 @@ export interface GraphState {
   lastCompletedStep?: string;
   progress?: number;
   status?: 'idle' | 'running' | 'completed' | 'failed' | 'paused';
+  userDvFocus?: UserDVFocus;
 }
 
 export interface NodeExecutionResult {
@@ -47,7 +52,8 @@ export const GraphStateSchema = {
   metadata: null,
   lastCompletedStep: null,
   progress: null,
-  status: null
+  status: null,
+  userDvFocus: null
 };
 
 // Helper functions
@@ -59,7 +65,7 @@ export function createInitialGraphState(
   const now = Date.now();
   return {
     sessionId,
-    currentStep: 'P0_1_TRANSCRIPTION_ADHERENCE', // Start with first step
+    currentStep: 'P_NEG1_1_VARIABLE_IDENTIFICATION', // Start with first step
     transcripts,
     stepOutputs: {},
     errors: {},

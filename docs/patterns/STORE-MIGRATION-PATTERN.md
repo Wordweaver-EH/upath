@@ -1,5 +1,7 @@
 # Store Migration Pattern Documentation
 
+**Navigation:** [📚 Docs Home](../README.md) | [📋 Migration Plan](../MIGRATION-PLAN.md) | [🔧 Transaction Pattern](TRANSACTION-PATTERN.md) | [📚 State Refactoring](../plan/01_state_refactoring.md)
+
 ## Overview
 This document describes the validated migration pattern for transitioning from monolithic `pipelineStore` to dedicated stores with cross-store communication.
 

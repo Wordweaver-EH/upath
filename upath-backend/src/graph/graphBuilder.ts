@@ -34,7 +34,7 @@ export class GraphBuilder {
     this.registry = registry;
     this.edges = new Map();
     this.conditionalEdges = new Map();
-    this.entryPoint = StepId.P0_1_TRANSCRIPTION_ADHERENCE;
+    this.entryPoint = StepId.P_NEG1_1_VARIABLE_IDENTIFICATION;
     
     // Initialize default edges
     this.initializeDefaultEdges();
@@ -42,8 +42,13 @@ export class GraphBuilder {
 
   private initializeDefaultEdges(): void {
     // Default linear flow for initial nodes
+    this.addEdge(StepId.P_NEG1_1_VARIABLE_IDENTIFICATION, StepId.P0_1_TRANSCRIPTION_ADHERENCE);
     this.addEdge(StepId.P0_1_TRANSCRIPTION_ADHERENCE, StepId.P0_2_REFINE_DATA_TYPES);
     this.addEdge(StepId.P0_2_REFINE_DATA_TYPES, StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES);
+    this.addEdge(StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES, StepId.P1_1_INITIAL_SEGMENTATION);
+    this.addEdge(StepId.P1_1_INITIAL_SEGMENTATION, StepId.P1_2_DIACHRONIC_UNIT_ID);
+    this.addEdge(StepId.P1_2_DIACHRONIC_UNIT_ID, StepId.P1_3_REFINE_DIACHRONIC_UNITS);
+    this.addEdge(StepId.P1_3_REFINE_DIACHRONIC_UNITS, StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE);
   }
 
   setEntryPoint(nodeId: string): void {

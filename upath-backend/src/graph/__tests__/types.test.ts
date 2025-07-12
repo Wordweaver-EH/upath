@@ -27,7 +27,7 @@ describe('GraphState Type System', () => {
       const state = createInitialGraphState(sessionId, transcripts, settings);
 
       expect(state.sessionId).toBe(sessionId);
-      expect(state.currentStep).toBe('P0_1_TRANSCRIPTION_ADHERENCE');
+      expect(state.currentStep).toBe('P_NEG1_1_VARIABLE_IDENTIFICATION');
       expect(state.transcripts).toEqual(transcripts);
       expect(state.stepOutputs).toEqual({});
       expect(state.errors).toEqual({});

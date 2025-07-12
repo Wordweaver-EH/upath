@@ -10,6 +10,13 @@ const createMockRedis = () => ({
   exists: vi.fn().mockResolvedValue(0),
   del: vi.fn().mockResolvedValue(1),
   keys: vi.fn().mockResolvedValue([]),
+  scan: vi.fn().mockResolvedValue(['0', []]),
+  watch: vi.fn().mockResolvedValue('OK'),
+  unwatch: vi.fn().mockResolvedValue('OK'),
+  multi: vi.fn().mockReturnValue({
+    set: vi.fn().mockReturnThis(),
+    exec: vi.fn().mockResolvedValue([['OK']])
+  }),
   flushdb: vi.fn().mockResolvedValue('OK'),
   on: vi.fn(),
   connect: vi.fn().mockResolvedValue(undefined),
@@ -42,7 +49,8 @@ describe('RedisSessionStore', () => {
         [{ text: 'test transcript', metadata: {} }],
         {}
       ),
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      version: 1
     };
   });
 
@@ -74,6 +82,7 @@ describe('RedisSessionStore', () => {
     });
   });
 
+
   describe('get', () => {
     it('should retrieve and parse stored session', async () => {
       mockRedis.get.mockResolvedValueOnce(JSON.stringify(testSession));
@@ -95,7 +104,9 @@ describe('RedisSessionStore', () => {
     it('should handle malformed JSON gracefully', async () => {
       mockRedis.get.mockResolvedValueOnce('invalid json');
       
-      await expect(store.get('session-1')).rejects.toThrow();
+      const result = await store.get('session-1');
+      
+      expect(result).toBeUndefined();
     });
   });
 
@@ -127,21 +138,21 @@ describe('RedisSessionStore', () => {
   });
 
   describe('list', () => {
-    it('should return session IDs without prefix', async () => {
-      mockRedis.keys.mockResolvedValueOnce([
-        'session:session-1',
-        'session:session-2',
-        'session:session-3'
-      ]);
+    it('should return session IDs without prefix using SCAN', async () => {
+      // Mock SCAN to return results in two batches
+      mockRedis.scan
+        .mockResolvedValueOnce(['10', ['session:session-1', 'session:session-2']])
+        .mockResolvedValueOnce(['0', ['session:session-3']]);
       
       const ids = await store.list();
       
-      expect(mockRedis.keys).toHaveBeenCalledWith('session:*');
+      expect(mockRedis.scan).toHaveBeenCalledWith('0', 'MATCH', 'session:*', 'COUNT', 100);
+      expect(mockRedis.scan).toHaveBeenCalledWith('10', 'MATCH', 'session:*', 'COUNT', 100);
       expect(ids).toEqual(['session-1', 'session-2', 'session-3']);
     });
 
     it('should return empty array when no sessions', async () => {
-      mockRedis.keys.mockResolvedValueOnce([]);
+      mockRedis.scan.mockResolvedValueOnce(['0', []]);
       
       const ids = await store.list();
       
@@ -150,20 +161,20 @@ describe('RedisSessionStore', () => {
   });
 
   describe('clear', () => {
-    it('should delete all session keys', async () => {
-      mockRedis.keys.mockResolvedValueOnce([
-        'session:session-1',
-        'session:session-2'
-      ]);
+    it('should delete all session keys using SCAN', async () => {
+      mockRedis.scan
+        .mockResolvedValueOnce(['10', ['session:session-1']])
+        .mockResolvedValueOnce(['0', ['session:session-2']]);
       
       await store.clear();
       
-      expect(mockRedis.keys).toHaveBeenCalledWith('session:*');
+      expect(mockRedis.scan).toHaveBeenCalledWith('0', 'MATCH', 'session:*', 'COUNT', 100);
+      expect(mockRedis.scan).toHaveBeenCalledWith('10', 'MATCH', 'session:*', 'COUNT', 100);
       expect(mockRedis.del).toHaveBeenCalledWith('session:session-1', 'session:session-2');
     });
 
     it('should handle empty sessions gracefully', async () => {
-      mockRedis.keys.mockResolvedValueOnce([]);
+      mockRedis.scan.mockResolvedValueOnce(['0', []]);
       
       await store.clear();
       

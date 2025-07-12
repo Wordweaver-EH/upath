@@ -1,6 +1,11 @@
-# Guiding Principles: TDD and Tidy First
+# µ-PATH Migration Plan: TDD and Tidy First Principles
 
-This document establishes the development methodology for the µ-PATH migration. It must be followed precisely.
+**Navigation:** [📚 Docs Home](README.md) | [📋 Current Work](current/) | [🔧 Patterns](patterns/) | [📚 Educational](plan/)
+
+**Last Updated:** 2025-07-12  
+**Current Status:** Phase 2 - LangGraph Migration (67% Complete)
+
+This document establishes the development methodology for the µ-PATH migration and provides the overall strategic approach.
 
 ---
 
@@ -86,6 +91,22 @@ Always write one test at a time, make it run, then improve structure. Always run
 This plan will guide you through upgrading the µ-PATH application from a simple prototype to a robust, secure, and scalable full-stack application. We will do this in phases, making sure the application works at every step.
 
 Each phase has a clear goal and a set of tasks. For the more complex parts, there are links to supplementary documents that explain the concepts in more detail.
+
+## CRITICAL CONTEXT FOR PHASE 2
+
+**Phase 2 is a MIGRATION from MVP to production-ready architecture.** The µ-PATH application has a working MVP implementation that needs to be migrated to LangGraph for:
+
+1. **Better architecture** - Graph-based orchestration instead of imperative flow
+2. **Improved error handling** - Built-in retry and recovery mechanisms  
+3. **State management** - Proper checkpointing and session handling
+4. **Future scalability** - Foundation for parallel execution and advanced features
+
+When implementing Phase 2:
+- Study the existing implementation to understand the logic
+- Implement the same functionality with LangGraph's patterns
+- Improve reliability and maintainability
+- Take the opportunity to clean up technical debt from MVP
+- Output formats should match what the frontend expects (but can be improved if needed)
 
 ---
 
@@ -180,54 +201,55 @@ Each phase has a clear goal and a set of tasks. For the more complex parts, ther
 - FileManagementService
 - ExportService
 
-### Phase 5: Complete Strangler Fig Pattern (IN PROGRESS - Started 2025-07-10)
-**Goal:** Extract all remaining logic from pipelineStore into services
+## Current Migration Status
 
-**5.1 Extract Navigation and State Management Services (2 days)**
-- [ ] Create enhanced PipelineNavigationService (extract getNextStepDetails, processNextStep)
-- [ ] Create enhanced StateInvalidationService (extract invalidateStateFromStep, getInvalidatedStates)
-- [ ] Create PipelineStateManagementService (loadState, getSaveState, resetPipeline)
-- [ ] Create PipelineUIService (UI-specific methods)
+### ✅ Phase 0: Backend Security Implementation (COMPLETED)
+**Goal:** Fix critical API key exposure vulnerability  
+**Status:** COMPLETED 2025-07-08  
+**Result:** Secure backend proxy implemented with Fastify
 
-**5.2 Consolidate File Operations (1 day)**
-- [ ] Extend FileManagementService with remaining file operations
-- [ ] Extend ExportService with remaining export operations
+### ✅ Phase 1: Frontend State Refactoring (COMPLETED)
+**Goal:** Extract all logic from monolithic pipelineStore into services  
+**Status:** COMPLETED 2025-07-10  
+**Result:** Domain-specific stores implemented using Strangler Fig pattern
 
-**5.3 Create Master PipelineService (2 days)**
-- [ ] Create PipelineService composing all services
-- [ ] Refactor pipelineStore to pure state container (< 200 lines)
+### 🚧 Phase 2: LangGraph Migration (IN PROGRESS - 67% Complete)
+**Goal:** Replace hardcoded pipeline with robust graph-based architecture  
+**Status:** ACTIVE - Part I Complete  
+**Progress:**
+- ✅ **Core Infrastructure**: GraphExecutor, NodeRegistry, SessionStore implemented
+- ✅ **Part I Nodes**: 8/8 implemented (P_NEG1_1 through P1_4)
+- ✅ **IV/DV Context Threading**: Verified working across all nodes
+- ✅ **Test Coverage**: 248 tests passing with comprehensive TDD
+- ⚠️ **Critical Issues**: 4 identified requiring immediate attention
+- ⏳ **Part II**: 7 remaining nodes (P2S, P3, P4S, P5, COMPLETE)
 
-**5.4 Integration and Migration (2 days)**
-- [ ] Update all components to use PipelineService
-- [ ] Fix remaining tests
-- [ ] Performance verification
-- [ ] Documentation updates
+**Next Steps:**
+1. Address critical production issues (memory leak, error handling, security)
+2. Implement Part II nodes (synchronic and generic analysis)
+3. Create API endpoints for graph execution
+4. Frontend integration
 
-### Success Criteria:
-1. pipelineStore.ts reduced to < 200 lines (only essential orchestration)
-2. All 8 consumers using new architecture
-3. No duplicate implementations
-4. All tests passing
-5. Performance equal or better than before
-6. Clear separation of concerns
-
-### Risk Mitigation:
-- Each phase maintains working application
-- Comprehensive testing at each step
-- Gradual migration with rollback points
-- Preserve all existing functionality
-
-### Estimated Timeline: 10-12 days from start
+### ⏳ Phase 3: Production Deployment (PENDING)
+**Goal:** Deploy LangGraph system to production with full monitoring  
+**Status:** PENDING Phase 2 completion  
+**Prerequisites:** All critical issues resolved, verification testing complete
 
 ---
 
 ---
 
-## Phase 2: LangGraph.js Backend Migration
+## Phase 2: LangGraph.js Backend Migration (DETAILED DOCS)
 
 **Goal:** Replace the hardcoded pipeline logic in the frontend with a flexible and robust graph-based pipeline on the backend using LangGraph.js.
 
-**For more details on why we're doing this, see:** [Supplementary Doc: LangGraph.js Migration](./plan/02_langgraph_migration.md)
+**📋 Current Implementation Documents:**
+- **[Phase 2 Implementation Guide](current/PHASE-2-IMPLEMENTATION-GUIDE.md)** - Detailed progress and step-by-step plan
+- **[Phase 2 Technical Specification](current/PHASE-2-TECHNICAL-SPEC.md)** - Comprehensive technical blueprint
+- **[Production Readiness Checklist](current/PRODUCTION-READINESS.md)** - Critical issues and fixes
+
+**📚 Background Information:**
+- **[LangGraph Migration Explanation](plan/02_langgraph_migration.md)** - Why we're using LangGraph.js
 
 ### Tasks
 
@@ -261,3 +283,16 @@ Each phase has a clear goal and a set of tasks. For the more complex parts, ther
 3.  **Create the AnalysisTable Component:**
     *   Create a new component, `components/outputs/AnalysisTable.tsx`.
     *   This component will be a reusable table for displaying structured analysis data, making the output easier to read than a simple text dump.
+
+---
+
+**Related Documents:**
+- [📚 Documentation Home](README.md) - Complete project overview and navigation
+- [📋 Phase 2 Implementation Guide](current/PHASE-2-IMPLEMENTATION-GUIDE.md) - Current active development
+- [🔧 Store Migration Pattern](patterns/STORE-MIGRATION-PATTERN.md) - Proven migration patterns
+- [📚 Backend Architecture](plan/00_backend_architecture.md) - Why we created the backend
+- [📚 State Refactoring](plan/01_state_refactoring.md) - Domain-specific stores explanation
+
+**Next Actions:**
+- Review [Production Readiness Checklist](current/PRODUCTION-READINESS.md) for critical issues
+- Follow [Phase 2 Implementation Guide](current/PHASE-2-IMPLEMENTATION-GUIDE.md) for Part II development

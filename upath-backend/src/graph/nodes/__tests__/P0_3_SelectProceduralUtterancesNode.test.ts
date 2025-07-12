@@ -57,50 +57,50 @@ describe('P0_3_SelectProceduralUtterancesNode', () => {
             {
               line_num: 1,
               text: 'Interviewer: Tell me about your process.',
-              information_tags: ['L-tag'],
-              decision_notes: 'Leading question asking for procedural information'
+              information_tags: ['procedural_information'],
+              decision_notes: 'Interviewer question - part of interview process'
             },
             {
               line_num: 2,
               text: 'Participant: Well, first I gather all the materials.',
-              information_tags: ['P-tag'],
-              decision_notes: 'First procedural step'
+              information_tags: ['experiential_content'],
+              decision_notes: 'Describes first step of their experience'
             },
             {
               line_num: 3,
               text: 'Participant: Then I organize them by type.',
-              information_tags: ['P-tag'],
-              decision_notes: 'Second procedural step'
+              information_tags: ['experiential_content'],
+              decision_notes: 'Describes second step of their experience'
             },
             {
               line_num: 4,
               text: 'Interviewer: What types are there?',
-              information_tags: ['L-tag'],
-              decision_notes: 'Clarification question'
+              information_tags: ['procedural_information'],
+              decision_notes: 'Interviewer clarification question'
             },
             {
               line_num: 5,
               text: 'Participant: There are documents, images, and data files.',
-              information_tags: ['I-tag'],
-              decision_notes: 'Information about categories'
+              information_tags: ['experiential_content'],
+              decision_notes: 'Details about the experience'
             },
             {
               line_num: 6,
               text: 'Participant: After sorting, I scan each document.',
-              information_tags: ['P-tag'],
-              decision_notes: 'Third procedural step'
+              information_tags: ['experiential_content'],
+              decision_notes: 'Describes third step of their experience'
             },
             {
               line_num: 7,
               text: 'Interviewer: How long does that take?',
-              information_tags: ['L-tag'],
-              decision_notes: 'Time inquiry'
+              information_tags: ['procedural_information'],
+              decision_notes: 'Interviewer time inquiry'
             },
             {
               line_num: 8,
               text: 'Participant: Usually about 30 minutes per batch.',
-              information_tags: ['I-tag'],
-              decision_notes: 'Time information'
+              information_tags: ['experiential_content'],
+              decision_notes: 'Time details of the experience'
             }
           ]
         } as P0_2_Output
@@ -140,6 +140,13 @@ describe('P0_3_SelectProceduralUtterancesNode', () => {
     });
 
     it('should fail if refined_data_transcript is missing', async () => {
+      // Add P_NEG1_1 output so we can test the refined_data_transcript validation
+      testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION] = {
+        transcript_id: 'transcript-1',
+        independent_variable_details: 'Test IV',
+        dependent_variable_focus: ['test']
+      };
+      
       const p0_2_output = testState.stepOutputs[StepId.P0_2_REFINE_DATA_TYPES] as P0_2_Output;
       p0_2_output.refined_data_transcript = undefined as any;
       
@@ -151,6 +158,13 @@ describe('P0_3_SelectProceduralUtterancesNode', () => {
     });
 
     it('should fail if refined_data_transcript is empty', async () => {
+      // Add P_NEG1_1 output so we can test the refined_data_transcript validation
+      testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION] = {
+        transcript_id: 'transcript-1',
+        independent_variable_details: 'Test IV',
+        dependent_variable_focus: ['test']
+      };
+      
       const p0_2_output = testState.stepOutputs[StepId.P0_2_REFINE_DATA_TYPES] as P0_2_Output;
       p0_2_output.refined_data_transcript = [];
       
@@ -162,106 +176,223 @@ describe('P0_3_SelectProceduralUtterancesNode', () => {
     });
   });
 
-  describe('Procedural filtering logic', () => {
-    it('should filter utterances with P-tag', () => {
-      const p0_2_output = testState.stepOutputs[StepId.P0_2_REFINE_DATA_TYPES] as P0_2_Output;
-      const filtered = node.filterProceduralUtterances(p0_2_output);
+  describe('LLM-based selection', () => {
+    it('should require P_NEG1_1 output for IV/DV context', async () => {
+      // Remove P_NEG1_1 output
+      delete testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION];
       
-      expect(filtered).toHaveLength(3);
-      expect(filtered[0].line_num).toBe(2);
-      expect(filtered[1].line_num).toBe(3);
-      expect(filtered[2].line_num).toBe(6);
+      const result = await node.executeWithRetry(testState, mockContext);
+      
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain('P_NEG1_1 output not found');
     });
 
-    it('should handle utterances with multiple tags including P-tag', () => {
-      const p0_2_output = testState.stepOutputs[StepId.P0_2_REFINE_DATA_TYPES] as P0_2_Output;
-      // Add a line with multiple tags including P-tag
-      p0_2_output.refined_data_transcript.push({
-        line_num: 9,
-        text: 'Participant: And then I file them, which helps track progress.',
-        information_tags: ['P-tag', 'I-tag'],
-        decision_notes: 'Both procedural and informational'
-      });
-      
-      const filtered = node.filterProceduralUtterances(p0_2_output);
-      
-      expect(filtered).toHaveLength(4);
-      expect(filtered[3].line_num).toBe(9);
-    });
-
-    it('should return empty array if no P-tag utterances exist', () => {
-      const p0_2_output: P0_2_Output = {
+    it('should build prompt with experiential content focus', () => {
+      // Add P_NEG1_1 output to state
+      testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION] = {
         transcript_id: 'transcript-1',
-        refined_data_transcript: [
-          {
-            line_num: 1,
-            text: 'Interviewer: What do you think?',
-            information_tags: ['L-tag']
-          },
-          {
-            line_num: 2,
-            text: 'Participant: It is good.',
-            information_tags: ['I-tag']
-          }
-        ]
+        independent_variable_details: 'Interview about document processing',
+        dependent_variable_focus: ['efficiency', 'organization']
       };
       
-      const filtered = node.filterProceduralUtterances(p0_2_output);
+      const p0_2_output = testState.stepOutputs[StepId.P0_2_REFINE_DATA_TYPES] as P0_2_Output;
+      const p_neg1_1_output = testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION];
+      const prompt = node.buildPrompt(p0_2_output, p_neg1_1_output);
       
-      expect(filtered).toHaveLength(0);
+      expect(prompt).toContain('micro-phenomenological analyst');
+      expect(prompt).toContain('diachronic (temporal) structure');
+      expect(prompt).toContain('experiential_content');
+      expect(prompt).toContain('independent_variable_details');
+      expect(prompt).toContain('dependent_variable_focus');
+    });
+
+    it('should call LLM with proper semantic analysis prompt', async () => {
+      // Add P_NEG1_1 output
+      testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION] = {
+        transcript_id: 'transcript-1',
+        independent_variable_details: 'Interview about document processing',
+        dependent_variable_focus: ['efficiency', 'organization']
+      };
+      
+      // Mock LLM response
+      const mockResponse = {
+        transcript_id: 'transcript-1',
+        selected_procedural_utterances: [
+          {
+            original_line_num: '2',
+            utterance_text: 'Participant: Well, first I gather all the materials.',
+            selection_justification: 'Describes first action in the experience sequence'
+          },
+          {
+            original_line_num: '3',
+            utterance_text: 'Participant: Then I organize them by type.',
+            selection_justification: 'Describes second sequential action'
+          },
+          {
+            original_line_num: '6',
+            utterance_text: 'Participant: After sorting, I scan each document.',
+            selection_justification: 'Describes third procedural step with temporal marker "After"'
+          }
+        ],
+        discarded_info_summary: 'Interviewer questions and static descriptions were excluded',
+        independent_variable_details: 'Interview about document processing',
+        dependent_variable_focus: ['efficiency', 'organization']
+      };
+      
+      mockContext.llmClient.generateContent.mockResolvedValue({
+        response: {
+          text: () => JSON.stringify(mockResponse)
+        }
+      });
+      
+      const result = await node.execute(testState, mockContext);
+      
+      expect(mockContext.llmClient.generateContent).toHaveBeenCalled();
+      expect(result.stepOutputs?.[StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]).toEqual(mockResponse);
     });
   });
 
   describe('Output generation', () => {
     it('should generate correct output structure', async () => {
+      // Add P_NEG1_1 output
+      testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION] = {
+        transcript_id: 'transcript-1',
+        independent_variable_details: 'Interview about document processing',
+        dependent_variable_focus: ['efficiency', 'organization']
+      };
+      
+      // Mock LLM response
+      const mockResponse = {
+        transcript_id: 'transcript-1',
+        selected_procedural_utterances: [
+          {
+            original_line_num: '2',
+            utterance_text: 'Participant: Well, first I gather all the materials.',
+            selection_justification: 'First step in process'
+          },
+          {
+            original_line_num: '3',
+            utterance_text: 'Participant: Then I organize them by type.',
+            selection_justification: 'Second step'
+          },
+          {
+            original_line_num: '6',
+            utterance_text: 'Participant: After sorting, I scan each document.',
+            selection_justification: 'Third step'
+          }
+        ],
+        discarded_info_summary: 'Excluded interviewer questions and static descriptions',
+        independent_variable_details: 'Interview about document processing',
+        dependent_variable_focus: ['efficiency', 'organization']
+      };
+      
+      mockContext.llmClient.generateContent.mockResolvedValue({
+        response: {
+          text: () => JSON.stringify(mockResponse)
+        }
+      });
+      
       const result = await node.execute(testState, mockContext);
       
       expect(result.stepOutputs?.[StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]).toBeDefined();
       const output = result.stepOutputs?.[StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES] as P0_3_Output;
       
       expect(output.transcript_id).toBe('transcript-1');
-      expect(output.procedural_utterances).toHaveLength(3);
-      expect(output.non_procedural_count).toBe(5);
-      expect(output.total_utterance_count).toBe(8);
-      expect(output.selection_summary).toContain('3 procedural utterances');
+      expect(output.selected_procedural_utterances).toHaveLength(3);
+      expect(output.discarded_info_summary).toBeDefined();
+      expect(output.independent_variable_details).toBe('Interview about document processing');
+      expect(output.dependent_variable_focus).toEqual(['efficiency', 'organization']);
     });
 
-    it('should preserve all fields from P-tag utterances', async () => {
-      const result = await node.execute(testState, mockContext);
-      const output = result.stepOutputs?.[StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES] as P0_3_Output;
+    it('should preserve utterance details with justifications', async () => {
+      // Add P_NEG1_1 output
+      testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION] = {
+        transcript_id: 'transcript-1',
+        independent_variable_details: 'Test IV',
+        dependent_variable_focus: ['test']
+      };
       
-      const firstUtterance = output.procedural_utterances[0];
-      expect(firstUtterance.line_num).toBe(2);
-      expect(firstUtterance.text).toBe('Participant: Well, first I gather all the materials.');
-      expect(firstUtterance.information_tags).toContain('P-tag');
-      expect(firstUtterance.decision_notes).toBe('First procedural step');
-    });
-
-    it('should generate appropriate summary', async () => {
-      const result = await node.execute(testState, mockContext);
-      const output = result.stepOutputs?.[StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES] as P0_3_Output;
+      const mockResponse = {
+        transcript_id: 'transcript-1',
+        selected_procedural_utterances: [
+          {
+            original_line_num: '2',
+            utterance_text: 'Participant: Well, first I gather all the materials.',
+            selection_justification: 'Describes first action in experiential sequence'
+          }
+        ],
+        discarded_info_summary: 'Excluded non-procedural content',
+        independent_variable_details: 'Test IV',
+        dependent_variable_focus: ['test']
+      };
       
-      expect(output.selection_summary).toMatch(/Selected 3 procedural utterances out of 8 total/);
-      expect(output.selection_summary).toMatch(/lines 2, 3, 6/);
-    });
-
-    it('should handle case with no procedural utterances', async () => {
-      const p0_2_output = testState.stepOutputs[StepId.P0_2_REFINE_DATA_TYPES] as P0_2_Output;
-      // Remove all P-tags
-      p0_2_output.refined_data_transcript.forEach(line => {
-        line.information_tags = line.information_tags.filter(tag => tag !== 'P-tag');
+      mockContext.llmClient.generateContent.mockResolvedValue({
+        response: {
+          text: () => JSON.stringify(mockResponse)
+        }
       });
       
       const result = await node.execute(testState, mockContext);
       const output = result.stepOutputs?.[StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES] as P0_3_Output;
       
-      expect(output.procedural_utterances).toHaveLength(0);
-      expect(output.selection_summary).toContain('No procedural utterances found');
+      const firstUtterance = output.selected_procedural_utterances[0];
+      expect(firstUtterance.original_line_num).toBe('2');
+      expect(firstUtterance.utterance_text).toBe('Participant: Well, first I gather all the materials.');
+      expect(firstUtterance.selection_justification).toBe('Describes first action in experiential sequence');
+    });
+
+    it('should handle case with no procedural utterances', async () => {
+      // Add P_NEG1_1 output
+      testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION] = {
+        transcript_id: 'transcript-1',
+        independent_variable_details: 'Test IV',
+        dependent_variable_focus: ['test']
+      };
+      
+      const mockResponse = {
+        transcript_id: 'transcript-1',
+        selected_procedural_utterances: [],
+        discarded_info_summary: 'No procedural content found - all utterances were static descriptions or interview process',
+        independent_variable_details: 'Test IV',
+        dependent_variable_focus: ['test']
+      };
+      
+      mockContext.llmClient.generateContent.mockResolvedValue({
+        response: {
+          text: () => JSON.stringify(mockResponse)
+        }
+      });
+      
+      const result = await node.execute(testState, mockContext);
+      const output = result.stepOutputs?.[StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES] as P0_3_Output;
+      
+      expect(output.selected_procedural_utterances).toHaveLength(0);
+      expect(output.discarded_info_summary).toContain('No procedural content found');
     });
   });
 
   describe('State updates', () => {
     it('should update state correctly on success', async () => {
+      // Add P_NEG1_1 output
+      testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION] = {
+        transcript_id: 'transcript-1',
+        independent_variable_details: 'Test IV',
+        dependent_variable_focus: ['test']
+      };
+      
+      // Mock LLM response
+      mockContext.llmClient.generateContent.mockResolvedValue({
+        response: {
+          text: () => JSON.stringify({
+            transcript_id: 'transcript-1',
+            selected_procedural_utterances: [],
+            discarded_info_summary: 'Test',
+            independent_variable_details: 'Test IV',
+            dependent_variable_focus: ['test']
+          })
+        }
+      });
+      
       // Add progress to context
       const contextWithProgress = {
         ...mockContext,
@@ -281,9 +412,30 @@ describe('P0_3_SelectProceduralUtterancesNode', () => {
     });
 
     it('should preserve previous step outputs', async () => {
+      // Add P_NEG1_1 output
+      testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION] = {
+        transcript_id: 'transcript-1',
+        independent_variable_details: 'Test IV',
+        dependent_variable_focus: ['test']
+      };
+      
+      // Mock LLM response
+      mockContext.llmClient.generateContent.mockResolvedValue({
+        response: {
+          text: () => JSON.stringify({
+            transcript_id: 'transcript-1',
+            selected_procedural_utterances: [],
+            discarded_info_summary: 'Test',
+            independent_variable_details: 'Test IV',
+            dependent_variable_focus: ['test']
+          })
+        }
+      });
+      
       const result = await node.execute(testState, mockContext);
       
-      // Should still have P0_1 and P0_2 outputs
+      // Should still have P_NEG1_1, P0_1 and P0_2 outputs
+      expect(result.stepOutputs?.[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION]).toBeDefined();
       expect(result.stepOutputs?.[StepId.P0_1_TRANSCRIPTION_ADHERENCE]).toBeDefined();
       expect(result.stepOutputs?.[StepId.P0_2_REFINE_DATA_TYPES]).toBeDefined();
       // And new P0_3 output
@@ -300,37 +452,74 @@ describe('P0_3_SelectProceduralUtterancesNode', () => {
       expect(result.error?.recoverable).toBe(false);
     });
 
-    it('should not require LLM for this node', async () => {
-      // This node doesn't use LLM, it's purely filtering logic
-      const result = await node.execute(testState, mockContext);
+    it('should handle LLM errors with retry', async () => {
+      // Add P_NEG1_1 output
+      testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION] = {
+        transcript_id: 'transcript-1',
+        independent_variable_details: 'Test IV',
+        dependent_variable_focus: ['test']
+      };
       
-      expect(mockContext.llmClient.generateContent).not.toHaveBeenCalled();
-      expect(result.stepOutputs?.[StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]).toBeDefined();
+      // First call fails, second succeeds
+      mockContext.llmClient.generateContent
+        .mockRejectedValueOnce(new Error('Temporary network error'))
+        .mockResolvedValueOnce({
+          response: {
+            text: () => JSON.stringify({
+              transcript_id: 'transcript-1',
+              selected_procedural_utterances: [],
+              discarded_info_summary: 'Test',
+              independent_variable_details: 'Test IV',
+              dependent_variable_focus: ['test']
+            })
+          }
+        });
+      
+      const result = await node.executeWithRetry(testState, mockContext);
+      
+      expect(result.success).toBe(true);
+      expect(mockContext.llmClient.generateContent).toHaveBeenCalledTimes(2);
     });
   });
 
   describe('Edge cases', () => {
-    it('should handle utterances with empty information_tags', () => {
-      const p0_2_output = testState.stepOutputs[StepId.P0_2_REFINE_DATA_TYPES] as P0_2_Output;
-      p0_2_output.refined_data_transcript.push({
-        line_num: 10,
-        text: 'Some text',
-        information_tags: []
+    it('should handle malformed LLM response', async () => {
+      // Add P_NEG1_1 output
+      testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION] = {
+        transcript_id: 'transcript-1',
+        independent_variable_details: 'Test IV',
+        dependent_variable_focus: ['test']
+      };
+      
+      // Mock invalid JSON response
+      mockContext.llmClient.generateContent.mockResolvedValue({
+        response: {
+          text: () => 'Invalid JSON {broken'
+        }
       });
       
-      const filtered = node.filterProceduralUtterances(p0_2_output);
-      
-      // Should not crash and should only return P-tag utterances
-      expect(filtered).toHaveLength(3);
+      await expect(node.execute(testState, mockContext)).rejects.toThrow('Failed to parse LLM JSON response');
     });
 
-    it('should handle utterances without decision_notes', async () => {
-      const p0_2_output = testState.stepOutputs[StepId.P0_2_REFINE_DATA_TYPES] as P0_2_Output;
-      p0_2_output.refined_data_transcript[1].decision_notes = undefined;
+    it('should handle missing required fields in LLM response', async () => {
+      // Add P_NEG1_1 output
+      testState.stepOutputs[StepId.P_NEG1_1_VARIABLE_IDENTIFICATION] = {
+        transcript_id: 'transcript-1',
+        independent_variable_details: 'Test IV',
+        dependent_variable_focus: ['test']
+      };
       
-      const result = await node.execute(testState, mockContext);
+      // Mock response missing required fields
+      mockContext.llmClient.generateContent.mockResolvedValue({
+        response: {
+          text: () => JSON.stringify({
+            transcript_id: 'transcript-1'
+            // Missing selected_procedural_utterances
+          })
+        }
+      });
       
-      expect(result).toBeDefined();
+      await expect(node.execute(testState, mockContext)).rejects.toThrow();
     });
   });
 });

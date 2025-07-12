@@ -171,7 +171,8 @@ export abstract class BaseNode {
     if (backoff === 'exponential') {
       return initialDelayMs * Math.pow(2, attempt - 1);
     } else {
-      return initialDelayMs;
+      // Linear backoff: delay increases linearly with attempt number
+      return initialDelayMs * attempt;
     }
   }
 
