@@ -12,3 +12,5 @@ export { P2S_1_GroupUtterancesByTopicNode } from './P2S_1_GroupUtterancesByTopic
 export { P2S_2_IdentifySpecificSynchronicUnitsNode } from './P2S_2_IdentifySpecificSynchronicUnitsNode';
 export { P2S_3_DefineSpecificSynchronicStructureNode } from './P2S_3_DefineSpecificSynchronicStructureNode';
 export { P3_1_AlignStructuresNode } from './P3_1_AlignStructuresNode';
+export { P3_2_IdentifyGDUsNode } from './P3_2_IdentifyGDUsNode';
+export { P3_3_DefineGenericDiachronicStructureNode } from './P3_3_DefineGenericDiachronicStructureNode';

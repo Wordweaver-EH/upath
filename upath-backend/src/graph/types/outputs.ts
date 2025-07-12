@@ -208,6 +208,39 @@ export interface P3_1_Output {
   dependent_variable_focus: string[];
 }
 
+export interface GenericDiachronicUnit {
+  gdu_id: string;
+  definition: string;
+  supporting_transcripts_count: number;
+  iv_variation_notes?: string;
+  contributing_refined_du_ids: Array<{
+    transcript_id: string;
+    refined_du_id: string;
+  }>;
+}
+
+export interface P3_2_Output {
+  identified_gdus: GenericDiachronicUnit[];
+  criteria_for_gdu_identification: string;
+  dependent_variable_focus: string[];
+  tot_rdus: number;
+}
+
+export interface GenericDiachronicStructureDefinition {
+  name: string;
+  description: string;
+  core_gdus: string[];
+  optional_gdus: string[];
+  typical_sequence: string[];
+}
+
+export interface P3_3_Output {
+  generic_diachronic_structure_definition: GenericDiachronicStructureDefinition;
+  variants_summary: string;
+  confidence_level: 'High' | 'Medium' | 'Low';
+  dependent_variable_focus: string[];
+}
+
 // Additional output types will be added as we implement more nodes
 
 // Union type for all possible step outputs
@@ -224,5 +257,7 @@ export type StepOutput =
   | P2S_2_Output
   | P2S_3_Output
   | P3_1_Output
+  | P3_2_Output
+  | P3_3_Output
   // Additional step outputs will be added as we implement more nodes
   | Record<string, any>; // Fallback for untyped outputs

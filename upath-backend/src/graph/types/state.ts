@@ -37,6 +37,16 @@ export interface GraphMetadata {
   }>;
   // Global DV focus for entire analysis
   global_dv_focus?: string[];
+  // All refined DUs for P3_2 processing
+  all_refined_dus_with_iv_and_ids?: Array<{
+    transcript_id: string;
+    refined_du_id: string;
+    name: string;
+    description: string;
+    temporal_phase: string;
+    confidence: number;
+    iv_details: string;
+  }>;
   [key: string]: any; // Allow additional metadata
 }
 

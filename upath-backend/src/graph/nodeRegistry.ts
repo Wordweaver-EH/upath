@@ -12,7 +12,9 @@ import {
   P2S_1_GroupUtterancesByTopicNode,
   P2S_2_IdentifySpecificSynchronicUnitsNode,
   P2S_3_DefineSpecificSynchronicStructureNode,
-  P3_1_AlignStructuresNode
+  P3_1_AlignStructuresNode,
+  P3_2_IdentifyGDUsNode,
+  P3_3_DefineGenericDiachronicStructureNode
 } from './nodes';
 
 export type NodeConstructor = new () => BaseNode;
@@ -53,6 +55,8 @@ export class NodeRegistry {
     this.nodes.set(StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS, P2S_2_IdentifySpecificSynchronicUnitsNode);
     this.nodes.set(StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE, P2S_3_DefineSpecificSynchronicStructureNode);
     this.nodes.set(StepId.P3_1_ALIGN_STRUCTURES, P3_1_AlignStructuresNode);
+    this.nodes.set(StepId.P3_2_IDENTIFY_GDUS, P3_2_IdentifyGDUsNode);
+    this.nodes.set(StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE, P3_3_DefineGenericDiachronicStructureNode);
   }
 
   /**
