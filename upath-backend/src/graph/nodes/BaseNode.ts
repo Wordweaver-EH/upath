@@ -103,7 +103,7 @@ export abstract class BaseNode {
         stepId: this.id,
         message: lastError?.message || 'Unknown error',
         timestamp: Date.now(),
-        recoverable: this.isRecoverable(lastError!)
+        recoverable: lastError ? this.isRecoverable(lastError) : false
       }
     };
   }
@@ -201,10 +201,10 @@ export abstract class BaseNode {
         }
         
         return parsed as T;
-      } catch (error) {
-        console.error(`[${nodeId}] Failed to parse LLM response:`, error);
+      } catch (parseError) {
+        // Note: Logger not available in this context, but error will be logged by calling node
         throw new LLMResponseError(
-          `Failed to parse ${nodeId} response: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          `Failed to parse ${nodeId} response: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`,
           responseText
         );
       }
@@ -237,6 +237,36 @@ export abstract class BaseNode {
    */
   protected sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Build HIL-enhanced prompt by integrating user guidance
+   * This method should be used by all nodes to ensure consistent HIL integration
+   */
+  protected buildHilEnhancedPrompt(originalPrompt: string, context: ExecutionContext): string {
+    const { hilMetaPrompt } = context.settings;
+    
+    if (!hilMetaPrompt || !hilMetaPrompt.trim()) {
+      return originalPrompt;
+    }
+    
+    // Integrate HIL guidance into the prompt
+    const enhancedPrompt = `${originalPrompt}
+
+## HUMAN-IN-THE-LOOP CORRECTION GUIDANCE ##
+The previous response to this prompt required correction. Please follow this user guidance carefully:
+
+${hilMetaPrompt}
+
+## INSTRUCTIONS ##
+- Address the specific feedback provided above
+- Maintain the same output format and structure requirements
+- Ensure your corrected response fully resolves the issues mentioned in the guidance
+- Do not reference this correction guidance in your response - produce the corrected content directly
+
+Please provide the corrected response now:`;
+
+    return enhancedPrompt;
   }
 
 }

@@ -46,6 +46,9 @@ export enum StepId {
   // Part VI: Report Generation
   P6_1_GENERATE_MARKDOWN_REPORT = "P6_1_GENERATE_MARKDOWN_REPORT",
   
+  // Part IX: Inter-Rater Reliability Analysis
+  P9_1_SEMANTIC_GDU_MAPPING = "P9_1_SEMANTIC_GDU_MAPPING",
+  
   // Final state
   COMPLETE = "COMPLETE"
 }

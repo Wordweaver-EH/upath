@@ -25,6 +25,7 @@ import {
   P7_3B_ValidateAndCleanDAGNode,
   P7_4_AnalyzePathsAndBiasesNode,
   P7_5_GenerateFormalHypothesesNode,
+  P9_1_SemanticGduMappingNode,
   CompleteNode
 } from './nodes';
 
@@ -78,6 +79,7 @@ export class NodeRegistry {
     this.nodes.set(StepId.P7_3B_VALIDATE_AND_CLEAN_DAG, P7_3B_ValidateAndCleanDAGNode);
     this.nodes.set(StepId.P7_4_ANALYZE_PATHS_AND_BIASES, P7_4_AnalyzePathsAndBiasesNode);
     this.nodes.set(StepId.P7_5_GENERATE_FORMAL_HYPOTHESES, P7_5_GenerateFormalHypothesesNode);
+    this.nodes.set(StepId.P9_1_SEMANTIC_GDU_MAPPING, P9_1_SemanticGduMappingNode);
     this.nodes.set(StepId.COMPLETE, CompleteNode);
   }
 

@@ -6,6 +6,7 @@ import { createInitialGraphState } from '../../types/state';
 // Create a factory for mock Redis instances
 const createMockRedis = () => ({
   set: vi.fn().mockResolvedValue('OK'),
+  setex: vi.fn().mockResolvedValue('OK'),
   get: vi.fn().mockResolvedValue(null),
   exists: vi.fn().mockResolvedValue(0),
   del: vi.fn().mockResolvedValue(1),
@@ -14,8 +15,8 @@ const createMockRedis = () => ({
   watch: vi.fn().mockResolvedValue('OK'),
   unwatch: vi.fn().mockResolvedValue('OK'),
   multi: vi.fn().mockReturnValue({
-    set: vi.fn().mockReturnThis(),
-    exec: vi.fn().mockResolvedValue([['OK']])
+    setex: vi.fn().mockReturnThis(),
+    exec: vi.fn().mockResolvedValue([['OK', 'OK']])
   }),
   flushdb: vi.fn().mockResolvedValue('OK'),
   on: vi.fn(),

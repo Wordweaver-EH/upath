@@ -448,6 +448,25 @@ export interface CompleteOutput {
   dependent_variable_focus: string[];
 }
 
+// Part IX: Inter-Rater Reliability Analysis
+
+export interface P9_1_SemanticGduMapping {
+  gdu_mappings: Array<{
+    run_a_gdu_id: string;
+    run_a_definition: string;
+    run_a_contributing_rdu_count: number;
+    run_b_gdu_id: string | null;
+    run_b_definition: string | null;
+    run_b_contributing_rdu_count: number;
+    semantic_similarity_score: number;
+    mapping_justification: string;
+  }>;
+}
+
+export interface P9_1_Output extends P9_1_SemanticGduMapping {
+  // Inherits gdu_mappings array
+}
+
 // Additional output types will be added as we implement more nodes
 
 // Union type for all possible step outputs
@@ -476,6 +495,7 @@ export type StepOutput =
   | P7_3B_Output
   | P7_4_Output
   | P7_5_Output
+  | P9_1_Output
   | CompleteOutput
   // Additional step outputs will be added as we implement more nodes
   | Record<string, any>; // Fallback for untyped outputs

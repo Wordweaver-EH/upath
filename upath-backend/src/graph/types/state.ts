@@ -7,6 +7,8 @@ export interface PipelineSettings {
   temperature?: number;
   autoRun?: boolean;
   startFrom?: string;
+  hilMetaPrompt?: string; // Human-in-the-Loop meta prompt for step corrections
+  seed?: number;
   [key: string]: any;
 }
 
@@ -141,7 +143,7 @@ export function isValidGraphState(state: any): state is GraphState {
 
 // Execution context for nodes
 export interface ExecutionContext {
-  llmClient: any; // Will be typed properly when we implement
+  llmClient: any; // GenerativeModel from @google/generative-ai (keeping any for now due to import complexity)
   logger: {
     info: (message: string, data?: any) => void;
     error: (message: string, error?: any) => void;

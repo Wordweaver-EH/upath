@@ -1,5 +1,5 @@
 
-import type { GroundingChunk } from '../types'; // Ensure GroundingChunk types are imported if used
+import type { GroundingChunk, P9_1_SemanticGduMapping } from '../types'; // Ensure GroundingChunk types are imported if used
 
 const BACKEND_URL = process.env.NODE_ENV === 'production' 
   ? process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001'
@@ -329,4 +329,79 @@ Do not include any explanations, apologies, or surrounding text like markdown fe
       estimatedInputTokens: totalEstimatedInputTokens,
       estimatedOutputTokens: totalEstimatedOutputTokens
   };
+}
+
+/**
+ * Generate semantic mapping for Inter-Rater Reliability analysis
+ * 
+ * This function replaces the direct Gemini API calls for IRR functionality,
+ * maintaining the security architecture by routing through the backend.
+ * All LLM interactions remain on the server side with proper API key management.
+ * 
+ * @param runAGdus - Array of GDUs from the first analysis run
+ * @param runBGdus - Array of GDUs from the second analysis run  
+ * @param settings - Configuration for LLM generation (temperature, seed, model)
+ * @returns Promise<{ mapping?: P9_1_SemanticGduMapping; error?: string }>
+ */
+export async function generateIrrSemanticMapping(
+  runAGdus: Array<{
+    gdu_id: string;
+    definition: string;
+    contributing_refined_du_ids: string[];
+  }>,
+  runBGdus: Array<{
+    gdu_id: string;
+    definition: string;
+    contributing_refined_du_ids: string[];
+  }>,
+  settings: { 
+    temperature?: number; 
+    seed?: number; 
+    model?: string;
+  } = {}
+): Promise<{ 
+  mapping?: P9_1_SemanticGduMapping;
+  error?: string; 
+  message?: string;
+}> {
+  try {
+    // BACKEND CALL: Send IRR request to backend endpoint
+    const response = await fetch(`${BACKEND_URL}/api/irr`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        runAGdus,
+        runBGdus,
+        temperature: settings.temperature || 0.7,
+        seed: settings.seed,
+        model: settings.model
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.success) {
+      return {
+        error: data.error || 'IRR semantic mapping failed'
+      };
+    }
+
+    return {
+      mapping: data.mapping,
+      message: data.message
+    };
+
+  } catch (error) {
+    console.error('IRR semantic mapping request failed:', error);
+    return {
+      error: `IRR semantic mapping failed: ${(error as Error).message || 'Unknown backend error'}`
+    };
+  }
 }

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { IrrWorkflowState, SavedState, P9_1_SemanticGduMapping, IrrResults } from '../../types'
-import { callGeminiAPI } from '../../services/geminiService'
+import { generateIrrSemanticMapping } from '../../services/geminiService'
 import { calculateKrippendorffsAlpha, calculateCohensKappa, buildReliabilityMatrix } from '../utils/statisticsHelper'
 import { buildCompleteUtteranceToGduMapping } from '../utils/traceabilityHelper'
 import { generateDisagreementReport, disagreementReportToCsv, disagreementReportToMarkdown, normalizeRunBData } from '../utils/irrReportHelper'
@@ -26,7 +26,7 @@ interface IRRActions {
   closeMappingModal: () => void
   
   // Semantic Mapping
-  generateSemanticMapping: (settings: { temperature: number; seed?: number; apiKey: string }) => Promise<void>
+  generateSemanticMapping: (settings: { temperature: number; seed?: number }) => Promise<void>
   confirmMapping: (mapping: P9_1_SemanticGduMapping) => void
   
   // Results
@@ -120,7 +120,7 @@ export const useIRRStore = create<IRRStore>()(
       })
     },
     
-    generateSemanticMapping: async (settings: { temperature: number; seed?: number; apiKey: string }) => {
+    generateSemanticMapping: async (settings: { temperature: number; seed?: number }) => {
       const { runA, runB } = get().irrWorkflowState
       
       if (!runA || !runB) {
@@ -137,82 +137,29 @@ export const useIRRStore = create<IRRStore>()(
         const gdusA = runA.genericAnalysisState.p3_2_output?.identified_gdus || []
         const gdusB = runB.genericAnalysisState.p3_2_output?.identified_gdus || []
         
-        // Use passed settings instead of direct store access
-        const { temperature, seed, apiKey } = settings
+        // Use passed settings (backend handles API key)
+        const { temperature, seed } = settings
         
-        const prompt = `You are tasked with creating a semantic mapping between Generic Diachronic Units (GDUs) from two different analysis runs of micro-phenomenological data.
-
-## Run A GDUs:
-${gdusA.map((gdu, idx) => `${idx + 1}. ${gdu.gdu_id}: ${gdu.definition}`).join('\n')}
-
-## Run B GDUs:
-${gdusB.map((gdu, idx) => `${idx + 1}. ${gdu.gdu_id}: ${gdu.definition}`).join('\n')}
-
-## Task:
-Create a mapping between semantically similar GDUs across the two runs. Some GDUs may have no match in the other run.
-
-Provide your response as a JSON object with this structure:
-{
-  "gdu_mappings": [
-    {
-      "run_a_gdu": "GDU name from Run A or null",
-      "run_b_gdu": "GDU name from Run B or null",
-      "semantic_similarity": number between 0 and 1,
-      "mapping_justification": "Brief explanation"
-    }
-  ]
-}
-
-## Guidelines:
-- Include all GDUs from both runs in the mapping
-- Use null for unmatched GDUs
-- semantic_similarity: 1.0 = identical, 0.0 = completely different
-- Consider conceptual similarity, not just word matching
-- Prioritize definitional similarity over statistical similarity
-- mapping_justification: Brief explanation of why these GDUs are semantically similar or why no match exists`
-
-        const response = await callGeminiAPI(
-          prompt,
-          true, // isJsonOutput
-          false, // useGrounding
-          temperature,
-          seed,
-          1  // attempt
+        // BACKEND CALL: Use new IRR service instead of direct Gemini API
+        const response = await generateIrrSemanticMapping(
+          gdusA,
+          gdusB,
+          {
+            temperature,
+            seed
+          }
         )
         
         if (response.error) {
-          throw new Error(response.error || 'Failed to generate semantic mapping')
+          throw new Error(response.error)
         }
         
-        // Parse and validate the mapping response
-        let rawMappingProposal: any
-        try {
-          rawMappingProposal = response.parsedJson
-          if (!rawMappingProposal.gdu_mappings || !Array.isArray(rawMappingProposal.gdu_mappings)) {
-            throw new Error('Invalid mapping structure')
-          }
-        } catch (parseError) {
-          throw new Error(`Failed to parse mapping response: ${parseError instanceof Error ? parseError.message : 'Invalid JSON'}`)
+        if (!response.mapping) {
+          throw new Error('No mapping data received from backend')
         }
         
-        // Transform the LLM response to match our expected structure
-        const mappingProposal: P9_1_SemanticGduMapping = {
-          gdu_mappings: rawMappingProposal.gdu_mappings.map((mapping: any) => {
-            const gduA = mapping.run_a_gdu ? gdusA.find(g => g.gdu_id === mapping.run_a_gdu) : null
-            const gduB = mapping.run_b_gdu ? gdusB.find(g => g.gdu_id === mapping.run_b_gdu) : null
-            
-            return {
-              run_a_gdu_id: mapping.run_a_gdu || '',
-              run_a_definition: gduA?.definition || '',
-              run_a_contributing_rdu_count: gduA?.contributing_refined_du_ids.length || 0,
-              run_b_gdu_id: mapping.run_b_gdu,
-              run_b_definition: gduB?.definition || null,
-              run_b_contributing_rdu_count: gduB?.contributing_refined_du_ids.length || 0,
-              semantic_similarity_score: mapping.semantic_similarity || 0,
-              mapping_justification: mapping.mapping_justification || ''
-            }
-          })
-        }
+        // The backend already returns the properly structured mapping
+        const mappingProposal: P9_1_SemanticGduMapping = response.mapping
         
         set((state) => {
           state.irrWorkflowState.mappingProposal = mappingProposal
@@ -423,7 +370,9 @@ Provide your response as a JSON object with this structure:
           get().setLoadingState('calculating')
         } else {
           // Need semantic mapping
-          await get().generateSemanticMapping()
+          await get().generateSemanticMapping({
+            temperature: 0.7
+          })
         }
       } catch (error) {
         console.error('Error starting comparison:', error)
@@ -435,30 +384,18 @@ Provide your response as a JSON object with this structure:
     handleConfirmMapping: async (userMappingDict: Record<string, string | null>) => {
       console.log('handleConfirmMapping called with:', userMappingDict)
       
-      // Transform the user mapping dictionary into the expected P9_1_SemanticGduMapping format
-      const mappingProposal = get().irrWorkflowState.mappingProposal
-      if (!mappingProposal) {
-        console.error('No mapping proposal found')
-        return
-      }
+      // Set the confirmed mapping in the state
+      set((state) => {
+        state.irrWorkflowState.confirmedMapping = userMappingDict
+        state.irrWorkflowState.isMappingModalOpen = false
+        state.irrWorkflowState.mappingProposal = null
+      })
       
-      // Update the mapping proposal with user selections
-      const updatedMapping: P9_1_SemanticGduMapping = {
-        gdu_mappings: mappingProposal.gdu_mappings.map(mapping => ({
-          ...mapping,
-          run_b_gdu_id: userMappingDict[mapping.run_a_gdu_id] || null,
-          // Update other fields if the user changed the mapping
-          run_b_definition: userMappingDict[mapping.run_a_gdu_id] 
-            ? mappingProposal.gdu_mappings.find(m => m.run_b_gdu_id === userMappingDict[mapping.run_a_gdu_id])?.run_b_definition || null
-            : null,
-          run_b_contributing_rdu_count: userMappingDict[mapping.run_a_gdu_id]
-            ? mappingProposal.gdu_mappings.find(m => m.run_b_gdu_id === userMappingDict[mapping.run_a_gdu_id])?.run_b_contributing_rdu_count || 0
-            : 0
-        }))
-      }
+      console.log('State after confirmMapping:', get().irrWorkflowState)
       
-      // Call the confirmMapping action with the properly formatted data
-      get().confirmMapping(updatedMapping)
+      // Immediately trigger the IRR calculation with the confirmed mapping
+      console.log('Triggering calculateResults with mapping data...')
+      get().calculateResults(userMappingDict)
     },
     
     handleDownloadDisagreementReport: () => {

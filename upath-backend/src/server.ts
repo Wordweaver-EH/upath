@@ -1,6 +1,9 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import analyzeRoute from './routes/analyze';
+import hilRoute from './routes/hil';
+import irrRoute from './routes/irr';
+import graphRoute from './routes/graph';
 
 /**
  * Builds the Fastify application instance
@@ -46,6 +49,9 @@ export async function buildApp() {
 
   // Register routes
   await app.register(analyzeRoute, { prefix: '/api' });
+  await app.register(hilRoute, { prefix: '/api' });
+  await app.register(irrRoute, { prefix: '/api' });
+  await app.register(graphRoute, { prefix: '/api' });
 
   // Health check endpoint
   app.get('/health', async (request, reply) => {

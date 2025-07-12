@@ -35,4 +35,15 @@ export class InMemorySessionStore implements ISessionStore {
   async clear(): Promise<void> {
     this.sessions.clear();
   }
+
+  async atomicUpdate(
+    sessionId: string, 
+    updateFunction: (session: Session | undefined) => Session | Promise<Session>
+  ): Promise<Session> {
+    // In-memory store doesn't need complex locking - simple synchronous update
+    const currentSession = this.sessions.get(sessionId);
+    const updatedSession = await Promise.resolve(updateFunction(currentSession));
+    this.sessions.set(sessionId, updatedSession);
+    return updatedSession;
+  }
 }

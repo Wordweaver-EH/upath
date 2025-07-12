@@ -119,6 +119,71 @@ export class RedisSessionStore implements ISessionStore {
     }
   }
 
+  /**
+   * Atomically update a session using Redis transactions with optimistic locking
+   * Prevents race conditions in concurrent session modifications
+   */
+  async atomicUpdate(
+    sessionId: string, 
+    updateFunction: (session: Session | undefined) => Session | Promise<Session>
+  ): Promise<Session> {
+    const key = this.getKey(sessionId);
+    const lockTimeout = 10000; // 10 seconds
+    const retryCount = 5;
+    
+    for (let attempt = 0; attempt < retryCount; attempt++) {
+      // Watch the session key for changes
+      await this.redis.watch(key);
+      
+      try {
+        // Get current session state
+        const currentValue = await this.redis.get(key);
+        let currentSession: Session | undefined;
+        
+        if (currentValue) {
+          try {
+            currentSession = JSON.parse(currentValue);
+          } catch (error) {
+            console.error(`Failed to parse session data for ${sessionId}:`, error);
+            currentSession = undefined;
+          }
+        }
+        
+        // Apply the update function (supports both sync and async)
+        const updatedSession = await Promise.resolve(updateFunction(currentSession));
+        
+        // Execute transaction
+        const multi = this.redis.multi();
+        multi.setex(key, 86400, JSON.stringify(updatedSession)); // 24-hour TTL
+        
+        const results = await multi.exec();
+        
+        // Check if transaction was successful
+        if (results && results.length > 0 && results[0][0] === null) {
+          // Transaction successful
+          return updatedSession;
+        }
+        
+        // Transaction failed due to concurrent modification, retry
+        console.warn(`Session update conflict for ${sessionId}, retrying (attempt ${attempt + 1}/${retryCount})`);
+        
+        if (attempt < retryCount - 1) {
+          // Small delay before retry
+          await new Promise(resolve => setTimeout(resolve, 50 + Math.random() * 100));
+        }
+        
+      } catch (error) {
+        // Unwatch on error
+        await this.redis.unwatch();
+        throw error;
+      }
+    }
+    
+    // All retries failed
+    await this.redis.unwatch();
+    throw new Error(`Failed to atomically update session ${sessionId} after ${retryCount} attempts due to concurrent modifications`);
+  }
+
   async disconnect(): Promise<void> {
     await this.redis.disconnect();
   }

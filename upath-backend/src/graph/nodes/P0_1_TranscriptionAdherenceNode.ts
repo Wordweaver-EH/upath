@@ -23,7 +23,8 @@ export class P0_1_TranscriptionAdherenceNode extends BaseNode {
     }
 
     // Build the prompt
-    const prompt = this.buildPrompt(transcript);
+    const originalPrompt = this.buildPrompt(transcript);
+    const prompt = this.buildHilEnhancedPrompt(originalPrompt, context);
 
     // Call the LLM
     const response = await context.llmClient.generateContent({

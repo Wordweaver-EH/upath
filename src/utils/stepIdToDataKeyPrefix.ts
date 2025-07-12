@@ -1,18 +1,18 @@
 import { StepId, GenericAnalysisState, TranscriptProcessedData, P2SPhaseData } from '../../types'
 import { 
-  STEP_ORDER_PART_3_GENERIC_DIACHRONIC, 
-  STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, 
-  STEP_ORDER_PART_5_REFINEMENT, 
-  STEP_ORDER_PART_7_CAUSAL_MODELING, 
-  STEP_ORDER_PART_6_REPORT 
-} from '../../constants'
+  STEP_ORDER_PART_III, 
+  STEP_ORDER_PART_IV, 
+  STEP_ORDER_PART_V, 
+  STEP_ORDER_PART_VII, 
+  STEP_ORDER_PART_VI 
+} from '../config/pipelineConfig'
 
 export const isGlobalStep = (stepId: StepId) => 
-  STEP_ORDER_PART_3_GENERIC_DIACHRONIC.includes(stepId) ||
-  STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(stepId) || 
-  STEP_ORDER_PART_5_REFINEMENT.includes(stepId) ||
-  STEP_ORDER_PART_7_CAUSAL_MODELING.includes(stepId) || 
-  STEP_ORDER_PART_6_REPORT.includes(stepId) || 
+  STEP_ORDER_PART_III.includes(stepId) ||
+  STEP_ORDER_PART_IV.includes(stepId) || 
+  STEP_ORDER_PART_V.includes(stepId) ||
+  STEP_ORDER_PART_VII.includes(stepId) || 
+  STEP_ORDER_PART_VI.includes(stepId) || 
   stepId === StepId.COMPLETE
 
 export const stepIdToDataKeyPrefix: Partial<Record<StepId, keyof GenericAnalysisState | keyof TranscriptProcessedData | keyof P2SPhaseData>> = {

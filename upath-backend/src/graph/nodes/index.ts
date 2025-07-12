@@ -24,4 +24,5 @@ export { P7_3_AssembleDAGAndIdentifyPatternsNode } from './P7_3_AssembleDAGAndId
 export { P7_3B_ValidateAndCleanDAGNode } from './P7_3B_ValidateAndCleanDAGNode';
 export { P7_4_AnalyzePathsAndBiasesNode } from './P7_4_AnalyzePathsAndBiasesNode';
 export { P7_5_GenerateFormalHypothesesNode } from './P7_5_GenerateFormalHypothesesNode';
+export { P9_1_SemanticGduMappingNode } from './P9_1_SemanticGduMappingNode';
 export { CompleteNode } from './CompleteNode';
