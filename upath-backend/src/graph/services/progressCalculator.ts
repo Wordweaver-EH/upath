@@ -42,7 +42,9 @@ export class ProgressCalculator {
       }
       
       // Calculate progress as percentage
-      const progress = Math.round(((currentIndex + 1) / this.sortedNodes.length) * 100);
+      // Reserve 100% for COMPLETE step only - cap other steps at 95%
+      const maxProgressForNonComplete = 95;
+      const progress = Math.round(((currentIndex + 1) / this.sortedNodes.length) * maxProgressForNonComplete);
       return progress;
     }
 
@@ -98,8 +100,10 @@ export class ProgressCalculator {
     }
 
     // Calculate progress based on depth
-    const progress = Math.round(((currentDepth + 1) / (maxDepth + 1)) * 100);
-    return Math.min(progress, 100);
+    // Reserve 100% for COMPLETE step only - cap other steps at 95%
+    const maxProgressForNonComplete = 95;
+    const progress = Math.round(((currentDepth + 1) / (maxDepth + 1)) * maxProgressForNonComplete);
+    return Math.min(progress, maxProgressForNonComplete);
   }
 
   /**

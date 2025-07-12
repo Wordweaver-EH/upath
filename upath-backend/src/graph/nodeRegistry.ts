@@ -8,7 +8,9 @@ import {
   P1_1_InitialSegmentationNode,
   P1_2_DiachronicUnitIdNode,
   P1_3_RefineDiachronicUnitsNode,
-  P1_4_ConstructSpecificDiachronicStructureNode
+  P1_4_ConstructSpecificDiachronicStructureNode,
+  P2S_1_GroupUtterancesByTopicNode,
+  P2S_2_IdentifySpecificSynchronicUnitsNode
 } from './nodes';
 
 export type NodeConstructor = new () => BaseNode;
@@ -45,6 +47,8 @@ export class NodeRegistry {
     this.nodes.set(StepId.P1_2_DIACHRONIC_UNIT_ID, P1_2_DiachronicUnitIdNode);
     this.nodes.set(StepId.P1_3_REFINE_DIACHRONIC_UNITS, P1_3_RefineDiachronicUnitsNode);
     this.nodes.set(StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE, P1_4_ConstructSpecificDiachronicStructureNode);
+    this.nodes.set(StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC, P2S_1_GroupUtterancesByTopicNode);
+    this.nodes.set(StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS, P2S_2_IdentifySpecificSynchronicUnitsNode);
   }
 
   /**

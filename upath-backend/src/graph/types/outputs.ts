@@ -91,23 +91,16 @@ export interface MicroGesture {
 
 export interface RefinedDiachronicUnit {
   unit_id: string;
-  original_description: string;
-  refined_description: string;
-  micro_gestures: MicroGesture[];
-  temporal_markers: string[];
-  source_segment_ids: string[];
-  temporal_phase?: string; // e.g., "Beginning", "Core Event", "Ending"
-  confidence?: number; // 0.0 to 1.0
+  name: string;
+  description: string;
+  temporal_phase: string; // e.g., "Beginning", "Core Event", "Ending"
+  confidence: number; // 0.0 to 1.0
+  source_p1_2_du_ids: string[]; // IDs from P1_2 that this refined unit is based on
 }
 
 export interface P1_3_Output {
   transcript_id?: string;
   refined_diachronic_units: RefinedDiachronicUnit[];
-  refinement_metadata: {
-    total_micro_gestures: number;
-    refinement_approach: string;
-    temporal_flow: string;
-  };
   independent_variable_details?: string;
   dependent_variable_focus?: string[];
 }
@@ -133,6 +126,79 @@ export interface P1_4_Output {
   mermaid_syntax_specific_diachronic: string;
 }
 
+// Part II: Specific Synchronic Analysis
+
+export interface SelectedUtterance {
+  original_line_num: string;
+  utterance_text: string;
+  speaker: string;
+  selection_justification: string;
+}
+
+export interface SynchronicThematicGroup {
+  group_label: string;
+  justification: string;
+  utterances: Array<{
+    original_line_num: string;
+    utterance_text: string;
+  }>;
+}
+
+export interface P2S_1_Output {
+  transcript_id: string;
+  analyzed_diachronic_unit: string;
+  synchronic_thematic_groups: SynchronicThematicGroup[];
+  independent_variable_details: string;
+  dependent_variable_focus: string[];
+}
+
+export interface SpecificSynchronicUnit {
+  unit_name: string;
+  level: number;
+  abstraction_op: string;
+  intensional_definition: string;
+  utterances?: Array<{
+    original_line_num: string;
+    utterance_text: string;
+  }>;
+  constituent_lower_units?: string[];
+}
+
+export interface P2S_2_Output {
+  transcript_id: string;
+  analyzed_diachronic_unit: string;
+  specific_synchronic_units_hierarchy: SpecificSynchronicUnit[];
+  independent_variable_details: string;
+  dependent_variable_focus: string[];
+}
+
+export interface NetworkNode {
+  id: string;
+  label: string;
+  source_isu_id: string;
+}
+
+export interface NetworkLink {
+  from: string;
+  to: string;
+  type: string;
+}
+
+export interface SpecificSynchronicStructure {
+  representation_type: string;
+  description: string;
+  network_nodes: NetworkNode[];
+  network_links: NetworkLink[];
+}
+
+export interface P2S_3_Output {
+  transcript_id: string;
+  analyzed_diachronic_unit: string;
+  specific_synchronic_structure: SpecificSynchronicStructure;
+  independent_variable_details: string;
+  dependent_variable_focus: string[];
+}
+
 // Additional output types will be added as we implement more nodes
 
 // Union type for all possible step outputs
@@ -145,5 +211,8 @@ export type StepOutput =
   | P1_2_Output
   | P1_3_Output
   | P1_4_Output
+  | P2S_1_Output
+  | P2S_2_Output
+  | P2S_3_Output
   // Additional step outputs will be added as we implement more nodes
   | Record<string, any>; // Fallback for untyped outputs

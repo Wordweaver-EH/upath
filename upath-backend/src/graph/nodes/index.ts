@@ -8,3 +8,5 @@ export { P1_1_InitialSegmentationNode } from './P1_1_InitialSegmentationNode';
 export { P1_2_DiachronicUnitIdNode } from './P1_2_DiachronicUnitIdNode';
 export { P1_3_RefineDiachronicUnitsNode } from './P1_3_RefineDiachronicUnitsNode';
 export { P1_4_ConstructSpecificDiachronicStructureNode } from './P1_4_ConstructSpecificDiachronicStructureNode';
+export { P2S_1_GroupUtterancesByTopicNode } from './P2S_1_GroupUtterancesByTopicNode';
+export { P2S_2_IdentifySpecificSynchronicUnitsNode } from './P2S_2_IdentifySpecificSynchronicUnitsNode';

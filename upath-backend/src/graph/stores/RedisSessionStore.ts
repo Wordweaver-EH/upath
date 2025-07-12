@@ -42,7 +42,8 @@ export class RedisSessionStore implements ISessionStore {
   async set(sessionId: string, session: Session): Promise<void> {
     const key = this.getKey(sessionId);
     const value = JSON.stringify(session);
-    await this.redis.set(key, value);
+    // Set with 24-hour TTL (24 * 60 * 60 = 86400 seconds)
+    await this.redis.setex(key, 86400, value);
   }
 
   async get(sessionId: string): Promise<Session | undefined> {

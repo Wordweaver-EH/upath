@@ -43,12 +43,15 @@ export class P1_4_ConstructSpecificDiachronicStructureNode extends BaseNode {
     });
 
     // Parse response
+    const responseText = response.response.text();
     let parsedResponse: P1_4_Output;
     try {
-      const responseText = response.response.text();
       parsedResponse = JSON.parse(responseText);
     } catch (error) {
-      throw new LLMResponseError('Failed to parse LLM JSON response', error as Error);
+      throw new LLMResponseError(
+        `Failed to parse P1_4 response: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        responseText
+      );
     }
 
     // Validate response structure
