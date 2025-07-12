@@ -199,6 +199,15 @@ export interface P2S_3_Output {
   dependent_variable_focus: string[];
 }
 
+// Part III: Generic Diachronic Analysis
+
+export interface P3_1_Output {
+  aligned_structures_report: string;
+  common_patterns_summary: string;
+  key_differences: string[];
+  dependent_variable_focus: string[];
+}
+
 // Additional output types will be added as we implement more nodes
 
 // Union type for all possible step outputs
@@ -214,5 +223,6 @@ export type StepOutput =
   | P2S_1_Output
   | P2S_2_Output
   | P2S_3_Output
+  | P3_1_Output
   // Additional step outputs will be added as we implement more nodes
   | Record<string, any>; // Fallback for untyped outputs

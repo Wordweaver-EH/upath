@@ -10,3 +10,5 @@ export { P1_3_RefineDiachronicUnitsNode } from './P1_3_RefineDiachronicUnitsNode
 export { P1_4_ConstructSpecificDiachronicStructureNode } from './P1_4_ConstructSpecificDiachronicStructureNode';
 export { P2S_1_GroupUtterancesByTopicNode } from './P2S_1_GroupUtterancesByTopicNode';
 export { P2S_2_IdentifySpecificSynchronicUnitsNode } from './P2S_2_IdentifySpecificSynchronicUnitsNode';
+export { P2S_3_DefineSpecificSynchronicStructureNode } from './P2S_3_DefineSpecificSynchronicStructureNode';
+export { P3_1_AlignStructuresNode } from './P3_1_AlignStructuresNode';

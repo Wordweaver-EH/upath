@@ -16,6 +16,28 @@ export interface GraphMetadata {
   settings: PipelineSettings;
   checkpointId?: string;
   parentCheckpointId?: string;
+  // Phase-specific metadata for P2S nodes
+  currentPhaseName?: string;
+  // Collected structures for P3 alignment
+  all_specific_diachronic_structures?: Array<{
+    transcript_id: string;
+    filename: string;
+    independent_variable_details: string;
+    dependent_variable_focus: string[];
+    specific_diachronic_structure: {
+      summary: string;
+      phases: Array<{
+        phase_name: string;
+        description: string;
+        units_involved: string[];
+      }>;
+      visualization_hint: string;
+      iv_preliminary_observation: string;
+    };
+  }>;
+  // Global DV focus for entire analysis
+  global_dv_focus?: string[];
+  [key: string]: any; // Allow additional metadata
 }
 
 export interface UserDVFocus {

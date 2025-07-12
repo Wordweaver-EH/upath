@@ -10,7 +10,9 @@ import {
   P1_3_RefineDiachronicUnitsNode,
   P1_4_ConstructSpecificDiachronicStructureNode,
   P2S_1_GroupUtterancesByTopicNode,
-  P2S_2_IdentifySpecificSynchronicUnitsNode
+  P2S_2_IdentifySpecificSynchronicUnitsNode,
+  P2S_3_DefineSpecificSynchronicStructureNode,
+  P3_1_AlignStructuresNode
 } from './nodes';
 
 export type NodeConstructor = new () => BaseNode;
@@ -49,6 +51,8 @@ export class NodeRegistry {
     this.nodes.set(StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE, P1_4_ConstructSpecificDiachronicStructureNode);
     this.nodes.set(StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC, P2S_1_GroupUtterancesByTopicNode);
     this.nodes.set(StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS, P2S_2_IdentifySpecificSynchronicUnitsNode);
+    this.nodes.set(StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE, P2S_3_DefineSpecificSynchronicStructureNode);
+    this.nodes.set(StepId.P3_1_ALIGN_STRUCTURES, P3_1_AlignStructuresNode);
   }
 
   /**
