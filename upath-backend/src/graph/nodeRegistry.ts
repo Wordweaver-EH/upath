@@ -14,7 +14,18 @@ import {
   P2S_3_DefineSpecificSynchronicStructureNode,
   P3_1_AlignStructuresNode,
   P3_2_IdentifyGDUsNode,
-  P3_3_DefineGenericDiachronicStructureNode
+  P3_3_DefineGenericDiachronicStructureNode,
+  P4S_1_A_IdentifyAndGroupSSSNodesNode,
+  P4S_1_B_DefineGSSFromGroupsNode,
+  P5_1_ComparativeAnalysisNode,
+  P5_2_HolisticRefinementNode,
+  P7_1_CandidateVariableFormalizationNode,
+  P7_2_ProposePairwiseCausalLinksNode,
+  P7_3_AssembleDAGAndIdentifyPatternsNode,
+  P7_3B_ValidateAndCleanDAGNode,
+  P7_4_AnalyzePathsAndBiasesNode,
+  P7_5_GenerateFormalHypothesesNode,
+  CompleteNode
 } from './nodes';
 
 export type NodeConstructor = new () => BaseNode;
@@ -57,6 +68,17 @@ export class NodeRegistry {
     this.nodes.set(StepId.P3_1_ALIGN_STRUCTURES, P3_1_AlignStructuresNode);
     this.nodes.set(StepId.P3_2_IDENTIFY_GDUS, P3_2_IdentifyGDUsNode);
     this.nodes.set(StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE, P3_3_DefineGenericDiachronicStructureNode);
+    this.nodes.set(StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, P4S_1_A_IdentifyAndGroupSSSNodesNode);
+    this.nodes.set(StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS, P4S_1_B_DefineGSSFromGroupsNode);
+    this.nodes.set(StepId.P5_1_IV_COMPARATIVE_ANALYSIS, P5_1_ComparativeAnalysisNode);
+    this.nodes.set(StepId.P5_2_HOLISTIC_REFINEMENT, P5_2_HolisticRefinementNode);
+    this.nodes.set(StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION, P7_1_CandidateVariableFormalizationNode);
+    this.nodes.set(StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS, P7_2_ProposePairwiseCausalLinksNode);
+    this.nodes.set(StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS, P7_3_AssembleDAGAndIdentifyPatternsNode);
+    this.nodes.set(StepId.P7_3B_VALIDATE_AND_CLEAN_DAG, P7_3B_ValidateAndCleanDAGNode);
+    this.nodes.set(StepId.P7_4_ANALYZE_PATHS_AND_BIASES, P7_4_AnalyzePathsAndBiasesNode);
+    this.nodes.set(StepId.P7_5_GENERATE_FORMAL_HYPOTHESES, P7_5_GenerateFormalHypothesesNode);
+    this.nodes.set(StepId.COMPLETE, CompleteNode);
   }
 
   /**

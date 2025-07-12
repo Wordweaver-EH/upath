@@ -241,6 +241,213 @@ export interface P3_3_Output {
   dependent_variable_focus: string[];
 }
 
+// Part IV: Generic Synchronic Analysis
+
+export interface SSSNodeGroupData {
+  sss_node_id: string;
+  transcript_id: string;
+  phase_name: string;
+  sss_node_label: string;
+  group_id: string;
+  group_rationale: string;
+}
+
+export interface P4S_1_A_Output {
+  analyzed_gdu: string;
+  grouped_data: SSSNodeGroupData[];
+  dependent_variable_focus: string[];
+}
+
+export interface GenericNodeCategory {
+  category_id: string;
+  definition: string;
+  abstraction_level: string;
+}
+
+export interface GenericNetworkLink {
+  from_category: string;
+  to_category: string;
+  relationship_type: string;
+  description: string;
+}
+
+export interface GenericSynchronicStructure {
+  generic_nodes_categories: GenericNodeCategory[];
+  generic_network_links: GenericNetworkLink[];
+  instantiation_notes: Record<string, string[]>; // category_id -> sss_node_ids
+}
+
+export interface P4S_1_B_Output {
+  analyzed_gdu: string;
+  generic_synchronic_structure: GenericSynchronicStructure;
+  dependent_variable_focus: string[];
+}
+
+// Part V: Comparative Analysis and Refinement
+
+export interface IVPattern {
+  iv_value: string;
+  pattern_description: string;
+  supporting_transcript_ids: string[];
+  gds_alignment_notes: string;
+}
+
+export interface DVOutcomePattern {
+  dv_name: string;
+  pattern_across_iv_levels: string;
+}
+
+export interface P5_1_Output {
+  comparative_analysis_summary: string;
+  identified_iv_patterns: IVPattern[];
+  iv_effect_on_gds: string;
+  dv_outcome_patterns: DVOutcomePattern[];
+  methodological_insights: string[];
+  dependent_variable_focus: string[];
+}
+
+export interface RefinementRecommendation {
+  area: string;
+  recommendation: string;
+  rationale: string;
+  priority: 'High' | 'Medium' | 'Low';
+}
+
+export interface P5_2_Output {
+  holistic_assessment: string;
+  refinement_recommendations: RefinementRecommendation[];
+  final_confidence_rating: 'High' | 'Medium' | 'Low';
+  study_limitations: string[];
+  future_research_directions: string[];
+  dependent_variable_focus: string[];
+}
+
+// Final Completion
+
+// Part VII: Causal Modeling
+
+export interface CandidateVariable {
+  variable_id: string;
+  variable_name: string;
+  definition: string;
+  measurement_approach: string;
+  data_source: string; // Which analysis phase/node this comes from
+}
+
+export interface P7_1_Output {
+  candidate_variables: CandidateVariable[];
+  iv_formalization: {
+    variable_id: string;
+    levels: string[];
+    operationalization: string;
+  };
+  dv_formalizations: Array<{
+    variable_id: string;
+    measurement_indicators: string[];
+    operationalization: string;
+  }>;
+  dependent_variable_focus: string[];
+}
+
+export interface CausalLink {
+  from_variable_id: string;
+  to_variable_id: string;
+  relationship_type: 'direct_cause' | 'indirect_cause' | 'moderates' | 'mediates' | 'correlates';
+  confidence: 'High' | 'Medium' | 'Low';
+  evidence_basis: string;
+  temporal_precedence: boolean;
+}
+
+export interface P7_2_Output {
+  proposed_causal_links: CausalLink[];
+  link_justifications: Array<{
+    link_id: string;
+    theoretical_basis: string;
+    empirical_support: string;
+  }>;
+  dependent_variable_focus: string[];
+}
+
+export interface CausalDAG {
+  variables: CandidateVariable[];
+  causal_links: CausalLink[];
+  identified_patterns: Array<{
+    pattern_type: 'chain' | 'fork' | 'collider' | 'cycle';
+    involved_variables: string[];
+    description: string;
+  }>;
+}
+
+export interface P7_3_Output {
+  causal_dag: CausalDAG;
+  dag_validation_notes: string;
+  identified_confounders: string[];
+  dependent_variable_focus: string[];
+}
+
+export interface P7_3B_Output {
+  validated_dag: CausalDAG;
+  removed_links: Array<{
+    link: CausalLink;
+    removal_reason: string;
+  }>;
+  dag_quality_assessment: {
+    overall_rating: 'High' | 'Medium' | 'Low';
+    completeness: number; // 0-1
+    coherence: number; // 0-1
+  };
+  dependent_variable_focus: string[];
+}
+
+export interface CausalPath {
+  path_id: string;
+  variables_sequence: string[];
+  path_type: 'direct' | 'mediated' | 'confounded';
+  effect_strength: 'Strong' | 'Medium' | 'Weak';
+  potential_biases: string[];
+}
+
+export interface P7_4_Output {
+  identified_causal_paths: CausalPath[];
+  bias_analysis: Array<{
+    bias_type: string;
+    affected_paths: string[];
+    mitigation_strategies: string[];
+  }>;
+  path_significance_ranking: string[]; // Ordered path_ids by importance
+  dependent_variable_focus: string[];
+}
+
+export interface FormalHypothesis {
+  hypothesis_id: string;
+  hypothesis_statement: string;
+  involved_variables: string[];
+  causal_claim: string;
+  testable_predictions: string[];
+  statistical_approach: string;
+}
+
+export interface P7_5_Output {
+  formal_hypotheses: FormalHypothesis[];
+  causal_model_summary: string;
+  research_implications: string[];
+  methodological_recommendations: string[];
+  dependent_variable_focus: string[];
+}
+
+export interface CompleteOutput {
+  completion_status: 'success';
+  analysis_complete: true;
+  final_confidence_rating: 'High' | 'Medium' | 'Low';
+  holistic_assessment: string;
+  refinement_recommendations: RefinementRecommendation[];
+  study_limitations: string[];
+  future_research_directions: string[];
+  total_processing_time_ms: number;
+  completion_timestamp: string;
+  dependent_variable_focus: string[];
+}
+
 // Additional output types will be added as we implement more nodes
 
 // Union type for all possible step outputs
@@ -259,5 +466,16 @@ export type StepOutput =
   | P3_1_Output
   | P3_2_Output
   | P3_3_Output
+  | P4S_1_A_Output
+  | P4S_1_B_Output
+  | P5_1_Output
+  | P5_2_Output
+  | P7_1_Output
+  | P7_2_Output
+  | P7_3_Output
+  | P7_3B_Output
+  | P7_4_Output
+  | P7_5_Output
+  | CompleteOutput
   // Additional step outputs will be added as we implement more nodes
   | Record<string, any>; // Fallback for untyped outputs

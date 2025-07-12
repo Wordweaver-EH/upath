@@ -1,5 +1,8 @@
 import { GraphState, ExecutionContext, NodeExecutionResult, StepId } from '../types';
 import { NodeExecutionError } from '../types/errors';
+import { LLMResponseError } from '../errors/LLMResponseError';
+import { MissingInputError, ValidationError, ConfigurationError, RetryableExecutionError } from '../errors/CommonErrors';
+import { GenerativeModel } from '@google/generative-ai';
 
 export interface RetryPolicy {
   maxAttempts: number;
@@ -148,7 +151,22 @@ export abstract class BaseNode {
    * Can be overridden by subclasses
    */
   protected isRecoverable(error: Error): boolean {
-    // Non-recoverable error patterns
+    // Specific error types with known recoverability
+    if (error instanceof LLMResponseError) {
+      return true; // LLM errors are typically recoverable
+    }
+    
+    if (error instanceof RetryableExecutionError) {
+      return true; // Explicitly marked as retryable
+    }
+    
+    if (error instanceof MissingInputError || 
+        error instanceof ValidationError || 
+        error instanceof ConfigurationError) {
+      return false; // Data/config errors are not recoverable
+    }
+
+    // Fallback to pattern matching for generic Error instances
     const nonRecoverablePatterns = [
       /validation failed/i,
       /invalid input/i,
@@ -158,6 +176,44 @@ export abstract class BaseNode {
 
     const errorMessage = error.message.toLowerCase();
     return !nonRecoverablePatterns.some(pattern => pattern.test(errorMessage));
+  }
+
+  /**
+   * Call LLM, parse JSON response, and validate structure
+   * Centralizes common LLM interaction logic across all nodes
+   */
+  protected async callLLMAndParseJSON<T>(
+    model: GenerativeModel,
+    prompt: string,
+    nodeId: string,
+    validator?: (result: any) => T
+  ): Promise<T> {
+    try {
+      const result = await model.generateContent(prompt);
+      const responseText = result.response.text();
+      
+      try {
+        const parsed = JSON.parse(responseText);
+        
+        // Apply validation if provided
+        if (validator) {
+          return validator(parsed);
+        }
+        
+        return parsed as T;
+      } catch (error) {
+        console.error(`[${nodeId}] Failed to parse LLM response:`, error);
+        throw new LLMResponseError(
+          `Failed to parse ${nodeId} response: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          responseText
+        );
+      }
+    } catch (error) {
+      if (error instanceof LLMResponseError) {
+        throw error;
+      }
+      throw new Error(`${nodeId} LLM call failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**

@@ -47,6 +47,19 @@ export interface GraphMetadata {
     confidence: number;
     iv_details: string;
   }>;
+  // Current GDU being processed for P4S nodes
+  current_gdu_id?: string;
+  // All SSS data across transcripts for P4S processing
+  all_sss_data?: Array<{
+    transcript_id: string;
+    phase_name: string;
+    gdu_ids: string[]; // Which GDUs this transcript/phase contributes to
+    sss_nodes: Array<{
+      sss_node_id: string;
+      sss_node_label: string;
+      sss_node_definition?: string;
+    }>;
+  }>;
   [key: string]: any; // Allow additional metadata
 }
 
