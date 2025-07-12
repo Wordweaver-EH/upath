@@ -1,6 +1,7 @@
 import { RawTranscript } from './transcript';
 import { StepOutput } from './outputs';
 import { GraphError } from './errors';
+import type { P9_1_Input } from '../nodes/P9_1_SemanticGduMappingNode';
 
 export interface PipelineSettings {
   model?: string;
@@ -81,6 +82,8 @@ export interface GraphState {
   progress?: number;
   status?: 'idle' | 'running' | 'completed' | 'failed' | 'paused';
   userDvFocus?: UserDVFocus;
+  // Special input for IRR analysis (P9_1 node)
+  irr_inputs?: P9_1_Input;
 }
 
 export interface NodeExecutionResult {
@@ -100,7 +103,8 @@ export const GraphStateSchema = {
   lastCompletedStep: null,
   progress: null,
   status: null,
-  userDvFocus: null
+  userDvFocus: null,
+  irr_inputs: null
 };
 
 // Helper functions

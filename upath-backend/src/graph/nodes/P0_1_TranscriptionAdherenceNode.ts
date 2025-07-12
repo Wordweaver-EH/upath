@@ -7,20 +7,14 @@ export class P0_1_TranscriptionAdherenceNode extends BaseNode {
   id = StepId.P0_1_TRANSCRIPTION_ADHERENCE;
 
   async execute(state: GraphState, context: ExecutionContext): Promise<Partial<GraphState>> {
+    // Input validation is already done in validateInputOrThrow() called by executeWithRetry()
+    // No need to duplicate validation here
+    
     const { transcripts } = state;
     
-    // Validate we have transcripts
-    if (!transcripts || transcripts.length === 0) {
-      throw new Error('No transcripts provided');
-    }
-
     // For now, process only the first transcript
     // In the future, we might process multiple transcripts
     const transcript = transcripts[0];
-    
-    if (!transcript.content || transcript.content.trim() === '') {
-      throw new Error('Empty transcript content');
-    }
 
     // Build the prompt
     const originalPrompt = this.buildPrompt(transcript);

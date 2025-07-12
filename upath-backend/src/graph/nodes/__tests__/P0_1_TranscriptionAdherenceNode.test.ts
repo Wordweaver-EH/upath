@@ -257,5 +257,32 @@ Participant: It's been quite helpful, actually. First, I open the application...
       expect(result.success).toBe(true);
       expect(mockContext.llmClient.generateContent).toHaveBeenCalledTimes(3);
     });
+
+    it('should validate input before execute method is called', async () => {
+      // Test that validation happens in validateInputOrThrow, not in execute
+      testState.transcripts = [];
+      
+      // The executeWithRetry should fail during validation phase
+      const result = await node.executeWithRetry(testState, mockContext);
+      
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain('No transcripts provided');
+      // LLM should never be called since validation fails first
+      expect(mockContext.llmClient.generateContent).not.toHaveBeenCalled();
+    });
+
+    it('should validate whitespace-only transcript content', async () => {
+      testState.transcripts = [{
+        id: 'whitespace',
+        filename: 'whitespace.txt',
+        content: '   \n\t   '
+      }];
+      
+      const result = await node.executeWithRetry(testState, mockContext);
+      
+      expect(result.success).toBe(false);
+      expect(result.error?.message).toContain('Empty transcript');
+      expect(mockContext.llmClient.generateContent).not.toHaveBeenCalled();
+    });
   });
 });

@@ -159,7 +159,8 @@ export class RedisSessionStore implements ISessionStore {
         const results = await multi.exec();
         
         // Check if transaction was successful
-        if (results && results.length > 0 && results[0][0] === null) {
+        // In ioredis, exec() returns null if the transaction was aborted due to a WATCH conflict
+        if (results !== null) {
           // Transaction successful
           return updatedSession;
         }

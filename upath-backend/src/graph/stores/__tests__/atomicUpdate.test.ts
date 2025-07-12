@@ -1,14 +1,31 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { RedisSessionStore } from '../RedisSessionStore';
 import { InMemorySessionStore } from '../InMemorySessionStore';
 import { Session } from '../../graphExecutor';
 import { createInitialGraphState } from '../../types/state';
 
+// Mock ioredis to prevent real Redis connections
+vi.mock('ioredis', () => {
+  return {
+    default: vi.fn(() => ({
+      on: vi.fn(),
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+      status: 'ready'
+    }))
+  };
+});
+
 describe('Atomic Session Updates', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   describe('RedisSessionStore atomic update', () => {
     it('should perform atomic updates using Redis transactions', async () => {
       // Mock Redis client with transaction support
       const mockRedis = {
+        set: vi.fn().mockResolvedValue('OK'), // Required for constructor check
         watch: vi.fn().mockResolvedValue('OK'),
         unwatch: vi.fn().mockResolvedValue('OK'),
         get: vi.fn().mockResolvedValue(JSON.stringify({
@@ -17,8 +34,12 @@ describe('Atomic Session Updates', () => {
         })),
         multi: vi.fn().mockReturnValue({
           setex: vi.fn().mockReturnThis(),
-          exec: vi.fn().mockResolvedValue([['OK']])  // Successful transaction
-        })
+          exec: vi.fn().mockResolvedValue([['OK']])  // Successful transaction (non-null means success)
+        }),
+        on: vi.fn(),
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        status: 'ready'
       };
 
       const store = new RedisSessionStore(mockRedis as any);
@@ -40,6 +61,7 @@ describe('Atomic Session Updates', () => {
       let attemptCount = 0;
       
       const mockRedis = {
+        set: vi.fn().mockResolvedValue('OK'), // Required for constructor check
         watch: vi.fn().mockResolvedValue('OK'),
         unwatch: vi.fn().mockResolvedValue('OK'),
         get: vi.fn().mockResolvedValue(JSON.stringify({
@@ -52,10 +74,14 @@ describe('Atomic Session Updates', () => {
             attemptCount++;
             // First attempt fails (concurrent modification), second succeeds
             return attemptCount === 1 
-              ? Promise.resolve(null)  // Transaction failed
+              ? Promise.resolve(null)  // Transaction failed - WATCH conflict
               : Promise.resolve([['OK']]);  // Transaction succeeded
           })
-        })
+        }),
+        on: vi.fn(),
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        status: 'ready'
       };
 
       const store = new RedisSessionStore(mockRedis as any);
@@ -71,6 +97,7 @@ describe('Atomic Session Updates', () => {
 
     it('should throw error after max retries', async () => {
       const mockRedis = {
+        set: vi.fn().mockResolvedValue('OK'), // Required for constructor check
         watch: vi.fn().mockResolvedValue('OK'),
         unwatch: vi.fn().mockResolvedValue('OK'),
         get: vi.fn().mockResolvedValue(JSON.stringify({
@@ -79,8 +106,12 @@ describe('Atomic Session Updates', () => {
         })),
         multi: vi.fn().mockReturnValue({
           setex: vi.fn().mockReturnThis(),
-          exec: vi.fn().mockResolvedValue(null)  // Always fail
-        })
+          exec: vi.fn().mockResolvedValue(null)  // Always fail - WATCH conflict
+        }),
+        on: vi.fn(),
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+        status: 'ready'
       };
 
       const store = new RedisSessionStore(mockRedis as any);

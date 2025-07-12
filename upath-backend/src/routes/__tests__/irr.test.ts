@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { buildApp } from '../../server';
 import { FastifyInstance } from 'fastify';
+import { P9_1_SemanticGduMappingNode } from '../../graph/nodes/P9_1_SemanticGduMappingNode';
 
 // Mock ioredis to prevent Redis connection errors in tests
 vi.mock('ioredis', () => {
@@ -37,23 +38,15 @@ vi.mock('@google/generative-ai', () => {
       text: () => JSON.stringify({
         gdu_mappings: [
           {
-            run_a_gdu_id: 'GDU_A_1',
-            run_a_definition: 'First GDU from Run A',
-            run_a_contributing_rdu_count: 3,
-            run_b_gdu_id: 'GDU_B_1',
-            run_b_definition: 'First GDU from Run B',
-            run_b_contributing_rdu_count: 2,
-            semantic_similarity_score: 0.85,
+            run_a_gdu: 'GDU_A_1',
+            run_b_gdu: 'GDU_B_1',
+            semantic_similarity: 0.85,
             mapping_justification: 'Both refer to similar conceptual patterns'
           },
           {
-            run_a_gdu_id: 'GDU_A_2',
-            run_a_definition: 'Second GDU from Run A',
-            run_a_contributing_rdu_count: 1,
-            run_b_gdu_id: null,
-            run_b_definition: null,
-            run_b_contributing_rdu_count: 0,
-            semantic_similarity_score: 0,
+            run_a_gdu: 'GDU_A_2',
+            run_b_gdu: null,
+            semantic_similarity: 0,
             mapping_justification: 'No semantic match found in Run B'
           }
         ]
@@ -334,7 +327,10 @@ describe('/api/irr endpoint', () => {
       expect(response.statusCode).toBe(200);
       const result = JSON.parse(response.payload);
       
-      const mappedRunAIds = result.mapping.gdu_mappings.map((m: any) => m.run_a_gdu_id);
+      // Filter out empty run_a_gdu_id entries (which are Run B only mappings)
+      const mappedRunAIds = result.mapping.gdu_mappings
+        .filter((m: any) => m.run_a_gdu_id && m.run_a_gdu_id !== '')
+        .map((m: any) => m.run_a_gdu_id);
       const expectedRunAIds = sampleRunAGdus.map(g => g.gdu_id);
       
       expect(mappedRunAIds.sort()).toEqual(expectedRunAIds.sort());
@@ -446,7 +442,8 @@ describe('/api/irr endpoint', () => {
       expect(response.statusCode).toBe(200);
       const result = JSON.parse(response.payload);
       expect(result.success).toBe(true);
-      expect(result.mapping.gdu_mappings.length).toBe(50); // All Run A GDUs included
+      // Should include all Run A GDUs + all unmatched Run B GDUs
+      expect(result.mapping.gdu_mappings.length).toBeGreaterThanOrEqual(50);
     });
 
     it('should handle special characters in GDU definitions', async () => {
@@ -572,7 +569,61 @@ describe('/api/irr endpoint', () => {
       expect(response.statusCode).toBe(500);
       const result = JSON.parse(response.payload);
       expect(result.success).toBe(false);
-      expect(result.error).toContain('Failed to parse LLM response');
+      // The error is wrapped as internal server error for security
+      expect(result.error).toContain('Internal server error');
+    });
+  });
+
+  describe('Integration with P9_1 node', () => {
+    it('should use P9_1_SemanticGduMappingNode for processing', async () => {
+      // Spy on the P9_1 node execution
+      const executeSpy = vi.spyOn(P9_1_SemanticGduMappingNode.prototype, 'execute');
+      
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/irr',
+        payload: {
+          runAGdus: sampleRunAGdus,
+          runBGdus: sampleRunBGdus
+        }
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(executeSpy).toHaveBeenCalled();
+      
+      // Verify the node was called with correct inputs
+      const callArgs = executeSpy.mock.calls[0];
+      const state = callArgs[0];
+      expect(state.irr_inputs).toBeDefined();
+      // Verify the transformation was applied correctly
+      expect(state.irr_inputs.run_a_gdus).toHaveLength(sampleRunAGdus.length);
+      expect(state.irr_inputs.run_b_gdus).toHaveLength(sampleRunBGdus.length);
+      expect(state.irr_inputs.run_a_gdus[0].gdu_id).toBe(sampleRunAGdus[0].gdu_id);
+      expect(state.irr_inputs.run_a_gdus[0].definition).toBe(sampleRunAGdus[0].definition);
+      
+      executeSpy.mockRestore();
+    });
+
+    it('should properly handle node execution errors', async () => {
+      // Mock the node to throw an error
+      const executeSpy = vi.spyOn(P9_1_SemanticGduMappingNode.prototype, 'execute')
+        .mockRejectedValueOnce(new Error('Node execution failed'));
+      
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/irr',
+        payload: {
+          runAGdus: sampleRunAGdus,
+          runBGdus: sampleRunBGdus
+        }
+      });
+
+      expect(response.statusCode).toBe(500);
+      const result = JSON.parse(response.payload);
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Internal server error');
+      
+      executeSpy.mockRestore();
     });
   });
 });

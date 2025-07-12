@@ -4,7 +4,7 @@ import { P9_1_Output, GenericDiachronicUnit } from '../types/outputs';
 import { LLMResponseError } from '../errors/LLMResponseError';
 import { ValidationError } from '../errors/CommonErrors';
 
-interface P9_1_Input {
+export interface P9_1_Input {
   run_a_gdus: GenericDiachronicUnit[];
   run_b_gdus: GenericDiachronicUnit[];
   temperature?: number;
@@ -115,6 +115,10 @@ Provide your response as a JSON object with this structure:
       );
     }
 
+    // Create Maps for O(1) lookups instead of O(n) array.find()
+    const gduAMap = new Map(run_a_gdus.map(g => [g.gdu_id, g]));
+    const gduBMap = new Map(run_b_gdus.map(g => [g.gdu_id, g]));
+
     // Transform the LLM response to match our expected structure
     const gdu_mappings = llmResponse.gdu_mappings.map((mapping: any, idx: number) => {
       if (!mapping.run_a_gdu && !mapping.run_b_gdu) {
@@ -124,9 +128,9 @@ Provide your response as a JSON object with this structure:
         );
       }
 
-      // Find the corresponding GDU objects for additional metadata
-      const gduA = mapping.run_a_gdu ? run_a_gdus.find(g => g.gdu_id === mapping.run_a_gdu) : null;
-      const gduB = mapping.run_b_gdu ? run_b_gdus.find(g => g.gdu_id === mapping.run_b_gdu) : null;
+      // Find the corresponding GDU objects for additional metadata using O(1) Map lookup
+      const gduA = mapping.run_a_gdu ? gduAMap.get(mapping.run_a_gdu) : null;
+      const gduB = mapping.run_b_gdu ? gduBMap.get(mapping.run_b_gdu) : null;
 
       return {
         run_a_gdu_id: mapping.run_a_gdu || '',
@@ -151,9 +155,9 @@ Provide your response as a JSON object with this structure:
     const unmappedRunA = [...allRunAGdus].filter(id => !mappedRunAGdus.has(id));
     const unmappedRunB = [...allRunBGdus].filter(id => !mappedRunBGdus.has(id));
 
-    // Add unmapped GDUs as null mappings
+    // Add unmapped GDUs as null mappings (using Map for O(1) lookups)
     for (const gduId of unmappedRunA) {
-      const gdu = run_a_gdus.find(g => g.gdu_id === gduId)!;
+      const gdu = gduAMap.get(gduId)!;
       gdu_mappings.push({
         run_a_gdu_id: gduId,
         run_a_definition: gdu.definition,
@@ -167,7 +171,7 @@ Provide your response as a JSON object with this structure:
     }
 
     for (const gduId of unmappedRunB) {
-      const gdu = run_b_gdus.find(g => g.gdu_id === gduId)!;
+      const gdu = gduBMap.get(gduId)!;
       gdu_mappings.push({
         run_a_gdu_id: '',
         run_a_definition: '',
