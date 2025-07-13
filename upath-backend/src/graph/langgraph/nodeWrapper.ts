@@ -43,12 +43,12 @@ export function wrapExistingNode(NodeClass: typeof BaseNode) {
         },
       };
       
-      // Create execution context
+      // Create execution context from state settings
       const context: ExecutionContext = {
-        model: 'gemini-1.5-pro',
-        temperature: 0.7,
-        seed: 42,
-        useGrounding: true,
+        model: state.settings?.model || process.env.DEFAULT_MODEL || 'gemini-1.5-pro',
+        temperature: state.settings?.temperature ?? 0.7,
+        seed: state.settings?.seed ?? 42,
+        useGrounding: state.settings?.useGrounding ?? true,
       };
       
       // Execute the node
@@ -123,10 +123,10 @@ export function wrapMultiTranscriptNode(NodeClass: typeof BaseNode) {
       };
       
       const context: ExecutionContext = {
-        model: 'gemini-1.5-pro',
-        temperature: 0.7,
-        seed: 42,
-        useGrounding: true,
+        model: state.settings?.model || process.env.DEFAULT_MODEL || 'gemini-1.5-pro',
+        temperature: state.settings?.temperature ?? 0.7,
+        seed: state.settings?.seed ?? 42,
+        useGrounding: state.settings?.useGrounding ?? true,
       };
       
       console.log(`[LangGraph] Executing multi-transcript node: ${node.id}`);

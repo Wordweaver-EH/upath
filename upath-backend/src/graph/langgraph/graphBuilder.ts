@@ -1,5 +1,5 @@
 import { StateGraph, END, START } from "@langchain/langgraph";
-import { MemorySaver } from "@langchain/langgraph";
+import { SqliteSaver } from "@langchain/langgraph-checkpoint-sqlite";
 import { UPathMVPAnnotation, UPathMVPState, PHASE_SEQUENCE, GDU_PROCESSING_PHASES } from "./annotations";
 import { wrapExistingNode, wrapMultiTranscriptNode } from "./nodeWrapper";
 
@@ -166,24 +166,21 @@ export function buildUPathGraph() {
     .addEdge("finalize", END);
 
   return graph.compile({
-    checkpointer: new MemorySaver(),
+    checkpointer: new SqliteSaver({
+      connectionString: process.env.LANGGRAPH_DB_PATH || "./langgraph-demo.db"
+    }),
   });
 }
 
 // Loop controller nodes
 
 async function transcriptLoopControllerNode(state: UPathMVPState): Promise<Partial<UPathMVPState>> {
-  const hasMoreTranscripts = state.currentTranscriptIndex < state.transcripts.length - 1;
-  
-  if (hasMoreTranscripts) {
-    return {
-      currentTranscriptIndex: state.currentTranscriptIndex + 1,
-      currentPhaseIndex: 0, // Reset phase for new transcript
-      currentGDUIndex: 0,   // Reset GDU index
-    };
-  }
-  
-  return {}; // No state change, will route to 'done'
+  // Always increment the index - let the decider handle bounds checking
+  return {
+    currentTranscriptIndex: state.currentTranscriptIndex + 1,
+    currentPhaseIndex: 0, // Reset phase for new transcript
+    currentGDUIndex: 0,   // Reset GDU index
+  };
 }
 
 function transcriptLoopDecider(state: UPathMVPState): string {
@@ -197,7 +194,18 @@ async function selectCurrentTranscriptNode(state: UPathMVPState): Promise<Partia
 }
 
 async function phaseLoopControllerNode(state: UPathMVPState): Promise<Partial<UPathMVPState>> {
-  const phaseSequence = ["P2S_1", "P2S_2", "P2S_3", "P3_1", "P3_2", "P3_3", "gdu_loop", "P7_1", "P7_2", "P7_3", "P7_3B", "P7_4", "P7_5", "P9_1", "COMPLETE"];
+  // Use a filtered phase sequence for multi-transcript path
+  const multiTranscriptPhases = PHASE_SEQUENCE.filter(phase => 
+    !["P_NEG1_1", "P0_1", "P0_2", "P0_3", "P1_1", "P1_2", "P1_3", "P1_4"].includes(phase)
+  );
+  
+  // Insert gdu_loop at the right position (after P3_3)
+  const p3_3Index = multiTranscriptPhases.indexOf("P3_3");
+  const phaseSequence = [
+    ...multiTranscriptPhases.slice(0, p3_3Index + 1),
+    "gdu_loop",
+    ...multiTranscriptPhases.slice(p3_3Index + 1)
+  ];
   
   if (state.currentPhaseIndex < phaseSequence.length) {
     return {
@@ -210,7 +218,17 @@ async function phaseLoopControllerNode(state: UPathMVPState): Promise<Partial<UP
 }
 
 function phaseLoopDecider(state: UPathMVPState): string {
-  const phaseSequence = ["P2S_1", "P2S_2", "P2S_3", "P3_1", "P3_2", "P3_3", "gdu_loop", "P7_1"];
+  // Build the same phase sequence as the controller
+  const multiTranscriptPhases = PHASE_SEQUENCE.filter(phase => 
+    !["P_NEG1_1", "P0_1", "P0_2", "P0_3", "P1_1", "P1_2", "P1_3", "P1_4"].includes(phase)
+  );
+  
+  const p3_3Index = multiTranscriptPhases.indexOf("P3_3");
+  const phaseSequence = [
+    ...multiTranscriptPhases.slice(0, p3_3Index + 1),
+    "gdu_loop",
+    ...multiTranscriptPhases.slice(p3_3Index + 1)
+  ];
   
   if (state.currentPhaseIndex >= phaseSequence.length) {
     return "done";
@@ -219,8 +237,11 @@ function phaseLoopDecider(state: UPathMVPState): string {
   const currentPhase = phaseSequence[state.currentPhaseIndex];
   
   // Special handling for GDU phases
-  if (currentPhase === "gdu_loop" && state.gdus.length > 0) {
+  if (currentPhase === "gdu_loop" && state.gdus && state.gdus.length > 0) {
     return "gdu_loop";
+  } else if (currentPhase === "gdu_loop" && (!state.gdus || state.gdus.length === 0)) {
+    // Skip GDU loop if no GDUs
+    return "P7_1";
   }
   
   return currentPhase;

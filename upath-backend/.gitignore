@@ -1,0 +1,4 @@
+
+# LangGraph SQLite database
+*.db
+*.db-journal
