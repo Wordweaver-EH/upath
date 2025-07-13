@@ -45,7 +45,7 @@ export function wrapExistingNode(NodeClass: typeof BaseNode) {
       
       // Create execution context from state settings
       const context: ExecutionContext = {
-        model: state.settings?.model || process.env.DEFAULT_MODEL || 'gemini-1.5-pro',
+        model: state.settings?.model || process.env.DEFAULT_MODEL || 'gemini-2.5-flash',
         temperature: state.settings?.temperature ?? 0.7,
         seed: state.settings?.seed ?? 42,
         useGrounding: state.settings?.useGrounding ?? true,
@@ -123,7 +123,7 @@ export function wrapMultiTranscriptNode(NodeClass: typeof BaseNode) {
       };
       
       const context: ExecutionContext = {
-        model: state.settings?.model || process.env.DEFAULT_MODEL || 'gemini-1.5-pro',
+        model: state.settings?.model || process.env.DEFAULT_MODEL || 'gemini-2.5-flash',
         temperature: state.settings?.temperature ?? 0.7,
         seed: state.settings?.seed ?? 42,
         useGrounding: state.settings?.useGrounding ?? true,
