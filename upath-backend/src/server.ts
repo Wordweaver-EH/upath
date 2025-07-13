@@ -4,6 +4,11 @@ import analyzeRoute from './routes/analyze';
 import hilRoute from './routes/hil';
 import irrRoute from './routes/irr';
 import graphRoute from './routes/graph';
+import langgraphRoute from './routes/langgraph';
+import stateManagementRoute from './routes/stateManagement';
+import geminiRoute from './routes/gemini';
+import pipelineRoute from './routes/pipeline';
+import { loadAllSteps } from './pipeline/steps';
 
 /**
  * Builds the Fastify application instance
@@ -36,6 +41,10 @@ export async function buildApp() {
     logger: true
   });
 
+  // Load and register all pipeline steps
+  // This must happen before route registration since routes depend on steps
+  loadAllSteps();
+
   // Parse CORS origins from environment
   const corsOrigins = process.env.CORS_ORIGINS 
     ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
@@ -52,6 +61,10 @@ export async function buildApp() {
   await app.register(hilRoute, { prefix: '/api' });
   await app.register(irrRoute, { prefix: '/api' });
   await app.register(graphRoute, { prefix: '/api' });
+  await app.register(langgraphRoute, { prefix: '/api' });
+  await app.register(stateManagementRoute, { prefix: '/api' });
+  await app.register(geminiRoute, { prefix: '/api/gemini' });
+  await app.register(pipelineRoute, { prefix: '/api' });
 
   // Health check endpoint
   app.get('/health', async (request, reply) => {

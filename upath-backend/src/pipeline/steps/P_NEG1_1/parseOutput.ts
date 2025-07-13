@@ -1,0 +1,101 @@
+/**
+ * P_NEG1_1 Variable Identification - Output Parsing
+ * Exactly matches the working prototype's parseOutput function
+ */
+
+import { ParseOutputFunction } from '../../core/interfaces';
+import { P_NEG1_1_Output } from './types';
+
+/**
+ * Parse and validate JSON output for P_NEG1_1 step
+ * Exactly matches the working prototype's parsing logic
+ */
+export const parseOutput: ParseOutputFunction = (rawOutput: string): { data: P_NEG1_1_Output | null; error?: string } => {
+  try {
+    // Debug logging (matches prototype pattern)
+    console.log(`[P_NEG1_1 parseOutput] Raw output length: ${rawOutput?.length || 0}`);
+    
+    if (!rawOutput || typeof rawOutput !== 'string') {
+      return {
+        data: null,
+        error: 'No output received from Gemini API'
+      };
+    }
+
+    // Parse JSON (matches prototype's JSON.parse logic)
+    let parsedData: any;
+    try {
+      parsedData = JSON.parse(rawOutput);
+    } catch (parseError) {
+      console.error(`[P_NEG1_1 parseOutput] JSON parse error:`, parseError);
+      return {
+        data: null,
+        error: `Failed to parse JSON output: ${parseError.message}`
+      };
+    }
+
+    // Validate required fields (exactly matches prototype validation)
+    const validationErrors: string[] = [];
+
+    if (!parsedData.transcript_id || typeof parsedData.transcript_id !== 'string') {
+      validationErrors.push('Missing or invalid transcript_id');
+    }
+
+    if (!parsedData.independent_variable_details || typeof parsedData.independent_variable_details !== 'string') {
+      validationErrors.push('Missing or invalid independent_variable_details');
+    }
+
+    if (!Array.isArray(parsedData.dependent_variable_focus)) {
+      validationErrors.push('Missing or invalid dependent_variable_focus array');
+    } else {
+      // Validate each item in dependent_variable_focus is a string
+      const invalidItems = parsedData.dependent_variable_focus.filter((item: any) => typeof item !== 'string');
+      if (invalidItems.length > 0) {
+        validationErrors.push('dependent_variable_focus must contain only strings');
+      }
+    }
+
+    if (validationErrors.length > 0) {
+      console.error(`[P_NEG1_1 parseOutput] Validation errors:`, validationErrors);
+      return {
+        data: null,
+        error: `Validation failed: ${validationErrors.join(', ')}`
+      };
+    }
+
+    // Create validated output object (exactly matches prototype structure)
+    const output: P_NEG1_1_Output = {
+      transcript_id: parsedData.transcript_id.trim(),
+      independent_variable_details: parsedData.independent_variable_details.trim(),
+      dependent_variable_focus: parsedData.dependent_variable_focus.map((item: string) => item.trim()),
+    };
+
+    // Additional content validation (matches prototype quality checks)
+    if (output.independent_variable_details.length < 20) {
+      return {
+        data: null,
+        error: 'independent_variable_details is too short (minimum 20 characters)'
+      };
+    }
+
+    if (output.dependent_variable_focus.length === 0) {
+      return {
+        data: null,
+        error: 'dependent_variable_focus cannot be empty'
+      };
+    }
+
+    console.log(`[P_NEG1_1 parseOutput] Successfully parsed and validated output for transcript: ${output.transcript_id}`);
+
+    return {
+      data: output
+    };
+
+  } catch (error) {
+    console.error(`[P_NEG1_1 parseOutput] Unexpected error:`, error);
+    return {
+      data: null,
+      error: `Unexpected parsing error: ${error.message}`
+    };
+  }
+};
