@@ -10,6 +10,9 @@ import {
 } from '../../../types';
 import { langGraphService, LangGraphService } from '../langGraphService';
 import { isGlobalStep } from '../../utils/stepIdToDataKeyPrefix';
+import { PipelineUIService } from './PipelineUIService';
+import { EnhancedPipelineNavigationService } from './EnhancedPipelineNavigationService';
+import { FileManagementService } from './FileManagementService';
 
 /**
  * LangGraph-enabled Pipeline Service
@@ -78,9 +81,32 @@ export class LangGraphPipelineService {
   private langGraph: LangGraphService;
   private sessionInitialized: boolean = false;
   private initializationPromise: Promise<string> | null = null;
+  private uiService: PipelineUIService;
+  private navigationService: EnhancedPipelineNavigationService;
+  private fileManagementService: FileManagementService;
 
   constructor(private dependencies: LangGraphPipelineServiceDependencies) {
     this.langGraph = langGraphService;
+    
+    // Initialize UI service for navigation and display logic
+    this.uiService = new PipelineUIService({
+      getTranscriptData: dependencies.getTranscriptData,
+      getGenericAnalysisState: dependencies.getGenericAnalysisState,
+      getPromptHistory: dependencies.getPromptHistory,
+      getActiveTranscriptIndex: dependencies.getActiveTranscriptIndex,
+      setAutorunning: dependencies.setAutorunning,
+      setCurrentStepInfo: dependencies.setCurrentStepInfo
+    });
+    
+    // Initialize navigation service
+    this.navigationService = new EnhancedPipelineNavigationService();
+    
+    // Initialize file management service
+    this.fileManagementService = new FileManagementService({
+      addTranscripts: dependencies.addTranscripts,
+      getCurrentStepInfo: dependencies.getCurrentStepInfo,
+      setCurrentStepInfo: dependencies.setCurrentStepInfo
+    });
   }
 
   /**
@@ -144,6 +170,19 @@ export class LangGraphPipelineService {
     const startTime = Date.now();
 
     try {
+      // Check if we have transcripts before initializing session
+      const { rawTranscripts } = this.dependencies.getTranscriptData();
+      if (rawTranscripts.length === 0) {
+        console.warn('[LangGraphPipelineService] No transcripts available, cannot process step');
+        return {
+          success: false,
+          error: 'No transcripts available. Please upload transcript files first.',
+          stepId: params.stepId,
+          status: StepStatus.ERROR,
+          executionTime: Date.now() - startTime
+        };
+      }
+
       // Ensure session is initialized
       if (!this.sessionInitialized) {
         await this.initializeSession();
@@ -478,14 +517,282 @@ export class LangGraphPipelineService {
    * Get next step details (compatibility method)
    */
   getNextStepDetails(currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number): any {
-    // For LangGraph backend, step navigation is handled by the backend graph
-    // This method is mainly used for UI display purposes
-    console.warn('[LangGraphPipelineService] getNextStepDetails delegated to backend graph execution');
+    // Delegate to navigation service for UI consistency
+    const transcriptData = this.dependencies.getTranscriptData();
+    const genericAnalysisState = this.dependencies.getGenericAnalysisState();
     
-    return {
-      nextStepId: null, // Backend determines next step
-      canProceed: this.sessionInitialized,
-      requiresInput: false
-    };
+    return this.navigationService.getNextStepDetails(
+      currentStepInfo,
+      activeTranscriptIndex,
+      transcriptData,
+      genericAnalysisState
+    );
+  }
+
+  // ============================================================================
+  // UI Navigation Methods (Delegated to PipelineUIService)
+  // ============================================================================
+
+  /**
+   * Check if previous step navigation is disabled
+   */
+  isPreviousStepDisabled(
+    currentStepInfo: CurrentStepInfo,
+    activeTranscriptIndex: number
+  ): boolean {
+    return this.uiService.isPreviousStepDisabled(currentStepInfo, activeTranscriptIndex);
+  }
+
+  /**
+   * Check if next step navigation is disabled
+   */
+  isNextStepDisabled(
+    currentStepInfo: CurrentStepInfo,
+    activeTranscriptIndex: number
+  ): boolean {
+    return this.uiService.isNextStepDisabled(currentStepInfo, activeTranscriptIndex);
+  }
+
+  /**
+   * Check if run step is disabled
+   */
+  isRunStepDisabled(
+    currentStepInfo: CurrentStepInfo,
+    apiKeyPresent: boolean,
+    dvFocusError?: string
+  ): boolean {
+    return this.uiService.isRunStepDisabled(currentStepInfo, apiKeyPresent, dvFocusError);
+  }
+
+  /**
+   * Check if HIL modal is disabled
+   */
+  isHilModalDisabled(currentStepInfo: CurrentStepInfo): boolean {
+    return this.uiService.isHilModalDisabled(currentStepInfo);
+  }
+
+  /**
+   * Check if download output is disabled
+   */
+  isDownloadOutputDisabled(currentStepInfo: CurrentStepInfo): boolean {
+    return this.uiService.isDownloadOutputDisabled(currentStepInfo);
+  }
+
+  /**
+   * Check if download history is disabled
+   */
+  isDownloadHistoryDisabled(): boolean {
+    return this.uiService.isDownloadHistoryDisabled();
+  }
+
+  /**
+   * Check if appendix data is available
+   */
+  isAppendixDataAvailable(): boolean {
+    return this.uiService.isAppendixDataAvailable();
+  }
+
+  /**
+   * Get previous step details
+   */
+  getPreviousStepDetails(
+    currentStepInfo: CurrentStepInfo,
+    activeTranscriptIndex: number
+  ): { prevStepId: StepId; prevTranscriptIndex: number } | null {
+    return this.uiService.getPreviousStepDetails(currentStepInfo, activeTranscriptIndex);
+  }
+
+  /**
+   * Process next step in the pipeline
+   */
+  processNextStep(
+    currentStepInfo: CurrentStepInfo,
+    activeTranscriptIndex: number
+  ): any {
+    const transcriptData = this.dependencies.getTranscriptData();
+    const genericAnalysisState = this.dependencies.getGenericAnalysisState();
+    
+    return this.navigationService.processNextStep(
+      currentStepInfo,
+      activeTranscriptIndex,
+      transcriptData,
+      genericAnalysisState
+    );
+  }
+
+  /**
+   * Handle pipeline step click
+   */
+  handlePipelineStepClick(
+    stepId: StepId,
+    settings: SettingsData
+  ): any {
+    return this.uiService.handlePipelineStepClick(stepId, settings);
+  }
+
+  /**
+   * Get step status for pipeline view
+   */
+  getStepStatusForPipelineView(
+    stepId: StepId,
+    uiState?: { currentStepInfo: CurrentStepInfo; activeTranscriptIndex: number }
+  ): { status: StepStatus; error?: string } {
+    return this.uiService.getStepStatusForPipelineView(stepId, uiState);
+  }
+
+  /**
+   * Get transcript status display
+   */
+  getTranscriptStatusDisplay(transcriptId: string): string {
+    return this.uiService.getTranscriptStatusDisplay(transcriptId);
+  }
+
+  /**
+   * Load step data
+   */
+  loadStepData(
+    stepId: StepId,
+    transcriptId?: string,
+    phaseId?: string,
+    gduId?: string
+  ): { inputData?: any; outputData?: any; error?: string; groundingSources?: any[] } {
+    return this.uiService.loadStepData(stepId, transcriptId, phaseId, gduId);
+  }
+
+  // ============================================================================
+  // File Operations (Stubs for now)
+  // ============================================================================
+
+  /**
+   * Upload transcripts - delegates to file management service
+   */
+  async uploadTranscripts(event: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    console.log('[LangGraphPipelineService] uploadTranscripts - delegating to file management service');
+    await this.fileManagementService.uploadTranscripts(event);
+  }
+
+  /**
+   * Handle dropped files - delegates to file management service
+   */
+  async handleDroppedFiles(files: File[]): Promise<void> {
+    console.log('[LangGraphPipelineService] handleDroppedFiles - delegating to file management service');
+    await this.fileManagementService.handleDroppedFiles(files);
+  }
+
+  /**
+   * Save state to file - delegates to file management service
+   */
+  saveStateToFile(state: any, filename: string): void {
+    console.log('[LangGraphPipelineService] saveStateToFile - delegating to file management service');
+    this.fileManagementService.saveStateToFile(state, filename);
+  }
+
+  /**
+   * Load state from file - delegates to file management service
+   */
+  async loadStateFromFile(file: File): Promise<any> {
+    console.log('[LangGraphPipelineService] loadStateFromFile - delegating to file management service');
+    return await this.fileManagementService.loadStateFromFile(file);
+  }
+
+  /**
+   * Download prompt history
+   */
+  downloadPromptHistory(format: 'tsv' | 'json', outputDirectory: string): void {
+    console.warn('[LangGraphPipelineService] downloadPromptHistory not yet implemented');
+    // TODO: Implement prompt history download
+  }
+
+  /**
+   * Generate appendix
+   */
+  generateAppendix(type: 'markdown' | 'html', outputDirectory: string): void {
+    console.warn('[LangGraphPipelineService] generateAppendix not yet implemented');
+    // TODO: Implement appendix generation
+  }
+
+  /**
+   * Generate markdown report
+   */
+  generateMarkdownReport(reportData: any, outputDirectory: string): void {
+    console.warn('[LangGraphPipelineService] generateMarkdownReport not yet implemented');
+    // TODO: Implement markdown report generation
+  }
+
+  /**
+   * Export visualization
+   */
+  exportVisualization(
+    mermaidSyntax: string,
+    filename: string,
+    format: 'svg' | 'mermaid'
+  ): void {
+    console.warn('[LangGraphPipelineService] exportVisualization not yet implemented');
+    // TODO: Implement visualization export
+  }
+
+  // ============================================================================
+  // State Management (Stubs for now)
+  // ============================================================================
+
+  /**
+   * Orchestrate invalidation
+   */
+  orchestrateInvalidation(
+    stepId: StepId,
+    transcriptId?: string,
+    phaseId?: string,
+    gduId?: string
+  ): void {
+    console.warn('[LangGraphPipelineService] orchestrateInvalidation not yet implemented');
+    // TODO: Implement invalidation logic
+  }
+
+  /**
+   * Load state
+   */
+  loadState(savedState: any): void {
+    console.warn('[LangGraphPipelineService] loadState not yet implemented');
+    // TODO: Implement state loading
+  }
+
+  /**
+   * Get save state
+   */
+  getSaveState(
+    activeTranscriptIndex: number,
+    currentStepInfo: CurrentStepInfo,
+    settings: any
+  ): any {
+    console.warn('[LangGraphPipelineService] getSaveState not yet implemented');
+    // TODO: Implement state saving
+    return {};
+  }
+
+  /**
+   * Reset prompt history only
+   */
+  resetPromptHistoryOnly(): void {
+    this.dependencies.resetPromptHistory();
+  }
+
+  /**
+   * Clear autosave data
+   */
+  async clearAutosaveData(): Promise<void> {
+    console.warn('[LangGraphPipelineService] clearAutosaveData not yet implemented');
+    // TODO: Implement autosave clearing
+  }
+
+  /**
+   * Retry with user seed
+   */
+  retryWithUserSeed(
+    currentStepInfo: CurrentStepInfo,
+    retrySeedInput: string,
+    settings: SettingsData
+  ): void {
+    console.warn('[LangGraphPipelineService] retryWithUserSeed not yet implemented');
+    // TODO: Implement retry logic
   }
 }

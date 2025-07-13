@@ -16,9 +16,8 @@ const processFileContent = async (file: File): Promise<RawTranscript> => {
   
   return {
     id: `transcript-${timestamp}-${Math.random().toString(36).substr(2, 9)}`,
-    name: file.name,
-    content: text,
-    uploadedAt: timestamp
+    filename: file.name,
+    content: text
   };
 };
 
@@ -69,10 +68,10 @@ export const useTranscriptStore = create<TranscriptStore>()(
             // Initialize processed data for new transcripts
             console.log('🔄 [transcriptStore] Initializing processed data...');
             newTranscripts.forEach(transcript => {
-              console.log('📊 [transcriptStore] Processing transcript:', transcript.id, transcript.name);
+              console.log('📊 [transcriptStore] Processing transcript:', transcript.id, transcript.filename);
               state.processedData.set(transcript.id, {
                 id: transcript.id,
-                filename: transcript.name,
+                filename: transcript.filename,
                 isFullyProcessedSpecificDiachronic: false,
                 isFullyProcessedSpecificSynchronic: false
               } as TranscriptProcessedData);
@@ -88,7 +87,7 @@ export const useTranscriptStore = create<TranscriptStore>()(
             transcripts.forEach(transcript => {
               state.processedData.set(transcript.id, {
                 id: transcript.id,
-                filename: transcript.name,
+                filename: transcript.filename,
                 isFullyProcessedSpecificDiachronic: false,
                 isFullyProcessedSpecificSynchronic: false
               } as TranscriptProcessedData);

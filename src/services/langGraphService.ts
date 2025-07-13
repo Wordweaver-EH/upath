@@ -132,24 +132,31 @@ export class LangGraphService {
    */
   async createSession(transcripts: RawTranscript[], settings: SettingsData): Promise<string> {
     try {
+      // Debug: Log what we're sending
+      console.log('📤 [LangGraphService] Sending transcripts:', transcripts);
+      
+      const requestBody = {
+        transcripts: transcripts.map(t => ({
+          id: t.id,
+          filename: t.filename,
+          content: t.content
+        })),
+        settings: {
+          userDvFocus: settings.userDvFocus?.dv_focus?.join(', ') || '',
+          model: 'gemini-1.5-flash', // Default model for LangGraph
+          temperature: settings.temperature || 0.7,
+          seed: settings.seed
+        }
+      };
+      
+      console.log('📤 [LangGraphService] Request body:', JSON.stringify(requestBody, null, 2));
+      
       const response = await fetch(`${BACKEND_URL}/api/graph/session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          transcripts: transcripts.map(t => ({
-            id: t.id,
-            filename: t.filename,
-            content: t.content
-          })),
-          settings: {
-            userDvFocus: settings.userDvFocus?.dv_focus?.join(', ') || '',
-            model: 'gemini-1.5-flash', // Default model for LangGraph
-            temperature: settings.temperature || 0.7,
-            seed: settings.seed
-          }
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {

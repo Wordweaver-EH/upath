@@ -125,6 +125,10 @@ export const createLangGraphPipelineService = () => {
       }
     },
     
+    // Transcript store operations
+    addTranscripts: async (files) => await useTranscriptStore.getState().addTranscripts(files),
+    addTranscriptsSync: (transcripts) => useTranscriptStore.getState().addTranscriptsSync(transcripts),
+    
     // Reset operations
     resetTranscripts: () => useTranscriptStore.getState().reset(),
     resetPromptHistory: () => usePromptHistoryStore.getState().reset(),

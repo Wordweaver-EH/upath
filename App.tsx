@@ -39,8 +39,9 @@ import { useTranscriptStore } from './src/stores/transcriptStore';
 import { useAnalysisResultStore } from './src/stores/analysisResultStore';
 import { usePromptHistoryStore } from './src/stores/promptHistoryStore';
 import { usePipelineOrchestrationStore } from './src/stores/pipelineOrchestrationStore';
-import { useStoreActions } from './src/stores/useStoreActions';
+import { useStoreActions } from './src/stores/storeComposition';
 import { useAutorunManager } from './src/hooks/useAutorunManager';
+import { BackendToggle } from './src/components/BackendToggle';
 import packageJson from './package.json';
 
 const APP_VERSION = packageJson.version; 
@@ -153,7 +154,8 @@ const App: React.FC = () => {
     processSingleStep,
     loadStepData,
     getStepStatusForPipelineView,
-    handlePipelineStepClick
+    handlePipelineStepClick,
+    coordinateRehydration
   } = useStoreActions();
   
   // Helper function for isGlobalStep
@@ -195,6 +197,14 @@ const App: React.FC = () => {
   useEffect(() => {
     initializeStores()
   }, [])
+  
+  // Coordinate rehydration across stores on app start
+  useEffect(() => {
+    console.log('🚀 [App.tsx] Initializing application and rehydrating stores...');
+    coordinateRehydration().then((restored) => {
+      console.log(`✅ [App.tsx] Rehydration complete. Session restored: ${restored}`);
+    });
+  }, []); // Empty dependency array - run only once on mount
   
   // Listen for HIL context changes that need processing
   useEffect(() => {
@@ -375,6 +385,9 @@ const App: React.FC = () => {
 
         <div className="md:col-span-2 space-y-4">
           <div className="space-y-2">
+            <div className="p-2 bg-light-bg-alt dark:bg-dark-bg-alt rounded-lg shadow">
+              <BackendToggle />
+            </div>
             <ControlsPanel />
           </div>
           

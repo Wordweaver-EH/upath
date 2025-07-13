@@ -6,6 +6,8 @@
  * of the new backend integration.
  */
 
+import * as React from 'react';
+
 export interface BackendToggleState {
   useLangGraphBackend: boolean;
   backendUrl: string;
@@ -19,18 +21,20 @@ class PipelineBackendToggle {
 
   constructor() {
     // Initialize from environment variables and localStorage
-    const envFlag = process.env.REACT_APP_USE_LANGGRAPH_BACKEND === 'true';
+    const envFlag = import.meta.env.VITE_USE_LANGGRAPH_BACKEND === 'true';
     const localStorageFlag = localStorage.getItem('upath-use-langgraph-backend') === 'true';
     
     this.state = {
       useLangGraphBackend: envFlag || localStorageFlag,
-      backendUrl: process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001',
+      backendUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001',
       isBackendHealthy: false,
       lastHealthCheck: 0
     };
 
-    // Check backend health on initialization
-    this.checkBackendHealth();
+    // Check backend health on initialization if backend is enabled
+    if (this.state.useLangGraphBackend) {
+      this.checkBackendHealth();
+    }
   }
 
   /**
@@ -203,11 +207,3 @@ export function usePipelineBackendToggle() {
   };
 }
 
-// For backwards compatibility, check if React is available
-let React: any;
-try {
-  React = require('react');
-} catch (e) {
-  // React not available, skip hook export
-  console.warn('[BackendToggle] React not available, hook disabled');
-}
