@@ -3,7 +3,7 @@ import { MemorySaver } from "@langchain/langgraph";
 import { UPathMVPAnnotation, UPathMVPState, PHASE_SEQUENCE, GDU_PROCESSING_PHASES } from "./annotations";
 import { wrapExistingNode, wrapMultiTranscriptNode } from "./nodeWrapper";
 
-// Import all node classes
+// Import all node classes (same as before)
 import { P_NEG1_1_VariableIdentificationNode } from "../nodes/P_NEG1_1_VariableIdentificationNode";
 import { P0_1_TranscriptionAdherenceNode } from "../nodes/P0_1_TranscriptionAdherenceNode";
 import { P0_2_RefineDataTypesNode } from "../nodes/P0_2_RefineDataTypesNode";
@@ -32,67 +32,68 @@ import { P9_1_SemanticGduMappingNode } from "../nodes/P9_1_SemanticGduMappingNod
 import { CompleteNode } from "../nodes/CompleteNode";
 
 /**
- * Builds the complete µ-PATH LangGraph pipeline
+ * µ-PATH LangGraph pipeline with proper loop logic
  */
 export function buildUPathGraph() {
   const graph = new StateGraph(UPathMVPAnnotation)
-    // Initialize node
+    // Initialize
     .addNode("initialize", initializeNode)
     
-    // Phase -1 and 0: Variable identification and transcription processing
+    // Phase -1 and 0 (process all transcripts together)
     .addNode("P_NEG1_1", wrapMultiTranscriptNode(P_NEG1_1_VariableIdentificationNode))
     .addNode("P0_1", wrapMultiTranscriptNode(P0_1_TranscriptionAdherenceNode))
     .addNode("P0_2", wrapMultiTranscriptNode(P0_2_RefineDataTypesNode))
     .addNode("P0_3", wrapMultiTranscriptNode(P0_3_SelectProceduralUtterancesNode))
     
-    // Routing decision point
+    // Routing decision
     .addNode("routingDecision", routingDecisionNode)
     
-    // Phase 1: Diachronic analysis (single transcript)
+    // SINGLE TRANSCRIPT PATH
     .addNode("P1_1", wrapExistingNode(P1_1_InitialSegmentationNode))
     .addNode("P1_2", wrapExistingNode(P1_2_DiachronicUnitIdNode))
     .addNode("P1_3", wrapExistingNode(P1_3_RefineDiachronicUnitsNode))
     .addNode("P1_4", wrapExistingNode(P1_4_ConstructSpecificDiachronicStructureNode))
     
-    // Phase 2S: Synchronic analysis (multi transcript)
+    // MULTI TRANSCRIPT PATH WITH LOOPS
+    
+    // Transcript loop controller
+    .addNode("transcriptLoopController", transcriptLoopControllerNode)
+    .addNode("selectCurrentTranscript", selectCurrentTranscriptNode)
+    
+    // Phase loop controller
+    .addNode("phaseLoopController", phaseLoopControllerNode)
+    
+    // Phase nodes (wrapped to process current transcript)
     .addNode("P2S_1", wrapExistingNode(P2S_1_GroupUtterancesByTopicNode))
     .addNode("P2S_2", wrapExistingNode(P2S_2_IdentifySpecificSynchronicUnitsNode))
     .addNode("P2S_3", wrapExistingNode(P2S_3_DefineSpecificSynchronicStructureNode))
-    
-    // Phase 3: Structure alignment
     .addNode("P3_1", wrapExistingNode(P3_1_AlignStructuresNode))
     .addNode("P3_2", wrapExistingNode(P3_2_IdentifyGDUsNode))
     .addNode("P3_3", wrapExistingNode(P3_3_DefineGenericDiachronicStructureNode))
     
-    // Phase 4S: Generic synchronic structure
+    // GDU loop controller (for P4S and P5)
+    .addNode("gduLoopController", gduLoopControllerNode)
+    .addNode("selectCurrentGDU", selectCurrentGDUNode)
+    
     .addNode("P4S_1_A", wrapExistingNode(P4S_1_A_IdentifyAndGroupSSSNodesNode))
     .addNode("P4S_1_B", wrapExistingNode(P4S_1_B_DefineGSSFromGroupsNode))
-    
-    // Phase 5: Comparative analysis
     .addNode("P5_1", wrapExistingNode(P5_1_ComparativeAnalysisNode))
     .addNode("P5_2", wrapExistingNode(P5_2_HolisticRefinementNode))
     
-    // Phase 7: Formalization
+    // Post-GDU processing
     .addNode("P7_1", wrapExistingNode(P7_1_CandidateVariableFormalizationNode))
     .addNode("P7_2", wrapExistingNode(P7_2_ProposePairwiseCausalLinksNode))
     .addNode("P7_3", wrapExistingNode(P7_3_AssembleDAGAndIdentifyPatternsNode))
     .addNode("P7_3B", wrapExistingNode(P7_3B_ValidateAndCleanDAGNode))
     .addNode("P7_4", wrapExistingNode(P7_4_AnalyzePathsAndBiasesNode))
     .addNode("P7_5", wrapExistingNode(P7_5_GenerateFormalHypothesesNode))
-    
-    // Phase 9: Semantic mapping
     .addNode("P9_1", wrapExistingNode(P9_1_SemanticGduMappingNode))
-    
-    // Complete
     .addNode("COMPLETE", wrapExistingNode(CompleteNode))
     
-    // Finalize node
+    // Finalize
     .addNode("finalize", finalizeNode)
     
-    // Error handler
-    .addNode("errorHandler", errorHandlerNode)
-    
-    // Add edges following the pipeline sequence
+    // EDGES - Start
     .addEdge(START, "initialize")
     .addEdge("initialize", "P_NEG1_1")
     .addEdge("P_NEG1_1", "P0_1")
@@ -100,64 +101,155 @@ export function buildUPathGraph() {
     .addEdge("P0_2", "P0_3")
     .addEdge("P0_3", "routingDecision")
     
-    // Conditional routing based on single vs multi transcript
+    // Routing
     .addConditionalEdges("routingDecision", routingDecider, {
       single: "P1_1",
-      multi: "P2S_1",
+      multi: "transcriptLoopController",
     })
     
-    // Phase 1 sequence (single transcript path)
+    // Single transcript path
     .addEdge("P1_1", "P1_2")
     .addEdge("P1_2", "P1_3")
     .addEdge("P1_3", "P1_4")
-    .addEdge("P1_4", "finalize") // Single transcript ends here
+    .addEdge("P1_4", "finalize")
     
-    // Phase 2S sequence (multi transcript path)
-    .addEdge("P2S_1", "P2S_2")
-    .addEdge("P2S_2", "P2S_3")
-    .addEdge("P2S_3", "P3_1")
+    // Multi transcript path - Transcript loop
+    .addConditionalEdges("transcriptLoopController", transcriptLoopDecider, {
+      continue: "selectCurrentTranscript",
+      done: "finalize",
+    })
+    .addEdge("selectCurrentTranscript", "phaseLoopController")
     
-    // Phase 3 sequence
-    .addEdge("P3_1", "P3_2")
-    .addEdge("P3_2", "P3_3")
-    .addEdge("P3_3", "P4S_1_A")
+    // Phase loop
+    .addConditionalEdges("phaseLoopController", phaseLoopDecider, {
+      P2S_1: "P2S_1",
+      P2S_2: "P2S_2", 
+      P2S_3: "P2S_3",
+      P3_1: "P3_1",
+      P3_2: "P3_2",
+      P3_3: "P3_3",
+      gdu_loop: "gduLoopController",
+      P7_1: "P7_1",
+      done: "transcriptLoopController",
+    })
     
-    // Phase 4S sequence
+    // Phase edges
+    .addEdge("P2S_1", "phaseLoopController")
+    .addEdge("P2S_2", "phaseLoopController")
+    .addEdge("P2S_3", "phaseLoopController")
+    .addEdge("P3_1", "phaseLoopController")
+    .addEdge("P3_2", "phaseLoopController")
+    .addEdge("P3_3", "phaseLoopController")
+    
+    // GDU loop
+    .addConditionalEdges("gduLoopController", gduLoopDecider, {
+      continue: "selectCurrentGDU",
+      done: "phaseLoopController",
+    })
+    .addEdge("selectCurrentGDU", "P4S_1_A")
     .addEdge("P4S_1_A", "P4S_1_B")
     .addEdge("P4S_1_B", "P5_1")
-    
-    // Phase 5 sequence
     .addEdge("P5_1", "P5_2")
-    .addEdge("P5_2", "P7_1")
+    .addEdge("P5_2", "gduLoopController")
     
-    // Phase 7 sequence
+    // Post-GDU processing
     .addEdge("P7_1", "P7_2")
     .addEdge("P7_2", "P7_3")
     .addEdge("P7_3", "P7_3B")
     .addEdge("P7_3B", "P7_4")
     .addEdge("P7_4", "P7_5")
     .addEdge("P7_5", "P9_1")
-    
-    // Phase 9 to completion
     .addEdge("P9_1", "COMPLETE")
-    .addEdge("COMPLETE", "finalize")
+    .addEdge("COMPLETE", "phaseLoopController")
     
-    // Final edge
-    .addEdge("finalize", END)
-    
-    // Error handling edges
-    .addConditionalEdges("errorHandler", errorRouter, {
-      retry: "initialize",
-      end: END,
-    });
+    // Final
+    .addEdge("finalize", END);
 
   return graph.compile({
     checkpointer: new MemorySaver(),
   });
 }
 
-// Helper nodes
+// Loop controller nodes
 
+async function transcriptLoopControllerNode(state: UPathMVPState): Promise<Partial<UPathMVPState>> {
+  const hasMoreTranscripts = state.currentTranscriptIndex < state.transcripts.length - 1;
+  
+  if (hasMoreTranscripts) {
+    return {
+      currentTranscriptIndex: state.currentTranscriptIndex + 1,
+      currentPhaseIndex: 0, // Reset phase for new transcript
+      currentGDUIndex: 0,   // Reset GDU index
+    };
+  }
+  
+  return {}; // No state change, will route to 'done'
+}
+
+function transcriptLoopDecider(state: UPathMVPState): string {
+  return state.currentTranscriptIndex < state.transcripts.length ? "continue" : "done";
+}
+
+async function selectCurrentTranscriptNode(state: UPathMVPState): Promise<Partial<UPathMVPState>> {
+  // This would update the state to process only the current transcript
+  console.log(`[LangGraph] Processing transcript ${state.currentTranscriptIndex + 1}/${state.transcripts.length}`);
+  return {};
+}
+
+async function phaseLoopControllerNode(state: UPathMVPState): Promise<Partial<UPathMVPState>> {
+  const phaseSequence = ["P2S_1", "P2S_2", "P2S_3", "P3_1", "P3_2", "P3_3", "gdu_loop", "P7_1", "P7_2", "P7_3", "P7_3B", "P7_4", "P7_5", "P9_1", "COMPLETE"];
+  
+  if (state.currentPhaseIndex < phaseSequence.length) {
+    return {
+      currentPhase: phaseSequence[state.currentPhaseIndex],
+      currentPhaseIndex: state.currentPhaseIndex + 1,
+    };
+  }
+  
+  return {}; // Done with phases for this transcript
+}
+
+function phaseLoopDecider(state: UPathMVPState): string {
+  const phaseSequence = ["P2S_1", "P2S_2", "P2S_3", "P3_1", "P3_2", "P3_3", "gdu_loop", "P7_1"];
+  
+  if (state.currentPhaseIndex >= phaseSequence.length) {
+    return "done";
+  }
+  
+  const currentPhase = phaseSequence[state.currentPhaseIndex];
+  
+  // Special handling for GDU phases
+  if (currentPhase === "gdu_loop" && state.gdus.length > 0) {
+    return "gdu_loop";
+  }
+  
+  return currentPhase;
+}
+
+async function gduLoopControllerNode(state: UPathMVPState): Promise<Partial<UPathMVPState>> {
+  const hasMoreGDUs = state.currentGDUIndex < state.gdus.length - 1;
+  
+  if (hasMoreGDUs) {
+    return {
+      currentGDUIndex: state.currentGDUIndex + 1,
+    };
+  }
+  
+  return {
+    currentGDUIndex: 0, // Reset for next transcript
+  };
+}
+
+function gduLoopDecider(state: UPathMVPState): string {
+  return state.currentGDUIndex < state.gdus.length ? "continue" : "done";
+}
+
+async function selectCurrentGDUNode(state: UPathMVPState): Promise<Partial<UPathMVPState>> {
+  console.log(`[LangGraph] Processing GDU ${state.currentGDUIndex + 1}/${state.gdus.length}`);
+  return {};
+}
+
+// Helper nodes (same as before)
 async function initializeNode(state: UPathMVPState): Promise<Partial<UPathMVPState>> {
   console.log("[LangGraph] Initializing pipeline");
   return {
@@ -189,23 +281,8 @@ async function finalizeNode(state: UPathMVPState): Promise<Partial<UPathMVPState
   };
 }
 
-async function errorHandlerNode(state: UPathMVPState): Promise<Partial<UPathMVPState>> {
-  console.error("[LangGraph] Error handler invoked:", state.errors);
-  return {
-    status: "failed",
-  };
-}
-
-function errorRouter(state: UPathMVPState): string {
-  // Simple retry logic - in production, this would be more sophisticated
-  if (state.errors.length < 3) {
-    return "retry";
-  }
-  return "end";
-}
-
 /**
- * Create and return a compiled graph instance
+ * Create pipeline with loops
  */
 export function createUPathPipeline() {
   return buildUPathGraph();

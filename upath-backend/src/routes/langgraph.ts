@@ -1,7 +1,10 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { uPathPipeline } from '../graph/langgraph/pipeline';
+import { createUPathPipeline } from '../graph/langgraph/graphBuilder';
 import { UPathMVPState } from '../graph/langgraph/annotations';
 import { EventSourceParserStream } from 'eventsource-parser/stream';
+
+// Create pipeline instance
+const uPathPipeline = createUPathPipeline();
 
 /**
  * Request interface for LangGraph processing

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { createEnhancedUPathPipeline } from '../enhancedGraphBuilder';
+import { createUPathPipeline } from '../graphBuilder';
 import { UPathMVPState } from '../annotations';
 
 describe('LangGraph MVP Pipeline', () => {
@@ -10,7 +10,7 @@ describe('LangGraph MVP Pipeline', () => {
     process.env.GEMINI_API_KEY = 'test-api-key';
     
     // Create pipeline instance
-    pipeline = createEnhancedUPathPipeline();
+    pipeline = createUPathPipeline();
   });
 
   it('should create a valid pipeline instance', () => {
