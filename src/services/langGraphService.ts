@@ -101,6 +101,8 @@ interface IrrAnalysisResponse {
 
 export class LangGraphService {
   private currentSessionId: string | null = null;
+  private sessionTranscripts: RawTranscript[] = [];
+  private sessionUserDvFocus: any = null;
 
   /**
    * Helper method to handle API response errors consistently
@@ -142,10 +144,11 @@ export class LangGraphService {
           content: t.content
         })),
         settings: {
-          userDvFocus: settings.userDvFocus?.dv_focus?.join(', ') || '',
-          model: 'gemini-1.5-flash', // Default model for LangGraph
-          temperature: settings.temperature || 0.7,
-          seed: settings.seed
+          model: 'gemini-2.5-flash-preview-04-17', // Default model for LangGraph
+          temperature: settings.temperature || 0,
+          seed: settings.seed,
+          // Add userDvFocus inside settings as expected by backend
+          userDvFocus: settings.userDvFocus || { dv_focus: [] }
         }
       };
       
@@ -166,6 +169,10 @@ export class LangGraphService {
       const data: CreateSessionResponse = await response.json();
       this.currentSessionId = data.sessionId;
       
+      // Store session data for use in executeNextStep
+      this.sessionTranscripts = transcripts;
+      this.sessionUserDvFocus = settings.userDvFocus || { dv_focus: [] };
+      
       console.log(`✅ [LangGraphService] Created session: ${data.sessionId}`);
       return data.sessionId;
     } catch (error) {
@@ -184,6 +191,7 @@ export class LangGraphService {
     }
 
     try {
+      // Use the session-based execution endpoint
       const response = await fetch(`${BACKEND_URL}/api/graph/execute`, {
         method: 'POST',
         headers: {
@@ -191,9 +199,8 @@ export class LangGraphService {
         },
         body: JSON.stringify({
           sessionId: effectiveSessionId,
-          model: settings?.model || 'gemini-1.5-flash',
-          temperature: settings?.temperature || 0.7,
-          useGrounding: false, // Grounding not used in pipeline
+          model: settings?.model || 'gemini-2.5-flash-preview-04-17',
+          temperature: settings?.temperature || 0,
           seed: settings?.seed
         }),
       });
@@ -204,10 +211,15 @@ export class LangGraphService {
 
       const data: ExecuteStepResponse = await response.json();
       
+      if (!data) {
+        throw new Error('Invalid response from backend: empty response');
+      }
+      
       if (data.success) {
         console.log(`✅ [LangGraphService] Step executed:`, data.executionResult?.stepId);
       } else {
-        console.error('❌ [LangGraphService] Step execution failed:', data.error);
+        console.error('❌ [LangGraphService] Step execution failed:', data?.error || 'Unknown error');
+        console.error('Full response:', data);
       }
 
       return data;
@@ -300,6 +312,8 @@ export class LangGraphService {
    */
   clearSession(): void {
     this.currentSessionId = null;
+    this.sessionTranscripts = [];
+    this.sessionUserDvFocus = null;
   }
 
   /**
@@ -326,6 +340,75 @@ export class LangGraphService {
       return await response.json();
     } catch (error) {
       console.error('❌ [LangGraphService] Failed to get session status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Save current backend session state
+   */
+  async saveBackendState(filename?: string): Promise<{
+    success: boolean;
+    savedState: any;
+    filename: string;
+  }> {
+    if (!this.currentSessionId) {
+      throw new Error('No active backend session to save');
+    }
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/state/save`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sessionId: this.currentSessionId,
+          filename
+        }),
+      });
+
+      if (!response.ok) {
+        await this.handleResponseError(response);
+      }
+
+      const data = await response.json();
+      console.log(`✅ [LangGraphService] Backend state saved: ${data.filename}`);
+      return data;
+    } catch (error) {
+      console.error('❌ [LangGraphService] Failed to save backend state:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Load backend state from saved data
+   */
+  async loadBackendState(savedStateData: any): Promise<{
+    success: boolean;
+    sessionId: string;
+  }> {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/state/load`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          stateData: savedStateData
+        }),
+      });
+
+      if (!response.ok) {
+        await this.handleResponseError(response);
+      }
+
+      const data = await response.json();
+      this.currentSessionId = data.sessionId; // Update current session
+      console.log(`✅ [LangGraphService] Backend state loaded: ${data.sessionId}`);
+      return data;
+    } catch (error) {
+      console.error('❌ [LangGraphService] Failed to load backend state:', error);
       throw error;
     }
   }

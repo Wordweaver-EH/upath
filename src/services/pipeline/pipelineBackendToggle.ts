@@ -20,21 +20,16 @@ class PipelineBackendToggle {
   private listeners: Array<(state: BackendToggleState) => void> = [];
 
   constructor() {
-    // Initialize from environment variables and localStorage
-    const envFlag = import.meta.env.VITE_USE_LANGGRAPH_BACKEND === 'true';
-    const localStorageFlag = localStorage.getItem('upath-use-langgraph-backend') === 'true';
-    
+    // Backend is now permanently enabled - frontend pipeline has been removed
     this.state = {
-      useLangGraphBackend: envFlag || localStorageFlag,
+      useLangGraphBackend: true, // Always true
       backendUrl: import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001',
       isBackendHealthy: false,
       lastHealthCheck: 0
     };
 
-    // Check backend health on initialization if backend is enabled
-    if (this.state.useLangGraphBackend) {
-      this.checkBackendHealth();
-    }
+    // Always check backend health on initialization
+    this.checkBackendHealth();
   }
 
   /**
@@ -45,34 +40,25 @@ class PipelineBackendToggle {
   }
 
   /**
-   * Enable LangGraph backend
+   * Enable LangGraph backend - DEPRECATED (always enabled)
    */
   enableLangGraphBackend(): void {
-    this.setState({ useLangGraphBackend: true });
-    localStorage.setItem('upath-use-langgraph-backend', 'true');
-    console.log('✅ [BackendToggle] LangGraph backend enabled');
+    console.log('✅ [BackendToggle] LangGraph backend is always enabled');
   }
 
   /**
-   * Disable LangGraph backend (use traditional frontend execution)
+   * Disable LangGraph backend - NO LONGER SUPPORTED
    */
   disableLangGraphBackend(): void {
-    this.setState({ useLangGraphBackend: false });
-    localStorage.setItem('upath-use-langgraph-backend', 'false');
-    console.log('✅ [BackendToggle] LangGraph backend disabled, using traditional frontend execution');
+    console.error('❌ [BackendToggle] Cannot disable LangGraph backend - frontend pipeline has been permanently removed');
   }
 
   /**
-   * Toggle between backends
+   * Toggle between backends - NO LONGER SUPPORTED
    */
   toggleBackend(): boolean {
-    const newState = !this.state.useLangGraphBackend;
-    if (newState) {
-      this.enableLangGraphBackend();
-    } else {
-      this.disableLangGraphBackend();
-    }
-    return newState;
+    console.error('❌ [BackendToggle] Cannot toggle backends - only LangGraph backend is available');
+    return true; // Always return true (backend enabled)
   }
 
   /**

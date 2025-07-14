@@ -80,7 +80,7 @@ describe('P7_2_ProposePairwiseCausalLinksNode', () => {
       mockLLMClient.generateContent.mockRejectedValue(new Error('Network error'));
 
       await expect(node.execute(state, { llmClient: mockLLMClient, settings: {} }))
-        .rejects.toThrow('P7_2 LLM call failed: Network error');
+        .rejects.toThrow('P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS LLM call failed: Network error');
     });
 
     it('should handle malformed LLM response', async () => {

@@ -7,6 +7,7 @@ import { useUIStore } from '../src/stores/uiStore';
 import { useTranscriptStore } from '../src/stores/transcriptStore';
 import { useStoreActions } from '../src/stores/useStoreActions';
 import { Button, Input } from '../src/components/ui';
+import { ModelSelector } from '../src/components/ModelSelector';
 
 // No props needed - component gets all data from stores
 interface SettingsPanelProps {
@@ -23,6 +24,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const apiKeyPresent = useSettingsStore(state => state.apiKeyPresent)
   const dvFocusInput = useSettingsStore(state => state.dvFocusInput)
   const dvFocusError = useSettingsStore(state => state.dvFocusError)
+  const model = useSettingsStore(state => state.model)
   const temperature = useSettingsStore(state => state.temperature)
   const seedInput = useSettingsStore(state => state.seedInput)
   const outputDirectory = useSettingsStore(state => state.outputDirectory)
@@ -32,6 +34,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   
   const validateAndSetDvFocus = useSettingsStore(state => state.validateAndSetDvFocus)
   const validateAndSetSeed = useSettingsStore(state => state.validateAndSetSeed)
+  const setModel = useSettingsStore(state => state.setModel)
   const setTemperature = useSettingsStore(state => state.setTemperature)
   const setOutputDirectory = useSettingsStore(state => state.setOutputDirectory)
   const updateSettings = useSettingsStore(state => state.updateSettings)
@@ -103,7 +106,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div>
+          <ModelSelector
+            value={model}
+            onChange={setModel}
+          />
+        </div>
         <div>
           <div className="relative">
             <Input

@@ -25,6 +25,7 @@ interface SettingsState {
   dvFocusError: string
   
   // Generation Settings
+  model: string
   temperature: number
   seedInput: string
   seed: number | undefined
@@ -40,6 +41,7 @@ interface SettingsActions {
   validateAndSetDvFocus: (input: string) => void
   validateAndSetSeed: (input: string) => void
   checkApiKey: () => void
+  setModel: (model: string) => void
   setTemperature: (temp: number) => void
   setOutputDirectory: (dir: string) => void
   reset: () => void
@@ -59,10 +61,11 @@ export const useSettingsStore = create<SettingsStore>()(
         userDvFocus: { dv_focus: initialDvFocusArray },
         dvFocusInput: DEFAULT_DV_FOCUS_INPUT,
         dvFocusError: '',
-      temperature: 0.0,
-      seedInput: '42',
-      seed: 42,
-      retrySeedInput: '',
+        model: 'gemini-2.5-flash-preview-04-17',
+        temperature: 0.0,
+        seedInput: '42',
+        seed: 42,
+        retrySeedInput: '',
       outputDirectory: 'MicroPheno_Analysis_Outputs',
       autoDownloadResults: false,
       
@@ -115,6 +118,10 @@ export const useSettingsStore = create<SettingsStore>()(
         set({ apiKeyPresent: isApiKeySet() })
       },
       
+      setModel: (model: string) => {
+        set({ model })
+      },
+      
       setTemperature: (temp: number) => {
         set({ temperature: Math.max(0, Math.min(1, temp)) })
       },
@@ -131,6 +138,7 @@ export const useSettingsStore = create<SettingsStore>()(
           userDvFocus: { dv_focus: initialDvFocusArray },
           dvFocusInput: DEFAULT_DV_FOCUS_INPUT,
           dvFocusError: '',
+          model: 'gemini-2.5-flash-preview-04-17',
           temperature: 0.0,
           seedInput: '42',
           seed: 42,
@@ -147,6 +155,7 @@ export const useSettingsStore = create<SettingsStore>()(
         // Only persist user preferences, not runtime states
         userDvFocus: state.userDvFocus,
         dvFocusInput: state.dvFocusInput,
+        model: state.model,
         temperature: state.temperature,
         seedInput: state.seedInput,
         seed: state.seed,

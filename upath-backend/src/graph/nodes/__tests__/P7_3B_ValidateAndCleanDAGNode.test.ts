@@ -67,7 +67,7 @@ describe('P7_3B_ValidateAndCleanDAGNode', () => {
       mockLLMClient.generateContent.mockRejectedValue(new Error('Network error'));
 
       await expect(node.execute(state, { llmClient: mockLLMClient, settings: {} }))
-        .rejects.toThrow('P7_3B LLM call failed: Network error');
+        .rejects.toThrow('P7_3B_VALIDATE_AND_CLEAN_DAG LLM call failed: Network error');
     });
 
     it('should handle malformed LLM response', async () => {

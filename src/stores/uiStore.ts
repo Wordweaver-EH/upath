@@ -316,15 +316,23 @@ export const useUIStore = create<UIStore>()(
           event.preventDefault()
           set({ isDraggingOver: false })
           
+          console.log('🗂️ [uiStore] handleDrop called');
+          
           const files = Array.from(event.dataTransfer.files).filter(file => 
             file.name.endsWith('.txt') || file.type === 'text/plain'
           )
           
+          console.log(`🗂️ [uiStore] Filtered ${files.length} valid files from drop`);
+          
           if (files.length > 0) {
             // Use callback pattern instead of circular import
             const { onFilesDropped } = get()
+            console.log(`🗂️ [uiStore] onFilesDropped callback exists: ${!!onFilesDropped}`);
             if (onFilesDropped) {
+              console.log('🗂️ [uiStore] Calling onFilesDropped with files:', files.map(f => f.name));
               onFilesDropped(files)
+            } else {
+              console.error('🗂️ [uiStore] onFilesDropped callback is not set! Files cannot be processed.');
             }
           }
         },

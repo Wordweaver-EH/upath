@@ -47,8 +47,9 @@ interface StepRegistryRequest {
  */
 export default async function pipelineRoute(fastify: FastifyInstance) {
   
-  // Inject Gemini service into pipeline executor
-  pipelineExecutor.setGeminiService(geminiService);
+  // Lazy inject Gemini service into pipeline executor (after dotenv is loaded)
+  // This ensures environment variables are available when GeminiService is instantiated
+  pipelineExecutor.setGeminiService(geminiService.instance);
 
   /**
    * POST /api/pipeline/execute-step

@@ -107,9 +107,11 @@ export interface StepExecutionRequest {
   allRawTranscripts: RawTranscript[];
   transcriptIdToProcess?: string;
   overrideSeed?: number;
+  model?: string;
   temperature?: number;
   useGrounding?: boolean;
   hilMetaPrompt?: string;
+  apiKeyPresent?: boolean;
 }
 
 /**
@@ -139,6 +141,7 @@ export interface GeminiApiParams {
   prompt: string;
   isJsonOutput: boolean;
   useGrounding?: boolean;
+  model?: string;
   temperature?: number;
   seed?: number;
   attempt?: number;

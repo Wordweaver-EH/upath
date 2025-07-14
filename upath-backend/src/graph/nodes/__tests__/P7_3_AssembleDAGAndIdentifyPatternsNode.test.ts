@@ -104,7 +104,7 @@ describe('P7_3_AssembleDAGAndIdentifyPatternsNode', () => {
       mockLLMClient.generateContent.mockRejectedValue(new Error('Network error'));
 
       await expect(node.execute(state, { llmClient: mockLLMClient, settings: {} }))
-        .rejects.toThrow('P7_3 LLM call failed: Network error');
+        .rejects.toThrow('P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS LLM call failed: Network error');
     });
 
     it('should handle malformed LLM response', async () => {

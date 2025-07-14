@@ -35,13 +35,14 @@ export class GeminiService {
       prompt,
       isJsonOutput,
       useGrounding = false,
+      model,
       temperature = 0.0,
       seed,
       attempt = 1
     } = params;
 
     console.log(`[GeminiService] Calling Gemini API (attempt ${attempt})`);
-    console.log(`[GeminiService] Parameters: isJsonOutput=${isJsonOutput}, temperature=${temperature}, useGrounding=${useGrounding}, seed=${seed}`);
+    console.log(`[GeminiService] Parameters: model=${model || 'default'}, isJsonOutput=${isJsonOutput}, temperature=${temperature}, useGrounding=${useGrounding}, seed=${seed}`);
 
     try {
       // Check if API key is set (matches prototype pattern)
@@ -130,9 +131,9 @@ export class GeminiService {
     groundingSources?: Array<{ uri?: string; title?: string }>;
   }> {
     try {
-      // Get the appropriate model (matches prototype pattern)
-      const modelName = this.getModelName();
-      const model = this.genAI.getGenerativeModel({ model: modelName });
+      // Get the appropriate model (use provided model or fallback to default)
+      const modelName = model || this.getModelName();
+      const generativeModel = this.genAI.getGenerativeModel({ model: modelName });
 
       // Prepare generation config (matches prototype pattern)
       const generationConfig: any = {
@@ -166,7 +167,7 @@ export class GeminiService {
       console.log(`[GeminiService] Sending request to ${modelName}`);
       
       // Make the API call
-      const response = await model.generateContent(requestParams);
+      const response = await generativeModel.generateContent(requestParams);
       
       if (!response || !response.response) {
         throw new Error('Empty response from Gemini API');
@@ -317,5 +318,27 @@ Return the corrected JSON:`;
   }
 }
 
-// Export singleton instance
-export const geminiService = new GeminiService();
+// Export singleton instance - lazy initialization to ensure dotenv is loaded
+let _geminiService: GeminiService | null = null;
+
+export const geminiService = {
+  get instance(): GeminiService {
+    if (!_geminiService) {
+      _geminiService = new GeminiService();
+    }
+    return _geminiService;
+  },
+  
+  // For direct method access
+  callGeminiAPI: (...args: Parameters<GeminiService['callGeminiAPI']>) => {
+    return geminiService.instance.callGeminiAPI(...args);
+  },
+  
+  getStats: () => {
+    return geminiService.instance.getStats();
+  },
+  
+  healthCheck: async () => {
+    return geminiService.instance.healthCheck();
+  }
+};

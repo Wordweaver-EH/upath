@@ -10,16 +10,13 @@ import { P_NEG1_1_Output } from './types';
  * Parse and validate JSON output for P_NEG1_1 step
  * Exactly matches the working prototype's parsing logic
  */
-export const parseOutput: ParseOutputFunction = (rawOutput: string): { data: P_NEG1_1_Output | null; error?: string } => {
+export const parseOutput: ParseOutputFunction = (rawOutput: string): P_NEG1_1_Output => {
   try {
     // Debug logging (matches prototype pattern)
     console.log(`[P_NEG1_1 parseOutput] Raw output length: ${rawOutput?.length || 0}`);
     
     if (!rawOutput || typeof rawOutput !== 'string') {
-      return {
-        data: null,
-        error: 'No output received from Gemini API'
-      };
+      throw new Error('No output received from Gemini API');
     }
 
     // Parse JSON (matches prototype's JSON.parse logic)
@@ -28,10 +25,7 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): { data: P_N
       parsedData = JSON.parse(rawOutput);
     } catch (parseError) {
       console.error(`[P_NEG1_1 parseOutput] JSON parse error:`, parseError);
-      return {
-        data: null,
-        error: `Failed to parse JSON output: ${parseError.message}`
-      };
+      throw new Error(`Failed to parse JSON output: ${parseError.message}`);
     }
 
     // Validate required fields (exactly matches prototype validation)
@@ -57,10 +51,7 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): { data: P_N
 
     if (validationErrors.length > 0) {
       console.error(`[P_NEG1_1 parseOutput] Validation errors:`, validationErrors);
-      return {
-        data: null,
-        error: `Validation failed: ${validationErrors.join(', ')}`
-      };
+      throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
     }
 
     // Create validated output object (exactly matches prototype structure)
@@ -72,30 +63,19 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): { data: P_N
 
     // Additional content validation (matches prototype quality checks)
     if (output.independent_variable_details.length < 20) {
-      return {
-        data: null,
-        error: 'independent_variable_details is too short (minimum 20 characters)'
-      };
+      throw new Error('independent_variable_details is too short (minimum 20 characters)');
     }
 
     if (output.dependent_variable_focus.length === 0) {
-      return {
-        data: null,
-        error: 'dependent_variable_focus cannot be empty'
-      };
+      throw new Error('dependent_variable_focus cannot be empty');
     }
 
     console.log(`[P_NEG1_1 parseOutput] Successfully parsed and validated output for transcript: ${output.transcript_id}`);
 
-    return {
-      data: output
-    };
+    return output;
 
   } catch (error) {
     console.error(`[P_NEG1_1 parseOutput] Unexpected error:`, error);
-    return {
-      data: null,
-      error: `Unexpected parsing error: ${error.message}`
-    };
+    throw new Error(`Unexpected parsing error: ${error.message}`);
   }
 };

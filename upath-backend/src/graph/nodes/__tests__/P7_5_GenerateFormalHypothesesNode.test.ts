@@ -55,7 +55,7 @@ describe('P7_5_GenerateFormalHypothesesNode', () => {
       mockLLMClient.generateContent.mockRejectedValue(new Error('Network error'));
 
       await expect(node.execute(state, { llmClient: mockLLMClient, settings: {} }))
-        .rejects.toThrow('P7_5 LLM call failed: Network error');
+        .rejects.toThrow('P7_5_GENERATE_FORMAL_HYPOTHESES LLM call failed: Network error');
     });
 
     it('should handle malformed LLM response', async () => {

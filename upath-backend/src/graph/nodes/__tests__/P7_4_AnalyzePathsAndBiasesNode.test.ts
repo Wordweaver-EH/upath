@@ -71,7 +71,7 @@ describe('P7_4_AnalyzePathsAndBiasesNode', () => {
       mockLLMClient.generateContent.mockRejectedValue(new Error('Network error'));
 
       await expect(node.execute(state, { llmClient: mockLLMClient, settings: {} }))
-        .rejects.toThrow('P7_4 LLM call failed: Network error');
+        .rejects.toThrow('P7_4_ANALYZE_PATHS_AND_BIASES LLM call failed: Network error');
     });
 
     it('should handle malformed LLM response', async () => {

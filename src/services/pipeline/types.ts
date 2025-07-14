@@ -30,6 +30,7 @@ export interface StepExecutionParams {
 
 export interface SettingsData {
   apiKey: string
+  model: string
   temperature: number
   seed?: number
   userDvFocus: { dv_focus: string[] }

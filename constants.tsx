@@ -1,9 +1,9 @@
 // ============================================================================
-// ESSENTIAL CONSTANTS (Cleaned after LangGraph Migration)
+// ESSENTIAL CONSTANTS (Cleaned after Modular Pipeline Migration)
 // ============================================================================
 // This file now contains only the minimal constants needed by the frontend.
 // Most functionality has been moved to:
-// - LangGraph backend nodes (prompt generation & validation)
+// - Modular pipeline backend steps (prompt generation & validation)
 // - src/components/ui/Icons.tsx (UI icons)
 // - src/config/pipelineConfig.ts (pipeline configuration)
 
@@ -20,7 +20,7 @@ export const P3_2_APPROACH = process.env.REACT_APP_P3_2_APPROACH || 'original';
 // COMPATIBILITY STUB (DEPRECATED)
 // ============================================================================
 // Legacy imports - use src/config/pipelineConfig.ts for new code
-// TODO: Remove this after migrating pipeline services to use LangGraph backend
+// TODO: Remove this after migrating pipeline services to use modular backend
 
 import { 
   STEP_ORDER_PART_NEG1,

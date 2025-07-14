@@ -1,11 +1,5 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import analyzeRoute from './routes/analyze';
-import hilRoute from './routes/hil';
-import irrRoute from './routes/irr';
-import graphRoute from './routes/graph';
-import langgraphRoute from './routes/langgraph';
-import stateManagementRoute from './routes/stateManagement';
 import geminiRoute from './routes/gemini';
 import pipelineRoute from './routes/pipeline';
 import { loadAllSteps } from './pipeline/steps';
@@ -56,13 +50,7 @@ export async function buildApp() {
     credentials: true
   });
 
-  // Register routes
-  await app.register(analyzeRoute, { prefix: '/api' });
-  await app.register(hilRoute, { prefix: '/api' });
-  await app.register(irrRoute, { prefix: '/api' });
-  await app.register(graphRoute, { prefix: '/api' });
-  await app.register(langgraphRoute, { prefix: '/api' });
-  await app.register(stateManagementRoute, { prefix: '/api' });
+  // Register routes - Single modular API approach
   await app.register(geminiRoute, { prefix: '/api/gemini' });
   await app.register(pipelineRoute, { prefix: '/api' });
 

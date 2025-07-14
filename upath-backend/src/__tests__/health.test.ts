@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
+import { stepRegistry } from '../pipeline/core/registry';
 
 /**
  * REAL TDD Test for Health Endpoint
@@ -17,6 +18,9 @@ describe('Health Endpoint - Real Production Test', () => {
   let serverUrl: string;
 
   beforeAll(async () => {
+    // Clear registry to prevent pollution from previous tests
+    stepRegistry.clear();
+    
     // Set required environment variables for test
     process.env.GEMINI_API_KEY = 'test-api-key';
     process.env.PORT = '0'; // Use random available port
@@ -41,6 +45,8 @@ describe('Health Endpoint - Real Production Test', () => {
     await app.close();
     delete process.env.GEMINI_API_KEY;
     delete process.env.PORT;
+    // Clear registry after test to prevent pollution
+    stepRegistry.clear();
   });
 
   it('should return health status from real server', async () => {

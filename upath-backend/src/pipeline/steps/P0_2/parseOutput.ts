@@ -10,16 +10,13 @@ import { P0_2_Output, RefinedLine } from './types';
  * Parse and validate JSON output for P0_2 step
  * Exactly matches the working prototype's parsing logic
  */
-export const parseOutput: ParseOutputFunction = (rawOutput: string): { data: P0_2_Output | null; error?: string } => {
+export const parseOutput: ParseOutputFunction = (rawOutput: string): P0_2_Output => {
   try {
     // Debug logging (matches prototype pattern)
     console.log(`[P0_2 parseOutput] Raw output length: ${rawOutput?.length || 0}`);
     
     if (!rawOutput || typeof rawOutput !== 'string') {
-      return {
-        data: null,
-        error: 'No output received from Gemini API'
-      };
+      throw new Error('No output received from Gemini API');
     }
 
     // Parse JSON (matches prototype's JSON.parse logic)
@@ -28,10 +25,7 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): { data: P0_
       parsedData = JSON.parse(rawOutput);
     } catch (parseError) {
       console.error(`[P0_2 parseOutput] JSON parse error:`, parseError);
-      return {
-        data: null,
-        error: `Failed to parse JSON output: ${parseError.message}`
-      };
+      throw new Error(`Failed to parse JSON output: ${parseError.message}`);
     }
 
     // Validate required fields (exactly matches prototype validation)
@@ -102,10 +96,7 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): { data: P0_
 
     if (validationErrors.length > 0) {
       console.error(`[P0_2 parseOutput] Validation errors:`, validationErrors);
-      return {
-        data: null,
-        error: `Validation failed: ${validationErrors.join('; ')}`
-      };
+      throw new Error(`Validation failed: ${validationErrors.join('; ')}`);
     }
 
     // Create validated output object (exactly matches prototype structure)
@@ -124,10 +115,7 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): { data: P0_
     // Additional content validation (matches prototype quality checks)
     const totalLines = output.refined_data_transcript.length;
     if (totalLines < 1) {
-      return {
-        data: null,
-        error: 'refined_data_transcript must contain at least one line'
-      };
+      throw new Error('refined_data_transcript must contain at least one line');
     }
 
     // Check for reasonable tag distribution
@@ -149,15 +137,10 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): { data: P0_
     console.log(`[P0_2 parseOutput] Lines processed: ${totalLines}`);
     console.log(`[P0_2 parseOutput] Tag distribution:`, tagCounts);
 
-    return {
-      data: output
-    };
+    return output;
 
   } catch (error) {
     console.error(`[P0_2 parseOutput] Unexpected error:`, error);
-    return {
-      data: null,
-      error: `Unexpected parsing error: ${error.message}`
-    };
+    throw new Error(`Unexpected parsing error: ${error.message}`);
   }
 };

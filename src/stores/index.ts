@@ -29,7 +29,14 @@ export const initializeStores = () => {
 
   // Set up dependency injection: UI store gets file handler from pipeline service
   const pipelineService = getPipelineService()
-  uiStore.setFileDropCallback(pipelineService.handleDroppedFiles)
+  console.log('🔧 [initializeStores] Setting up file drop callback');
+  console.log('🔧 [initializeStores] Pipeline service exists:', !!pipelineService);
+  console.log('🔧 [initializeStores] handleDroppedFiles method exists:', !!pipelineService.handleDroppedFiles);
+  
+  // Bind the method to ensure proper 'this' context
+  const boundHandleDroppedFiles = pipelineService.handleDroppedFiles.bind(pipelineService)
+  uiStore.setFileDropCallback(boundHandleDroppedFiles)
+  console.log('🔧 [initializeStores] File drop callback set successfully');
 
   return {
     uiStore,

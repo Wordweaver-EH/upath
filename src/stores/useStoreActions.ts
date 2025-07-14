@@ -96,15 +96,21 @@ export const useStoreActions = () => {
     handleDroppedFiles: (files: File[]) => 
       service.handleDroppedFiles(files),
     
-    saveStateToFile: () => {
-      const settings = {
-        apiKey: useSettingsStore.getState().apiKey,
-        temperature: useSettingsStore.getState().temperature,
-        seed: useSettingsStore.getState().seed,
-        userDvFocus: useSettingsStore.getState().userDvFocus
+    saveStateToFile: async () => {
+      try {
+        const settings = {
+          apiKey: useSettingsStore.getState().apiKey,
+          temperature: useSettingsStore.getState().temperature,
+          seed: useSettingsStore.getState().seed,
+          userDvFocus: useSettingsStore.getState().userDvFocus
+        }
+        const savedState = service.getSaveState(activeTranscriptIndex, currentStepInfo, settings)
+        await service.saveStateToFile(savedState, `upath-session-${Date.now()}.json`)
+        alert('Backend session saved successfully!')
+      } catch (error) {
+        console.error('Failed to save backend state:', error)
+        alert('Failed to save backend session state.')
       }
-      const savedState = service.getSaveState(activeTranscriptIndex, currentStepInfo, settings)
-      service.saveStateToFile(savedState, `upath-session-${Date.now()}.json`)
     },
     
     loadStateFromFile: async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,10 +121,10 @@ export const useStoreActions = () => {
         const savedState = await service.loadStateFromFile(files[0])
         service.loadState(savedState)
         event.target.value = ''
-        alert('State loaded successfully!')
+        alert('Backend session restored successfully!')
       } catch (error) {
-        console.error('Failed to load state:', error)
-        alert('Failed to load state file. Please check the file format.')
+        console.error('Failed to load backend state:', error)
+        alert('Failed to restore backend session. Please check the file format.')
       }
     },
     

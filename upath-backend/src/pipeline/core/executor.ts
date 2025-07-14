@@ -76,6 +76,7 @@ export class PipelineExecutorImpl implements PipelineExecutor {
           prompt,
           isJsonOutput: step.config.isJsonOutput,
           useGrounding: request.useGrounding || false,
+          model: request.model,
           temperature: request.temperature || 0,
           seed: request.overrideSeed,
         };

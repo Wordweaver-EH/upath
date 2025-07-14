@@ -62,7 +62,7 @@ export class P_NEG1_1_VariableIdentificationNode extends BaseNode {
         parts: [{ text: prompt }]
       }],
       generationConfig: {
-        temperature: context.settings.temperature || 0.1,
+        temperature: context.settings.temperature ?? 0,
         responseMimeType: 'application/json'
       }
     });
