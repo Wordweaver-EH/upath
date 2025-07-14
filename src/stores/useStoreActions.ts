@@ -41,16 +41,25 @@ export const useStoreActions = () => {
       service.isAppendixDataAvailable(),
     
     // Actions
-    processSingleStep: (params: { stepId: StepId }) => 
-      service.processSingleStep({
+    processSingleStep: async (params: { stepId: StepId }) => {
+      const result = await service.processSingleStep({
         ...params,
         settings: {
           apiKey: useSettingsStore.getState().apiKey,
+          model: useSettingsStore.getState().model,
           temperature: useSettingsStore.getState().temperature,
           seed: useSettingsStore.getState().seed,
           userDvFocus: useSettingsStore.getState().userDvFocus
         }
-      }),
+      });
+
+      // Check if we should show bucketing modal
+      if (result.shouldOfferBucketing) {
+        useUIStore.getState().openBucketingModal();
+      }
+
+      return result;
+    },
     
     downloadOutput: (stepIdToDownload?: StepId, transcriptId?: string) => 
       service.downloadOutput(stepIdToDownload, transcriptId, undefined, currentStepInfo, outputDirectory),
@@ -65,6 +74,7 @@ export const useStoreActions = () => {
       const retrySeedInput = useUIStore.getState().retrySeedInput
       const settings = {
         apiKey: useSettingsStore.getState().apiKey,
+        model: useSettingsStore.getState().model,
         temperature: useSettingsStore.getState().temperature,
         seed: useSettingsStore.getState().seed,
         userDvFocus: useSettingsStore.getState().userDvFocus
@@ -82,6 +92,7 @@ export const useStoreActions = () => {
     handlePipelineStepClick: (stepId: StepId) => {
       const settings = {
         apiKey: useSettingsStore.getState().apiKey,
+        model: useSettingsStore.getState().model,
         temperature: useSettingsStore.getState().temperature,
         seed: useSettingsStore.getState().seed,
         userDvFocus: useSettingsStore.getState().userDvFocus

@@ -49,6 +49,27 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): P_NEG1_1_Ou
       }
     }
 
+    // Validate optional parsed_header field (for bucketing support)
+    if (parsedData.parsed_header !== undefined) {
+      if (typeof parsedData.parsed_header !== 'object' || parsedData.parsed_header === null) {
+        validationErrors.push('parsed_header must be an object if present');
+      } else {
+        const { iv_value, event_value, raw_header } = parsedData.parsed_header;
+        
+        if (!iv_value || typeof iv_value !== 'string') {
+          validationErrors.push('parsed_header.iv_value must be a non-empty string');
+        }
+        
+        if (!event_value || typeof event_value !== 'string') {
+          validationErrors.push('parsed_header.event_value must be a non-empty string');
+        }
+        
+        if (!raw_header || typeof raw_header !== 'string') {
+          validationErrors.push('parsed_header.raw_header must be a non-empty string');
+        }
+      }
+    }
+
     if (validationErrors.length > 0) {
       console.error(`[P_NEG1_1 parseOutput] Validation errors:`, validationErrors);
       throw new Error(`Validation failed: ${validationErrors.join(', ')}`);
@@ -60,6 +81,15 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): P_NEG1_1_Ou
       independent_variable_details: parsedData.independent_variable_details.trim(),
       dependent_variable_focus: parsedData.dependent_variable_focus.map((item: string) => item.trim()),
     };
+
+    // Add parsed_header if present (for bucketing support)
+    if (parsedData.parsed_header) {
+      output.parsed_header = {
+        iv_value: parsedData.parsed_header.iv_value.trim(),
+        event_value: parsedData.parsed_header.event_value.trim(),
+        raw_header: parsedData.parsed_header.raw_header.trim(),
+      };
+    }
 
     // Additional content validation (matches prototype quality checks)
     if (output.independent_variable_details.length < 20) {

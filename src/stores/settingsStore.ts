@@ -34,6 +34,11 @@ interface SettingsState {
   // Output
   outputDirectory: string
   autoDownloadResults: boolean
+  
+  // Bucketing Configuration
+  bucketingEnabled: boolean
+  bucketIvField: 'suggestion' | 'score'  // User choice for IV mapping
+  bucketEventField: 'suggestion' | 'score'  // User choice for Event mapping
 }
 
 interface SettingsActions {
@@ -44,6 +49,7 @@ interface SettingsActions {
   setModel: (model: string) => void
   setTemperature: (temp: number) => void
   setOutputDirectory: (dir: string) => void
+  setBucketingConfig: (enabled: boolean, ivField: 'suggestion' | 'score', eventField: 'suggestion' | 'score') => void
   reset: () => void
 }
 
@@ -66,8 +72,13 @@ export const useSettingsStore = create<SettingsStore>()(
         seedInput: '42',
         seed: 42,
         retrySeedInput: '',
-      outputDirectory: 'MicroPheno_Analysis_Outputs',
-      autoDownloadResults: false,
+        outputDirectory: 'MicroPheno_Analysis_Outputs',
+        autoDownloadResults: false,
+        
+        // Bucketing Configuration
+        bucketingEnabled: false,
+        bucketIvField: 'score',     // Default: score as IV
+        bucketEventField: 'suggestion', // Default: suggestion as Event
       
       // Actions
       updateSettings: (updates) => set(updates),
@@ -130,6 +141,14 @@ export const useSettingsStore = create<SettingsStore>()(
         set({ outputDirectory: dir })
       },
       
+      setBucketingConfig: (enabled: boolean, ivField: 'suggestion' | 'score', eventField: 'suggestion' | 'score') => {
+        set({ 
+          bucketingEnabled: enabled,
+          bucketIvField: ivField,
+          bucketEventField: eventField
+        })
+      },
+      
       reset: () => {
         const initialDvFocusArray = parseDvFocusString(DEFAULT_DV_FOCUS_INPUT)
         set({
@@ -144,7 +163,10 @@ export const useSettingsStore = create<SettingsStore>()(
           seed: 42,
           retrySeedInput: '',
           outputDirectory: 'MicroPheno_Analysis_Outputs',
-          autoDownloadResults: false
+          autoDownloadResults: false,
+          bucketingEnabled: false,
+          bucketIvField: 'score',
+          bucketEventField: 'suggestion'
         })
       }
       }
@@ -160,7 +182,10 @@ export const useSettingsStore = create<SettingsStore>()(
         seedInput: state.seedInput,
         seed: state.seed,
         outputDirectory: state.outputDirectory,
-        autoDownloadResults: state.autoDownloadResults
+        autoDownloadResults: state.autoDownloadResults,
+        bucketingEnabled: state.bucketingEnabled,
+        bucketIvField: state.bucketIvField,
+        bucketEventField: state.bucketEventField
       })
     }
   )

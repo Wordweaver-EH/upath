@@ -77,6 +77,7 @@ interface ProcessSingleStepResult {
   status: StepStatus;
   executionTime?: number;
   promptHistory?: PromptHistoryEntry;
+  shouldOfferBucketing?: boolean; // Flag to show bucketing modal
 }
 
 /**
@@ -281,13 +282,17 @@ export class ModularPipelineService {
 
       console.log(`✅ [ModularPipelineService] Step ${result.stepId} completed in ${result.executionTimeMs}ms`);
 
+      // Check if we should offer bucketing after P_NEG1_1 completion
+      const shouldOfferBucketing = this.shouldOfferBucketing(result.stepId);
+
       return {
         success: true,
         output: result.output,
         stepId: result.stepId,
         status: StepStatus.COMPLETED,
         executionTime: result.executionTimeMs,
-        promptHistory: promptEntry
+        promptHistory: promptEntry,
+        shouldOfferBucketing // Add flag for UI to show bucketing modal
       };
 
     } catch (error) {
@@ -383,6 +388,28 @@ export class ModularPipelineService {
    */
   isGlobalStep(stepId: StepId): boolean {
     return isGlobalStep(stepId);
+  }
+
+  /**
+   * Check if bucketing should be offered after step completion
+   * Only offer after P_NEG1_1 when we have header data available
+   */
+  private shouldOfferBucketing(stepId: StepId): boolean {
+    if (stepId !== 'P_NEG1_1_VARIABLE_IDENTIFICATION') {
+      return false;
+    }
+
+    // Check if any transcripts have valid header data
+    const { processedData } = this.dependencies.getTranscriptData();
+    let hasValidHeaders = false;
+    
+    processedData.forEach((transcriptData) => {
+      if (transcriptData.p_neg1_1_output?.parsed_header) {
+        hasValidHeaders = true;
+      }
+    });
+
+    return hasValidHeaders;
   }
 
   /**
