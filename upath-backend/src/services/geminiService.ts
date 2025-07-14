@@ -6,6 +6,7 @@
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { GeminiApiParams, GeminiApiResponse } from '../pipeline/core/interfaces';
+import { getErrorMessage } from '../types/errors';
 
 /**
  * Gemini API Service Implementation
@@ -63,46 +64,64 @@ export class GeminiService {
       if (isJsonOutput && result.text) {
         try {
           const parsedJson = this.extractAndParseJson(result.text);
-          return {
+          const response: GeminiApiResponse = {
             parsedJson,
-            estimatedInputTokens: result.estimatedInputTokens,
-            estimatedOutputTokens: result.estimatedOutputTokens,
-            groundingSources: result.groundingSources,
           };
-        } catch (parseError) {
+          if (result.estimatedInputTokens !== undefined) {
+            response.estimatedInputTokens = result.estimatedInputTokens;
+          }
+          if (result.estimatedOutputTokens !== undefined) {
+            response.estimatedOutputTokens = result.estimatedOutputTokens;
+          }
+          if (result.groundingSources) {
+            response.groundingSources = result.groundingSources;
+          }
+          return response;
+        } catch (parseError: unknown) {
           console.warn(`[GeminiService] JSON parsing failed, attempting self-correction (attempt ${attempt})`);
           
           // Self-correction attempt (matches prototype pattern)
           if (attempt === 1) {
             const fixerPrompt = this.generateJsonFixerPrompt(result.text);
-            return await this.callGeminiAPI({
+            const fixerParams: GeminiApiParams = {
               prompt: fixerPrompt,
               isJsonOutput: true,
               useGrounding: false,
               temperature: 0,
-              seed,
               attempt: 2
-            });
+            };
+            if (seed !== undefined) {
+              fixerParams.seed = seed;
+            }
+            return await this.callGeminiAPI(fixerParams);
           } else {
             return {
-              error: `JSON parsing failed after self-correction: ${parseError.message}. Raw response: ${result.text}`,
+              error: `JSON parsing failed after self-correction: ${getErrorMessage(parseError)}. Raw response: ${result.text}`,
             };
           }
         }
       }
 
       // Return text result for non-JSON output
-      return {
-        text: result.text,
-        estimatedInputTokens: result.estimatedInputTokens,
-        estimatedOutputTokens: result.estimatedOutputTokens,
-        groundingSources: result.groundingSources,
-      };
+      const textResponse: GeminiApiResponse = {};
+      if (result.text) {
+        textResponse.text = result.text;
+      }
+      if (result.estimatedInputTokens !== undefined) {
+        textResponse.estimatedInputTokens = result.estimatedInputTokens;
+      }
+      if (result.estimatedOutputTokens !== undefined) {
+        textResponse.estimatedOutputTokens = result.estimatedOutputTokens;
+      }
+      if (result.groundingSources) {
+        textResponse.groundingSources = result.groundingSources;
+      }
+      return textResponse;
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[GeminiService] API call failed:', error);
       return {
-        error: `API call failed: ${error.message}`,
+        error: `API call failed: ${getErrorMessage(error)}`,
       };
     }
   }
@@ -214,10 +233,10 @@ export class GeminiService {
       
       return result;
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[GeminiService] performGeminiCall error:', error);
       return {
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -238,8 +257,8 @@ export class GeminiService {
       if (jsonMatch) {
         try {
           return JSON.parse(jsonMatch[1] || jsonMatch[0]);
-        } catch (extractParseError) {
-          throw new Error(`JSON extraction and parsing failed: ${extractParseError.message}`);
+        } catch (extractParseError: unknown) {
+          throw new Error(`JSON extraction and parsing failed: ${getErrorMessage(extractParseError)}`);
         }
       }
       
@@ -300,8 +319,8 @@ Return the corrected JSON:`;
         });
         apiConnectivity = !!response?.response?.text();
       }
-    } catch (error) {
-      console.warn('[GeminiService] Health check API test failed:', error.message);
+    } catch (error: unknown) {
+      console.warn('[GeminiService] Health check API test failed:', getErrorMessage(error));
     }
 
     return {

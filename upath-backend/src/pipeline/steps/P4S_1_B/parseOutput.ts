@@ -153,7 +153,7 @@ export const parseOutput: ParseOutputFunction = (rawOutput: any): P4S_1_B_Output
       validatedInstantiationNotes.push({
         generic_category_id: note.generic_category_id,
         textual_description: note.textual_description,
-        example_specific_nodes: note.example_specific_nodes.map(node => ({
+        example_specific_nodes: note.example_specific_nodes.map((node: any) => ({
           transcript_id: node.transcript_id,
           sss_node_id: node.sss_node_id,
           phase_name: node.phase_name,

@@ -56,7 +56,9 @@ describe('Pipeline API - Real Production Test', () => {
     
     // Start the server and get the actual port
     const address = await app.listen({ port: 0, host: '127.0.0.1' });
-    serverUrl = `http://127.0.0.1:${app.server.address()?.port}`;
+    const serverAddress = app.server.address();
+    const port = typeof serverAddress === 'string' ? 3001 : serverAddress?.port || 3001;
+    serverUrl = `http://127.0.0.1:${port}`;
     
     console.log(`Test server started at ${serverUrl}`);
   });

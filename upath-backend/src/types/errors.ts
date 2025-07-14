@@ -15,7 +15,9 @@ export class StepExecutionError extends Error {
   ) {
     super(`Step ${stepId} execution failed: ${originalError.message}`);
     this.name = 'StepExecutionError';
-    this.stack = originalError.stack;
+    if (originalError.stack) {
+      this.stack = originalError.stack;
+    }
   }
 }
 
@@ -27,7 +29,9 @@ export class ParseError extends Error {
   ) {
     super(`Parse error in step ${stepId}: ${originalError.message}`);
     this.name = 'ParseError';
-    this.stack = originalError.stack;
+    if (originalError.stack) {
+      this.stack = originalError.stack;
+    }
   }
 }
 
@@ -39,7 +43,9 @@ export class ValidationError extends Error {
   ) {
     super(`Validation error in step ${stepId}: ${originalError.message}`);
     this.name = 'ValidationError';
-    this.stack = originalError.stack;
+    if (originalError.stack) {
+      this.stack = originalError.stack;
+    }
   }
 }
 

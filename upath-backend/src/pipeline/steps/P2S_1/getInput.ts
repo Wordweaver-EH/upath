@@ -78,7 +78,7 @@ export function getInput(params: StepInputParams): StepInputResult {
 
   // Find the phase object that matches currentPhaseName
   const phaseObject = p1_4_output.specific_diachronic_structure.phases.find(
-    phase => phase.phase_name === currentPhaseName
+    (phase: any) => phase.phase_name === currentPhaseName
   );
 
   if (!phaseObject) {
@@ -105,13 +105,13 @@ export function getInput(params: StepInputParams): StepInputResult {
   // Get all segment IDs from the RDUs in this phase
   const segmentIdsInPhase: string[] = [];
   for (const rduId of rduIdsInPhase) {
-    const rdu = p1_3_output.refined_diachronic_units.find(unit => unit.unit_id === rduId);
+    const rdu = p1_3_output.refined_diachronic_units.find((unit: any) => unit.unit_id === rduId);
     if (rdu) {
       // Get segments from P1.2 DUs that formed this RDU
       const p1_2_output = transcriptData.p1_2_output;
       if (p1_2_output) {
         for (const sourceP1_2_Id of rdu.source_p1_2_du_ids) {
-          const p1_2_du = p1_2_output.diachronic_units.find(du => du.unit_id === sourceP1_2_Id);
+          const p1_2_du = p1_2_output.diachronic_units.find((du: any) => du.unit_id === sourceP1_2_Id);
           if (p1_2_du) {
             segmentIdsInPhase.push(...p1_2_du.source_segment_ids);
           }
@@ -125,7 +125,7 @@ export function getInput(params: StepInputParams): StepInputResult {
   for (const segmentId of segmentIdsInPhase) {
     // Find the utterance that contains this segment
     for (const segmentedUtterance of p1_1_output.segmented_utterances) {
-      const segment = segmentedUtterance.segments.find(seg => seg.segment_id === segmentId);
+      const segment = segmentedUtterance.segments.find((seg: any) => seg.segment_id === segmentId);
       if (segment) {
         // Add the original utterance if not already added
         const existingUtterance = utterancesForPhase.find(

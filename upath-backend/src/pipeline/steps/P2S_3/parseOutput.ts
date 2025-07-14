@@ -88,7 +88,7 @@ export const parseOutput: ParseOutputFunction = (rawOutput: any): P2S_3_Output =
   }
 
   // Validate that link references point to existing nodes
-  const nodeIds = new Set(sss.network_nodes.map(node => node.id));
+  const nodeIds = new Set(sss.network_nodes.map((node: any) => node.id));
   for (let i = 0; i < sss.network_links.length; i++) {
     const link = sss.network_links[i];
     

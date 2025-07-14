@@ -6,6 +6,7 @@
 import { StepId } from '../types';
 import { ValidationResult, StepValidator as IStepValidator, StepInputParams } from '../pipeline/core/interfaces';
 import { stepRegistry } from '../pipeline/core/registry';
+import { getErrorMessage } from '../types/errors';
 
 /**
  * Prototype step definition interface
@@ -86,7 +87,7 @@ export class StepValidator implements IStepValidator {
         expectedResult: prototypeDefinition,
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[StepValidator] Pre-implementation validation failed for ${stepId}:`, error);
       
       const report: ValidationReport = {
@@ -94,7 +95,7 @@ export class StepValidator implements IStepValidator {
         validationType: 'pre-implementation',
         timestamp: new Date().toISOString(),
         isValid: false,
-        differences: [`Failed to query prototype: ${error.message}`],
+        differences: [`Failed to query prototype: ${getErrorMessage(error)}`],
         recommendations: ['Manually review prototype implementation', 'Implement based on available documentation'],
       };
 
@@ -161,7 +162,7 @@ export class StepValidator implements IStepValidator {
         expectedResult: prototypeDefinition,
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       console.error(`[StepValidator] Post-implementation validation failed for ${stepId}:`, error);
       
       const report: ValidationReport = {
@@ -169,7 +170,7 @@ export class StepValidator implements IStepValidator {
         validationType: 'post-implementation',
         timestamp: new Date().toISOString(),
         isValid: false,
-        differences: [`Validation error: ${error.message}`],
+        differences: [`Validation error: ${getErrorMessage(error)}`],
         recommendations: ['Fix implementation error', 'Review step module structure'],
       };
 
@@ -222,8 +223,8 @@ export class StepValidator implements IStepValidator {
     // If not stored, try to query again
     try {
       return await this.queryPrototypeStep(stepId);
-    } catch (error) {
-      console.warn(`[StepValidator] Could not retrieve prototype definition for ${stepId}:`, error);
+    } catch (error: unknown) {
+      console.warn(`[StepValidator] Could not retrieve prototype definition for ${stepId}:`, getErrorMessage(error));
       return null;
     }
   }
@@ -299,11 +300,11 @@ export class StepValidator implements IStepValidator {
           configIdMatches: true,
         }
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         testCase: 'Basic function structure',
         passed: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -329,11 +330,11 @@ export class StepValidator implements IStepValidator {
         actualOutput: result,
         expectedOutput: 'Success without errors', // Simplified for now
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         testCase: 'getInput behavior',
         passed: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -364,11 +365,11 @@ export class StepValidator implements IStepValidator {
         actualOutput: { promptLength: prompt.length, hasContent: prompt.length > 0 },
         expectedOutput: { promptLength: '>0', hasContent: true },
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         testCase: 'generatePrompt behavior',
         passed: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }
@@ -393,11 +394,11 @@ export class StepValidator implements IStepValidator {
         actualOutput: result,
         expectedOutput: 'Non-null parsed result',
       };
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         testCase: 'parseOutput behavior',
         passed: false,
-        error: error.message,
+        error: getErrorMessage(error),
       };
     }
   }

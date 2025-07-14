@@ -25,6 +25,10 @@ export interface StepInputParams {
   currentPhaseName?: string;
   currentGduName?: string;
   
+  // Generic state and GDU context (for newer steps)
+  genericState?: Record<string, any>; // Alternative name for genericAnalysisState
+  currentGduId?: string; // Current GDU identifier for synchronic analysis
+  
   // Optional overrides
   apiKeyPresent?: boolean;
 }

@@ -101,7 +101,7 @@ function generateStructuresMermaid(sssNodes: SssNodeMetadata[], processedData: M
     }
     
     // Add links between nodes (if available from P2S_3 output)
-    const transcriptData = processedData.get(transcriptId);
+    const transcriptData = processedData.get(transcriptId!);
     if (transcriptData?.p2s_3_output) {
       const sssStructure = transcriptData.p2s_3_output.specific_synchronic_structure;
       if (sssStructure?.links) {

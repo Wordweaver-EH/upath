@@ -62,16 +62,16 @@ export default async function geminiRoutes(fastify: FastifyInstance) {
         throw new Error(`Google API error: ${response.status} ${response.statusText}`);
       }
       
-      const data = await response.json();
+      const data = await response.json() as any;
       const models = data.models || [];
       
       // Filter and format models for frontend consumption
       const usableModels: GeminiModel[] = models
-        .filter(model => 
+        .filter((model: any) => 
           // Only include models that support text generation
           model.supportedGenerationMethods?.includes('generateContent')
         )
-        .map(model => ({
+        .map((model: any) => ({
           id: model.name,                    // Full model path: "models/gemini-2.5-flash"
           value: model.name.replace('models/', ''), // Clean ID: "gemini-2.5-flash"
           label: model.displayName || model.name.replace('models/', '').replace(/-/g, ' '), // Human readable
@@ -79,7 +79,7 @@ export default async function geminiRoutes(fastify: FastifyInstance) {
           maxInputTokens: model.inputTokenLimit,
           maxOutputTokens: model.outputTokenLimit,
         }))
-        .sort((a, b) => a.label.localeCompare(b.label)); // Sort alphabetically
+        .sort((a: any, b: any) => a.label.localeCompare(b.label)); // Sort alphabetically
 
       // Cache the results
       modelCache.set(CACHE_KEY, usableModels);

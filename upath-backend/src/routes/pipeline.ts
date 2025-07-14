@@ -11,6 +11,7 @@ import { pipelineExecutor } from '../pipeline/core/executor';
 import { geminiService } from '../services/geminiService';
 import { stepValidator } from '../services/stepValidation';
 import { stepRegistry } from '../pipeline/core/registry';
+import { getErrorMessage } from '../types/errors';
 
 /**
  * Request interface for step execution
@@ -110,14 +111,14 @@ export default async function pipelineRoute(fastify: FastifyInstance) {
       // Return result (same format as working prototype)
       return reply.status(result.success ? 200 : 500).send(result);
 
-    } catch (error) {
+    } catch (error: unknown) {
       const executionTime = Date.now() - startTime;
       console.error(`[PipelineAPI] Unexpected error executing ${request.body.stepId}:`, error);
       
       return reply.status(500).send({
         success: false,
         stepId: request.body.stepId,
-        error: `Unexpected server error: ${error.message}`,
+        error: `Unexpected server error: ${getErrorMessage(error)}`,
         executionTimeMs: executionTime,
         timestamp: new Date().toISOString(),
       });
@@ -149,10 +150,10 @@ export default async function pipelineRoute(fastify: FastifyInstance) {
         timestamp: new Date().toISOString(),
       });
 
-    } catch (error) {
+    } catch (error: unknown) {
       return reply.status(500).send({
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
     }
@@ -164,7 +165,7 @@ export default async function pipelineRoute(fastify: FastifyInstance) {
    */
   fastify.get<StepRegistryRequest>('/pipeline/steps/:stepId', async (request: FastifyRequest<StepRegistryRequest>, reply: FastifyReply) => {
     try {
-      const stepId = request.params.stepId as StepId;
+      const stepId = request.params?.stepId as StepId;
       
       if (!stepRegistry.isRegistered(stepId)) {
         return reply.status(404).send({
@@ -192,10 +193,10 @@ export default async function pipelineRoute(fastify: FastifyInstance) {
         timestamp: new Date().toISOString(),
       });
 
-    } catch (error) {
+    } catch (error: unknown) {
       return reply.status(500).send({
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
     }
@@ -218,10 +219,10 @@ export default async function pipelineRoute(fastify: FastifyInstance) {
         timestamp: new Date().toISOString(),
       });
 
-    } catch (error) {
+    } catch (error: unknown) {
       return reply.status(500).send({
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
     }
@@ -246,10 +247,10 @@ export default async function pipelineRoute(fastify: FastifyInstance) {
         timestamp: new Date().toISOString(),
       });
 
-    } catch (error) {
+    } catch (error: unknown) {
       return reply.status(500).send({
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
     }
@@ -280,10 +281,10 @@ export default async function pipelineRoute(fastify: FastifyInstance) {
         timestamp: new Date().toISOString(),
       });
 
-    } catch (error) {
+    } catch (error: unknown) {
       return reply.status(503).send({
         healthy: false,
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
     }
@@ -309,10 +310,10 @@ export default async function pipelineRoute(fastify: FastifyInstance) {
         timestamp: new Date().toISOString(),
       });
 
-    } catch (error) {
+    } catch (error: unknown) {
       return reply.status(500).send({
         success: false,
-        error: error.message,
+        error: getErrorMessage(error),
         timestamp: new Date().toISOString(),
       });
     }
