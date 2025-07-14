@@ -31,9 +31,6 @@ export const P1_3_StepModule: StepModule = {
   getInput,
   generatePrompt,
   parseOutput,
-  
-  // Optional: Add validateAndClean function for additional post-processing
-  validateAndClean: undefined, // Not used in prototype for this step
 };
 
 // Export types for external use

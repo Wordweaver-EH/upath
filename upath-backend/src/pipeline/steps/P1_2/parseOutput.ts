@@ -5,6 +5,7 @@
 
 import { ParseOutputFunction } from '../../core/interfaces';
 import { P1_2_Output, DiachronicUnitP1_2 } from './types';
+import { getErrorMessage } from '../../../types/errors';
 
 /**
  * Parse and validate JSON output for P1_2 step
@@ -23,9 +24,9 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): P1_2_Output
     let parsedData: any;
     try {
       parsedData = JSON.parse(rawOutput);
-    } catch (parseError) {
+    } catch (parseError: unknown) {
       console.error(`[P1_2 parseOutput] JSON parse error:`, parseError);
-      throw new Error(`Failed to parse JSON output: ${parseError.message}`);
+      throw new Error(`Failed to parse JSON output: ${getErrorMessage(parseError)}`);
     }
 
     // Validate required fields (exactly matches prototype validation)
@@ -163,8 +164,8 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): P1_2_Output
 
     return output;
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`[P1_2 parseOutput] Unexpected error:`, error);
-    throw new Error(`Unexpected parsing error: ${error.message}`);
+    throw new Error(`Unexpected parsing error: ${getErrorMessage(error)}`);
   }
 };

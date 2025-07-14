@@ -15,5 +15,5 @@ export const stepConfig: StepConfig = {
   title: "P0.1: Transcription Adherence & Line Numbering",
   part: "Part0",
   isJsonOutput: true,
-  dependencies: undefined, // First step in Part0, no dependencies within Part0
+  // First step in Part0, no dependencies within Part0
 };

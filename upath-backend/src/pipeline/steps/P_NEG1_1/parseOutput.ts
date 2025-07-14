@@ -5,6 +5,7 @@
 
 import { ParseOutputFunction } from '../../core/interfaces';
 import { P_NEG1_1_Output } from './types';
+import { getErrorMessage } from '../../../types/errors';
 
 /**
  * Parse and validate JSON output for P_NEG1_1 step
@@ -23,9 +24,9 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): P_NEG1_1_Ou
     let parsedData: any;
     try {
       parsedData = JSON.parse(rawOutput);
-    } catch (parseError) {
+    } catch (parseError: unknown) {
       console.error(`[P_NEG1_1 parseOutput] JSON parse error:`, parseError);
-      throw new Error(`Failed to parse JSON output: ${parseError.message}`);
+      throw new Error(`Failed to parse JSON output: ${getErrorMessage(parseError)}`);
     }
 
     // Validate required fields (exactly matches prototype validation)
@@ -104,8 +105,8 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): P_NEG1_1_Ou
 
     return output;
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`[P_NEG1_1 parseOutput] Unexpected error:`, error);
-    throw new Error(`Unexpected parsing error: ${error.message}`);
+    throw new Error(`Unexpected parsing error: ${getErrorMessage(error)}`);
   }
 };

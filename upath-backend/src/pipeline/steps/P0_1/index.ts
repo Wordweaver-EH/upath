@@ -26,7 +26,7 @@ export const P0_1_StepModule: StepModule = {
   parseOutput,
   
   // Optional: Add validateAndClean function for additional post-processing
-  validateAndClean: undefined, // Not used in prototype for this step
+  // Not used in prototype for this step
 };
 
 // Export types for external use

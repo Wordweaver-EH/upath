@@ -5,6 +5,7 @@
 
 import { ParseOutputFunction } from '../../core/interfaces';
 import { P1_3_Output, RefinedDiachronicUnitP1_3, isValidTemporalPhase } from './types';
+import { getErrorMessage } from '../../../types/errors';
 
 /**
  * Parse and validate JSON output for P1_3 step
@@ -23,9 +24,9 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): P1_3_Output
     let parsedData: any;
     try {
       parsedData = JSON.parse(rawOutput);
-    } catch (parseError) {
+    } catch (parseError: unknown) {
       console.error(`[P1_3 parseOutput] JSON parse error:`, parseError);
-      throw new Error(`Failed to parse JSON output: ${parseError.message}`);
+      throw new Error(`Failed to parse JSON output: ${getErrorMessage(parseError)}`);
     }
 
     // Validate required fields (exactly matches prototype validation)
@@ -189,8 +190,8 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): P1_3_Output
 
     return output;
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`[P1_3 parseOutput] Unexpected error:`, error);
-    throw new Error(`Unexpected parsing error: ${error.message}`);
+    throw new Error(`Unexpected parsing error: ${getErrorMessage(error)}`);
   }
 };

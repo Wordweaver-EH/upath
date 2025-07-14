@@ -27,18 +27,16 @@ export const stepConfig: StepConfig = {
   part: 'Part1',
   isJsonOutput: true,
   dependencies: [StepId.P1_3_REFINE_DIACHRONIC_UNITS],
-  
-  // Additional metadata for step tracking
+};
+
+// Additional metadata for step tracking (not part of StepConfig interface)
+export const stepMetadata = {
   description: 'Constructs Specific Diachronic Structure (SDS) from refined DUs, grouped by temporal phases with Mermaid visualization and IV observations',
   expectedInputType: 'P1_3_Output',
   expectedOutputType: 'P1_4_Output',
-  
-  // Processing characteristics
   processingType: 'structure_construction',
   requiresLLM: true,
   estimatedDuration: 'medium', // SDS construction and Mermaid generation requires analysis
-  
-  // Special flags
   completesPartAnalysis: true, // This step completes Part1 analysis
   generatesVisualization: true, // Creates Mermaid chart syntax
 };

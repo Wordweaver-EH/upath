@@ -15,5 +15,4 @@ export const stepConfig: StepConfig = {
   title: "P-1.1: Variable Identification",
   part: "PartNeg1",
   isJsonOutput: true,
-  dependencies: undefined, // First step, no dependencies
 };

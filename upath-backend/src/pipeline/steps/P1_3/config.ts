@@ -25,13 +25,13 @@ export const stepConfig: StepConfig = {
   part: 'Part1',
   isJsonOutput: true,
   dependencies: [StepId.P1_2_DIACHRONIC_UNIT_ID],
-  
-  // Additional metadata for step tracking
+};
+
+// Additional metadata for step tracking (not part of StepConfig interface)
+export const stepMetadata = {
   description: 'Refines DUs from P1.2 by merging/splitting based on experiential flow and assigns temporal phases with confidence scores',
   expectedInputType: 'P1_2_Output',
   expectedOutputType: 'P1_3_Output',
-  
-  // Processing characteristics
   processingType: 'refinement',
   requiresLLM: true,
   estimatedDuration: 'medium', // DU refinement and phase assignment requires analysis

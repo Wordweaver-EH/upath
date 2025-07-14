@@ -5,6 +5,7 @@
 
 import { ParseOutputFunction } from '../../core/interfaces';
 import { P0_2_Output, RefinedLine } from './types';
+import { getErrorMessage } from '../../../types/errors';
 
 /**
  * Parse and validate JSON output for P0_2 step
@@ -23,9 +24,9 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): P0_2_Output
     let parsedData: any;
     try {
       parsedData = JSON.parse(rawOutput);
-    } catch (parseError) {
+    } catch (parseError: unknown) {
       console.error(`[P0_2 parseOutput] JSON parse error:`, parseError);
-      throw new Error(`Failed to parse JSON output: ${parseError.message}`);
+      throw new Error(`Failed to parse JSON output: ${getErrorMessage(parseError)}`);
     }
 
     // Validate required fields (exactly matches prototype validation)
@@ -139,8 +140,8 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): P0_2_Output
 
     return output;
 
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(`[P0_2 parseOutput] Unexpected error:`, error);
-    throw new Error(`Unexpected parsing error: ${error.message}`);
+    throw new Error(`Unexpected parsing error: ${getErrorMessage(error)}`);
   }
 };

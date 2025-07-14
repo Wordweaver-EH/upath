@@ -4,6 +4,7 @@
  */
 
 import { StepId } from '../../types';
+import { getErrorMessage } from '../../types/errors';
 import { 
   PipelineExecutor, 
   StepExecutionRequest, 
@@ -76,9 +77,9 @@ export class PipelineExecutorImpl implements PipelineExecutor {
           prompt,
           isJsonOutput: step.config.isJsonOutput,
           useGrounding: request.useGrounding || false,
-          model: request.model,
           temperature: request.temperature || 0,
-          seed: request.overrideSeed,
+          ...(request.model && { model: request.model }),
+          ...(request.overrideSeed !== undefined && { seed: request.overrideSeed }),
         };
 
         const geminiResponse: GeminiApiResponse = await this.geminiService.callGeminiAPI(geminiParams);
@@ -114,12 +115,12 @@ export class PipelineExecutorImpl implements PipelineExecutor {
         try {
           finalOutput = step.parseOutput(llmResult);
           console.log(`[PipelineExecutor] Output parsed successfully for ${request.stepId}`);
-        } catch (parseError) {
+        } catch (parseError: unknown) {
           console.error(`[PipelineExecutor] Output parsing failed for ${request.stepId}:`, parseError);
           return {
             success: false,
             stepId: request.stepId,
-            error: `Output parsing failed: ${parseError.message}`,
+            error: `Output parsing failed: ${getErrorMessage(parseError)}`,
             executionTimeMs: Date.now() - startTime,
             timestamp: new Date().toISOString(),
           };
@@ -131,12 +132,12 @@ export class PipelineExecutorImpl implements PipelineExecutor {
         try {
           finalOutput = step.validateAndClean(finalOutput);
           console.log(`[PipelineExecutor] Output validated and cleaned for ${request.stepId}`);
-        } catch (validateError) {
+        } catch (validateError: unknown) {
           console.error(`[PipelineExecutor] Output validation failed for ${request.stepId}:`, validateError);
           return {
             success: false,
             stepId: request.stepId,
-            error: `Output validation failed: ${validateError.message}`,
+            error: `Output validation failed: ${getErrorMessage(validateError)}`,
             executionTimeMs: Date.now() - startTime,
             timestamp: new Date().toISOString(),
           };
@@ -147,24 +148,32 @@ export class PipelineExecutorImpl implements PipelineExecutor {
       console.log(`[PipelineExecutor] Step ${request.stepId} completed successfully in ${executionTimeMs}ms`);
 
       // 7. Return successful result
-      return {
+      const successResult: StepExecutionResponse = {
         success: true,
         stepId: request.stepId,
         output: finalOutput,
-        estimatedInputTokens,
-        estimatedOutputTokens,
         executionTimeMs,
         timestamp: new Date().toISOString(),
       };
+      
+      // Add token counts only if they exist
+      if (estimatedInputTokens !== undefined) {
+        successResult.estimatedInputTokens = estimatedInputTokens;
+      }
+      if (estimatedOutputTokens !== undefined) {
+        successResult.estimatedOutputTokens = estimatedOutputTokens;
+      }
+      
+      return successResult;
 
-    } catch (error) {
+    } catch (error: unknown) {
       const executionTimeMs = Date.now() - startTime;
       console.error(`[PipelineExecutor] Unexpected error executing ${request.stepId}:`, error);
       
       return {
         success: false,
         stepId: request.stepId,
-        error: `Unexpected error: ${error.message}`,
+        error: `Unexpected error: ${getErrorMessage(error)}`,
         executionTimeMs,
         timestamp: new Date().toISOString(),
       };
@@ -182,16 +191,19 @@ export class PipelineExecutorImpl implements PipelineExecutor {
       processedDataMap.set(key, value);
     }
 
-    return {
+    const params: StepInputParams = {
       currentTranscript: request.currentTranscript,
       allRawTranscripts: request.allRawTranscripts,
       processedData: processedDataMap,
       genericAnalysisState: request.genericAnalysisState,
       userDvFocus: request.userDvFocus,
-      currentPhaseName: undefined, // TODO: Extract from request if needed
-      currentGduName: undefined, // TODO: Extract from request if needed
       apiKeyPresent: true, // Backend always has API key
     };
+    
+    // Add optional phase/GDU context if available
+    // TODO: Extract from request if needed in future
+    
+    return params;
   }
 
   /**

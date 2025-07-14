@@ -53,7 +53,7 @@ export class GeminiService {
       }
 
       // Call the actual Gemini API
-      const result = await this.performGeminiCall(prompt, isJsonOutput, useGrounding, temperature, seed);
+      const result = await this.performGeminiCall(prompt, isJsonOutput, useGrounding, temperature, seed, model);
 
       if (result.error) {
         return result;
@@ -111,7 +111,7 @@ export class GeminiService {
    * Check if API key is set (matches prototype pattern)
    */
   private isApiKeySet(): boolean {
-    return this.apiKey && this.apiKey.trim().length > 0;
+    return !!(this.apiKey && this.apiKey.trim().length > 0);
   }
 
   /**
@@ -122,7 +122,8 @@ export class GeminiService {
     isJsonOutput: boolean,
     useGrounding: boolean,
     temperature: number,
-    seed?: number
+    seed?: number,
+    model?: string
   ): Promise<{
     text?: string;
     error?: string;
@@ -187,16 +188,31 @@ export class GeminiService {
 
       // Extract grounding sources if available
       let groundingSources: Array<{ uri?: string; title?: string }> | undefined;
-      if (useGrounding && response.response.candidates?.[0]?.groundingAttribution) {
-        groundingSources = this.extractGroundingSources(response.response.candidates[0].groundingAttribution);
+      if (useGrounding && response.response.candidates?.[0]) {
+        // Check if groundingAttribution exists (optional in newer SDK versions)
+        const candidate = response.response.candidates[0] as any;
+        if (candidate.groundingAttribution) {
+          groundingSources = this.extractGroundingSources(candidate.groundingAttribution);
+        }
       }
 
-      return {
+      const result: {
+        text?: string;
+        error?: string;
+        estimatedInputTokens?: number;
+        estimatedOutputTokens?: number;
+        groundingSources?: Array<{ uri?: string; title?: string }>;
+      } = {
         text: responseText,
         estimatedInputTokens,
         estimatedOutputTokens,
-        groundingSources,
       };
+      
+      if (groundingSources) {
+        result.groundingSources = groundingSources;
+      }
+      
+      return result;
 
     } catch (error) {
       console.error('[GeminiService] performGeminiCall error:', error);

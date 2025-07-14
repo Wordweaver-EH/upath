@@ -23,13 +23,13 @@ export const stepConfig: StepConfig = {
   part: 'Part1',
   isJsonOutput: true,
   dependencies: [StepId.P1_1_INITIAL_SEGMENTATION],
-  
-  // Additional metadata for step tracking
+};
+
+// Additional metadata for step tracking (not part of StepConfig interface)
+export const stepMetadata = {
   description: 'Groups segments from P1.1 into coherent "Diachronic Units (DUs)" based on temporal and thematic relationships',
   expectedInputType: 'P1_1_Output',
   expectedOutputType: 'P1_2_Output',
-  
-  // Processing characteristics
   processingType: 'grouping',
   requiresLLM: true,
   estimatedDuration: 'medium', // DU grouping requires analysis
