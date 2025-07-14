@@ -3,7 +3,7 @@
  * Manages registration and retrieval of step modules
  */
 
-import { StepId } from '../../graph/types';
+import { StepId } from '../../types';
 import { StepModule, StepRegistry as IStepRegistry } from './interfaces';
 
 /**

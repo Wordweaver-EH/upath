@@ -4,7 +4,7 @@
  */
 
 import { StepConfig } from '../../core/interfaces';
-import { StepId } from '../../../graph/types';
+import { StepId } from '../../../types';
 
 export const stepConfig: StepConfig = {
   id: StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC,

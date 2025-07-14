@@ -1,5 +1,3 @@
-import { UPathMVPState } from '../langgraph/annotations';
-
 /**
  * Prompt History Entry - matches frontend PromptHistoryEntry interface
  */

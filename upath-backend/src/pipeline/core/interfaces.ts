@@ -3,7 +3,7 @@
  * Based on the proven working prototype pattern from Wordweaver-EH/upath
  */
 
-import { StepId, StepOutput, RawTranscript } from '../../graph/types';
+import { StepId, StepOutput, RawTranscript } from '../../types';
 
 /**
  * Parameters passed to step input preparation functions

@@ -4,7 +4,7 @@
  */
 
 import { StepConfig } from '../../core/interfaces';
-import { StepId } from '../../../graph/types';
+import { StepId } from '../../../types';
 
 /**
  * P1_3 Refine Diachronic Units Configuration

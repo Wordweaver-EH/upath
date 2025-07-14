@@ -3,7 +3,7 @@
  * Core engine for step execution, based on working prototype's processSingleStep pattern
  */
 
-import { StepId } from '../../graph/types';
+import { StepId } from '../../types';
 import { 
   PipelineExecutor, 
   StepExecutionRequest, 

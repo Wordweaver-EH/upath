@@ -5,7 +5,7 @@
  */
 
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-import { StepId } from '../graph/types';
+import { StepId } from '../types';
 import { StepExecutionRequest, StepExecutionResponse } from '../pipeline/core/interfaces';
 import { pipelineExecutor } from '../pipeline/core/executor';
 import { geminiService } from '../services/geminiService';

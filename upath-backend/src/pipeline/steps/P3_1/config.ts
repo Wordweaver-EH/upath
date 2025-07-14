@@ -4,7 +4,7 @@
  */
 
 import { StepConfig } from '../../core/interfaces';
-import { StepId } from '../../../graph/types';
+import { StepId } from '../../../types';
 
 export const stepConfig: StepConfig = {
   id: StepId.P3_1_ALIGN_STRUCTURES,

@@ -58,3 +58,4 @@ A JSON object adhering EXACTLY to the following structure. The \`example_specifi
   "variations_notes": "Optional: Incidental observations about patterns that coincidentally align with IVs, if any are noticed.",
   "dependent_variable_focus": ${JSON.stringify(inputData.p4s_1_a_data.dependent_variable_focus)}
 }`;
+};

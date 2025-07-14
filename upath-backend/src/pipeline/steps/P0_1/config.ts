@@ -3,7 +3,7 @@
  * Exactly matches the working prototype's step config
  */
 
-import { StepId } from '../../../graph/types';
+import { StepId } from '../../../types';
 import { StepConfig } from '../../core/interfaces';
 
 /**

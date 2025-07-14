@@ -49,10 +49,10 @@ ${inputData.structures_mermaid}
       "group_id": "generic_concept_name_or_N/A",
       "group_rationale": "Brief explanation of why this node belongs to this group"
     }
-    // ... one object for EVERY sss_node_id from the input TSV
   ],
   "classification_notes": "Optional notes about your classification decisions"
 }
 \`\`\`
 
 **Verification:** Your \`grouped_data\` array must contain exactly one object for every \`sss_node_id\` from the input TSV, with no new or omitted nodes.`;
+};

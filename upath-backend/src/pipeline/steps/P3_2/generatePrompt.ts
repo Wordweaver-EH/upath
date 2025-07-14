@@ -45,9 +45,9 @@ A JSON object adhering EXACTLY to the following structure:
         { "transcript_id": "transcript_B_id", "refined_du_id": "refinedDU-2_from_transcript_B" }
       ]
     }
-    // ... more GDUs
   ],
   "criteria_for_gdu_identification": "Criteria used for GDU abstraction (e.g., thematic similarity of DU descriptions, similar temporal phase).",
   "dependent_variable_focus": ${JSON.stringify(inputData.global_dv_focus)},
   "tot_rdus": ${inputData.tot_rdus}
 }`;
+};

@@ -3,7 +3,7 @@
  * Systematic validation against the working prototype from Wordweaver-EH/upath
  */
 
-import { StepId } from '../graph/types';
+import { StepId } from '../types';
 import { ValidationResult, StepValidator as IStepValidator, StepInputParams } from '../pipeline/core/interfaces';
 import { stepRegistry } from '../pipeline/core/registry';
 
