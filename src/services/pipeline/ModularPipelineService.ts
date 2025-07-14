@@ -78,6 +78,8 @@ interface ProcessSingleStepResult {
   executionTime?: number;
   promptHistory?: PromptHistoryEntry;
   shouldOfferBucketing?: boolean; // Flag to show bucketing modal
+  bucketId?: string; // For bucket processing results
+  originalTranscriptId?: string; // Original transcript ID before bucket prefixing
 }
 
 /**
@@ -175,8 +177,23 @@ export class ModularPipelineService {
 
   /**
    * Process a single pipeline step using the modular backend API
+   * Supports both normal processing and bucket processing
    */
   async processSingleStep(params: ProcessSingleStepParams): Promise<ProcessSingleStepResult> {
+    // Check if bucketing is enabled and this is not P_NEG1_1
+    if (params.settings?.bucketingEnabled && params.stepId !== 'P_NEG1_1_VARIABLE_IDENTIFICATION') {
+      // Route to bucket processing for non-P_NEG1_1 steps when bucketing is enabled
+      return await this.processSingleStepWithBucketing(params);
+    }
+
+    // Use normal step processing
+    return await this.processNormalStep(params);
+  }
+
+  /**
+   * Process a single step using normal (non-bucketing) logic
+   */
+  async processNormalStep(params: ProcessSingleStepParams): Promise<ProcessSingleStepResult> {
     const startTime = Date.now();
 
     try {
@@ -194,17 +211,33 @@ export class ModularPipelineService {
       }
 
       // Get the current transcript to process
-      const activeTranscriptIndex = this.dependencies.getActiveTranscriptIndex();
-      const currentTranscript = rawTranscripts[activeTranscriptIndex];
-      
-      if (!currentTranscript) {
-        return {
-          success: false,
-          error: `No transcript found at index ${activeTranscriptIndex}`,
-          stepId: params.stepId,
-          status: StepStatus.ERROR,
-          executionTime: Date.now() - startTime
-        };
+      let currentTranscript: any;
+      if (params.transcriptId) {
+        // If specific transcript ID is provided (for bucket processing), use it
+        currentTranscript = rawTranscripts.find(t => t.id === params.transcriptId);
+        if (!currentTranscript) {
+          return {
+            success: false,
+            error: `No transcript found with ID ${params.transcriptId}`,
+            stepId: params.stepId,
+            status: StepStatus.ERROR,
+            executionTime: Date.now() - startTime
+          };
+        }
+      } else {
+        // Use active transcript index for normal processing
+        const activeTranscriptIndex = this.dependencies.getActiveTranscriptIndex();
+        currentTranscript = rawTranscripts[activeTranscriptIndex];
+        
+        if (!currentTranscript) {
+          return {
+            success: false,
+            error: `No transcript found at index ${activeTranscriptIndex}`,
+            stepId: params.stepId,
+            status: StepStatus.ERROR,
+            executionTime: Date.now() - startTime
+          };
+        }
       }
 
       // Handle HIL correction if provided
@@ -271,11 +304,11 @@ export class ModularPipelineService {
         stepId: result.stepId,
         transcriptId: currentTranscript.id,
         prompt: `Step ${result.stepId} executed via modular pipeline`,
-        response: JSON.stringify(result.output, null, 2),
+        requestPayload: request,
+        responseRaw: JSON.stringify(result.output, null, 2),
+        responseParsed: result.output,
         estimatedInputTokens: 0, // Backend tracks tokens internally
-        estimatedOutputTokens: 0,
-        actualInputTokens: 0,
-        actualOutputTokens: 0
+        estimatedOutputTokens: 0
       };
 
       this.dependencies.addPromptEntry(promptEntry);
@@ -413,6 +446,232 @@ export class ModularPipelineService {
   }
 
   /**
+   * Group transcripts into buckets based on IV+Event combinations
+   * Returns a map where key is bucketId and value is array of transcript IDs
+   */
+  private createTranscriptBuckets(ivField: 'suggestion' | 'score', eventField: 'suggestion' | 'score'): Map<string, string[]> {
+    const { rawTranscripts, processedData } = this.dependencies.getTranscriptData();
+    const buckets = new Map<string, string[]>();
+
+    rawTranscripts.forEach((transcript) => {
+      const transcriptData = processedData.get(transcript.id);
+      const p_neg1_1_output = transcriptData?.p_neg1_1_output;
+
+      if (p_neg1_1_output?.parsed_header) {
+        const { iv_value, event_value } = p_neg1_1_output.parsed_header;
+        
+        // Map fields based on user selection
+        const iv = ivField === 'score' ? iv_value : event_value;
+        const event = eventField === 'suggestion' ? event_value : iv_value;
+        
+        if (iv && event) {
+          const bucketId = `iv${iv}_event${event}`;
+          
+          if (!buckets.has(bucketId)) {
+            buckets.set(bucketId, []);
+          }
+          buckets.get(bucketId)!.push(transcript.id);
+        }
+      }
+    });
+
+    return buckets;
+  }
+
+  /**
+   * Create prefixed transcript ID for bucket processing
+   */
+  private createBucketTranscriptId(bucketId: string, originalTranscriptId: string): string {
+    return `bucket_${bucketId}_${originalTranscriptId}`;
+  }
+
+  /**
+   * Process a single bucket by running the normal pipeline on its transcript subset
+   */
+  async processBucket(bucketId: string, transcriptIds: string[], stepId: StepId, settings: any): Promise<ProcessSingleStepResult[]> {
+    const { rawTranscripts, processedData } = this.dependencies.getTranscriptData();
+    const results: ProcessSingleStepResult[] = [];
+
+    console.log(`📦 [ModularPipelineService] Processing bucket ${bucketId} with ${transcriptIds.length} transcripts for step ${stepId}`);
+
+    // Process each transcript in the bucket
+    for (const transcriptId of transcriptIds) {
+      const transcript = rawTranscripts.find(t => t.id === transcriptId);
+      if (!transcript) {
+        console.warn(`⚠️ [ModularPipelineService] Transcript ${transcriptId} not found for bucket ${bucketId}`);
+        continue;
+      }
+
+      try {
+        // Create bucket-prefixed transcript ID for storage isolation
+        const bucketTranscriptId = this.createBucketTranscriptId(bucketId, transcriptId);
+        
+        // Copy original data to bucket-prefixed entry for processing isolation
+        const originalData = processedData.get(transcriptId);
+        if (originalData) {
+          const bucketData = { ...originalData, id: bucketTranscriptId };
+          this.dependencies.replaceProcessedData(bucketTranscriptId, bucketData);
+        }
+
+        // Process this transcript using normal pipeline logic, but with bucketing disabled
+        // and using the original transcript ID for lookup (not the bucket-prefixed ID)
+        const settingsWithoutBucketing = { ...settings, bucketingEnabled: false };
+        const result = await this.processNormalStep({
+          stepId,
+          settings: settingsWithoutBucketing,
+          transcriptId: transcriptId // Use original transcript ID for lookup in rawTranscripts
+        });
+
+        // Store result with bucket-prefixed ID in processed data for isolation
+        if (result.success && result.output) {
+          await this.updateStoresFromStepResult({
+            success: true,
+            stepId: result.stepId,
+            output: result.output,
+            executionTimeMs: result.executionTime || 0,
+            timestamp: new Date().toISOString()
+          }, bucketTranscriptId);
+        }
+
+        results.push({
+          ...result,
+          bucketId,
+          originalTranscriptId: transcriptId
+        });
+
+        console.log(`✅ [ModularPipelineService] Processed ${transcriptId} in bucket ${bucketId}: ${result.success ? 'success' : 'failed'}`);
+
+      } catch (error) {
+        console.error(`❌ [ModularPipelineService] Error processing ${transcriptId} in bucket ${bucketId}:`, error);
+        results.push({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stepId,
+          status: StepStatus.ERROR,
+          bucketId,
+          originalTranscriptId: transcriptId
+        });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Process a single step with bucketing enabled
+   * Routes to bucket processing for the current step
+   */
+  async processSingleStepWithBucketing(params: ProcessSingleStepParams): Promise<ProcessSingleStepResult> {
+    const startTime = Date.now();
+
+    try {
+      console.log(`🎯 [ModularPipelineService] Processing step ${params.stepId} with bucketing enabled`);
+
+      // Process all buckets for this step
+      const bucketResults = await this.processAllBuckets(params.stepId, params.settings);
+
+      // Aggregate results with hierarchical analysis
+      const aggregatedResults = this.aggregateBucketResults(bucketResults.bucketResults, params.stepId);
+      const analysisReport = this.generateBucketAnalysisReport(aggregatedResults, params.stepId);
+
+      console.log(`🏁 [ModularPipelineService] Bucketing complete: ${aggregatedResults.summary.successfulTranscripts}/${aggregatedResults.summary.totalTranscripts} transcripts processed successfully`);
+
+      return {
+        success: bucketResults.overallSuccess,
+        stepId: params.stepId,
+        status: bucketResults.overallSuccess ? StepStatus.COMPLETED : StepStatus.ERROR,
+        executionTime: Date.now() - startTime,
+        output: {
+          bucketResults: Object.fromEntries(bucketResults.bucketResults),
+          aggregatedResults: {
+            byIv: Object.fromEntries(aggregatedResults.byIv),
+            byEvent: Object.fromEntries(aggregatedResults.byEvent),
+            combined: Object.fromEntries(aggregatedResults.combined),
+            summary: aggregatedResults.summary
+          },
+          analysisReport,
+          summary: {
+            totalBuckets: bucketResults.bucketResults.size,
+            totalTranscripts: aggregatedResults.summary.totalTranscripts,
+            successfulTranscripts: aggregatedResults.summary.successfulTranscripts,
+            overallSuccess: bucketResults.overallSuccess,
+            hierarchicalInsights: {
+              ivCount: aggregatedResults.summary.ivCount,
+              eventCount: aggregatedResults.summary.eventCount,
+              avgSuccessRateByIv: aggregatedResults.summary.avgSuccessRateByIv,
+              avgSuccessRateByEvent: aggregatedResults.summary.avgSuccessRateByEvent
+            }
+          }
+        }
+      };
+
+    } catch (error) {
+      console.error(`❌ [ModularPipelineService] Bucket processing failed for step ${params.stepId}:`, error);
+      
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error during bucket processing',
+        stepId: params.stepId,
+        status: StepStatus.ERROR,
+        executionTime: Date.now() - startTime
+      };
+    }
+  }
+
+  /**
+   * Process all buckets for a given step
+   * This is the main entry point for bucket execution
+   */
+  async processAllBuckets(stepId: StepId, settings: any): Promise<{ 
+    bucketResults: Map<string, ProcessSingleStepResult[]>;
+    overallSuccess: boolean;
+  }> {
+    const { bucketingEnabled, bucketIvField, bucketEventField } = settings;
+    
+    if (!bucketingEnabled) {
+      throw new Error('Bucketing is not enabled');
+    }
+
+    console.log(`🎯 [ModularPipelineService] Starting bucket processing for step ${stepId}`);
+    console.log(`📊 [ModularPipelineService] Bucket configuration: IV=${bucketIvField}, Event=${bucketEventField}`);
+
+    // Create buckets
+    const buckets = this.createTranscriptBuckets(bucketIvField, bucketEventField);
+    console.log(`📦 [ModularPipelineService] Created ${buckets.size} buckets:`, Array.from(buckets.keys()));
+
+    const bucketResults = new Map<string, ProcessSingleStepResult[]>();
+    let overallSuccess = true;
+
+    // Process each bucket sequentially
+    for (const [bucketId, transcriptIds] of buckets.entries()) {
+      try {
+        const results = await this.processBucket(bucketId, transcriptIds, stepId, settings);
+        bucketResults.set(bucketId, results);
+
+        // Check if any transcript in this bucket failed
+        const bucketSuccess = results.every(result => result.success);
+        if (!bucketSuccess) {
+          overallSuccess = false;
+          console.warn(`⚠️ [ModularPipelineService] Bucket ${bucketId} had failures`);
+        } else {
+          console.log(`✅ [ModularPipelineService] Bucket ${bucketId} completed successfully`);
+        }
+
+      } catch (error) {
+        console.error(`❌ [ModularPipelineService] Failed to process bucket ${bucketId}:`, error);
+        overallSuccess = false;
+      }
+    }
+
+    console.log(`🏁 [ModularPipelineService] Bucket processing complete. Overall success: ${overallSuccess}`);
+    
+    return {
+      bucketResults,
+      overallSuccess
+    };
+  }
+
+  /**
    * Get pipeline health status
    */
   async getHealthStatus(): Promise<any> {
@@ -478,6 +737,209 @@ export class ModularPipelineService {
     } catch (error) {
       console.error('❌ [ModularPipelineService] Failed to get step details:', error);
       throw error;
+    }
+  }
+
+  /**
+   * Aggregate bucket results into hierarchical structures
+   * Provides rollups by IV, Event, and combined dimensions
+   */
+  aggregateBucketResults(bucketResults: Map<string, ProcessSingleStepResult[]>, stepId: StepId): {
+    byIv: Map<string, ProcessSingleStepResult[]>;
+    byEvent: Map<string, ProcessSingleStepResult[]>;
+    combined: Map<string, ProcessSingleStepResult[]>;
+    summary: {
+      totalBuckets: number;
+      totalTranscripts: number;
+      successfulTranscripts: number;
+      failedTranscripts: number;
+      ivCount: number;
+      eventCount: number;
+      avgSuccessRateByIv: number;
+      avgSuccessRateByEvent: number;
+    };
+  } {
+    const byIv = new Map<string, ProcessSingleStepResult[]>();
+    const byEvent = new Map<string, ProcessSingleStepResult[]>();
+    const combined = new Map<string, ProcessSingleStepResult[]>();
+    
+    let totalTranscripts = 0;
+    let successfulTranscripts = 0;
+    
+    // Parse bucket IDs and aggregate results
+    for (const [bucketId, results] of bucketResults.entries()) {
+      // Parse bucket ID: "iv4_event1" -> iv="4", event="1"
+      const bucketMatch = bucketId.match(/^iv(\w+)_event(\w+)$/);
+      if (!bucketMatch) {
+        console.warn(`[ModularPipelineService] Invalid bucket ID format: ${bucketId}`);
+        continue;
+      }
+      
+      const iv = bucketMatch[1];
+      const event = bucketMatch[2];
+      
+      // Store combined results
+      combined.set(bucketId, results);
+      
+      // Aggregate by IV
+      if (!byIv.has(iv)) {
+        byIv.set(iv, []);
+      }
+      byIv.get(iv)!.push(...results);
+      
+      // Aggregate by Event
+      if (!byEvent.has(event)) {
+        byEvent.set(event, []);
+      }
+      byEvent.get(event)!.push(...results);
+      
+      // Count totals
+      totalTranscripts += results.length;
+      successfulTranscripts += results.filter(r => r.success).length;
+    }
+    
+    // Calculate summary statistics
+    const failedTranscripts = totalTranscripts - successfulTranscripts;
+    const ivCount = byIv.size;
+    const eventCount = byEvent.size;
+    
+    // Calculate average success rates
+    let ivSuccessRateSum = 0;
+    for (const [iv, results] of byIv.entries()) {
+      const successCount = results.filter(r => r.success).length;
+      const successRate = results.length > 0 ? (successCount / results.length) : 0;
+      ivSuccessRateSum += successRate;
+    }
+    const avgSuccessRateByIv = ivCount > 0 ? (ivSuccessRateSum / ivCount) : 0;
+    
+    let eventSuccessRateSum = 0;
+    for (const [event, results] of byEvent.entries()) {
+      const successCount = results.filter(r => r.success).length;
+      const successRate = results.length > 0 ? (successCount / results.length) : 0;
+      eventSuccessRateSum += successRate;
+    }
+    const avgSuccessRateByEvent = eventCount > 0 ? (eventSuccessRateSum / eventCount) : 0;
+    
+    console.log(`📊 [ModularPipelineService] Aggregated ${bucketResults.size} buckets:`);
+    console.log(`   - ${ivCount} IVs, ${eventCount} Events`);
+    console.log(`   - ${successfulTranscripts}/${totalTranscripts} transcripts successful`);
+    console.log(`   - Avg success rate by IV: ${(avgSuccessRateByIv * 100).toFixed(1)}%`);
+    console.log(`   - Avg success rate by Event: ${(avgSuccessRateByEvent * 100).toFixed(1)}%`);
+    
+    return {
+      byIv,
+      byEvent,
+      combined,
+      summary: {
+        totalBuckets: bucketResults.size,
+        totalTranscripts,
+        successfulTranscripts,
+        failedTranscripts,
+        ivCount,
+        eventCount,
+        avgSuccessRateByIv,
+        avgSuccessRateByEvent
+      }
+    };
+  }
+
+  /**
+   * Generate hierarchical analysis report from bucket results
+   * Provides insights across IV and Event dimensions
+   */
+  generateBucketAnalysisReport(aggregatedResults: ReturnType<typeof this.aggregateBucketResults>, stepId: StepId): string {
+    const { byIv, byEvent, summary } = aggregatedResults;
+    
+    let report = `# Hierarchical Bucketing Analysis Report - ${stepId}\n\n`;
+    
+    // Overall Summary
+    report += `## Overall Summary\n`;
+    report += `- **Total Buckets**: ${summary.totalBuckets}\n`;
+    report += `- **Total Transcripts**: ${summary.totalTranscripts}\n`;
+    report += `- **Success Rate**: ${summary.successfulTranscripts}/${summary.totalTranscripts} (${((summary.successfulTranscripts/summary.totalTranscripts)*100).toFixed(1)}%)\n`;
+    report += `- **IV Dimensions**: ${summary.ivCount}\n`;
+    report += `- **Event Dimensions**: ${summary.eventCount}\n\n`;
+    
+    // IV Analysis
+    report += `## Analysis by Independent Variable (IV)\n\n`;
+    for (const [iv, results] of byIv.entries()) {
+      const successCount = results.filter(r => r.success).length;
+      const successRate = (successCount / results.length) * 100;
+      report += `### IV ${iv}\n`;
+      report += `- **Transcripts**: ${results.length}\n`;
+      report += `- **Success Rate**: ${successCount}/${results.length} (${successRate.toFixed(1)}%)\n`;
+      report += `- **Failed Transcripts**: ${results.length - successCount}\n`;
+      
+      // List unique events for this IV
+      const events = new Set(results.map(r => r.bucketId?.match(/event(\w+)$/)?.[1]).filter(Boolean));
+      report += `- **Events**: ${Array.from(events).join(', ')}\n\n`;
+    }
+    
+    // Event Analysis
+    report += `## Analysis by Event Type\n\n`;
+    for (const [event, results] of byEvent.entries()) {
+      const successCount = results.filter(r => r.success).length;
+      const successRate = (successCount / results.length) * 100;
+      report += `### Event ${event}\n`;
+      report += `- **Transcripts**: ${results.length}\n`;
+      report += `- **Success Rate**: ${successCount}/${results.length} (${successRate.toFixed(1)}%)\n`;
+      report += `- **Failed Transcripts**: ${results.length - successCount}\n`;
+      
+      // List unique IVs for this event
+      const ivs = new Set(results.map(r => r.bucketId?.match(/^iv(\w+)_/)?.[1]).filter(Boolean));
+      report += `- **IVs**: ${Array.from(ivs).join(', ')}\n\n`;
+    }
+    
+    // Recommendations
+    report += `## Recommendations\n\n`;
+    
+    if (summary.avgSuccessRateByIv < 0.8) {
+      report += `- **IV Performance**: Some IV values show low success rates. Consider reviewing transcript quality or adjusting processing parameters.\n`;
+    }
+    
+    if (summary.avgSuccessRateByEvent < 0.8) {
+      report += `- **Event Performance**: Some event types show low success rates. Consider specialized processing for different event types.\n`;
+    }
+    
+    if (summary.totalBuckets > 10) {
+      report += `- **Bucket Optimization**: Consider consolidating buckets with similar characteristics to improve processing efficiency.\n`;
+    }
+    
+    report += `\n---\n*Report generated: ${new Date().toISOString()}*\n`;
+    
+    return report;
+  }
+
+  /**
+   * Export bucket results to downloadable format
+   * Supports both detailed and summary export modes
+   */
+  exportBucketResults(bucketResults: Map<string, ProcessSingleStepResult[]>, aggregatedResults: ReturnType<typeof this.aggregateBucketResults>, format: 'json' | 'csv' = 'json'): string {
+    if (format === 'json') {
+      return JSON.stringify({
+        timestamp: new Date().toISOString(),
+        summary: aggregatedResults.summary,
+        bucketResults: Object.fromEntries(bucketResults),
+        aggregations: {
+          byIv: Object.fromEntries(aggregatedResults.byIv),
+          byEvent: Object.fromEntries(aggregatedResults.byEvent)
+        }
+      }, null, 2);
+    } else {
+      // CSV format - flattened view
+      let csv = 'BucketId,IV,Event,TranscriptId,Success,Error,ExecutionTime\n';
+      
+      for (const [bucketId, results] of bucketResults.entries()) {
+        const bucketMatch = bucketId.match(/^iv(\w+)_event(\w+)$/);
+        const iv = bucketMatch?.[1] || 'unknown';
+        const event = bucketMatch?.[2] || 'unknown';
+        
+        for (const result of results) {
+          csv += `${bucketId},${iv},${event},${result.originalTranscriptId || 'unknown'},${result.success},${result.error || ''},${result.executionTime || 0}\n`;
+        }
+      }
+      
+      return csv;
     }
   }
 

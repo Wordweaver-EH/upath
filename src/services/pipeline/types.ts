@@ -34,6 +34,9 @@ export interface SettingsData {
   temperature: number
   seed?: number
   userDvFocus: { dv_focus: string[] }
+  bucketingEnabled?: boolean
+  bucketIvField?: 'suggestion' | 'score'
+  bucketEventField?: 'suggestion' | 'score'
 }
 
 export interface StoreState {

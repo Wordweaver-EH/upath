@@ -42,14 +42,18 @@ export const useStoreActions = () => {
     
     // Actions
     processSingleStep: async (params: { stepId: StepId }) => {
+      const settingsState = useSettingsStore.getState();
       const result = await service.processSingleStep({
         ...params,
         settings: {
-          apiKey: useSettingsStore.getState().apiKey,
-          model: useSettingsStore.getState().model,
-          temperature: useSettingsStore.getState().temperature,
-          seed: useSettingsStore.getState().seed,
-          userDvFocus: useSettingsStore.getState().userDvFocus
+          apiKey: settingsState.apiKey,
+          model: settingsState.model,
+          temperature: settingsState.temperature,
+          seed: settingsState.seed,
+          userDvFocus: settingsState.userDvFocus,
+          bucketingEnabled: settingsState.bucketingEnabled,
+          bucketIvField: settingsState.bucketIvField,
+          bucketEventField: settingsState.bucketEventField
         }
       });
 
@@ -72,12 +76,16 @@ export const useStoreActions = () => {
     
     retryWithUserSeed: () => {
       const retrySeedInput = useUIStore.getState().retrySeedInput
+      const settingsState = useSettingsStore.getState();
       const settings = {
-        apiKey: useSettingsStore.getState().apiKey,
-        model: useSettingsStore.getState().model,
-        temperature: useSettingsStore.getState().temperature,
-        seed: useSettingsStore.getState().seed,
-        userDvFocus: useSettingsStore.getState().userDvFocus
+        apiKey: settingsState.apiKey,
+        model: settingsState.model,
+        temperature: settingsState.temperature,
+        seed: settingsState.seed,
+        userDvFocus: settingsState.userDvFocus,
+        bucketingEnabled: settingsState.bucketingEnabled,
+        bucketIvField: settingsState.bucketIvField,
+        bucketEventField: settingsState.bucketEventField
       }
       service.retryWithUserSeed(currentStepInfo, retrySeedInput, settings)
     },
@@ -90,12 +98,16 @@ export const useStoreActions = () => {
       service.loadStepData(stepIdToLoad, transcriptId, phaseName, gduId),
     
     handlePipelineStepClick: (stepId: StepId) => {
+      const settingsState = useSettingsStore.getState();
       const settings = {
-        apiKey: useSettingsStore.getState().apiKey,
-        model: useSettingsStore.getState().model,
-        temperature: useSettingsStore.getState().temperature,
-        seed: useSettingsStore.getState().seed,
-        userDvFocus: useSettingsStore.getState().userDvFocus
+        apiKey: settingsState.apiKey,
+        model: settingsState.model,
+        temperature: settingsState.temperature,
+        seed: settingsState.seed,
+        userDvFocus: settingsState.userDvFocus,
+        bucketingEnabled: settingsState.bucketingEnabled,
+        bucketIvField: settingsState.bucketIvField,
+        bucketEventField: settingsState.bucketEventField
       }
       return service.handlePipelineStepClick(stepId, settings)
     },

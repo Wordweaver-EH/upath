@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { marked, Renderer as MarkedRenderer, MarkedOptions, Tokens } from 'marked';
+import DOMPurify from 'dompurify';
 import {
   TranscriptProcessedData, GenericAnalysisState, StepId, StepStatus,
   P2SPhaseData, IrrWorkflowState, IrrResults, P9_1_SemanticGduMapping,
@@ -29,8 +30,10 @@ import StatusDisplay from './components/StatusDisplay';
 import HilModal from './components/HilModal';
 import PipelineOverview, { PipelineStepNode } from './components/PipelineOverview';
 import { Button } from './src/components/ui';
+import { MoonIcon, SunIcon } from './src/components/ui/Icons';
 import IRRModal from './components/IRRModal';
 import GduMappingModal from './components/GduMappingModal';
+import { BucketingModal } from './src/components/BucketingModal';
 import { AppLoadingScreen } from './src/components/AppLoadingScreen';
 import { SessionRestoreNotification } from './src/components/SessionRestoreNotification';
 
@@ -44,19 +47,51 @@ import { useAutorunManager } from './src/hooks/useAutorunManager';
 import { BackendToggle } from './src/components/BackendToggle';
 import packageJson from './package.json';
 
-const APP_VERSION = packageJson.version; 
+const APP_VERSION = packageJson.version;
 
-const MoonIcon = (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-    <path fillRule="evenodd" d="M7.455 2.004a.75.75 0 0 1 .26.77 7 7 0 0 0 9.958 7.967.75.75 0 0 1 1.067.853A8.5 8.5 0 1 1 6.647 1.921a.75.75 0 0 1 .808.083Z" clipRule="evenodd" />
-  </svg>
-);
+// Constants moved outside component to prevent redeclaration on every render
+const GLOBAL_STEPS = [
+  StepId.P3_1_MERGE_RESULTS,
+  StepId.P3_2_DEFINE_GENERIC_DIACHRONIC_STRUCTURE,
+  StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES,
+  StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS,
+  StepId.P4S_2_ANALYZE_SCD,
+  StepId.P4S_3_REVIEW_GDC,
+  StepId.P4S_4_DRAFT_REFINED_GENERIC_STRUCTURE,
+  StepId.P5_1_CONSTRUCT_CAUSAL_MODELS,
+  StepId.P5_2_GENERATE_REPORTS
+] as const;
 
-const SunIcon = (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-    <path d="M10 3a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 3ZM10 15a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 15ZM15.606 5.494a.75.75 0 0 1 .093 1.057l-1.06 1.06a.75.75 0 0 1-1.057-.093A5.005 5.005 0 0 0 10 7.5a.75.75 0 0 1-1.5 0c0-1.604.864-3.018 2.182-3.875a.75.75 0 0 1 1.057.093l1.06 1.06a.75.75 0 0 1 .093 1.057ZM4.394 14.506a.75.75 0 0 1-.093-1.057l1.06-1.06a.75.75 0 0 1 1.057.093A5.005 5.005 0 0 0 10 12.5a.75.75 0 0 1 1.5 0c0 1.604-.864 3.018-2.182 3.875a.75.75 0 0 1-1.057-.093l-1.06-1.06a.75.75 0 0 1-.093-1.057ZM17.25 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5a.75.75 0 0 1 .75.75ZM4.75 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5a.75.75 0 0 1 .75.75ZM14.506 15.606a.75.75 0 0 1-1.057-.093A5.005 5.005 0 0 0 12.5 10a.75.75 0 0 1 0-1.5c1.604 0 3.018.864 3.875 2.182a.75.75 0 0 1-.093 1.057l-1.06 1.06a.75.75 0 0 1-1.057.093ZM5.494 4.394a.75.75 0 0 1 1.057.093A5.005 5.005 0 0 0 7.5 10a.75.75 0 0 1 0 1.5c-1.604 0-3.018-.864-3.875-2.182a.75.75 0 0 1 .093 1.057l1.06-1.06a.75.75 0 0 1 1.057-.093ZM10 7.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z" />
-  </svg>
-);
+const isGlobalStep = (stepId: StepId): boolean => {
+  return GLOBAL_STEPS.includes(stepId as any);
+};
+
+const ALL_PIPELINE_PARTS_IN_ORDER: { 
+  name: string; 
+  steps: StepId[]; 
+  isPerTranscript?: boolean; 
+  isPerPhase?: boolean; 
+  isPerGDU?: boolean; 
+}[] = [
+  { name: "Part -1: Variable ID", steps: STEP_ORDER_PART_NEG1, isPerTranscript: true },
+  { name: "Part 0: Data Prep", steps: STEP_ORDER_PART_0, isPerTranscript: true },
+  { name: "Part I: Specific Diachronic", steps: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC, isPerTranscript: true },
+  { name: "Part II: Specific Synchronic", steps: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC, isPerTranscript: true, isPerPhase: true },
+  { name: "Part III: Generic Diachronic", steps: STEP_ORDER_PART_3_GENERIC_DIACHRONIC },
+  { name: "Part IV: Generic Synchronic", steps: STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, isPerGDU: true },
+  { name: "Part V: Refinement", steps: STEP_ORDER_PART_5_REFINEMENT },
+  { name: "Part VII: Causal Modeling", steps: STEP_ORDER_PART_7_CAUSAL_MODELING },
+  { name: "Part VI: Report", steps: STEP_ORDER_PART_6_REPORT },
+];
+
+// Helper function moved outside component to prevent recreation on every render
+const getHilPreviousResponseDisplay = (hilContext: any): string => {
+  if (!hilContext) return "No context.";
+  const resp = hilContext.previousResponse;
+  if (typeof resp === 'string') return resp;
+  try { return JSON.stringify(resp, null, 2); } 
+  catch (e) { return "Error displaying previous response."; }
+};
 
 interface ReportRendererProps {
   markdown: string;
@@ -71,7 +106,7 @@ const ReportRenderer: React.FC<ReportRendererProps> = ({ markdown, theme }) => {
     const renderer = new MarkedRenderer();
     const originalBaseCodeRenderer = renderer.code.bind(renderer);
 
-    renderer.code = (token: Tokens.Code): string => {
+    renderer.code = (token: Tokens.Code): string | false => {
       const { text: code, lang: infostring } = token;
       const currentLang = (infostring || '').match(/\S*/)?.[0];
 
@@ -79,17 +114,47 @@ const ReportRenderer: React.FC<ReportRendererProps> = ({ markdown, theme }) => {
         return `<div class="mermaid">${code}</div>\n`;
       }
       const originalRenderedOutput = originalBaseCodeRenderer(token);
-      if (typeof originalRenderedOutput === 'string') return originalRenderedOutput;
       
-      console.warn(`Marked's original code renderer returned a non-string value for language: "${infostring}". Falling back.`, { token, originalRenderedOutput });
+      // Handle string return value (normal case)
+      if (typeof originalRenderedOutput === 'string') {
+        return originalRenderedOutput;
+      }
+      
+      // Handle false return value (use default renderer)
+      if (originalRenderedOutput === false) {
+        // Return false to let marked use its default renderer
+        return false;
+      }
+      
+      // Handle any other unexpected return values
+      console.warn(`Marked's original code renderer returned unexpected value for language: "${infostring}". Falling back to manual rendering.`, { 
+        token, 
+        originalRenderedOutput, 
+        valueType: typeof originalRenderedOutput 
+      });
+      
+      // Manual fallback rendering with proper HTML escaping
       const textToEscape = token.text || '';
-      const htmlEscapedCode = textToEscape.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-      return `<pre><code>${htmlEscapedCode}</code></pre>\n`;
+      const htmlEscapedCode = textToEscape
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+      
+      const languageClass = infostring ? ` class="language-${infostring}"` : '';
+      return `<pre><code${languageClass}>${htmlEscapedCode}</code></pre>\n`;
     };
 
     const options: MarkedOptions = { renderer };
     const parsed = marked.parse(markdown, options) as string;
-    setHtml(parsed);
+    
+    // Sanitize HTML to prevent XSS attacks
+    const cleanHtml = DOMPurify.sanitize(parsed, { 
+      ADD_TAGS: ['div'], 
+      ADD_ATTR: ['class'] 
+    });
+    setHtml(cleanHtml);
   }, [markdown]);
 
   useEffect(() => {
@@ -132,11 +197,14 @@ const App: React.FC = () => {
     elapsedTime,
     hilUserGuidance,
     hilContext,
+    isBucketingModalOpen,
     setAutorunning,
     openHilModal,
     closeHilModal,
     setHilUserGuidance,
     setCurrentStepInfo,
+    openBucketingModal,
+    closeBucketingModal,
     hasRehydrated,
     sessionWasRestored
   } = useUIStore();
@@ -158,28 +226,14 @@ const App: React.FC = () => {
     coordinateRehydration
   } = useStoreActions();
   
-  // Helper function for isGlobalStep
-  const isGlobalStep = (stepId: StepId) => {
-    const globalSteps = [
-      StepId.P3_1_MERGE_RESULTS,
-      StepId.P3_2_DEFINE_GENERIC_DIACHRONIC_STRUCTURE,
-      StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES,
-      StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS,
-      StepId.P4S_2_ANALYZE_SCD,
-      StepId.P4S_3_REVIEW_GDC,
-      StepId.P4S_4_DRAFT_REFINED_GENERIC_STRUCTURE,
-      StepId.P5_1_CONSTRUCT_CAUSAL_MODELS,
-      StepId.P5_2_GENERATE_REPORTS
-    ];
-    return globalSteps.includes(stepId);
-  };
   
   // Settings Store - consolidated selector
   const {
     userDvFocus,
     outputDirectory,
     temperature,
-    seed
+    seed,
+    setBucketingConfig
   } = useSettingsStore();
   
   // IRR Store - consolidated selector
@@ -276,26 +330,8 @@ const App: React.FC = () => {
   
 
 
-  const allPipelinePartsInOrder: { name: string; steps: StepId[]; isPerTranscript?: boolean; isPerPhase?: boolean; isPerGDU?: boolean; }[] = [
-    { name: "Part -1: Variable ID", steps: STEP_ORDER_PART_NEG1, isPerTranscript: true },
-    { name: "Part 0: Data Prep", steps: STEP_ORDER_PART_0, isPerTranscript: true },
-    { name: "Part I: Specific Diachronic", steps: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC, isPerTranscript: true },
-    { name: "Part II: Specific Synchronic", steps: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC, isPerTranscript: true, isPerPhase: true },
-    { name: "Part III: Generic Diachronic", steps: STEP_ORDER_PART_3_GENERIC_DIACHRONIC },
-    { name: "Part IV: Generic Synchronic", steps: STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, isPerGDU: true },
-    { name: "Part V: Refinement", steps: STEP_ORDER_PART_5_REFINEMENT },
-    { name: "Part VII: Causal Modeling", steps: STEP_ORDER_PART_7_CAUSAL_MODELING },
-    { name: "Part VI: Report", steps: STEP_ORDER_PART_6_REPORT },
-  ];
 
 
-    const getHilPreviousResponseDisplay = (): string => {
-        if (!hilContext) return "No context.";
-        const resp = hilContext.previousResponse;
-        if (typeof resp === 'string') return resp;
-        try { return JSON.stringify(resp, null, 2); } 
-        catch (e) { return "Error displaying previous response."; }
-    };
 
     // IRR Workflow Handlers - now use store actions
     const handleIrrStateUpdate = useIRRStore(state => state.handleStateUpdate);
@@ -309,6 +345,12 @@ const App: React.FC = () => {
     const handleDownloadDisagreementReport = useIRRStore(state => state.handleDownloadDisagreementReport);
 
     const handleHilSubmit = useUIStore(state => state.handleHilSubmit);
+
+    // Bucketing configuration handler
+    const handleBucketingConfiguration = (enabled: boolean, ivField: 'suggestion' | 'score', eventField: 'suggestion' | 'score') => {
+      console.log(`🎯 [App.tsx] Configuring bucketing: enabled=${enabled}, IV=${ivField}, Event=${eventField}`);
+      setBucketingConfig(enabled, ivField, eventField);
+    };
 
   // Use selector for output display logic
   const stepDisplay = selectCurrentStepDisplay(currentStepInfo, rawTranscripts.length);
@@ -365,7 +407,7 @@ const App: React.FC = () => {
           <span className="text-xs text-light-sidenote dark:text-dark-sidenote align-middle ml-1">v{APP_VERSION}</span>
         </h1>
         <Button onClick={toggleTheme} variant="secondary" className="p-2" aria-label="Toggle theme">
-          {theme === 'light' ? MoonIcon : SunIcon}
+          {theme === 'light' ? <MoonIcon /> : <SunIcon />}
         </Button>
       </header>
 
@@ -373,7 +415,7 @@ const App: React.FC = () => {
         <SettingsPanel
           PipelineOverviewComponent={
             <PipelineOverview
-              allPipelineParts={allPipelinePartsInOrder}
+              allPipelineParts={ALL_PIPELINE_PARTS_IN_ORDER}
               STEP_CONFIGS={STEP_CONFIGS}
               currentStepInfo={currentStepInfo}
               getStepStatusForPipelineView={getStepStatusForPipelineView}
@@ -411,7 +453,12 @@ const App: React.FC = () => {
       />
       <HilModal
         onSubmit={handleHilSubmit}
-        getHilPreviousResponseDisplay={getHilPreviousResponseDisplay}
+        getHilPreviousResponseDisplay={() => getHilPreviousResponseDisplay(hilContext)}
+      />
+      <BucketingModal
+        isOpen={isBucketingModalOpen}
+        onClose={closeBucketingModal}
+        onConfigureBucketing={handleBucketingConfiguration}
       />
     </div>
     </>
