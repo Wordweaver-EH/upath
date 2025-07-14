@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { StepId, StepStatus } from '../../types'
-import { ESSENTIAL_STEPS_FOR_AUTODOWNLOAD, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC } from '../../constants'
+import { ESSENTIAL_STEPS_FOR_AUTODOWNLOAD, STEP_ORDER_PART_IV as STEP_ORDER_PART_4_GENERIC_SYNCHRONIC } from '../config/pipelineConfig'
 import { useUIStore } from '../stores'
 import { useTranscriptStore } from '../stores'
 import { useAnalysisResultStore } from '../stores'

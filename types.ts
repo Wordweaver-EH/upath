@@ -92,10 +92,10 @@ export type {
   // Complete Node Output
   CompleteOutput,
   
-} from './upath-backend/src/graph/types/outputs';
+} from './upath-backend/src/types/outputs';
 
 // Import backend enums that the frontend uses
-export { StepId } from './upath-backend/src/graph/types/enums';
+export { StepId } from './upath-backend/src/types/enums';
 
 // ============================================================================
 // FRONTEND-SPECIFIC TYPES (UI, State Management, File Handling)

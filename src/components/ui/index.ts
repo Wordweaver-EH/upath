@@ -9,3 +9,5 @@ export type { SelectProps } from './Select';
 
 export { TextArea } from './TextArea';
 export type { TextAreaProps } from './TextArea';
+
+export * from './Icons';

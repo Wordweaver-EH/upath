@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { GduMappingDisplayItem } from '../types';
-import { useIRRStore } from '../src/stores/irrStore';
-import { Button, Select } from '../src/components/ui';
+import { GduMappingDisplayItem } from '../../types';
+import { useIRRStore } from '../stores/irrStore';
+import { Button, Select } from './ui';
 
 interface GduMappingModalProps {
   onConfirmMapping: (confirmedMapping: Record<string, string | null>) => void;

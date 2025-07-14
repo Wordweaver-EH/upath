@@ -1,8 +1,8 @@
 import React, { useRef } from 'react';
-import { AppState } from '../types';
-import { useIRRStore } from '../src/stores/irrStore';
-import { useSettingsStore } from '../src/stores/settingsStore';
-import { Button, Input } from '../src/components/ui';
+import { AppState } from '../../types';
+import { useIRRStore } from '../stores/irrStore';
+import { useSettingsStore } from '../stores/settingsStore';
+import { Button, Input } from './ui';
 
 interface IRRModalProps {
   onDownloadDisagreementReport?: () => void;

@@ -1,13 +1,13 @@
 
 import React, { useEffect, useRef } from 'react';
-import { StepId, StepStatus } from '../types';
-import { UploadIcon, FileTextIcon, SaveIcon, LoadIcon, InfoIcon } from '../constants';
-import { useSettingsStore } from '../src/stores/settingsStore';
-import { useUIStore } from '../src/stores/uiStore';
-import { useTranscriptStore } from '../src/stores/transcriptStore';
-import { useStoreActions } from '../src/stores/useStoreActions';
-import { Button, Input } from '../src/components/ui';
-import { ModelSelector } from '../src/components/ModelSelector';
+import { StepId, StepStatus } from '../../types';
+import { UploadIcon, FileTextIcon, SaveIcon, LoadIcon, InfoIcon } from './ui';
+import { useSettingsStore } from '../stores/settingsStore';
+import { useUIStore } from '../stores/uiStore';
+import { useTranscriptStore } from '../stores/transcriptStore';
+import { useStoreActions } from '../stores/useStoreActions';
+import { Button, Input } from './ui';
+import { ModelSelector } from './ModelSelector';
 
 // No props needed - component gets all data from stores
 interface SettingsPanelProps {

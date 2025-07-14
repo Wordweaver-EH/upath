@@ -6,7 +6,12 @@ import { calculateKrippendorffsAlpha, calculateCohensKappa, buildReliabilityMatr
 import { buildCompleteUtteranceToGduMapping } from '../utils/traceabilityHelper'
 import { generateDisagreementReport, disagreementReportToCsv, disagreementReportToMarkdown, normalizeRunBData } from '../utils/irrReportHelper'
 import { downloadFile } from '../utils/tsvHelper'
-import { STEP_CONFIGS, STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC, STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC, STEP_ORDER_PART_3_GENERIC_DIACHRONIC, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, GEMINI_MODEL_TEXT } from '../../constants'
+import { 
+  STEP_ORDER_PART_I as STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC, 
+  STEP_ORDER_PART_II as STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC, 
+  STEP_ORDER_PART_III as STEP_ORDER_PART_3_GENERIC_DIACHRONIC, 
+  STEP_ORDER_PART_IV as STEP_ORDER_PART_4_GENERIC_SYNCHRONIC 
+} from '../config/pipelineConfig'
 
 interface IRRState {
   irrWorkflowState: IrrWorkflowState

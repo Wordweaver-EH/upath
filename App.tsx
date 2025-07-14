@@ -10,12 +10,12 @@ import {
   AppState
 } from './types';
 import {
-  STEP_CONFIGS, ESSENTIAL_STEPS_FOR_AUTODOWNLOAD,
-  STEP_ORDER_PART_NEG1, STEP_ORDER_PART_0, STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC,
-  STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC, STEP_ORDER_PART_3_GENERIC_DIACHRONIC,
-  STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_ORDER_PART_5_REFINEMENT,
-  STEP_ORDER_PART_7_CAUSAL_MODELING, STEP_ORDER_PART_6_REPORT
-} from './constants';
+  ESSENTIAL_STEPS_FOR_AUTODOWNLOAD,
+  STEP_ORDER_PART_NEG1, STEP_ORDER_PART_0, STEP_ORDER_PART_I as STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC,
+  STEP_ORDER_PART_II as STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC, STEP_ORDER_PART_III as STEP_ORDER_PART_3_GENERIC_DIACHRONIC,
+  STEP_ORDER_PART_IV as STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_ORDER_PART_V as STEP_ORDER_PART_5_REFINEMENT,
+  STEP_ORDER_PART_VII as STEP_ORDER_PART_7_CAUSAL_MODELING, STEP_ORDER_PART_VI as STEP_ORDER_PART_6_REPORT
+} from './src/config/pipelineConfig';
 import { buildCompleteUtteranceToGduMapping } from './src/utils/traceabilityHelper';
 import { calculateKrippendorffsAlpha, buildReliabilityMatrix, validateReliabilityMatrix } from './src/utils/statisticsHelper';
 import { generateTsvForPromptHistory } from './src/utils/tsvHelper';
@@ -23,16 +23,16 @@ import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategory
 import { callGeminiAPI } from './services/geminiService';
 import { stepIdToDataKeyPrefix } from './src/utils/stepIdToDataKeyPrefix';
 
-import MermaidDiagram from './components/MermaidDiagram';
-import SettingsPanel from './components/SettingsPanel';
-import ControlsPanel from './components/ControlsPanel';
-import StatusDisplay from './components/StatusDisplay';
-import HilModal from './components/HilModal';
-import PipelineOverview, { PipelineStepNode } from './components/PipelineOverview';
+import MermaidDiagram from './src/components/MermaidDiagram';
+import SettingsPanel from './src/components/SettingsPanel';
+import ControlsPanel from './src/components/ControlsPanel';
+import StatusDisplay from './src/components/StatusDisplay';
+import HilModal from './src/components/HilModal';
+import PipelineOverview, { PipelineStepNode } from './src/components/PipelineOverview';
 import { Button } from './src/components/ui';
 import { MoonIcon, SunIcon } from './src/components/ui/Icons';
-import IRRModal from './components/IRRModal';
-import GduMappingModal from './components/GduMappingModal';
+import IRRModal from './src/components/IRRModal';
+import GduMappingModal from './src/components/GduMappingModal';
 import { BucketingModal } from './src/components/BucketingModal';
 import { AppLoadingScreen } from './src/components/AppLoadingScreen';
 import { SessionRestoreNotification } from './src/components/SessionRestoreNotification';

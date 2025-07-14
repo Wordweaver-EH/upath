@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { ChevronDownIcon, ChevronUpIcon } from '../constants';
-import { Button } from '../src/components/ui';
+import { ChevronDownIcon, ChevronUpIcon } from './ui';
+import { Button } from './ui';
 
 interface CollapsibleSectionProps {
   title: string;

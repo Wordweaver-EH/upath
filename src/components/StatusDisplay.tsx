@@ -1,10 +1,11 @@
 import React from 'react';
-import { StepId, StepStatus } from '../types';
-import { CheckCircleIcon, getStepDisplayName } from '../constants';
-import { useUIStore } from '../src/stores/uiStore';
-import { useTranscriptStore } from '../src/stores/transcriptStore';
-import { usePromptHistoryStore } from '../src/stores/promptHistoryStore';
-import { formatElapsedTime } from '../src/utils/timeHelper';
+import { StepId, StepStatus } from '../../types';
+import { CheckCircleIcon } from './ui';
+import { getStepDisplayName } from '../config/pipelineConfig';
+import { useUIStore } from '../stores/uiStore';
+import { useTranscriptStore } from '../stores/transcriptStore';
+import { usePromptHistoryStore } from '../stores/promptHistoryStore';
+import { formatElapsedTime } from '../utils/timeHelper';
 
 // No props needed - component gets all data from stores
 interface StatusDisplayProps {}

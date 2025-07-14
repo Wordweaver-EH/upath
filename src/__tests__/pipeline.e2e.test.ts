@@ -7,7 +7,7 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { getPipelineService, resetPipelineService } from '../services/pipeline/pipelineServiceFactory'
 import { StepId, StepStatus } from '../../types'
 import { callGeminiAPI } from '../../services/geminiService'
-import { STEP_ORDER_PART_NEG1, STEP_ORDER_PART_3_GENERIC_DIACHRONIC } from '../../constants'
+import { STEP_ORDER_PART_NEG1, STEP_ORDER_PART_III as STEP_ORDER_PART_3_GENERIC_DIACHRONIC } from '../config/pipelineConfig'
 
 // Minimal mocking - only external API
 vi.mock('../../services/geminiService')

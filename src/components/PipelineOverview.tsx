@@ -1,7 +1,8 @@
 
 import React from 'react';
-import { StepId, StepStatus, CurrentStepInfo } from '../types';
-import { STEP_CONFIGS as StepConfigsType, CheckCircleIcon, InfoIcon, getStepDisplayName } from '../constants';
+import { StepId, StepStatus, CurrentStepInfo } from '../../types';
+import { CheckCircleIcon, InfoIcon } from './ui';
+import { getStepDisplayName } from '../config/pipelineConfig';
 import CollapsibleSection from './CollapsibleSection';
 
 interface PipelineStepNodeProps {

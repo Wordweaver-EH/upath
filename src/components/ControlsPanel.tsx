@@ -1,12 +1,12 @@
 
 import React from 'react';
-import { PlayIcon, PauseIcon, NextIcon, PreviousIcon, RetryIcon, LightbulbIcon, DownloadIcon, AppendixIcon, ChevronDownIcon } from '../constants';
-import { useUIStore } from '../src/stores/uiStore';
-import { useTranscriptStore } from '../src/stores/transcriptStore';
-import { useSettingsStore } from '../src/stores/settingsStore';
-import { useIRRStore } from '../src/stores/irrStore';
-import { useStoreActions } from '../src/stores/useStoreActions';
-import { Button, Input } from '../src/components/ui';
+import { PlayIcon, PauseIcon, NextIcon, PreviousIcon, RetryIcon, LightbulbIcon, DownloadIcon, AppendixIcon, ChevronDownIcon } from './ui';
+import { useUIStore } from '../stores/uiStore';
+import { useTranscriptStore } from '../stores/transcriptStore';
+import { useSettingsStore } from '../stores/settingsStore';
+import { useIRRStore } from '../stores/irrStore';
+import { useStoreActions } from '../stores/useStoreActions';
+import { Button, Input } from './ui';
 
 // IRR (Inter-Rater Reliability) icon
 const IrrIcon = (

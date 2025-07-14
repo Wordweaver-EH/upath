@@ -1,9 +1,9 @@
 import React from 'react';
-import { getStepDisplayName } from '../constants';
-import { useUIStore } from '../src/stores/uiStore';
-import { useTranscriptStore } from '../src/stores/transcriptStore';
+import { getStepDisplayName } from '../config/pipelineConfig';
+import { useUIStore } from '../stores/uiStore';
+import { useTranscriptStore } from '../stores/transcriptStore';
 import CollapsibleSection from './CollapsibleSection';
-import { Button, TextArea } from '../src/components/ui';
+import { Button, TextArea } from './ui';
 
 interface HilModalProps {
   onSubmit: () => void;
