@@ -215,6 +215,8 @@ export default async function pipelineRoute(fastify: FastifyInstance) {
 
       return reply.send({
         success: true,
+        stepId: stepId,
+        validationType: 'pre',
         validation: result,
         timestamp: new Date().toISOString(),
       });
@@ -243,6 +245,8 @@ export default async function pipelineRoute(fastify: FastifyInstance) {
 
       return reply.send({
         success: true,
+        stepId: stepId,
+        validationType: 'post',
         validation: result,
         timestamp: new Date().toISOString(),
       });

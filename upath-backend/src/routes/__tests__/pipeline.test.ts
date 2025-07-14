@@ -241,7 +241,11 @@ describe('Pipeline API - Real Production Test', () => {
           },
           userDvFocus: {
             dv_focus: ['attention', 'focus']
-          }
+          },
+          processedData: {},
+          genericAnalysisState: {},
+          allRawTranscripts: [],
+          apiKeyPresent: true
         }
       });
 
