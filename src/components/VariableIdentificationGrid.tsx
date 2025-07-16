@@ -61,6 +61,7 @@ export const VariableIdentificationGrid: React.FC<VariableIdentificationGridProp
         }}
         animateRows={true}
         domLayout='normal'
+        theme='legacy'
       />
     </div>
   );
