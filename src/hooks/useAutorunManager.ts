@@ -31,7 +31,6 @@ export const useAutorunManager = () => {
   const genericAnalysisState = usePipelineStore(state => state.genericAnalysisState)
   const processState = usePipelineStore(state => state.processState)
   const updateProcessState = usePipelineStore(state => state.updateProcessState)
-  const getNextStepDetails = usePipelineStore(state => state.getNextStepDetails)
   const processSingleStep = usePipelineStore(state => state.processSingleStep)
   const downloadOutput = usePipelineStore(state => state.downloadOutput)
   const isGlobalStep = usePipelineStore(state => state.isGlobalStep)
@@ -215,7 +214,6 @@ export const useAutorunManager = () => {
     isAutorunning, 
     currentStepInfo, 
     genericAnalysisState, 
-    getNextStepDetails, 
     rawTranscripts, 
     processSingleStep, 
     downloadOutput, 
@@ -226,6 +224,9 @@ export const useAutorunManager = () => {
     setCurrentStepInfo, 
     setAutorunning, 
     setActiveTranscript,
-    isGlobalStep
+    isGlobalStep,
+    processState,
+    updateProcessState,
+    activeTranscriptIndex
   ]);
 }
