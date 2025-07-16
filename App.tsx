@@ -33,6 +33,11 @@ import IRRModal from './components/IRRModal';
 import GduMappingModal from './components/GduMappingModal';
 import { AppLoadingScreen } from './src/components/AppLoadingScreen';
 import { SessionRestoreNotification } from './src/components/SessionRestoreNotification';
+import { VariableIdentificationGrid } from './src/components/VariableIdentificationGrid';
+
+// AG Grid CSS
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
 
 import { useUIStore, useSettingsStore, usePipelineStore, useIRRStore, initializeStores, selectCurrentStepDisplay } from './src/stores';
 import { useAutorunManager } from './src/hooks/useAutorunManager';
@@ -325,6 +330,11 @@ const App: React.FC = () => {
         return <ReportRenderer markdown={stepDisplay.markdown} theme={theme} />;
       
       case 'output':
+        // Special handling for P_NEG1_1 - show grid instead of JSON
+        if (currentStepInfo.stepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION && processedData.size > 0) {
+          return <VariableIdentificationGrid processedData={processedData} theme={theme} />;
+        }
+        
         if (typeof stepDisplay.data === 'object' && stepDisplay.data !== null) {
           try { 
             return <pre className="text-xs whitespace-pre-wrap break-all">{JSON.stringify(stepDisplay.data, null, 2)}</pre>; 
