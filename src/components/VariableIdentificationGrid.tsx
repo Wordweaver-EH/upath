@@ -47,10 +47,39 @@ export const VariableIdentificationGrid: React.FC<VariableIdentificationGridProp
     return { rowData: rows, columnDefs: cols };
   }, [processedData]);
 
+  // Define custom styles based on theme
+  const gridStyles = theme === 'dark' ? {
+    '--ag-background-color': '#1a1a1a',
+    '--ag-header-background-color': '#252525',
+    '--ag-odd-row-background-color': '#252525',
+    '--ag-foreground-color': '#e6e6e6',
+    '--ag-header-foreground-color': '#e6e6e6',
+    '--ag-border-color': '#444444',
+    '--ag-row-hover-color': '#333333',
+    '--ag-header-column-resize-handle-color': '#ff6b6b',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+  } : {
+    '--ag-background-color': '#faf8f1',
+    '--ag-header-background-color': '#f3f1ea',
+    '--ag-odd-row-background-color': '#f3f1ea',
+    '--ag-foreground-color': '#222222',
+    '--ag-header-foreground-color': '#222222',
+    '--ag-border-color': '#dcd9d0',
+    '--ag-row-hover-color': '#e9e6de',
+    '--ag-header-column-resize-handle-color': '#a00000',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+  };
+
   return (
     <div 
       className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
-      style={{ height: '400px', width: '100%' }}
+      style={{ 
+        height: '400px', 
+        width: '100%',
+        ...gridStyles as React.CSSProperties
+      }}
     >
       <AgGridReact
         rowData={rowData}
