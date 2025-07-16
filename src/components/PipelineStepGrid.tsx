@@ -4,6 +4,8 @@ import { ColDef, ModuleRegistry, ICellRendererParams } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { TranscriptProcessedData, StepId } from '../../types';
 import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
+import { TabbedStepDisplay } from './TabbedStepDisplay';
+import { TranscriptLinesTable } from './TranscriptLinesTable';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -66,76 +68,6 @@ const STEP_GRID_CONFIGS: Partial<Record<StepId, GridConfig>> = {
         resizable: true
       }
     ]
-  },
-  [StepId.P0_1_TRANSCRIPTION_ADHERENCE]: {
-    extractData: (processedData) => {
-      return Array.from(processedData.entries())
-        .filter(([_, data]) => data.p0_1_output)
-        .map(([id, data]) => ({
-          id,
-          filename: data.filename,
-          transcript_id: data.p0_1_output!.transcript_id,
-          initial_impressions: data.p0_1_output!.initial_impressions_log,
-          convention_notes: data.p0_1_output!.transcription_convention_notes,
-          line_numbered_transcript: data.p0_1_output!.line_numbered_transcript
-        }));
-    },
-    columns: [
-      { 
-        field: 'filename', 
-        headerName: 'Filename',
-        width: 150,
-        sortable: true,
-        resizable: true
-      },
-      { 
-        field: 'transcript_id', 
-        headerName: 'Transcript ID',
-        width: 150,
-        sortable: true,
-        resizable: true
-      },
-      { 
-        field: 'initial_impressions', 
-        headerName: 'Initial Impressions',
-        flex: 1,
-        wrapText: true,
-        autoHeight: true,
-        cellRenderer: (params: ICellRendererParams) => {
-          const text = params.value || '';
-          const maxLength = 150;
-          const truncated = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-          return <span title={text}>{truncated}</span>;
-        }
-      },
-      { 
-        field: 'convention_notes', 
-        headerName: 'Convention Notes',
-        width: 300,
-        wrapText: true,
-        autoHeight: true,
-        cellRenderer: (params: ICellRendererParams) => {
-          const text = params.value || '';
-          const maxLength = 100;
-          const truncated = text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
-          return <span title={text}>{truncated}</span>;
-        }
-      }
-    ],
-    expandableContent: {
-      field: 'line_numbered_transcript',
-      title: 'Line-Numbered Transcript',
-      formatter: (lines: string[]) => (
-        <div className="font-mono text-sm space-y-1">
-          {lines.map((line, index) => (
-            <div key={index} className="hover:bg-light-bg-alt dark:hover:bg-dark-bg-alt px-2 py-1 rounded">
-              {line}
-            </div>
-          ))}
-        </div>
-      )
-    },
-    height: '300px'
   }
 };
 
@@ -178,6 +110,72 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
   theme 
 }) => {
   const [selectedRow, setSelectedRow] = useState<any>(null);
+  
+  // Special handling for P0_1 with tabbed display
+  if (stepId === StepId.P0_1_TRANSCRIPTION_ADHERENCE) {
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          return Array.from(data.entries())
+            .filter(([_, transcript]) => transcript.p0_1_output)
+            .map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                lines: transcript.p0_1_output!.line_numbered_transcript,
+                transcriptId: transcript.p0_1_output!.transcript_id,
+                initialImpressions: transcript.p0_1_output!.initial_impressions_log,
+                conventionNotes: transcript.p0_1_output!.transcription_convention_notes
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => (
+          <div className="space-y-4">
+            {/* Metadata section */}
+            <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                  Transcript ID
+                </h4>
+                <p className="text-light-text dark:text-dark-text">
+                  {tabData.transcriptId}
+                </p>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                  Transcription Convention Notes
+                </h4>
+                <p className="text-light-text dark:text-dark-text text-sm">
+                  {tabData.conventionNotes}
+                </p>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                  Initial Impressions
+                </h4>
+                <p className="text-light-text dark:text-dark-text text-sm">
+                  {tabData.initialImpressions}
+                </p>
+              </div>
+            </div>
+            
+            {/* Transcript lines table */}
+            <div>
+              <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                Line-Numbered Transcript
+              </h4>
+              <TranscriptLinesTable lines={tabData.lines} theme={theme} />
+            </div>
+          </div>
+        )}
+        theme={theme}
+        emptyMessage="No transcripts with P0.1 output available"
+      />
+    );
+  }
   
   const config = STEP_GRID_CONFIGS[stepId];
   
