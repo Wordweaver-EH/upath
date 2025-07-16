@@ -3,6 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { TranscriptProcessedData } from '../../types';
+import './VariableIdentificationGrid.css';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
