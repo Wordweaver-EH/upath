@@ -6,6 +6,8 @@ import { TranscriptProcessedData, StepId } from '../../types';
 import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
 import { TabbedStepDisplay } from './TabbedStepDisplay';
 import { TranscriptLinesTable } from './TranscriptLinesTable';
+import { RefinedDataTable } from './RefinedDataTable';
+import { SelectedUtterancesTable } from './SelectedUtterancesTable';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -173,6 +175,135 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
         )}
         theme={theme}
         emptyMessage="No transcripts with P0.1 output available"
+      />
+    );
+  }
+  
+  // Special handling for P0_2 with tabbed display
+  if (stepId === StepId.P0_2_REFINE_DATA_TYPES) {
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          return Array.from(data.entries())
+            .filter(([_, transcript]) => transcript.p0_2_output)
+            .map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                transcriptId: transcript.p0_2_output!.transcript_id,
+                refinedLines: transcript.p0_2_output!.refined_data_transcript
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => (
+          <div className="space-y-4">
+            {/* Metadata section */}
+            <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg">
+              <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                Transcript ID
+              </h4>
+              <p className="text-light-text dark:text-dark-text">
+                {tabData.transcriptId}
+              </p>
+            </div>
+            
+            {/* Refined data table */}
+            <div>
+              <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                Refined Data Transcript
+              </h4>
+              <RefinedDataTable refinedLines={tabData.refinedLines} theme={theme} />
+            </div>
+          </div>
+        )}
+        theme={theme}
+        emptyMessage="No transcripts with P0.2 output available"
+      />
+    );
+  }
+  
+  // Special handling for P0_3 with tabbed display
+  if (stepId === StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES) {
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          return Array.from(data.entries())
+            .filter(([_, transcript]) => transcript.p0_3_output)
+            .map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                transcriptId: transcript.p0_3_output!.transcript_id,
+                utterances: transcript.p0_3_output!.selected_procedural_utterances,
+                discardedSummary: transcript.p0_3_output!.discarded_info_summary,
+                ivDetails: transcript.p0_3_output!.independent_variable_details,
+                dvFocus: transcript.p0_3_output!.dependent_variable_focus
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => (
+          <div className="space-y-4">
+            {/* Metadata section */}
+            <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                  Transcript ID
+                </h4>
+                <p className="text-light-text dark:text-dark-text">
+                  {tabData.transcriptId}
+                </p>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                  Independent Variable
+                </h4>
+                <p className="text-light-text dark:text-dark-text text-sm">
+                  {tabData.ivDetails}
+                </p>
+              </div>
+              
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                  Dependent Variable Focus
+                </h4>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {tabData.dvFocus.map((dv: string, index: number) => (
+                    <span
+                      key={index}
+                      className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                    >
+                      {dv}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              
+              {tabData.discardedSummary && (
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Discarded Information Summary
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm italic">
+                    {tabData.discardedSummary}
+                  </p>
+                </div>
+              )}
+            </div>
+            
+            {/* Selected utterances table */}
+            <div>
+              <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                Selected Procedural Utterances ({tabData.utterances.length} selected)
+              </h4>
+              <SelectedUtterancesTable utterances={tabData.utterances} theme={theme} />
+            </div>
+          </div>
+        )}
+        theme={theme}
+        emptyMessage="No transcripts with P0.3 output available"
       />
     );
   }

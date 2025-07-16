@@ -345,7 +345,9 @@ const App: React.FC = () => {
         // Special handling for steps with grid display
         const gridSteps = [
           StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
-          StepId.P0_1_TRANSCRIPTION_ADHERENCE
+          StepId.P0_1_TRANSCRIPTION_ADHERENCE,
+          StepId.P0_2_REFINE_DATA_TYPES,
+          StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES
         ];
         
         if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {

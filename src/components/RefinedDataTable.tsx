@@ -1,0 +1,167 @@
+import React, { useMemo } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import { ColDef, ModuleRegistry, ICellRendererParams } from 'ag-grid-community';
+import { AllCommunityModule } from 'ag-grid-community';
+
+// Register AG Grid modules
+ModuleRegistry.registerModules([AllCommunityModule]);
+
+interface RefinedLine {
+  line_num: number;
+  text: string;
+  information_tags: string[];
+  decision_notes: string | null;
+}
+
+interface RefinedDataTableProps {
+  refinedLines: RefinedLine[];
+  theme: 'light' | 'dark';
+}
+
+const TagsRenderer: React.FC<ICellRendererParams> = (params) => {
+  const tags = params.value as string[];
+  return (
+    <div className="flex flex-wrap gap-1 py-1">
+      {tags.map((tag, index) => {
+        const isExperiential = tag === 'experiential_content';
+        const isProcedural = tag === 'procedural_information';
+        const isAmbiguous = tag === 'ambiguous_or_mixed';
+        
+        const colorClass = isExperiential ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                          isProcedural ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                          isAmbiguous ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                          'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+        
+        return (
+          <span
+            key={index}
+            className={`text-xs px-2 py-0.5 rounded-full ${colorClass}`}
+          >
+            {tag.replace(/_/g, ' ')}
+          </span>
+        );
+      })}
+    </div>
+  );
+};
+
+export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({ 
+  refinedLines, 
+  theme 
+}) => {
+  const { rowData, columnDefs } = useMemo(() => {
+    const cols: ColDef[] = [
+      { 
+        field: 'line_num', 
+        headerName: 'Line #',
+        width: 80,
+        sortable: true,
+        resizable: false,
+        pinned: 'left',
+        cellClass: 'text-center font-mono text-xs text-light-sidenote dark:text-dark-sidenote'
+      },
+      { 
+        field: 'text', 
+        headerName: 'Text',
+        flex: 2,
+        wrapText: true,
+        autoHeight: true,
+        sortable: false,
+        resizable: true,
+        cellClass: 'py-2'
+      },
+      { 
+        field: 'information_tags', 
+        headerName: 'Information Tags',
+        width: 300,
+        wrapText: true,
+        autoHeight: true,
+        sortable: false,
+        resizable: true,
+        cellRenderer: TagsRenderer
+      },
+      { 
+        field: 'decision_notes', 
+        headerName: 'Decision Notes',
+        flex: 1,
+        wrapText: true,
+        autoHeight: true,
+        sortable: false,
+        resizable: true,
+        cellRenderer: (params: ICellRendererParams) => {
+          if (!params.value) return '';
+          return (
+            <span className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+              {params.value}
+            </span>
+          );
+        }
+      }
+    ];
+    
+    return { rowData: refinedLines, columnDefs: cols };
+  }, [refinedLines]);
+
+  // Define custom styles based on theme
+  const gridStyles = theme === 'dark' ? {
+    '--ag-background-color': '#1a1a1a',
+    '--ag-header-background-color': '#252525',
+    '--ag-odd-row-background-color': '#252525',
+    '--ag-foreground-color': '#e6e6e6',
+    '--ag-header-foreground-color': '#e6e6e6',
+    '--ag-border-color': '#444444',
+    '--ag-row-hover-color': '#333333',
+    '--ag-header-column-resize-handle-color': '#ff6b6b',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-row-border-style': 'solid',
+    '--ag-row-border-width': '1px',
+    '--ag-row-border-color': '#333333',
+  } : {
+    '--ag-background-color': '#faf8f1',
+    '--ag-header-background-color': '#f3f1ea',
+    '--ag-odd-row-background-color': '#f3f1ea',
+    '--ag-foreground-color': '#222222',
+    '--ag-header-foreground-color': '#222222',
+    '--ag-border-color': '#dcd9d0',
+    '--ag-row-hover-color': '#e9e6de',
+    '--ag-header-column-resize-handle-color': '#a00000',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-row-border-style': 'solid',
+    '--ag-row-border-width': '1px',
+    '--ag-row-border-color': '#e0ddd4',
+  };
+
+  return (
+    <div 
+      className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
+      style={{ 
+        height: '600px', 
+        width: '100%',
+        ...gridStyles as React.CSSProperties
+      }}
+    >
+      <AgGridReact
+        rowData={rowData}
+        columnDefs={columnDefs}
+        defaultColDef={{
+          resizable: true,
+          sortable: false
+        }}
+        animateRows={true}
+        domLayout='normal'
+        theme='legacy'
+        rowHeight={undefined}
+        getRowHeight={(params) => {
+          // Dynamic row height based on content
+          const textLength = params.data.text?.length || 0;
+          const hasNotes = params.data.decision_notes?.length || 0;
+          const baseHeight = 50;
+          const extraHeight = Math.floor(textLength / 80) * 20 + (hasNotes ? 20 : 0);
+          return Math.min(baseHeight + extraHeight, 200);
+        }}
+      />
+    </div>
+  );
+};
