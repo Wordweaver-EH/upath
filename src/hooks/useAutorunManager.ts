@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { StepId, StepStatus } from '../../types'
-import { ESSENTIAL_STEPS_FOR_AUTODOWNLOAD, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC } from '../../constants'
+import { ESSENTIAL_STEPS_FOR_AUTODOWNLOAD, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_ORDER_PART_0 } from '../../constants'
 import { useUIStore } from '../stores'
 import { usePipelineStore } from '../stores'
 import { useSettingsStore } from '../stores'
@@ -80,6 +80,17 @@ export const useAutorunManager = () => {
               console.log(`💾 Auto-downloading final report`);
               downloadOutput(StepId.COMPLETE, "final_analysis_report", report);
             }
+        } else if (details.nextStepId === STEP_ORDER_PART_0[0] && details.nextTranscriptIndex === 0) {
+            // Stop autorun after P_NEG1_1 completes for all transcripts
+            console.log(`✅ Part -1 (Variable Identification) complete for all transcripts - stopping autorun`);
+            console.log(`🛑 Autorun stopped (P_NEG1_1 complete)`);
+            setAutorunning(false);
+            // Update the UI to show P_NEG1_1 completion status
+            setCurrentStepInfo({ 
+              stepId: currentStepInfo.stepId, 
+              status: StepStatus.Success, 
+              outputData: "Variable identification complete for all transcripts. Ready to proceed with data preparation." 
+            });
         } else {
             const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId);
             const nextTxId = isNextGlobal ? undefined : rawTranscripts[details.nextTranscriptIndex]?.id;

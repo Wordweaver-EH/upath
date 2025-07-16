@@ -1,5 +1,6 @@
 
-import type { GroundingChunk } from '../types'; // Ensure GroundingChunk types are imported if used
+import type { GroundingChunk } from '../types';
+import { createApiRequestBody, encryptionConfig } from './encryptionService';
 
 const BACKEND_URL = process.env.NODE_ENV === 'production' 
   ? process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001'
@@ -180,13 +181,17 @@ async function performGeminiCall(
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({
-                prompt: effectivePrompt,
-                isJsonOutput,
-                useGrounding,
-                temperature,
-                seed
-            }),
+            body: JSON.stringify(createApiRequestBody(
+                effectivePrompt,
+                true, // Always encrypt prompts for network calls
+                {
+                    model: 'gemini-1.5-flash', // Default model, can be made configurable
+                    isJsonOutput,
+                    useGrounding,
+                    temperature,
+                    seed
+                }
+            )),
         });
 
         if (!response.ok) {

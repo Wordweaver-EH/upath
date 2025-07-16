@@ -1,161 +1,131 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import crypto from 'crypto';
 
-/**
- * Request interface for the /api/analyze endpoint
- * Accepts all parameters needed for Gemini API calls while maintaining
- * compatibility with the existing frontend service interface
- */
 interface AnalyzeRequest {
   Body: {
-    prompt: string;        // Required: The text prompt to send to Gemini
-    model?: string;        // Optional: Gemini model name (defaults to DEFAULT_MODEL)
-    isJsonOutput?: boolean; // Optional: Whether to request JSON response format
-    useGrounding?: boolean; // Optional: Whether to enable Google Search grounding
-    temperature?: number;   // Optional: Response randomness (0.0-1.0)
-    seed?: number;         // Optional: Deterministic seed for reproducible outputs
+    prompt: string;
+    encrypted?: boolean;
+    model?: string;
+    temperature?: number;
+    isJsonOutput?: boolean;
   };
 }
 
-/**
- * Default Gemini model to use when none is specified
- * Should match GEMINI_MODEL_TEXT constant from frontend constants.tsx
- * This ensures consistency across the application
- */
-const DEFAULT_MODEL = 'gemini-2.5-flash-preview-04-17';
+// Encryption functions for prompt security
+export function decryptPrompt(encryptedText: string): string {
+  try {
+    // The encryption key should be stored in environment variables
+    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-key-please-change-in-production';
+    
+    // Pad key to 32 bytes (same as frontend)
+    const keyBuffer = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32));
+    
+    // Split the encrypted text into parts (IV and ciphertext)
+    const textParts = encryptedText.split(':');
+    if (textParts.length < 2) {
+      throw new Error('Invalid encrypted format: Missing IV or ciphertext');
+    }
+    
+    // Extract IV and encrypted data
+    const ivHex = textParts[0];
+    const encryptedData = textParts.slice(1).join(':');
+    
+    // Validate IV (must be 16 bytes / 32 hex chars)
+    if (ivHex.length !== 32 || !/^[0-9a-f]+$/i.test(ivHex)) {
+      throw new Error('Invalid IV format: Must be 32 hex characters');
+    }
+    
+    // Convert IV to Buffer
+    const iv = Buffer.from(ivHex, 'hex');
+    
+    // First try base64 decoding (used by frontend crypto-js)
+    try {
+      // Create decipher with base64 input
+      const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
+      let decrypted = decipher.update(Buffer.from(encryptedData, 'base64'));
+      decrypted = Buffer.concat([decrypted, decipher.final()]);
+      return decrypted.toString('utf8');
+    } catch (base64Error) {
+      // If base64 fails, try hex decoding
+      try {
+        // Create decipher with hex input
+        const decipher = crypto.createDecipheriv('aes-256-cbc', keyBuffer, iv);
+        let decrypted = decipher.update(Buffer.from(encryptedData, 'hex'));
+        decrypted = Buffer.concat([decrypted, decipher.final()]);
+        return decrypted.toString('utf8');
+      } catch (hexError) {
+        // If both attempts fail, log and throw error
+        console.error('Base64 decryption error:', base64Error);
+        console.error('Hex decryption error:', hexError);
+        throw new Error('Failed to decrypt with either base64 or hex format');
+      }
+    }
+  } catch (error) {
+    console.error('Decryption error:', error);
+    throw new Error('Failed to decrypt prompt');
+  }
+}
 
-/**
- * Valid Gemini model names
- * This list should be kept in sync with available models from Google
- * 
- * MAINTENANCE NOTE: When Google releases new models or deprecates old ones,
- * update this list. The frontend constants.tsx file should also be checked
- * to ensure model names are consistent across the application.
- * 
- * Current models as of 2025-07:
- * - gemini-2.5-flash-preview-04-17: Latest preview model (DEFAULT)
- * - gemini-1.5-flash: Fast, efficient model
- * - gemini-1.5-pro: More capable but slower
- * - gemini-pro: Legacy model
- * - gemini-pro-vision: Legacy multimodal model
- */
+const DEFAULT_MODEL = 'gemini-1.5-flash';
+
 const VALID_MODELS = [
-  'gemini-2.5-flash-preview-04-17',
   'gemini-1.5-flash',
   'gemini-1.5-pro',
-  'gemini-pro',
-  'gemini-pro-vision'
+  'gemini-pro'
 ];
 
-/**
- * Registers the /api/analyze route for secure Gemini API proxy
- * 
- * This route acts as a secure proxy between the frontend and Google's Gemini API,
- * ensuring that API keys are never exposed to the client while maintaining
- * full compatibility with the existing frontend service interface.
- * 
- * Security features:
- * - API key stored securely in server environment
- * - Input validation prevents malformed requests
- * - Error handling prevents information leakage
- * - Model parameter validation and defaults
- */
 export default async function analyzeRoute(fastify: FastifyInstance) {
   fastify.post<AnalyzeRequest>('/analyze', async (request: FastifyRequest<AnalyzeRequest>, reply: FastifyReply) => {
-    // Extract parameters with sensible defaults
-    const { prompt, model = DEFAULT_MODEL, isJsonOutput = false, useGrounding = false, temperature = 0.0, seed } = request.body;
-
-    // VALIDATION: Ensure prompt is provided and valid
-    // The prompt is the only required parameter for any Gemini API call
+    const { prompt, encrypted = false, model = DEFAULT_MODEL, isJsonOutput = false, temperature = 0.0 } = request.body;
+    
+    // Basic validation
     if (!prompt || typeof prompt !== 'string') {
-      return reply.status(400).send({
-        error: 'Missing or invalid prompt parameter'
-      });
+      return reply.status(400).send({ error: 'Missing prompt' });
+    }
+    
+    // Handle encrypted prompts
+    let actualPrompt: string;
+    try {
+      actualPrompt = encrypted ? decryptPrompt(prompt) : prompt;
+    } catch (error) {
+      return reply.status(400).send({ error: 'Failed to decrypt prompt' });
     }
 
-    // VALIDATION: Ensure model is valid if provided
-    if (model && !VALID_MODELS.includes(model)) {
-      return reply.status(400).send({
-        error: `Invalid model: ${model}. Valid models are: ${VALID_MODELS.join(', ')}`
-      });
-    }
-
-    // SECURITY: Verify API key is configured on the server
-    // This prevents the server from attempting API calls without credentials
+    // Check API key
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return reply.status(500).send({
-        error: 'API Key not configured on server'
-      });
+      return reply.status(500).send({ error: 'API Key not configured' });
     }
 
     try {
-      // GEMINI API SETUP: Initialize client with server-side API key
+      // Set up Gemini API
       const genAI = new GoogleGenerativeAI(apiKey);
-      const geminiModel = genAI.getGenerativeModel({ model });
+      const geminiModel = genAI.getGenerativeModel({ model: VALID_MODELS.includes(model) ? model : DEFAULT_MODEL });
 
-      // GENERATION CONFIG: Prepare parameters for the API call
-      // These settings control the behavior and output format of the model
-      const generationConfig: any = {
-        temperature,           // Controls randomness (0.0 = deterministic, 1.0 = very random)
-        maxOutputTokens: 8192, // Maximum length of generated response
-      };
-
-      // REPRODUCIBILITY: Add seed for deterministic outputs when provided
-      // This is useful for testing and ensuring consistent results
-      if (seed !== undefined && !isNaN(seed) && seed > 0) {
-        generationConfig.seed = seed;
-      }
-
-      // JSON OUTPUT: Request structured JSON response when needed
-      // Note: JSON mode is disabled when grounding is enabled (Gemini limitation)
-      if (isJsonOutput && !useGrounding) {
+      // Configure request
+      const generationConfig: any = { temperature, maxOutputTokens: 8192 };
+      
+      if (isJsonOutput) {
         generationConfig.responseMimeType = 'application/json';
       }
 
-      // REQUEST PREPARATION: Build the request object for Gemini API
-      const requestOptions: any = {
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig,
-      };
-
-      // GROUNDING: Enable Google Search integration when requested
-      // This allows the model to access current information from web search
-      if (useGrounding) {
-        requestOptions.tools = [{ googleSearchRetrieval: {} }];
-      }
-
-      // API CALL: Execute the request to Gemini API
-      const result = await geminiModel.generateContent(requestOptions);
+      // Make API call
+      const result = await geminiModel.generateContent({
+        contents: [{ role: 'user', parts: [{ text: actualPrompt }] }],
+        generationConfig
+      });
+      
       const response = await result.response;
       const text = response.text();
 
-      // GROUNDING EXTRACTION: Parse grounding sources if available
-      // These provide citations and sources for grounded responses
-      let groundingSources;
-      if (useGrounding && response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-        groundingSources = response.candidates[0].groundingMetadata.groundingChunks;
-      }
-
-      // TOKEN ESTIMATION: Calculate approximate token usage
-      // Uses rough approximation of 1 token ≈ 4 characters (English text)
-      const estimatedInputTokens = Math.ceil(prompt.length / 4);
-      const estimatedOutputTokens = Math.ceil(text.length / 4);
-
-      // SUCCESS RESPONSE: Return processed results to frontend
-      return {
-        text,
-        groundingSources,
-        estimatedInputTokens,
-        estimatedOutputTokens
-      };
+      // Return simplified response
+      return { text };
 
     } catch (error) {
-      // ERROR HANDLING: Log error securely and return safe error message
-      // Prevents information leakage while providing useful debugging info
       fastify.log.error('Gemini API call failed:', error);
       return reply.status(500).send({
-        error: `Gemini API call error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        error: `API error: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     }
   });
