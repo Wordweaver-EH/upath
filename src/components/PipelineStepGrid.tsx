@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { ColDef, ModuleRegistry, ICellRendererParams } from 'ag-grid-community';
+import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { TranscriptProcessedData, StepId } from '../../types';
 import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
@@ -8,6 +8,7 @@ import { TabbedStepDisplay } from './TabbedStepDisplay';
 import { TranscriptLinesTable } from './TranscriptLinesTable';
 import { RefinedDataTable } from './RefinedDataTable';
 import { SelectedUtterancesTable } from './SelectedUtterancesTable';
+import { usePipelineStore } from '../stores/pipelineStore';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -38,6 +39,7 @@ const STEP_GRID_CONFIGS: Partial<Record<StepId, GridConfig>> = {
       return Array.from(processedData.entries())
         .filter(([_, data]) => data.p_neg1_1_output)
         .map(([id, data]) => ({
+          transcriptId: id,
           filename: data.filename,
           independent_variable: data.p_neg1_1_output!.independent_variable_details,
           dependent_variables: data.p_neg1_1_output!.dependent_variable_focus.join(', ')
@@ -49,7 +51,8 @@ const STEP_GRID_CONFIGS: Partial<Record<StepId, GridConfig>> = {
         headerName: 'Filename',
         width: 200,
         sortable: true,
-        resizable: true
+        resizable: true,
+        editable: false
       },
       { 
         field: 'independent_variable', 
@@ -58,7 +61,13 @@ const STEP_GRID_CONFIGS: Partial<Record<StepId, GridConfig>> = {
         wrapText: true,
         autoHeight: true,
         sortable: true,
-        resizable: true
+        resizable: true,
+        editable: true,
+        cellEditor: 'agTextCellEditor',
+        cellEditorParams: {
+          maxLength: 500
+        },
+        cellClass: 'editable-cell'
       },
       { 
         field: 'dependent_variables', 
@@ -67,7 +76,13 @@ const STEP_GRID_CONFIGS: Partial<Record<StepId, GridConfig>> = {
         wrapText: true,
         autoHeight: true,
         sortable: true,
-        resizable: true
+        resizable: true,
+        editable: true,
+        cellEditor: 'agTextCellEditor',
+        cellEditorParams: {
+          maxLength: 500
+        },
+        cellClass: 'editable-cell'
       }
     ]
   }
@@ -112,6 +127,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
   theme 
 }) => {
   const [selectedRow, setSelectedRow] = useState<any>(null);
+  const updateProcessedData = usePipelineStore(state => state.updateProcessedData);
   
   // Special handling for P0_1 with tabbed display
   if (stepId === StepId.P0_1_TRANSCRIPTION_ADHERENCE) {
@@ -336,6 +352,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
     '--ag-header-column-resize-handle-color': '#ff6b6b',
     '--ag-font-family': '"EB Garamond", "et-book", serif',
     '--ag-font-size': '16px',
+    '--ag-cell-horizontal-border': 'solid 1px #444444',
   } : {
     '--ag-background-color': '#faf8f1',
     '--ag-header-background-color': '#f3f1ea',
@@ -347,10 +364,34 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
     '--ag-header-column-resize-handle-color': '#a00000',
     '--ag-font-family': '"EB Garamond", "et-book", serif',
     '--ag-font-size': '16px',
+    '--ag-cell-horizontal-border': 'solid 1px #dcd9d0',
   };
+  
+  // Add editable cell styling
+  const editableStyles = `
+    .editable-cell {
+      cursor: text !important;
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.05)' : 'rgba(160, 0, 0, 0.03)'} !important;
+    }
+    .editable-cell:hover {
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.1)' : 'rgba(160, 0, 0, 0.06)'} !important;
+    }
+    .ag-cell-editing {
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.15)' : 'rgba(160, 0, 0, 0.1)'} !important;
+      border: 2px solid ${theme === 'dark' ? '#ff6b6b' : '#a00000'} !important;
+    }
+  `;
 
   return (
     <div className="space-y-4">
+      {stepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION && (
+        <>
+          <style>{editableStyles}</style>
+          <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+            💡 Click on Independent Variable or Dependent Variables cells to edit them directly. Changes are saved automatically.
+          </div>
+        </>
+      )}
       <div 
         className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
         style={{ 
@@ -375,6 +416,37 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
             }
           }}
           rowSelection={config.expandableContent ? 'single' : undefined}
+          onCellValueChanged={(event: CellValueChangedEvent) => {
+            // Handle cell value changes for P_NEG1_1
+            if (stepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION) {
+              const { data, colDef } = event;
+              const transcriptId = data.transcriptId;
+              const fieldName = colDef.field;
+              
+              if (transcriptId && fieldName) {
+                const transcriptData = processedData.get(transcriptId);
+                if (transcriptData && transcriptData.p_neg1_1_output) {
+                  // Update the appropriate field
+                  const updatedOutput = { ...transcriptData.p_neg1_1_output };
+                  
+                  if (fieldName === 'independent_variable') {
+                    updatedOutput.independent_variable_details = event.newValue || '';
+                  } else if (fieldName === 'dependent_variables') {
+                    // Split the comma-separated string back into an array
+                    updatedOutput.dependent_variable_focus = (event.newValue || '')
+                      .split(',')
+                      .map((s: string) => s.trim())
+                      .filter((s: string) => s.length > 0);
+                  }
+                  
+                  // Update the store
+                  updateProcessedData(transcriptId, {
+                    p_neg1_1_output: updatedOutput
+                  });
+                }
+              }
+            }
+          }}
         />
       </div>
       
