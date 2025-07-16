@@ -159,7 +159,8 @@ const App: React.FC = () => {
     userDvFocus,
     outputDirectory,
     temperature,
-    seed
+    seed,
+    apiKeyPresent
   } = useSettingsStore();
   
   // IRR Store - consolidated selector
@@ -223,9 +224,20 @@ const App: React.FC = () => {
   }, [processSingleStep])
   
   // Get actions from the store
-  const handlePipelineStepClick = usePipelineStore(state => state.handlePipelineStepClick);
+  const handlePipelineStepClickRaw = usePipelineStore(state => state.handlePipelineStepClick);
   const clearShouldStopAutorunFlag = usePipelineStore(state => state.clearShouldStopAutorunFlag);
   const clearLastHilContext = usePipelineStore(state => state.clearLastHilContext);
+  
+  // Wrapper to provide activeTranscriptIndex
+  const handlePipelineStepClick = (stepId: StepId) => {
+    const settings = {
+      apiKey: apiKeyPresent ? 'test-key' : '', // In real app, use actual key
+      temperature,
+      seed,
+      userDvFocus
+    };
+    handlePipelineStepClickRaw(stepId, settings, activeTranscriptIndex);
+  };
   
   // Listen for pipeline state changes to update UI
   useEffect(() => {

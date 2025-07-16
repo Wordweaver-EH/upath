@@ -156,7 +156,7 @@ interface PipelineActions {
   isGlobalStep: (stepId: StepId) => boolean
   loadStepData: (stepId: StepId, transcriptId?: string, phaseId?: string, gduId?: string) => any
   getStepStatusForPipelineView: (stepId: StepId, transcriptId?: string, phaseId?: string, gduId?: string) => StepStatus
-  handlePipelineStepClick: (clickedStepId: StepId, settings: SettingsData) => void
+  handlePipelineStepClick: (clickedStepId: StepId, settings: SettingsData, activeTranscriptIndex: number) => void
   // State cleanup actions
   clearShouldStopAutorunFlag: () => void
   clearLastHilContext: () => void
@@ -1725,7 +1725,7 @@ export const usePipelineStore = create<PipelineStore>()(
         return { status, error }
       },
       
-      handlePipelineStepClick: (clickedStepId: StepId, settings: SettingsData) => {
+      handlePipelineStepClick: (clickedStepId: StepId, settings: SettingsData, activeTranscriptIndex: number) => {
         const { rawTranscripts, processedData, uiCallbacks } = get()
         
         // Use injected UI callbacks instead of direct store access
@@ -1771,7 +1771,8 @@ export const usePipelineStore = create<PipelineStore>()(
             phaseId: phaseNav,
             gduId: gduNav,
             status: data.error ? StepStatus.Error : (data.outputData ? StepStatus.Success : StepStatus.Idle),
-            error: data.error
+            error: data.error,
+            outputData: data.outputData
           })
         }
       },

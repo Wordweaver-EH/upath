@@ -68,7 +68,7 @@ describe('App Store Orchestration', () => {
       userDvFocus: { dv_focus: ['test'] }
     };
     
-    pipelineStore.handlePipelineStepClick('P0_1', mockSettings);
+    pipelineStore.handlePipelineStepClick('P0_1', mockSettings, 0);
     
     // UI methods should have been called via injected callbacks
     expect(mockSetAutorunning).toHaveBeenCalled();
@@ -93,7 +93,7 @@ describe('App Store Orchestration', () => {
     }).not.toThrow();
     
     expect(() => {
-      pipelineStore.handlePipelineStepClick('P0_1', testSettings);
+      pipelineStore.handlePipelineStepClick('P0_1', testSettings, 0);
     }).not.toThrow();
   });
 });
