@@ -660,116 +660,39 @@ export interface StepConfig {
 
 type ConfigMap = { [key in StepId]?: StepConfig };
 
-export const STEP_ORDER_PART_NEG1 = [StepId.P_NEG1_1_VARIABLE_IDENTIFICATION];
-export const STEP_ORDER_PART_0 = [StepId.P0_1_TRANSCRIPTION_ADHERENCE, StepId.P0_2_REFINE_DATA_TYPES, StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES];
-export const STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC = [StepId.P1_1_INITIAL_SEGMENTATION, StepId.P1_2_DIACHRONIC_UNIT_ID, StepId.P1_3_REFINE_DIACHRONIC_UNITS, StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE];
-export const STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC = [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC, StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS, StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE];
-export const STEP_ORDER_PART_3_GENERIC_DIACHRONIC = [StepId.P3_1_ALIGN_STRUCTURES, StepId.P3_2_IDENTIFY_GDUS, StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE];
-export const STEP_ORDER_PART_4_GENERIC_SYNCHRONIC = [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS];
-export const STEP_ORDER_PART_5_REFINEMENT = [
-  StepId.P5_1_IV_COMPARATIVE_ANALYSIS,
-  StepId.P5_2_HOLISTIC_REFINEMENT
-];
-export const STEP_ORDER_PART_7_CAUSAL_MODELING = [
-  StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION,
-  StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS,
-  StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS,
-  StepId.P7_3B_VALIDATE_AND_CLEAN_DAG,
-  StepId.P7_4_ANALYZE_PATHS_AND_BIASES,
-  StepId.P7_5_GENERATE_FORMAL_HYPOTHESES
-];
-export const STEP_ORDER_PART_6_REPORT = [StepId.P6_1_GENERATE_MARKDOWN_REPORT];
+// Import step ordering and configuration from centralized pipeline definition
+import {
+  STEP_ORDER_PART_NEG1,
+  STEP_ORDER_PART_0,
+  STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC,
+  STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC,
+  STEP_ORDER_PART_3_GENERIC_DIACHRONIC,
+  STEP_ORDER_PART_4_GENERIC_SYNCHRONIC,
+  STEP_ORDER_PART_5_REFINEMENT,
+  STEP_ORDER_PART_7_CAUSAL_MODELING,
+  STEP_ORDER_PART_6_REPORT,
+  ALL_PIPELINE_STEP_IDS_IN_ORDER,
+  ESSENTIAL_STEPS_FOR_AUTODOWNLOAD,
+  STEP_DISPLAY_NAMES,
+  getStepDisplayName
+} from './src/config/pipelineDefinition';
 
-// User-friendly display names for pipeline steps (hides confusing technical naming)
-export const STEP_DISPLAY_NAMES: Record<StepId, string> = {
-  // Part 1: Variable Identification
-  [StepId.P_NEG1_1_VARIABLE_IDENTIFICATION]: "1. Variable Identification",
-  
-  // Part 2: Data Preparation  
-  [StepId.P0_1_TRANSCRIPTION_ADHERENCE]: "2. Transcript Preparation",
-  [StepId.P0_2_REFINE_DATA_TYPES]: "3. Data Type Refinement", 
-  [StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]: "4. Utterance Selection",
-  
-  // Part 3: Temporal Analysis
-  [StepId.P1_1_INITIAL_SEGMENTATION]: "5. Initial Segmentation",
-  [StepId.P1_2_DIACHRONIC_UNIT_ID]: "6. Temporal Unit Identification", 
-  [StepId.P1_3_REFINE_DIACHRONIC_UNITS]: "7. Temporal Unit Refinement",
-  [StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "8. Temporal Structure",
-  
-  // Part 4: Synchronic Analysis
-  [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "9. Topic Grouping",
-  [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "10. Synchronic Units",
-  [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "11. Synchronic Structure",
-  
-  // Part 5: Cross-Transcript Analysis  
-  [StepId.P3_1_ALIGN_STRUCTURES]: "12. Structure Alignment",
-  [StepId.P3_2_IDENTIFY_GDUS]: "13. Generic Unit Identification",
-  [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "14. Generic Structure",
-  
-  // Part 6: Generic Synchronic Analysis
-  [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES]: "15. Node Identification", 
-  [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: "16. Generic Synchronic Groups",
-  
-  // Part 7: Refinement
-  [StepId.P5_1_IV_COMPARATIVE_ANALYSIS]: "17. Comparative Analysis",
-  [StepId.P5_2_HOLISTIC_REFINEMENT]: "18. Holistic Refinement",
-  
-  // Part 8: Causal Modeling
-  [StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION]: "19. Variable Formalization",
-  [StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS]: "20. Causal Links",
-  [StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS]: "21. Causal Diagram",
-  [StepId.P7_3B_VALIDATE_AND_CLEAN_DAG]: "22. Diagram Validation", 
-  [StepId.P7_4_ANALYZE_PATHS_AND_BIASES]: "23. Path Analysis",
-  [StepId.P7_5_GENERATE_FORMAL_HYPOTHESES]: "24. Hypothesis Generation",
-  
-  // Part 9: Final Report
-  [StepId.P6_1_GENERATE_MARKDOWN_REPORT]: "25. Final Report",
-  
-  // Meta states
-  [StepId.IDLE]: "Ready",
-  [StepId.COMPLETE]: "Complete"
+// Re-export for backward compatibility
+export {
+  STEP_ORDER_PART_NEG1,
+  STEP_ORDER_PART_0,
+  STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC,
+  STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC,
+  STEP_ORDER_PART_3_GENERIC_DIACHRONIC,
+  STEP_ORDER_PART_4_GENERIC_SYNCHRONIC,
+  STEP_ORDER_PART_5_REFINEMENT,
+  STEP_ORDER_PART_7_CAUSAL_MODELING,
+  STEP_ORDER_PART_6_REPORT,
+  ALL_PIPELINE_STEP_IDS_IN_ORDER,
+  ESSENTIAL_STEPS_FOR_AUTODOWNLOAD,
+  STEP_DISPLAY_NAMES,
+  getStepDisplayName
 };
-
-// Helper function to get user-friendly step name
-export function getStepDisplayName(stepId: StepId): string {
-  return STEP_DISPLAY_NAMES[stepId] || stepId;
-}
-
-export const ALL_PIPELINE_STEP_IDS_IN_ORDER: StepId[] = [
-    ...STEP_ORDER_PART_NEG1,
-    ...STEP_ORDER_PART_0,
-    ...STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC,
-    ...STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC,
-    ...STEP_ORDER_PART_3_GENERIC_DIACHRONIC,
-    ...STEP_ORDER_PART_4_GENERIC_SYNCHRONIC,
-    ...STEP_ORDER_PART_5_REFINEMENT,
-    ...STEP_ORDER_PART_7_CAUSAL_MODELING,
-    ...STEP_ORDER_PART_6_REPORT,
-    StepId.COMPLETE, // Represents the final state after all processing
-];
-
-export const ESSENTIAL_STEPS_FOR_AUTODOWNLOAD: StepId[] = [
-  // Part 0
-  StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
-  // Part I
-  StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
-  // Part II_S (Note: P2S_3 output is per phase, handled in App.tsx)
-  StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
-  // Part III
-  StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE,
-  // Part IV_S (Note: P4S_1_B output is per GDU, handled in App.tsx)
-  StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS,
-  // Part V
-  StepId.P5_1_IV_COMPARATIVE_ANALYSIS,
-  StepId.P5_2_HOLISTIC_REFINEMENT,
-  // Part VII
-  StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS, // Initial DAG
-  StepId.P7_3B_VALIDATE_AND_CLEAN_DAG, // Cleaned DAG
-  StepId.P7_5_GENERATE_FORMAL_HYPOTHESES,
-  // Part VI
-  StepId.P6_1_GENERATE_MARKDOWN_REPORT,
-  StepId.COMPLETE, // Final report if auto-download enabled
-];
 
 const CAUSAL_INFERENCE_GLOSSARY_TEXT = `
 Causal Inference Glossary for Reference:
