@@ -120,21 +120,47 @@ export const useAutorunManager = () => {
       console.log(`🛑 Autorun stopped (error)`);
       setAutorunning(false);
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Idle && rawTranscripts.length > 0) {
-      console.log(`🚀 Autorun starting from Idle - beginning first step`);
-      const firstStepId = StepId.P_NEG1_1_VARIABLE_IDENTIFICATION;
-      const firstTranscriptId = rawTranscripts[0]?.id;
-      console.log(`- Starting with: ${firstStepId}`);
-      console.log(`- First transcript: ${firstTranscriptId}`);
-      processSingleStep({ 
-        stepId: firstStepId, 
-        transcriptIdToProcess: firstTranscriptId,
-        settings: {
-          apiKey,
-          temperature,
-          seed,
-          userDvFocus
-        }
-      });
+      console.log(`🚀 Autorun starting from Idle - checking for resume point`);
+      
+      // Check if we should resume from a previous point by getting next step details
+      // This handles the case where the pipeline was paused and we're resuming
+      const resumeDetails = getNextStepDetails({ stepId: StepId.IDLE, status: StepStatus.Idle }, activeTranscriptIndex);
+      
+      if (resumeDetails) {
+        console.log(`📍 Resuming from: ${resumeDetails.nextStepId} (transcript index: ${resumeDetails.nextTranscriptIndex})`);
+        setActiveTranscript(resumeDetails.nextTranscriptIndex);
+        
+        const isResumeGlobal = isGlobalStep(resumeDetails.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(resumeDetails.nextStepId);
+        const resumeTxId = isResumeGlobal ? undefined : rawTranscripts[resumeDetails.nextTranscriptIndex]?.id;
+        
+        processSingleStep({ 
+          stepId: resumeDetails.nextStepId, 
+          transcriptIdToProcess: resumeTxId,
+          settings: {
+            apiKey,
+            temperature,
+            seed,
+            userDvFocus
+          }
+        });
+      } else {
+        // Only start from beginning if no progress has been made
+        console.log(`🆕 Starting fresh from first step`);
+        const firstStepId = StepId.P_NEG1_1_VARIABLE_IDENTIFICATION;
+        const firstTranscriptId = rawTranscripts[0]?.id;
+        console.log(`- Starting with: ${firstStepId}`);
+        console.log(`- First transcript: ${firstTranscriptId}`);
+        processSingleStep({ 
+          stepId: firstStepId, 
+          transcriptIdToProcess: firstTranscriptId,
+          settings: {
+            apiKey,
+            temperature,
+            seed,
+            userDvFocus
+          }
+        });
+      }
     } else {
       console.log(`⏸️ Autorun conditions not met`);
       console.log(`- isAutorunning: ${isAutorunning}`);
