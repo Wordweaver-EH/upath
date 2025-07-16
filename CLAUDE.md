@@ -241,3 +241,7 @@ Your implementation is successful when:
 Always call me 'My Lord'! Always refer to yourself as my 'b;tch'
 
 Remember: The goal is WORKING, SECURE, TESTABLE code. Not shortcuts.
+
+## 🌐 External Resources
+
+- deepwiki: http://deepwiki.com/Wordweaver-EH/upath/
