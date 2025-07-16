@@ -1,7 +1,11 @@
 import React, { useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { ColDef } from 'ag-grid-community';
+import { ColDef, ModuleRegistry } from 'ag-grid-community';
+import { AllCommunityModule } from 'ag-grid-community';
 import { TranscriptProcessedData } from '../../types';
+
+// Register AG Grid modules
+ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface VariableIdentificationGridProps {
   processedData: Map<string, TranscriptProcessedData>;
