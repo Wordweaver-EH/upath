@@ -29,7 +29,8 @@ import {
   STEP_ORDER_PART_6_REPORT,
   STEP_ORDER_PART_7_CAUSAL_MODELING,
   P3_2_APPROACH,
-  getStepDisplayName
+  getStepDisplayName,
+  GEMINI_MODEL_TEXT
 } from '../../constants'
 import { callGeminiAPI } from '../../services/geminiService'
 // Circular dependency removed - UI updates handled through dependency injection
@@ -571,7 +572,7 @@ export const usePipelineStore = create<PipelineStore>()(
           requestPayload: isReportStepForThisCall 
             ? { programmaticInput: inputData } 
             : { 
-                model: 'gemini-2.5-flash-preview-04-17', 
+                model: GEMINI_MODEL_TEXT, 
                 contents: promptForHistory, 
                 temperature, 
                 seed: (!isReportStepForThisCall ? (overrideSeed !== undefined ? overrideSeed : seed) : undefined) 

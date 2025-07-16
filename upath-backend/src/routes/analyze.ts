@@ -67,9 +67,10 @@ export function decryptPrompt(encryptedText: string): string {
   }
 }
 
-const DEFAULT_MODEL = 'gemini-1.5-flash';
+const DEFAULT_MODEL = 'gemini-2.5-flash';
 
 const VALID_MODELS = [
+  'gemini-2.5-flash',
   'gemini-1.5-flash',
   'gemini-1.5-pro',
   'gemini-pro'

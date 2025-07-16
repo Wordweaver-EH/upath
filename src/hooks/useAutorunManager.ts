@@ -81,33 +81,21 @@ export const useAutorunManager = () => {
               downloadOutput(StepId.COMPLETE, "final_analysis_report", report);
             }
         } else {
-            // Check if we're crossing a major part boundary
-            const currentPart = STEP_CONFIGS[currentStepInfo.stepId]?.part;
-            const nextPart = STEP_CONFIGS[details.nextStepId]?.part;
-            
-            if (currentPart && nextPart && currentPart !== nextPart) {
-              console.log(`🎯 Major boundary detected: ${currentPart} → ${nextPart}`);
-              console.log(`✅ ${currentPart} complete - pausing autorun for review`);
-              console.log(`🛑 Autorun stopped (part boundary)`);
-              setAutorunning(false);
-              // Don't change currentStepInfo - leave it on the last successful step
-            } else {
-              const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId);
-              const nextTxId = isNextGlobal ? undefined : rawTranscripts[details.nextTranscriptIndex]?.id;
-              console.log(`🚀 Processing next step: ${details.nextStepId}`);
-              console.log(`- Is global step: ${isNextGlobal}`);
-              console.log(`- Transcript ID: ${nextTxId || 'N/A (global)'}`);
-              processSingleStep({ 
-                stepId: details.nextStepId, 
-                transcriptIdToProcess: nextTxId,
-                settings: {
-                  apiKey,
-                  temperature,
-                  seed,
-                  userDvFocus
-                }
-              });
-            }
+            const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId);
+            const nextTxId = isNextGlobal ? undefined : rawTranscripts[details.nextTranscriptIndex]?.id;
+            console.log(`🚀 Processing next step: ${details.nextStepId}`);
+            console.log(`- Is global step: ${isNextGlobal}`);
+            console.log(`- Transcript ID: ${nextTxId || 'N/A (global)'}`);
+            processSingleStep({ 
+              stepId: details.nextStepId, 
+              transcriptIdToProcess: nextTxId,
+              settings: {
+                apiKey,
+                temperature,
+                seed,
+                userDvFocus
+              }
+            });
         }
       } else if (currentStepInfo.stepId !== StepId.COMPLETE && genericAnalysisState.isReportGenerated) { 
         console.log(`📋 No next step details but report is generated - completing`);

@@ -5,7 +5,7 @@ import { StepId, UserDVFocus, SelectedUtterance, RawTranscript, TranscriptProces
 import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './src/utils/htmlHelper'; // For P6.1 input
 import { ReportData } from './src/utils/reportHelper'; // Ensure this matches the actual path if different
 
-export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash-preview-04-17';
+export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash';
 
 // Feature flag for P3_2 implementation approach
 export const P3_2_APPROACH = process.env.REACT_APP_P3_2_APPROACH || 'original';
