@@ -33,7 +33,7 @@ import { Button } from './src/components/ui';
 import { MoonIcon, SunIcon } from './src/components/ui/Icons';
 import IRRModal from './src/components/IRRModal';
 import GduMappingModal from './src/components/GduMappingModal';
-import { BucketingModal } from './src/components/BucketingModal';
+import { P_NEG1_1_VariableDisplay } from './src/components/P_NEG1_1_VariableDisplay';
 import { AppLoadingScreen } from './src/components/AppLoadingScreen';
 import { SessionRestoreNotification } from './src/components/SessionRestoreNotification';
 
@@ -197,14 +197,11 @@ const App: React.FC = () => {
     elapsedTime,
     hilUserGuidance,
     hilContext,
-    isBucketingModalOpen,
     setAutorunning,
     openHilModal,
     closeHilModal,
     setHilUserGuidance,
     setCurrentStepInfo,
-    openBucketingModal,
-    closeBucketingModal,
     hasRehydrated,
     sessionWasRestored
   } = useUIStore();
@@ -232,8 +229,7 @@ const App: React.FC = () => {
     userDvFocus,
     outputDirectory,
     temperature,
-    seed,
-    setBucketingConfig
+    seed
   } = useSettingsStore();
   
   // IRR Store - consolidated selector
@@ -346,12 +342,6 @@ const App: React.FC = () => {
 
     const handleHilSubmit = useUIStore(state => state.handleHilSubmit);
 
-    // Bucketing configuration handler
-    const handleBucketingConfiguration = (enabled: boolean, ivField: 'suggestion' | 'score', eventField: 'suggestion' | 'score') => {
-      console.log(`🎯 [App.tsx] Configuring bucketing: enabled=${enabled}, IV=${ivField}, Event=${eventField}`);
-      setBucketingConfig(enabled, ivField, eventField);
-    };
-
   // Use selector for output display logic
   const stepDisplay = selectCurrentStepDisplay(currentStepInfo, rawTranscripts.length);
   
@@ -371,6 +361,10 @@ const App: React.FC = () => {
       
       case 'report':
         return <ReportRenderer markdown={stepDisplay.markdown} theme={theme} />;
+      
+      case 'variable_table':
+        // Render the table directly in the output area instead of JSON
+        return <P_NEG1_1_VariableDisplay />;
       
       case 'output':
         if (typeof stepDisplay.data === 'object' && stepDisplay.data !== null) {
@@ -454,11 +448,6 @@ const App: React.FC = () => {
       <HilModal
         onSubmit={handleHilSubmit}
         getHilPreviousResponseDisplay={() => getHilPreviousResponseDisplay(hilContext)}
-      />
-      <BucketingModal
-        isOpen={isBucketingModalOpen}
-        onClose={closeBucketingModal}
-        onConfigureBucketing={handleBucketingConfiguration}
       />
     </div>
     </>

@@ -19,9 +19,6 @@ interface UIState {
   hilContext: HilContext | null
   hilUserGuidance: string
   
-  // Bucketing Modal
-  isBucketingModalOpen: boolean
-  
   // Retry UI
   retrySeedInput: string
   
@@ -63,10 +60,6 @@ interface UIActions {
   closeHilModal: () => void
   setHilUserGuidance: (guidance: string) => void
   handleHilSubmit: () => Promise<void>
-  
-  // Bucketing Modal
-  openBucketingModal: () => void
-  closeBucketingModal: () => void
   
   // Retry UI
   setRetrySeedInput: (value: string) => void
@@ -118,7 +111,6 @@ export const useUIStore = create<UIStore>()(
     isHilModalOpen: false,
     hilContext: null,
     hilUserGuidance: '',
-    isBucketingModalOpen: false,
     retrySeedInput: '',
     theme: getInitialTheme(),
     isDraggingOver: false,
@@ -258,15 +250,6 @@ export const useUIStore = create<UIStore>()(
     
     setHilUserGuidance: (guidance: string) => {
       set({ hilUserGuidance: guidance })
-    },
-    
-    // Bucketing Modal Actions
-    openBucketingModal: () => {
-      set({ isBucketingModalOpen: true })
-    },
-    
-    closeBucketingModal: () => {
-      set({ isBucketingModalOpen: false })
     },
     
     // Retry UI Actions

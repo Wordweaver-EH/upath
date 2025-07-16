@@ -432,17 +432,25 @@ export class ModularPipelineService {
       return false;
     }
 
-    // Check if any transcripts have valid header data
+    // Check if any transcripts have discovered variables OR legacy header data
     const { processedData } = this.dependencies.getTranscriptData();
-    let hasValidHeaders = false;
+    let hasValidData = false;
     
     processedData.forEach((transcriptData) => {
-      if (transcriptData.p_neg1_1_output?.parsed_header) {
-        hasValidHeaders = true;
+      const output = transcriptData.p_neg1_1_output;
+      if (output) {
+        // Check for new discovered_variables array
+        if (output.discovered_variables && output.discovered_variables.length > 0) {
+          hasValidData = true;
+        }
+        // Also check legacy parsed_header for backward compatibility
+        else if (output.parsed_header) {
+          hasValidData = true;
+        }
       }
     });
 
-    return hasValidHeaders;
+    return hasValidData;
   }
 
   /**

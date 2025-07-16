@@ -3,6 +3,10 @@ import ReactDOM from 'react-dom/client';
 import { App } from './App'; // Changed to named import
 import mermaid from 'mermaid'; // Import mermaid from node_modules
 
+// Import AG Grid styles
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-material.css';
+
 // Extend window interface for globalMermaidInstance and reinitializeMermaidTheme
 declare global {
   interface Window {

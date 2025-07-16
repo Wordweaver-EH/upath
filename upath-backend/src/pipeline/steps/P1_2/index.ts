@@ -36,3 +36,7 @@ export * from './types';
 
 // Export individual functions for testing
 export { stepConfig, getInput, generatePrompt, parseOutput };
+
+// Auto-register step
+import { stepRegistry } from '../../core/registry';
+stepRegistry.register(P1_2_StepModule);

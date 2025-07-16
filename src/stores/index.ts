@@ -65,6 +65,7 @@ export {
 export const selectCurrentStepDisplay = (currentStepInfo: CurrentStepInfo, transcriptCount: number) => {
   const { stepId, status, error } = currentStepInfo
 
+  // 1. Handle wrapper states first (loading, error, initial empty state)
   if (status === 'loading') {
     return { type: 'loading', message: 'Processing...' }
   }
@@ -77,5 +78,39 @@ export const selectCurrentStepDisplay = (currentStepInfo: CurrentStepInfo, trans
     return { type: 'empty', message: 'Upload transcripts to begin analysis' }
   }
 
-  return { type: 'content' }
+  // 2. Handle content-specific display types based on stepId
+  // For now, we need to get the actual output data from stores
+  // This is a temporary solution until proper data flow is established
+  const processedData = useTranscriptStore.getState().processedData
+  const genericAnalysisState = useAnalysisResultStore.getState().genericAnalysisState
+  
+  // Special case for P_NEG1_1 - show editable table instead of JSON
+  if (stepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION) {
+    return { type: 'variable_table' }
+  }
+
+  // Handle Mermaid diagram steps
+  const mermaidSteps = [
+    StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
+    StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
+    StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE,
+    StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS,
+    StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS,
+    StepId.P7_3B_VALIDATE_AND_CLEAN_DAG
+  ]
+  
+  if (mermaidSteps.includes(stepId)) {
+    // TODO: Extract mermaid syntax from appropriate location
+    return { type: 'mermaid', chart: '' }
+  }
+
+  // Handle report steps
+  if (stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT || stepId === StepId.COMPLETE) {
+    // TODO: Extract report content
+    return { type: 'report', markdown: '' }
+  }
+
+  // Default to JSON output for other steps
+  // TODO: Extract actual output data
+  return { type: 'output', data: {} }
 }

@@ -26,6 +26,10 @@ export const P_NEG1_1_StepModule: StepModule = {
   parseOutput,
 };
 
+// Auto-register step
+import { stepRegistry } from '../../core/registry';
+stepRegistry.register(P_NEG1_1_StepModule);
+
 // Export types for external use
 export * from './types';
 

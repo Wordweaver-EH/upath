@@ -50,7 +50,31 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): P_NEG1_1_Ou
       }
     }
 
-    // Validate optional parsed_header field (for bucketing support)
+    // Validate optional discovered_variables array (for dynamic variable discovery)
+    if (parsedData.discovered_variables !== undefined) {
+      if (!Array.isArray(parsedData.discovered_variables)) {
+        validationErrors.push('discovered_variables must be an array if present');
+      } else {
+        // Validate each discovered variable
+        parsedData.discovered_variables.forEach((variable: any, index: number) => {
+          if (typeof variable !== 'object' || variable === null) {
+            validationErrors.push(`discovered_variables[${index}] must be an object`);
+          } else {
+            if (!variable.name || typeof variable.name !== 'string') {
+              validationErrors.push(`discovered_variables[${index}].name must be a non-empty string`);
+            }
+            if (!variable.value || typeof variable.value !== 'string') {
+              validationErrors.push(`discovered_variables[${index}].value must be a non-empty string`);
+            }
+            if (variable.confidence !== undefined && (typeof variable.confidence !== 'number' || variable.confidence < 0 || variable.confidence > 1)) {
+              validationErrors.push(`discovered_variables[${index}].confidence must be a number between 0 and 1 if present`);
+            }
+          }
+        });
+      }
+    }
+
+    // Validate optional parsed_header field (for backward compatibility)
     if (parsedData.parsed_header !== undefined) {
       if (typeof parsedData.parsed_header !== 'object' || parsedData.parsed_header === null) {
         validationErrors.push('parsed_header must be an object if present');
@@ -83,7 +107,16 @@ export const parseOutput: ParseOutputFunction = (rawOutput: string): P_NEG1_1_Ou
       dependent_variable_focus: parsedData.dependent_variable_focus.map((item: string) => item.trim()),
     };
 
-    // Add parsed_header if present (for bucketing support)
+    // Add discovered_variables if present (for dynamic variable discovery)
+    if (parsedData.discovered_variables && Array.isArray(parsedData.discovered_variables)) {
+      output.discovered_variables = parsedData.discovered_variables.map((variable: any) => ({
+        name: variable.name.trim(),
+        value: variable.value.trim(),
+        confidence: variable.confidence !== undefined ? variable.confidence : undefined
+      }));
+    }
+
+    // Add parsed_header if present (for backward compatibility)
     if (parsedData.parsed_header) {
       output.parsed_header = {
         iv_value: parsedData.parsed_header.iv_value.trim(),

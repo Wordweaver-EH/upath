@@ -57,11 +57,6 @@ export const useStoreActions = () => {
         }
       });
 
-      // Check if we should show bucketing modal
-      if (result.shouldOfferBucketing) {
-        useUIStore.getState().openBucketingModal();
-      }
-
       return result;
     },
     

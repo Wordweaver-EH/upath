@@ -29,6 +29,10 @@ export const P0_1_StepModule: StepModule = {
   // Not used in prototype for this step
 };
 
+// Auto-register step
+import { stepRegistry } from '../../core/registry';
+stepRegistry.register(P0_1_StepModule);
+
 // Export types for external use
 export * from './types';
 

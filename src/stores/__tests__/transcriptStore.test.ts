@@ -59,7 +59,7 @@ describe('TranscriptStore', () => {
       expect(state.rawTranscripts).toHaveLength(1);
       expect(state.rawTranscripts[0]).toMatchObject({
         id: expect.any(String),
-        name: 'test.txt',
+        filename: 'test.txt',
         content: mockFileContent,
         uploadedAt: expect.any(Number)
       });
@@ -75,8 +75,8 @@ describe('TranscriptStore', () => {
       
       const state = useTranscriptStore.getState();
       expect(state.rawTranscripts).toHaveLength(2);
-      expect(state.rawTranscripts[0].name).toBe('file1.txt');
-      expect(state.rawTranscripts[1].name).toBe('file2.txt');
+      expect(state.rawTranscripts[0].filename).toBe('file1.txt');
+      expect(state.rawTranscripts[1].filename).toBe('file2.txt');
     });
 
     test('should remove transcript by id', () => {

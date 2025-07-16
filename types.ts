@@ -11,6 +11,7 @@
 export type {
   // Part -1: Variable Identification
   P_NEG1_1_Output,
+  DiscoveredVariable,
   
   // Part 0: Data Preparation Output Types
   P0_1_Output,
