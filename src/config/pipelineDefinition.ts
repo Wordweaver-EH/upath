@@ -25,6 +25,45 @@ import {
 export type IterationType = 'per-transcript' | 'per-phase' | 'per-gdu' | 'global'
 
 /**
+ * Process state for explicit pipeline execution tracking
+ */
+export interface ProcessState {
+  status: 'idle' | 'running' | 'paused' | 'complete' | 'error'
+  currentPartIndex: number
+  currentStepIndex: number
+  iterationContext: {
+    transcriptIndex?: number
+    phaseIndex?: number
+    gduIndex?: number
+  }
+  resumeCheckpoint?: {
+    partIndex: number
+    stepIndex: number
+    iterationContext: {
+      transcriptIndex?: number
+      phaseIndex?: number
+      gduIndex?: number
+    }
+  }
+  lastError?: {
+    stepId: StepId
+    error: string
+    timestamp: number
+  }
+}
+
+/**
+ * Next step information returned by orchestrator
+ */
+export interface NextStepInfo {
+  nextStepId: StepId
+  nextTranscriptIndex?: number
+  nextPhaseIndex?: number
+  nextGduIndex?: number
+  iterationType: IterationType
+}
+
+/**
  * Pipeline part definition with metadata
  */
 export interface PipelinePart {

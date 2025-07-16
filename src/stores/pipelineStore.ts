@@ -16,6 +16,7 @@ import {
   CurrentStepInfo,
   HilContext
 } from '../../types'
+import { ProcessState } from '../config/pipelineDefinition'
 import { 
   STEP_CONFIGS, 
   ALL_PIPELINE_STEP_IDS_IN_ORDER,
@@ -80,6 +81,11 @@ interface GenericAnalysisSlice {
 interface DependencyInjectionSlice {
   uiCallbacks?: UICallbacks
   setUICallbacks: (callbacks: UICallbacks) => void
+}
+interface ProcessSlice {
+  processState: ProcessState
+  updateProcessState: (updates: Partial<ProcessState>) => void
+  setProcessState: (state: ProcessState) => void
 }
 
 interface PromptSlice {
@@ -173,7 +179,7 @@ interface PipelineSelectors {
   getStepStatusForPipelineView: (stepId: StepId, uiState?: { currentStepInfo: CurrentStepInfo; activeTranscriptIndex: number }) => { status: StepStatus; error?: string }
 }
 
-type PipelineState = TranscriptSlice & GenericAnalysisSlice & PromptSlice & DependencyInjectionSlice
+type PipelineState = TranscriptSlice & GenericAnalysisSlice & PromptSlice & DependencyInjectionSlice & ProcessSlice
 type PipelineStore = PipelineState & PipelineActions & PipelineSelectors
 
 // UI updates are now handled through state changes that App.tsx listens to
@@ -307,6 +313,27 @@ const createDependencyInjectionSlice = (set: any, get: any): DependencyInjection
   }
 })
 
+const createProcessSlice = (set: any, get: any): ProcessSlice => ({
+  processState: {
+    status: 'idle',
+    currentPartIndex: -1,
+    currentStepIndex: -1,
+    iterationContext: {}
+  },
+  
+  updateProcessState: (updates: Partial<ProcessState>) => {
+    set((state: PipelineState) => {
+      state.processState = { ...state.processState, ...updates }
+    })
+  },
+  
+  setProcessState: (newState: ProcessState) => {
+    set((state: PipelineState) => {
+      state.processState = newState
+    })
+  }
+})
+
 // Main store
 export const usePipelineStore = create<PipelineStore>()(
   subscribeWithSelector(
@@ -316,6 +343,7 @@ export const usePipelineStore = create<PipelineStore>()(
       ...createGenericAnalysisSlice(set, get),
       ...createPromptSlice(set, get),
       ...createDependencyInjectionSlice(set, get),
+      ...createProcessSlice(set, get),
       
       // Main pipeline orchestrator - integrated from pipelineActions.ts
       processSingleStep: async (params) => {
