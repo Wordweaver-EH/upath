@@ -3,6 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { TagsEditor } from './TagsEditor';
+import { convertToCSV, downloadCSV } from '../utils/csvExport';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -184,11 +185,31 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
     }
   `;
 
+  const handleDownloadCSV = () => {
+    const columns = [
+      { field: 'line_num', headerName: 'Line #' },
+      { field: 'speaker', headerName: 'Speaker' },
+      { field: 'text', headerName: 'Text' },
+      { field: 'information_tags', headerName: 'Information Tags' },
+      { field: 'decision_notes', headerName: 'Decision Notes' }
+    ];
+    const csvContent = convertToCSV(rowData, columns);
+    downloadCSV(csvContent, 'refined_data_transcript.csv');
+  };
+
   return (
     <>
       <style>{editableStyles}</style>
-      <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic mb-2">
-        💡 Click on Information Tags or Decision Notes cells to edit them. Line numbers and text are not editable.
+      <div className="flex justify-between items-center mb-2">
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+          💡 Click on Information Tags or Decision Notes cells to edit them. Line numbers and text are not editable.
+        </div>
+        <button
+          onClick={handleDownloadCSV}
+          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+        >
+          Download CSV
+        </button>
       </div>
       <div 
         className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
+import { convertToCSV, downloadCSV } from '../utils/csvExport';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -175,11 +176,31 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
     }
   `;
 
+  const handleDownloadCSV = () => {
+    const columns = [
+      { field: 'original_line_num', headerName: 'Line #' },
+      { field: 'included', headerName: 'Included' },
+      { field: 'speaker', headerName: 'Speaker' },
+      { field: 'utterance_text', headerName: 'Utterance Text' },
+      { field: 'selection_justification', headerName: 'Selection Justification' }
+    ];
+    const csvContent = convertToCSV(rowData, columns);
+    downloadCSV(csvContent, 'selected_utterances.csv');
+  };
+
   return (
     <>
       <style>{editableStyles}</style>
-      <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic mb-2">
-        💡 Click checkboxes to toggle inclusion status. Click on Selection Justification cells to edit them. Line numbers and utterance text are not editable.
+      <div className="flex justify-between items-center mb-2">
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+          💡 Click checkboxes to toggle inclusion status. Click on Selection Justification cells to edit them. Line numbers and utterance text are not editable.
+        </div>
+        <button
+          onClick={handleDownloadCSV}
+          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+        >
+          Download CSV
+        </button>
       </div>
       <div 
         className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 

@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
+import { convertToCSV, downloadCSV } from '../utils/csvExport';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -129,9 +130,30 @@ export const TranscriptLinesTable: React.FC<TranscriptLinesTableProps> = ({
     '--ag-row-border-color': '#e0ddd4',
   };
 
+  const handleDownloadCSV = () => {
+    const columns = [
+      { field: 'lineNumber', headerName: 'Line' },
+      { field: 'speaker', headerName: 'Speaker' },
+      { field: 'text', headerName: 'Text' }
+    ];
+    const csvContent = convertToCSV(rowData, columns);
+    downloadCSV(csvContent, 'transcript_lines.csv');
+  };
+
   return (
     <>
       <style>{enableTextSelection}</style>
+      <div className="flex justify-between items-center mb-2">
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+          Line-Numbered Transcript (Read-only)
+        </div>
+        <button
+          onClick={handleDownloadCSV}
+          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+        >
+          Download CSV
+        </button>
+      </div>
       <div 
       className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
       style={{ 
