@@ -135,6 +135,16 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const updateProcessedData = usePipelineStore(state => state.updateProcessedData);
   
+  // Get config and prepare grid data - must call hooks before any returns
+  const config = STEP_GRID_CONFIGS[stepId];
+  const { rowData, columnDefs } = useMemo(() => {
+    if (!config) {
+      return { rowData: [], columnDefs: [] };
+    }
+    const data = config.extractData(processedData);
+    return { rowData: data, columnDefs: config.columns };
+  }, [processedData, config, stepId]);
+  
   // Special handling for P0_1 with tabbed display
   if (stepId === StepId.P0_1_TRANSCRIPTION_ADHERENCE) {
     return (
@@ -795,8 +805,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
     );
   }
   
-  const config = STEP_GRID_CONFIGS[stepId];
-  
+  // Config check - using the values from the hook above
   if (!config) {
     // Fallback to JSON display if no config
     return (
@@ -805,11 +814,6 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
       </div>
     );
   }
-  
-  const { rowData, columnDefs } = useMemo(() => {
-    const data = config.extractData(processedData);
-    return { rowData: data, columnDefs: config.columns };
-  }, [processedData, config]);
 
   // Define custom styles based on theme
   const gridStyles = theme === 'dark' ? {
