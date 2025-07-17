@@ -154,7 +154,7 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
     '--ag-row-border-color': '#e0ddd4',
   };
   
-  // Add editable cell styling
+  // Add editable cell styling and enable text selection
   const editableStyles = `
     .editable-cell {
       cursor: text !important;
@@ -166,6 +166,12 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
     .ag-cell-editing {
       background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.15)' : 'rgba(160, 0, 0, 0.1)'} !important;
       border: 2px solid ${theme === 'dark' ? '#ff6b6b' : '#a00000'} !important;
+    }
+    .ag-cell {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      -moz-user-select: text !important;
+      -ms-user-select: text !important;
     }
   `;
 

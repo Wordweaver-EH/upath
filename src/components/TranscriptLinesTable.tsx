@@ -88,6 +88,16 @@ export const TranscriptLinesTable: React.FC<TranscriptLinesTableProps> = ({
     return { rowData: parsedLines, columnDefs: cols };
   }, [lines]);
 
+  // Enable text selection in cells
+  const enableTextSelection = `
+    .ag-cell {
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      -moz-user-select: text !important;
+      -ms-user-select: text !important;
+    }
+  `;
+
   // Define custom styles based on theme
   const gridStyles = theme === 'dark' ? {
     '--ag-background-color': '#1a1a1a',
@@ -120,7 +130,9 @@ export const TranscriptLinesTable: React.FC<TranscriptLinesTableProps> = ({
   };
 
   return (
-    <div 
+    <>
+      <style>{enableTextSelection}</style>
+      <div 
       className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
       style={{ 
         height: '600px', 
@@ -148,5 +160,6 @@ export const TranscriptLinesTable: React.FC<TranscriptLinesTableProps> = ({
         }}
       />
     </div>
+    </>
   );
 };
