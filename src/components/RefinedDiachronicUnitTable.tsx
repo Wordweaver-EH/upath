@@ -253,7 +253,7 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <>
       <div className="mb-2 flex justify-between items-center">
         <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
           💡 Edit descriptions, temporal phases, and confidence levels directly in the grid. Changes are saved automatically.
@@ -268,9 +268,10 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
       </div>
       
       <div 
-        className={`${theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} flex-1`}
+        className={`${theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'}`}
         style={{ 
-          minHeight: '400px',
+          height: '600px',
+          width: '100%',
           ...gridStyles as React.CSSProperties
         }}
       >
@@ -285,6 +286,6 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
           onCellValueChanged={handleCellValueChanged}
         />
       </div>
-    </div>
+    </>
   );
 };
