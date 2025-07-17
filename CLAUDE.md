@@ -128,6 +128,15 @@ npm run dev          # Start backend (port 3001)
 npm run test:run     # Run all tests
 ```
 
+### Codebase Analysis
+```bash
+# Generate a text file of the entire codebase (excluding .md, .txt, and test files)
+gitingest . -o upath-codebase.txt -e "*.md" -e "*.txt" -e "*test*"
+
+# Feed the entire codebase to Gemini for planning, reasoning, and debugging
+cat upath-codebase.txt | gemini -p "Your prompt here for analysis with 1M token context"
+```
+
 ## 🔐 Environment Configuration
 
 ### Frontend `.env` (Required)

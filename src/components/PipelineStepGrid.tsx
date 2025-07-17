@@ -8,6 +8,9 @@ import { TabbedStepDisplay } from './TabbedStepDisplay';
 import { TranscriptLinesTable } from './TranscriptLinesTable';
 import { RefinedDataTable } from './RefinedDataTable';
 import { SelectedUtterancesTable } from './SelectedUtterancesTable';
+import { InitialSegmentationTable } from './InitialSegmentationTable';
+import { DiachronicUnitTable } from './DiachronicUnitTable';
+import { RefinedDiachronicUnitTable } from './RefinedDiachronicUnitTable';
 import { EditableTextArea } from './EditableTextArea';
 import { usePipelineStore } from '../stores/pipelineStore';
 
@@ -389,6 +392,231 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
         }}
         theme={theme}
         emptyMessage="No transcripts with P0.3 output available"
+      />
+    );
+  }
+  
+  // Special handling for P1_1 with tabbed display
+  if (stepId === StepId.P1_1_INITIAL_SEGMENTATION) {
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          return Array.from(data.entries())
+            .filter(([_, transcript]) => transcript.p1_1_output)
+            .map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                transcriptMapId: id,
+                segmentationData: transcript.p1_1_output!,
+                filename: transcript.filename
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => {
+          const handleSegmentationChange = (updatedData: any) => {
+            updateProcessedData(tabData.transcriptMapId, {
+              p1_1_output: updatedData
+            });
+          };
+          
+          return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.segmentationData.transcript_id}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Independent Variable
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {tabData.segmentationData.independent_variable_details}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {tabData.segmentationData.dependent_variable_focus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Segmentation table */}
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                  Initial Segmentation of Procedural Utterances
+                </h4>
+                <InitialSegmentationTable 
+                  segmentationData={tabData.segmentationData}
+                  theme={theme}
+                  onSegmentationChange={handleSegmentationChange}
+                  filename={tabData.filename}
+                />
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No transcripts with P1.1 output available"
+      />
+    );
+  }
+  
+  // Special handling for P1_2 with tabbed display
+  if (stepId === StepId.P1_2_DIACHRONIC_UNIT_ID) {
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          return Array.from(data.entries())
+            .filter(([_, transcript]) => transcript.p1_2_output)
+            .map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                transcriptMapId: id,
+                diachronicData: transcript.p1_2_output!,
+                segmentationData: transcript.p1_1_output,
+                filename: transcript.filename
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => {
+          const handleDiachronicChange = (updatedData: any) => {
+            updateProcessedData(tabData.transcriptMapId, {
+              p1_2_output: updatedData
+            });
+          };
+          
+          return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.diachronicData.transcript_id}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Total Diachronic Units
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.diachronicData.diachronic_units.length}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Diachronic units table */}
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                  Diachronic Units (DUs)
+                </h4>
+                <DiachronicUnitTable 
+                  diachronicData={tabData.diachronicData}
+                  segmentationData={tabData.segmentationData}
+                  theme={theme}
+                  onDiachronicChange={handleDiachronicChange}
+                  filename={tabData.filename}
+                />
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No transcripts with P1.2 output available"
+      />
+    );
+  }
+  
+  // Special handling for P1_3 with tabbed display
+  if (stepId === StepId.P1_3_REFINE_DIACHRONIC_UNITS) {
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          return Array.from(data.entries())
+            .filter(([_, transcript]) => transcript.p1_3_output)
+            .map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                transcriptMapId: id,
+                refinedData: transcript.p1_3_output!,
+                filename: transcript.filename
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => {
+          const handleRefinedChange = (updatedData: any) => {
+            updateProcessedData(tabData.transcriptMapId, {
+              p1_3_output: updatedData
+            });
+          };
+          
+          return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.refinedData.transcript_id}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Total Refined DUs
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.refinedData.refined_diachronic_units.length}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Refined diachronic units table */}
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                  Refined Diachronic Units with Temporal Phases
+                </h4>
+                <RefinedDiachronicUnitTable 
+                  refinedData={tabData.refinedData}
+                  theme={theme}
+                  onRefinedChange={handleRefinedChange}
+                  filename={tabData.filename}
+                />
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No transcripts with P1.3 output available"
       />
     );
   }

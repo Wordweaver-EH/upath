@@ -347,7 +347,10 @@ const App: React.FC = () => {
           StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
           StepId.P0_1_TRANSCRIPTION_ADHERENCE,
           StepId.P0_2_REFINE_DATA_TYPES,
-          StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES
+          StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
+          StepId.P1_1_INITIAL_SEGMENTATION,
+          StepId.P1_2_DIACHRONIC_UNIT_ID,
+          StepId.P1_3_REFINE_DIACHRONIC_UNITS
         ];
         
         if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {
