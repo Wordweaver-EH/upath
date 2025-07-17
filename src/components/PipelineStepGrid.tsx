@@ -13,6 +13,8 @@ import { DiachronicUnitTable } from './DiachronicUnitTable';
 import { RefinedDiachronicUnitTable } from './RefinedDiachronicUnitTable';
 import { EditableTextArea } from './EditableTextArea';
 import { usePipelineStore } from '../stores/pipelineStore';
+import MermaidDiagram from '../../components/MermaidDiagram';
+import { convertToCSV, downloadCSV } from '../utils/csvExport';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -617,6 +619,178 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
         }}
         theme={theme}
         emptyMessage="No transcripts with P1.3 output available"
+      />
+    );
+  }
+  
+  // Special handling for P1_4 with tabbed display
+  if (stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
+    console.log('[P1.4 Debug] Rendering P1.4 component, processedData size:', processedData.size);
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          const entries = Array.from(data.entries());
+          console.log('[P1.4 Debug] Total transcripts:', entries.length);
+          const filtered = entries.filter(([_, transcript]) => {
+            console.log('[P1.4 Debug] Transcript:', transcript.filename, 'has p1_4_output:', !!transcript.p1_4_output);
+            return transcript.p1_4_output;
+          });
+          console.log('[P1.4 Debug] Filtered transcripts with P1.4 output:', filtered.length);
+          return filtered.map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                transcriptMapId: id,
+                diachronicStructure: transcript.p1_4_output!,
+                mermaidSyntax: transcript.p1_4_mermaid_syntax || transcript.p1_4_output?.mermaid_syntax_specific_diachronic,
+                filename: transcript.filename
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => {
+          const { diachronicStructure, mermaidSyntax, filename } = tabData;
+          console.log('[P1.4 Debug] Rendering content for:', filename, 'mermaidSyntax:', mermaidSyntax);
+          
+          // Prepare phases data for CSV export
+          const phasesData = diachronicStructure.specific_diachronic_structure.phases.map((phase: any, index: number) => ({
+            phase_number: index + 1,
+            phase_name: phase.phase_name,
+            description: phase.description,
+            units_involved: phase.units_involved.join('; ')
+          }));
+          
+          const handleDownloadCSV = () => {
+            const columns = [
+              { field: 'phase_number', headerName: 'Phase #' },
+              { field: 'phase_name', headerName: 'Phase Name' },
+              { field: 'description', headerName: 'Description' },
+              { field: 'units_involved', headerName: 'Units Involved' }
+            ];
+            const csvContent = convertToCSV(phasesData, columns);
+            const timestamp = new Date().toISOString().split('T')[0];
+            downloadCSV(csvContent, `${filename}_P1.4_phases_${timestamp}.csv`);
+          };
+          
+          return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {diachronicStructure.transcript_id}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Summary
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {diachronicStructure.specific_diachronic_structure.summary}
+                  </p>
+                </div>
+                
+                {diachronicStructure.specific_diachronic_structure.iv_preliminary_observation && (
+                  <div>
+                    <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                      IV Preliminary Observation
+                    </h4>
+                    <p className="text-light-text dark:text-dark-text text-sm">
+                      {diachronicStructure.specific_diachronic_structure.iv_preliminary_observation}
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Phases table */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote">
+                    Diachronic Phases ({phasesData.length} phases)
+                  </h4>
+                  <button
+                    onClick={handleDownloadCSV}
+                    className="flex items-center gap-2 px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt border border-light-border dark:border-dark-border rounded hover:bg-light-accent/10 dark:hover:bg-dark-accent/10 transition-colors"
+                    title="Download phases as CSV"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    CSV
+                  </button>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-light-border dark:divide-dark-border">
+                    <thead className="bg-light-bg-alt dark:bg-dark-bg-alt">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
+                          Phase
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
+                          Name
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
+                          Description
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
+                          Units
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-light-bg dark:bg-dark-bg divide-y divide-light-border dark:divide-dark-border">
+                      {phasesData.map((phase) => (
+                        <tr key={phase.phase_number}>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm">
+                            {phase.phase_number}
+                          </td>
+                          <td className="px-4 py-2 text-sm font-medium">
+                            {phase.phase_name}
+                          </td>
+                          <td className="px-4 py-2 text-sm">
+                            {phase.description}
+                          </td>
+                          <td className="px-4 py-2 text-sm">
+                            <div className="flex flex-wrap gap-1">
+                              {phase.units_involved.split('; ').map((unit, idx) => (
+                                <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                  {unit}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              
+              {/* Mermaid diagram */}
+              {mermaidSyntax && (
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                    Diachronic Structure Visualization
+                  </h4>
+                  <div className="min-h-[300px]">
+                    <MermaidDiagram 
+                      key={`mermaid-${tabData.transcriptMapId}`}
+                      chart={mermaidSyntax} 
+                      theme={theme}
+                      uniqueId={tabData.transcriptMapId}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No transcripts with P1.4 output available"
       />
     );
   }

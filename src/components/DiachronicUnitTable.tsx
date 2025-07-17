@@ -144,7 +144,13 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
       'Segment Count': unit.source_segment_ids.length
     }));
 
-    const csv = convertToCSV(csvData);
+    const columns = [
+      { field: 'Unit ID', headerName: 'Unit ID' },
+      { field: 'Description', headerName: 'Description' },
+      { field: 'Source Segment IDs', headerName: 'Source Segment IDs' },
+      { field: 'Segment Count', headerName: 'Segment Count' }
+    ];
+    const csv = convertToCSV(csvData, columns);
     const defaultFilename = filename ? 
       `${filename.replace(/\.[^/.]+$/, '')}_P1.2_diachronic_units.csv` : 
       'P1.2_diachronic_units.csv';
@@ -210,8 +216,7 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
         </div>
         <button
           onClick={handleExportCSV}
-          className="px-3 py-1 text-sm bg-light-accent dark:bg-dark-accent text-white rounded 
-            hover:opacity-90 transition-opacity"
+          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
         >
           Download CSV
         </button>

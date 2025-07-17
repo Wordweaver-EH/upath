@@ -282,7 +282,16 @@ export const InitialSegmentationTable: React.FC<InitialSegmentationTableProps> =
       });
     });
 
-    const csv = convertToCSV(csvData);
+    const columns = [
+      { field: 'Line #', headerName: 'Line #' },
+      { field: 'Speaker', headerName: 'Speaker' },
+      { field: 'Utterance Text', headerName: 'Utterance Text' },
+      { field: 'Segment #', headerName: 'Segment #' },
+      { field: 'Segment ID', headerName: 'Segment ID' },
+      { field: 'Segment Text', headerName: 'Segment Text' },
+      { field: 'Temporal Cues', headerName: 'Temporal Cues' }
+    ];
+    const csv = convertToCSV(csvData, columns);
     const defaultFilename = filename ? 
       `${filename.replace(/\.[^/.]+$/, '')}_P1.1_segmentation.csv` : 
       'P1.1_segmentation.csv';
@@ -414,8 +423,7 @@ export const InitialSegmentationTable: React.FC<InitialSegmentationTableProps> =
         </div>
         <button
           onClick={handleExportCSV}
-          className="px-3 py-1 text-sm bg-light-accent dark:bg-dark-accent text-white rounded 
-            hover:opacity-90 transition-opacity"
+          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
         >
           Download CSV
         </button>

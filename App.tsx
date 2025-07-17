@@ -325,6 +325,7 @@ const App: React.FC = () => {
   const stepDisplay = selectCurrentStepDisplay(currentStepInfo, rawTranscripts.length);
   
   const renderOutput = () => {
+    console.log('[App Debug] stepDisplay:', stepDisplay, 'currentStepInfo.stepId:', currentStepInfo.stepId);
     switch (stepDisplay.type) {
       case 'loading':
         return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote animate-pulse">{stepDisplay.message}</div>;
@@ -336,6 +337,20 @@ const App: React.FC = () => {
         return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">{stepDisplay.message}</div>;
       
       case 'mermaid':
+        // Check if this step should use grid display instead
+        const gridStepsForMermaid = [
+          StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
+        ];
+        
+        if (gridStepsForMermaid.includes(currentStepInfo.stepId) && processedData.size > 0) {
+          console.log('[App Debug] Redirecting mermaid step to grid:', currentStepInfo.stepId);
+          return <PipelineStepGrid 
+            processedData={processedData} 
+            stepId={currentStepInfo.stepId}
+            theme={theme} 
+          />;
+        }
+        
         return <MermaidDiagram chart={stepDisplay.chart} theme={theme} />;
       
       case 'report':
@@ -354,6 +369,7 @@ const App: React.FC = () => {
         ];
         
         if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {
+          console.log('[App Debug] Rendering grid step:', currentStepInfo.stepId, 'processedData size:', processedData.size);
           return <PipelineStepGrid 
             processedData={processedData} 
             stepId={currentStepInfo.stepId}

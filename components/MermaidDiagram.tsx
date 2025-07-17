@@ -14,6 +14,7 @@ declare global {
 interface MermaidDiagramProps {
   chart: string; // The Mermaid syntax string
   theme?: 'light' | 'dark'; // Theme prop is kept for useEffect dependency to re-render if app theme changes
+  uniqueId?: string; // Optional unique identifier to ensure proper component isolation
 }
 
 const sanitizeMermaidChartString = (chartString: string): string => {
@@ -25,10 +26,10 @@ const sanitizeMermaidChartString = (chartString: string): string => {
   return sanitized;
 };
 
-const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, theme }) => {
+const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, theme, uniqueId }) => {
   const mermaidRef = useRef<HTMLDivElement>(null);
   const componentId = useId();
-  const diagramId = `mermaid-chart-${componentId.replace(/:/g, '-')}`;
+  const diagramId = uniqueId ? `mermaid-chart-${uniqueId}` : `mermaid-chart-${componentId.replace(/:/g, '-')}`;
 
   useEffect(() => {
     const mermaidInstance = window.globalMermaidInstance;
@@ -45,38 +46,88 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, theme }) => {
       const currentDiv = mermaidRef.current;
       const debugPrefix = `[MermaidDiagram Debug - ID: ${diagramId}]`;
 
-      currentDiv.removeAttribute('data-processed');
+      // Clear any existing content
       currentDiv.innerHTML = '';
 
       const finalChart = sanitizeMermaidChartString(chart);
 
-      // console.log(`${debugPrefix} Sanitized chart (theme: ${theme}):\n${finalChart.substring(0,200)}...`);
       if (chart !== finalChart) {
         console.log(`${debugPrefix} Original chart (had init directive):\n${chart.substring(0,200)}...`);
       }
 
-      mermaidInstance.render(diagramId, finalChart)
-        .then(({ svg, bindFunctions }: { svg: string; bindFunctions?: (element: HTMLElement) => void }) => {
-          if (currentDiv) {
-            currentDiv.innerHTML = svg;
-            if (bindFunctions) {
-              bindFunctions(currentDiv);
-            }
-            // console.log(`${debugPrefix} SVG rendered and bindFunctions called.`);
+      try {
+        // Create a pre element with mermaid class containing the chart syntax
+        currentDiv.innerHTML = `<pre class="mermaid" id="${diagramId}">${finalChart}</pre>`;
+        
+        // Get the mermaid element we just created
+        const mermaidElement = currentDiv.querySelector('.mermaid') as HTMLElement;
+        if (!mermaidElement) {
+          throw new Error('Failed to create mermaid element');
+        }
 
-            const foreignObjects = currentDiv.querySelectorAll('svg foreignObject');
-            console.log(`${debugPrefix} Rendered. foreignObject count: ${foreignObjects.length}`);
-            if (foreignObjects.length > 0) {
-                console.warn(`${debugPrefix} foreignObject tags are STILL PRESENT! This indicates htmlLabels:true was effectively used for this render. SVG contains: ${svg.substring(0,500)}...`);
+        // Remove any existing data-processed attribute to force re-render
+        mermaidElement.removeAttribute('data-processed');
+        
+        console.log(`${debugPrefix} Running mermaid.run() on element with chart:`, finalChart.substring(0, 100) + '...');
+        
+        // Run mermaid on this specific element
+        // Wrap in async function to handle the Promise properly
+        const runMermaid = async () => {
+          try {
+            await mermaidInstance.run({ 
+              nodes: [mermaidElement],
+              suppressErrors: false 
+            });
+          } catch (runError: any) {
+            // In development, React Strict Mode may cause this to fail on second render
+            // Check if it's the parentElement error from double rendering
+            if (runError.message?.includes('parentElement') || runError.str?.includes('parentElement')) {
+              console.log(`${debugPrefix} Mermaid run failed due to React Strict Mode double-render (this is normal in development)`);
+              return; // Exit gracefully
             }
+            // Log but don't throw - let the component continue
+            console.warn(`${debugPrefix} Mermaid rendering warning:`, runError);
           }
-        })
-        .catch((e: any) => {
-          console.error(`${debugPrefix} Mermaid rendering error:`, e);
-          if (currentDiv) {
-            currentDiv.innerHTML = `<pre class="text-xs text-red-600 dark:text-red-400 p-2 bg-red-50 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded">Mermaid Diagram Render Error: ${(e as Error).message || String(e)}\n--- Chart Syntax Attempted (after sanitization) ---\n${finalChart}</pre>`;
+        };
+        
+        // Execute the async function
+        runMermaid().catch((e) => {
+          // Catch any remaining promise rejections
+          if (e.message?.includes('parentElement') || e.str?.includes('parentElement')) {
+            console.log(`${debugPrefix} Caught parentElement error in promise (normal in development)`);
+          } else {
+            console.error(`${debugPrefix} Unexpected error in mermaid.run:`, e);
           }
         });
+        
+        // Use setTimeout to check the result after Mermaid has finished rendering
+        setTimeout(() => {
+          if (!mermaidRef.current) return; // Component may have unmounted
+          
+          const svgElement = currentDiv.querySelector('svg');
+          if (svgElement) {
+            console.log(`${debugPrefix} SVG successfully rendered`);
+            
+            // Add some styling for better visibility
+            svgElement.style.maxWidth = '100%';
+            svgElement.style.height = 'auto';
+            
+            // Debug: Check if there are any rect or text elements
+            const rects = svgElement.querySelectorAll('rect');
+            const texts = svgElement.querySelectorAll('text');
+            console.log(`${debugPrefix} Found ${rects.length} rect elements and ${texts.length} text elements`);
+          } else {
+            // This is expected in React Strict Mode's second render
+            console.log(`${debugPrefix} No SVG element found (this may be normal in React Strict Mode)`);
+          }
+        }, 100); // Small delay to allow Mermaid to complete rendering
+        
+      } catch (e: any) {
+        console.error(`${debugPrefix} Mermaid rendering error:`, e);
+        if (currentDiv) {
+          currentDiv.innerHTML = `<pre class="text-xs text-red-600 dark:text-red-400 p-2 bg-red-50 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded">Mermaid Diagram Render Error: ${(e as Error).message || String(e)}\n--- Chart Syntax Attempted (after sanitization) ---\n${finalChart}</pre>`;
+        }
+      }
 
     } else if (mermaidRef.current) {
       const message = chart && chart.trim() !== ""
@@ -84,6 +135,17 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, theme }) => {
         : "No diagram to display or chart syntax is empty.";
       mermaidRef.current.innerHTML = `<div class="p-3 text-sm text-light-sidenote dark:text-dark-sidenote">${message}</div>`;
     }
+
+    // CRITICAL: Cleanup function to handle React Strict Mode double-rendering
+    return () => {
+      if (mermaidRef.current) {
+        const mermaidElement = mermaidRef.current.querySelector('.mermaid');
+        if (mermaidElement) {
+          mermaidElement.removeAttribute('data-processed');
+        }
+        mermaidRef.current.innerHTML = '';
+      }
+    };
   }, [chart, diagramId, theme]);
 
   return (

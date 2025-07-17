@@ -207,7 +207,14 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
       'Confidence': unit.confidence
     }));
 
-    const csv = convertToCSV(csvData);
+    const columns = [
+      { field: 'Unit ID', headerName: 'Unit ID' },
+      { field: 'Description', headerName: 'Description' },
+      { field: 'Source P1.2 DU IDs', headerName: 'Source P1.2 DU IDs' },
+      { field: 'Temporal Phase', headerName: 'Temporal Phase' },
+      { field: 'Confidence', headerName: 'Confidence' }
+    ];
+    const csv = convertToCSV(csvData, columns);
     const defaultFilename = filename ? 
       `${filename.replace(/\.[^/.]+$/, '')}_P1.3_refined_units.csv` : 
       'P1.3_refined_units.csv';
@@ -260,8 +267,7 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
         </div>
         <button
           onClick={handleExportCSV}
-          className="px-3 py-1 text-sm bg-light-accent dark:bg-dark-accent text-white rounded 
-            hover:opacity-90 transition-opacity"
+          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
         >
           Download CSV
         </button>
