@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { ColDef, ModuleRegistry, ICellRendererParams } from 'ag-grid-community';
+import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 
 // Register AG Grid modules
@@ -15,11 +15,13 @@ interface SelectedUtterance {
 interface SelectedUtterancesTableProps {
   utterances: SelectedUtterance[];
   theme: 'light' | 'dark';
+  onUtterancesChange?: (updatedUtterances: SelectedUtterance[]) => void;
 }
 
 export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = ({ 
   utterances, 
-  theme 
+  theme,
+  onUtterancesChange
 }) => {
   const { rowData, columnDefs } = useMemo(() => {
     const cols: ColDef[] = [
@@ -30,6 +32,7 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
         sortable: true,
         resizable: false,
         pinned: 'left',
+        editable: false,
         cellClass: 'text-center font-mono text-xs text-light-sidenote dark:text-dark-sidenote',
         comparator: (a: string, b: string) => {
           // Custom comparator for line numbers like "3", "3.1", "3.2"
@@ -52,6 +55,7 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
         autoHeight: true,
         sortable: false,
         resizable: true,
+        editable: false,
         cellClass: 'py-2'
       },
       { 
@@ -62,8 +66,14 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
         autoHeight: true,
         sortable: false,
         resizable: true,
+        editable: true,
+        cellEditor: 'agTextCellEditor',
+        cellEditorParams: {
+          maxLength: 500
+        },
+        cellClass: 'editable-cell',
         cellRenderer: (params: ICellRendererParams) => {
-          if (!params.value) return '';
+          if (!params.value && !params.node.rowPinned) return <span className="text-light-sidenote dark:text-dark-sidenote italic">Click to add justification...</span>;
           return (
             <span className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
               {params.value}
@@ -106,36 +116,68 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
     '--ag-row-border-width': '1px',
     '--ag-row-border-color': '#e0ddd4',
   };
+  
+  // Add editable cell styling
+  const editableStyles = `
+    .editable-cell {
+      cursor: text !important;
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.05)' : 'rgba(160, 0, 0, 0.03)'} !important;
+    }
+    .editable-cell:hover {
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.1)' : 'rgba(160, 0, 0, 0.06)'} !important;
+    }
+    .ag-cell-editing {
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.15)' : 'rgba(160, 0, 0, 0.1)'} !important;
+      border: 2px solid ${theme === 'dark' ? '#ff6b6b' : '#a00000'} !important;
+    }
+  `;
 
   return (
-    <div 
-      className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
-      style={{ 
-        height: '600px', 
-        width: '100%',
-        ...gridStyles as React.CSSProperties
-      }}
-    >
-      <AgGridReact
-        rowData={rowData}
-        columnDefs={columnDefs}
-        defaultColDef={{
-          resizable: true,
-          sortable: false
+    <>
+      <style>{editableStyles}</style>
+      <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic mb-2">
+        💡 Click on Selection Justification cells to edit them. Line numbers and utterance text are not editable.
+      </div>
+      <div 
+        className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
+        style={{ 
+          height: '600px', 
+          width: '100%',
+          ...gridStyles as React.CSSProperties
         }}
-        animateRows={true}
-        domLayout='normal'
-        theme='legacy'
-        rowHeight={undefined}
-        getRowHeight={(params) => {
-          // Dynamic row height based on content
-          const textLength = params.data.utterance_text?.length || 0;
-          const justificationLength = params.data.selection_justification?.length || 0;
-          const baseHeight = 50;
-          const extraHeight = Math.floor((textLength + justificationLength) / 100) * 20;
-          return Math.min(baseHeight + extraHeight, 200);
-        }}
-      />
-    </div>
+      >
+        <AgGridReact
+          rowData={rowData}
+          columnDefs={columnDefs}
+          defaultColDef={{
+            resizable: true,
+            sortable: false
+          }}
+          animateRows={true}
+          domLayout='normal'
+          theme='legacy'
+          rowHeight={undefined}
+          getRowHeight={(params) => {
+            // Dynamic row height based on content
+            const textLength = params.data.utterance_text?.length || 0;
+            const justificationLength = params.data.selection_justification?.length || 0;
+            const baseHeight = 50;
+            const extraHeight = Math.floor((textLength + justificationLength) / 100) * 20;
+            return Math.min(baseHeight + extraHeight, 200);
+          }}
+          onCellValueChanged={(event: CellValueChangedEvent) => {
+            if (onUtterancesChange) {
+              // Create a new array with the updated utterance
+              const updatedUtterances = [...utterances];
+              const index = utterances.findIndex(u => u.original_line_num === event.data.original_line_num);
+              if (index !== -1) {
+                updatedUtterances[index] = { ...event.data };
+                onUtterancesChange(updatedUtterances);
+              }
+            }
+          }}
+        />
+      </div>
+    </>
   );
 };

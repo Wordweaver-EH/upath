@@ -8,6 +8,7 @@ import { TabbedStepDisplay } from './TabbedStepDisplay';
 import { TranscriptLinesTable } from './TranscriptLinesTable';
 import { RefinedDataTable } from './RefinedDataTable';
 import { SelectedUtterancesTable } from './SelectedUtterancesTable';
+import { EditableTextArea } from './EditableTextArea';
 import { usePipelineStore } from '../stores/pipelineStore';
 
 // Register AG Grid modules
@@ -141,6 +142,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               id,
               label: transcript.filename,
               data: {
+                transcriptMapId: id,  // Store the map key for updates
                 lines: transcript.p0_1_output!.line_numbered_transcript,
                 transcriptId: transcript.p0_1_output!.transcript_id,
                 initialImpressions: transcript.p0_1_output!.initial_impressions_log,
@@ -148,47 +150,78 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               }
             }));
         }}
-        renderContent={(tabData, theme) => (
-          <div className="space-y-4">
-            {/* Metadata section */}
-            <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
-              <div>
-                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                  Transcript ID
-                </h4>
-                <p className="text-light-text dark:text-dark-text">
-                  {tabData.transcriptId}
-                </p>
+        renderContent={(tabData, theme) => {
+          const handleUpdateField = (field: 'conventionNotes' | 'initialImpressions', newValue: string) => {
+            const transcriptData = processedData.get(tabData.transcriptMapId);
+            if (transcriptData && transcriptData.p0_1_output) {
+              const updatedOutput = { ...transcriptData.p0_1_output };
+              
+              if (field === 'conventionNotes') {
+                updatedOutput.transcription_convention_notes = newValue;
+              } else if (field === 'initialImpressions') {
+                updatedOutput.initial_impressions_log = newValue;
+              }
+              
+              updateProcessedData(tabData.transcriptMapId, {
+                p0_1_output: updatedOutput
+              });
+            }
+          };
+          
+          return (
+            <div className="space-y-4">
+              <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+                💡 Click on the Convention Notes or Initial Impressions to edit them. Changes are saved automatically.
               </div>
               
-              <div>
-                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                  Transcription Convention Notes
-                </h4>
-                <p className="text-light-text dark:text-dark-text text-sm">
-                  {tabData.conventionNotes}
-                </p>
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.transcriptId}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcription Convention Notes
+                  </h4>
+                  <EditableTextArea
+                    value={tabData.conventionNotes}
+                    onChange={(newValue) => handleUpdateField('conventionNotes', newValue)}
+                    theme={theme}
+                    placeholder="Add transcription convention notes..."
+                    maxLength={500}
+                  />
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Initial Impressions
+                  </h4>
+                  <EditableTextArea
+                    value={tabData.initialImpressions}
+                    onChange={(newValue) => handleUpdateField('initialImpressions', newValue)}
+                    theme={theme}
+                    placeholder="Add initial impressions..."
+                    maxLength={1000}
+                  />
+                </div>
               </div>
               
+              {/* Transcript lines table */}
               <div>
-                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                  Initial Impressions
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                  Line-Numbered Transcript (Not Editable)
                 </h4>
-                <p className="text-light-text dark:text-dark-text text-sm">
-                  {tabData.initialImpressions}
-                </p>
+                <TranscriptLinesTable lines={tabData.lines} theme={theme} />
               </div>
             </div>
-            
-            {/* Transcript lines table */}
-            <div>
-              <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
-                Line-Numbered Transcript
-              </h4>
-              <TranscriptLinesTable lines={tabData.lines} theme={theme} />
-            </div>
-          </div>
-        )}
+          );
+        }}
         theme={theme}
         emptyMessage="No transcripts with P0.1 output available"
       />
@@ -207,32 +240,53 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               id,
               label: transcript.filename,
               data: {
+                transcriptMapId: id,
                 transcriptId: transcript.p0_2_output!.transcript_id,
                 refinedLines: transcript.p0_2_output!.refined_data_transcript
               }
             }));
         }}
-        renderContent={(tabData, theme) => (
-          <div className="space-y-4">
-            {/* Metadata section */}
-            <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg">
-              <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                Transcript ID
-              </h4>
-              <p className="text-light-text dark:text-dark-text">
-                {tabData.transcriptId}
-              </p>
+        renderContent={(tabData, theme) => {
+          const handleLinesChange = (updatedLines: any[]) => {
+            const transcriptData = processedData.get(tabData.transcriptMapId);
+            if (transcriptData && transcriptData.p0_2_output) {
+              const updatedOutput = {
+                ...transcriptData.p0_2_output,
+                refined_data_transcript: updatedLines
+              };
+              
+              updateProcessedData(tabData.transcriptMapId, {
+                p0_2_output: updatedOutput
+              });
+            }
+          };
+          
+          return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg">
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                  Transcript ID
+                </h4>
+                <p className="text-light-text dark:text-dark-text">
+                  {tabData.transcriptId}
+                </p>
+              </div>
+              
+              {/* Refined data table */}
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                  Refined Data Transcript
+                </h4>
+                <RefinedDataTable 
+                  refinedLines={tabData.refinedLines} 
+                  theme={theme}
+                  onLinesChange={handleLinesChange}
+                />
+              </div>
             </div>
-            
-            {/* Refined data table */}
-            <div>
-              <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
-                Refined Data Transcript
-              </h4>
-              <RefinedDataTable refinedLines={tabData.refinedLines} theme={theme} />
-            </div>
-          </div>
-        )}
+          );
+        }}
         theme={theme}
         emptyMessage="No transcripts with P0.2 output available"
       />
@@ -251,6 +305,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               id,
               label: transcript.filename,
               data: {
+                transcriptMapId: id,
                 transcriptId: transcript.p0_3_output!.transcript_id,
                 utterances: transcript.p0_3_output!.selected_procedural_utterances,
                 discardedSummary: transcript.p0_3_output!.discarded_info_summary,
@@ -259,65 +314,101 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               }
             }));
         }}
-        renderContent={(tabData, theme) => (
-          <div className="space-y-4">
-            {/* Metadata section */}
-            <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
-              <div>
-                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                  Transcript ID
-                </h4>
-                <p className="text-light-text dark:text-dark-text">
-                  {tabData.transcriptId}
-                </p>
-              </div>
+        renderContent={(tabData, theme) => {
+          const handleUtterancesChange = (updatedUtterances: any[]) => {
+            const transcriptData = processedData.get(tabData.transcriptMapId);
+            if (transcriptData && transcriptData.p0_3_output) {
+              const updatedOutput = {
+                ...transcriptData.p0_3_output,
+                selected_procedural_utterances: updatedUtterances
+              };
               
-              <div>
-                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                  Independent Variable
-                </h4>
-                <p className="text-light-text dark:text-dark-text text-sm">
-                  {tabData.ivDetails}
-                </p>
-              </div>
+              updateProcessedData(tabData.transcriptMapId, {
+                p0_3_output: updatedOutput
+              });
+            }
+          };
+          
+          const handleDiscardedSummaryChange = (newValue: string) => {
+            const transcriptData = processedData.get(tabData.transcriptMapId);
+            if (transcriptData && transcriptData.p0_3_output) {
+              const updatedOutput = {
+                ...transcriptData.p0_3_output,
+                discarded_info_summary: newValue
+              };
               
-              <div>
-                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                  Dependent Variable Focus
-                </h4>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {tabData.dvFocus.map((dv: string, index: number) => (
-                    <span
-                      key={index}
-                      className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-                    >
-                      {dv}
-                    </span>
-                  ))}
+              updateProcessedData(tabData.transcriptMapId, {
+                p0_3_output: updatedOutput
+              });
+            }
+          };
+          
+          return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.transcriptId}
+                  </p>
                 </div>
-              </div>
-              
-              {tabData.discardedSummary && (
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Independent Variable
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {tabData.ivDetails}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {tabData.dvFocus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                
                 <div>
                   <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
                     Discarded Information Summary
                   </h4>
-                  <p className="text-light-text dark:text-dark-text text-sm italic">
-                    {tabData.discardedSummary}
-                  </p>
+                  <EditableTextArea
+                    value={tabData.discardedSummary || ''}
+                    onChange={handleDiscardedSummaryChange}
+                    theme={theme}
+                    placeholder="Add summary of discarded information..."
+                    maxLength={500}
+                  />
                 </div>
-              )}
+              </div>
+              
+              {/* Selected utterances table */}
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                  Selected Procedural Utterances ({tabData.utterances.length} selected)
+                </h4>
+                <SelectedUtterancesTable 
+                  utterances={tabData.utterances} 
+                  theme={theme}
+                  onUtterancesChange={handleUtterancesChange}
+                />
+              </div>
             </div>
-            
-            {/* Selected utterances table */}
-            <div>
-              <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
-                Selected Procedural Utterances ({tabData.utterances.length} selected)
-              </h4>
-              <SelectedUtterancesTable utterances={tabData.utterances} theme={theme} />
-            </div>
-          </div>
-        )}
+          );
+        }}
         theme={theme}
         emptyMessage="No transcripts with P0.3 output available"
       />

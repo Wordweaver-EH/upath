@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { ColDef, ModuleRegistry, ICellRendererParams } from 'ag-grid-community';
+import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
+import { TagsEditor } from './TagsEditor';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -16,6 +17,7 @@ interface RefinedLine {
 interface RefinedDataTableProps {
   refinedLines: RefinedLine[];
   theme: 'light' | 'dark';
+  onLinesChange?: (updatedLines: RefinedLine[]) => void;
 }
 
 const TagsRenderer: React.FC<ICellRendererParams> = (params) => {
@@ -47,7 +49,8 @@ const TagsRenderer: React.FC<ICellRendererParams> = (params) => {
 
 export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({ 
   refinedLines, 
-  theme 
+  theme,
+  onLinesChange
 }) => {
   const { rowData, columnDefs } = useMemo(() => {
     const cols: ColDef[] = [
@@ -58,6 +61,7 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
         sortable: true,
         resizable: false,
         pinned: 'left',
+        editable: false,
         cellClass: 'text-center font-mono text-xs text-light-sidenote dark:text-dark-sidenote'
       },
       { 
@@ -68,6 +72,7 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
         autoHeight: true,
         sortable: false,
         resizable: true,
+        editable: false,
         cellClass: 'py-2'
       },
       { 
@@ -78,7 +83,10 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
         autoHeight: true,
         sortable: false,
         resizable: true,
-        cellRenderer: TagsRenderer
+        editable: true,
+        cellEditor: TagsEditor,
+        cellRenderer: TagsRenderer,
+        cellClass: 'editable-cell'
       },
       { 
         field: 'decision_notes', 
@@ -88,8 +96,14 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
         autoHeight: true,
         sortable: false,
         resizable: true,
+        editable: true,
+        cellEditor: 'agTextCellEditor',
+        cellEditorParams: {
+          maxLength: 500
+        },
+        cellClass: 'editable-cell',
         cellRenderer: (params: ICellRendererParams) => {
-          if (!params.value) return '';
+          if (!params.value && !params.node.rowPinned) return <span className="text-light-sidenote dark:text-dark-sidenote italic">Click to add notes...</span>;
           return (
             <span className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
               {params.value}
@@ -132,36 +146,68 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
     '--ag-row-border-width': '1px',
     '--ag-row-border-color': '#e0ddd4',
   };
+  
+  // Add editable cell styling
+  const editableStyles = `
+    .editable-cell {
+      cursor: text !important;
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.05)' : 'rgba(160, 0, 0, 0.03)'} !important;
+    }
+    .editable-cell:hover {
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.1)' : 'rgba(160, 0, 0, 0.06)'} !important;
+    }
+    .ag-cell-editing {
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.15)' : 'rgba(160, 0, 0, 0.1)'} !important;
+      border: 2px solid ${theme === 'dark' ? '#ff6b6b' : '#a00000'} !important;
+    }
+  `;
 
   return (
-    <div 
-      className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
-      style={{ 
-        height: '600px', 
-        width: '100%',
-        ...gridStyles as React.CSSProperties
-      }}
-    >
-      <AgGridReact
-        rowData={rowData}
-        columnDefs={columnDefs}
-        defaultColDef={{
-          resizable: true,
-          sortable: false
+    <>
+      <style>{editableStyles}</style>
+      <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic mb-2">
+        💡 Click on Information Tags or Decision Notes cells to edit them. Line numbers and text are not editable.
+      </div>
+      <div 
+        className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
+        style={{ 
+          height: '600px', 
+          width: '100%',
+          ...gridStyles as React.CSSProperties
         }}
-        animateRows={true}
-        domLayout='normal'
-        theme='legacy'
-        rowHeight={undefined}
-        getRowHeight={(params) => {
-          // Dynamic row height based on content
-          const textLength = params.data.text?.length || 0;
-          const hasNotes = params.data.decision_notes?.length || 0;
-          const baseHeight = 50;
-          const extraHeight = Math.floor(textLength / 80) * 20 + (hasNotes ? 20 : 0);
-          return Math.min(baseHeight + extraHeight, 200);
-        }}
-      />
-    </div>
+      >
+        <AgGridReact
+          rowData={rowData}
+          columnDefs={columnDefs}
+          defaultColDef={{
+            resizable: true,
+            sortable: false
+          }}
+          animateRows={true}
+          domLayout='normal'
+          theme='legacy'
+          rowHeight={undefined}
+          getRowHeight={(params) => {
+            // Dynamic row height based on content
+            const textLength = params.data.text?.length || 0;
+            const hasNotes = params.data.decision_notes?.length || 0;
+            const baseHeight = 50;
+            const extraHeight = Math.floor(textLength / 80) * 20 + (hasNotes ? 20 : 0);
+            return Math.min(baseHeight + extraHeight, 200);
+          }}
+          onCellValueChanged={(event: CellValueChangedEvent) => {
+            if (onLinesChange) {
+              // Create a new array with the updated line
+              const updatedLines = [...refinedLines];
+              const index = refinedLines.findIndex(line => line.line_num === event.data.line_num);
+              if (index !== -1) {
+                updatedLines[index] = { ...event.data };
+                onLinesChange(updatedLines);
+              }
+            }
+          }}
+        />
+      </div>
+    </>
   );
 };
