@@ -9,7 +9,8 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 interface SelectedUtterance {
   original_line_num: string;
   utterance_text: string;
-  selection_justification?: string;
+  included: boolean;
+  selection_justification: string;
 }
 
 interface SelectedUtterancesTableProps {
@@ -47,6 +48,25 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
           return 0;
         }
       },
+      {
+        field: 'included',
+        headerName: 'Included',
+        width: 100,
+        sortable: true,
+        resizable: false,
+        editable: true,
+        cellRenderer: (params: ICellRendererParams) => {
+          return (
+            <input
+              type="checkbox"
+              checked={params.value}
+              onChange={() => {}}
+              className="cursor-pointer"
+            />
+          );
+        },
+        cellClass: 'text-center editable-cell'
+      },
       { 
         field: 'utterance_text', 
         headerName: 'Utterance Text',
@@ -56,7 +76,7 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
         sortable: false,
         resizable: true,
         editable: false,
-        cellClass: 'py-2'
+        cellClass: (params) => params.data.included ? 'py-2' : 'py-2 opacity-60'
       },
       { 
         field: 'selection_justification', 
@@ -136,7 +156,7 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
     <>
       <style>{editableStyles}</style>
       <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic mb-2">
-        💡 Click on Selection Justification cells to edit them. Line numbers and utterance text are not editable.
+        💡 Click checkboxes to toggle inclusion status. Click on Selection Justification cells to edit them. Line numbers and utterance text are not editable.
       </div>
       <div 
         className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
@@ -172,6 +192,19 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
               const index = utterances.findIndex(u => u.original_line_num === event.data.original_line_num);
               if (index !== -1) {
                 updatedUtterances[index] = { ...event.data };
+                onUtterancesChange(updatedUtterances);
+              }
+            }
+          }}
+          onCellClicked={(event) => {
+            if (event.column.getColId() === 'included' && onUtterancesChange) {
+              const updatedUtterances = [...utterances];
+              const index = utterances.findIndex(u => u.original_line_num === event.data.original_line_num);
+              if (index !== -1) {
+                updatedUtterances[index] = { 
+                  ...updatedUtterances[index], 
+                  included: !updatedUtterances[index].included 
+                };
                 onUtterancesChange(updatedUtterances);
               }
             }

@@ -60,12 +60,12 @@ export interface P0_2_Output {
 export interface SelectedUtterance {
   original_line_num: string; // Can be "X.Y" for split lines
   utterance_text: string;
-  selection_justification?: string;
+  included: boolean;
+  selection_justification: string;
 }
 export interface P0_3_Output {
   transcript_id: string;
   selected_procedural_utterances: SelectedUtterance[];
-  discarded_info_summary?: string;
   independent_variable_details: string;
   dependent_variable_focus: string[];
 }

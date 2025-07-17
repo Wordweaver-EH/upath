@@ -912,22 +912,21 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
       if (!p0_2_data || !p_neg1_1_data) return { data: null, error: `Missing P0.2 or P-1.1 output for transcript ${currentTranscript.id}` };
       return { data: { ...p0_2_data, p_neg1_1_output: p_neg1_1_data } };
     },
-    generatePrompt: (input: P0_2_Output & { p_neg1_1_output: P_neg1_1_Output }) => `You are a micro-phenomenological analyst. Your task is to select utterances crucial for understanding the diachronic (temporal) structure of the *experience itself*, focusing on the participant's procedural account of their experience.
+    generatePrompt: (input: P0_2_Output & { p_neg1_1_output: P_neg1_1_Output }) => `You are a micro-phenomenological analyst. Your task is to evaluate ALL utterances from the refined data transcript and determine which are crucial for understanding the diachronic (temporal) structure of the *experience itself*.
 Input:
 The JSON output from P0.2 (refined data transcript) and P-1.1 (IV/DV info) for transcript ID ${input.transcript_id}.
 P0.2 Output: ${JSON.stringify({ transcript_id: input.transcript_id, refined_data_transcript: input.refined_data_transcript }, null, 2)}
 P-1.1 Output: ${JSON.stringify(input.p_neg1_1_output, null, 2)}
 
 Instructions:
-1.  Focus: The goal is to isolate the participant's narrative of *how the experience unfolded*. This means selecting utterances that describe actions, steps, or stages in the experience.
+1.  Focus: Evaluate EVERY line from the refined data transcript. For each line, determine whether it should be included for diachronic analysis based on whether it describes *how the experience unfolded*.
 2.  Selection Criteria:
-    *   Prioritize lines tagged "experiential_content".
-    *   From these, select utterances that indicate a sequence, action, or a part of the experiential process. These are "procedural utterances" in the context of the experience itself.
-    *   Interviewer questions, participant's meta-comments on the interview *process* (unless they also reveal experiential process), or purely descriptive (static) experiential content should generally be EXCLUDED from this selection, *unless* they are essential for understanding the flow of the described experience.
-    *   If a single original line was very long and contained multiple distinct procedural steps, you MAY split it and represent each as a separate selected utterance. If you do this, use a format like "LINE_NUM.SUB_INDEX" for \`original_line_num\` (e.g., "23.1", "23.2").
-3.  Justification: For each selected utterance, provide a brief \`selection_justification\` explaining why it's considered procedural to the experience.
-4.  Discarded Info Summary: Briefly summarize what kind of information was generally discarded (e.g., "Interviewer prompts, participant's self-corrections not directly related to experiential flow").
-5.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from P-1.1 MUST be copied verbatim into the output.
+    *   Include (true): Lines that describe actions, steps, stages, or temporal progression in the experience. These are "procedural utterances" in the context of the experience itself.
+    *   Exclude (false): Interviewer questions, participant's meta-comments on the interview *process* (unless they also reveal experiential process), or purely descriptive (static) experiential content.
+    *   Prioritize lines tagged "experiential_content" but evaluate all lines.
+    *   If a single original line was very long and contained multiple distinct procedural steps, you MAY split it and represent each as a separate utterance. If you do this, use a format like "LINE_NUM.SUB_INDEX" for \`original_line_num\` (e.g., "23.1", "23.2").
+3.  Justification: For EVERY utterance, provide a \`selection_justification\` explaining why it was included or excluded.
+4.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from P-1.1 MUST be copied verbatim into the output.
 
 Output:
 A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
@@ -936,12 +935,12 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
   "selected_procedural_utterances": [
     {
       "original_line_num": "string (e.g., '5' or '5.1')",
-      "utterance_text": "text of the selected utterance...",
-      "selection_justification": "Brief justification for selection."
+      "utterance_text": "text of the utterance...",
+      "included": true or false,
+      "selection_justification": "Explanation of why this was included or excluded."
     }
-    // ... more utterances
+    // ... ALL utterances from P0.2 must be represented here
   ],
-  "discarded_info_summary": "Summary of discarded info.",
   "independent_variable_details": "${input.p_neg1_1_output.independent_variable_details}",
   "dependent_variable_focus": ${JSON.stringify(input.p_neg1_1_output.dependent_variable_focus)}
 }
@@ -958,10 +957,18 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
         if (!p0_3_data) return { data: null, error: `Missing P0.3 output for transcript ${currentTranscript.id}` };
         return { data: p0_3_data };
     },
-    generatePrompt: (input: P0_3_Output) => `You are a micro-phenomenological analyst. Your task is to segment the selected procedural utterances based on temporal cues, focusing on the described experience's unfolding.
+    generatePrompt: (input: P0_3_Output) => {
+      // Filter to only include utterances where included === true
+      const includedUtterances = input.selected_procedural_utterances.filter(u => u.included);
+      const filteredInput = {
+        ...input,
+        selected_procedural_utterances: includedUtterances
+      };
+      
+      return `You are a micro-phenomenological analyst. Your task is to segment the selected procedural utterances based on temporal cues, focusing on the described experience's unfolding.
 Input:
-JSON output from P0.3 for transcript ID ${input.transcript_id}.
-P0.3 Output: ${JSON.stringify(input, null, 2)}
+JSON output from P0.3 for transcript ID ${input.transcript_id} (showing only INCLUDED utterances).
+P0.3 Output: ${JSON.stringify(filteredInput, null, 2)}
 
 Instructions:
 1.  Focus on "Action Units": Read each selected procedural utterance. Identify "minimal action units" or "elementary acts" within them. An utterance might contain one or multiple such segments.
@@ -999,10 +1006,11 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
     }
     // ... more segmented utterances
   ],
-  "independent_variable_details": "${input.independent_variable_details}",
-  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
+  "independent_variable_details": "${filteredInput.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(filteredInput.dependent_variable_focus)}
 }
-`,
+`;
+    },
   },
   [StepId.P1_2_DIACHRONIC_UNIT_ID]: {
     id: StepId.P1_2_DIACHRONIC_UNIT_ID,
@@ -1215,7 +1223,10 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
         segment_ids_in_phase.forEach(segId => {
             const segContainer = p1_1_data?.segmented_utterances.find(sc => sc.segments.some(s => s.segment_id === segId));
             if (segContainer && !utterances_for_phase.some(u => u.original_line_num === segContainer.original_utterance.original_line_num && u.utterance_text === segContainer.original_utterance.utterance_text)) {
-                utterances_for_phase.push(segContainer.original_utterance);
+                // Double-check that the utterance is included (though it should be by now)
+                if (!('included' in segContainer.original_utterance) || segContainer.original_utterance.included) {
+                    utterances_for_phase.push(segContainer.original_utterance);
+                }
             }
         });
 

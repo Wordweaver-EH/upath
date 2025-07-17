@@ -308,7 +308,6 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                 transcriptMapId: id,
                 transcriptId: transcript.p0_3_output!.transcript_id,
                 utterances: transcript.p0_3_output!.selected_procedural_utterances,
-                discardedSummary: transcript.p0_3_output!.discarded_info_summary,
                 ivDetails: transcript.p0_3_output!.independent_variable_details,
                 dvFocus: transcript.p0_3_output!.dependent_variable_focus
               }
@@ -329,19 +328,6 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
             }
           };
           
-          const handleDiscardedSummaryChange = (newValue: string) => {
-            const transcriptData = processedData.get(tabData.transcriptMapId);
-            if (transcriptData && transcriptData.p0_3_output) {
-              const updatedOutput = {
-                ...transcriptData.p0_3_output,
-                discarded_info_summary: newValue
-              };
-              
-              updateProcessedData(tabData.transcriptMapId, {
-                p0_3_output: updatedOutput
-              });
-            }
-          };
           
           return (
             <div className="space-y-4">
@@ -380,25 +366,12 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     ))}
                   </div>
                 </div>
-                
-                <div>
-                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                    Discarded Information Summary
-                  </h4>
-                  <EditableTextArea
-                    value={tabData.discardedSummary || ''}
-                    onChange={handleDiscardedSummaryChange}
-                    theme={theme}
-                    placeholder="Add summary of discarded information..."
-                    maxLength={500}
-                  />
-                </div>
               </div>
               
               {/* Selected utterances table */}
               <div>
                 <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
-                  Selected Procedural Utterances ({tabData.utterances.length} selected)
+                  Procedural Utterances Analysis ({tabData.utterances.filter((u: any) => u.included).length} included / {tabData.utterances.length} total)
                 </h4>
                 <SelectedUtterancesTable 
                   utterances={tabData.utterances} 
