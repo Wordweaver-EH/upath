@@ -46,6 +46,9 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
   onDiachronicChange,
   filename
 }) => {
+  console.log('[P1.2] diachronicData:', diachronicData);
+  console.log('[P1.2] diachronic_units:', diachronicData?.diachronic_units);
+  
   // Defensive check for data validity
   if (!diachronicData || !diachronicData.diachronic_units) {
     return (
@@ -112,6 +115,7 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
       segment_count: unit.source_segment_ids.length
     }));
 
+    console.log('[P1.2] rowData:', rows);
     return { rowData: rows, columnDefs: cols };
   }, [diachronicData]);
 
@@ -199,7 +203,7 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
   }, [segmentationData]);
 
   return (
-    <div className="h-full flex flex-col">
+    <>
       <div className="mb-2 flex justify-between items-center">
         <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
           💡 Click on description cells to edit them directly. Changes are saved automatically.
@@ -214,9 +218,10 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
       </div>
       
       <div 
-        className={`${theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} flex-1`}
+        className={`${theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'}`}
         style={{ 
-          minHeight: '400px',
+          height: '600px',
+          width: '100%',
           ...gridStyles as React.CSSProperties
         }}
       >
@@ -231,6 +236,6 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
           onCellValueChanged={handleCellValueChanged}
         />
       </div>
-    </div>
+    </>
   );
 };
