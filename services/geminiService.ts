@@ -280,8 +280,9 @@ The AI responded with the following text, which is not valid JSON or does not ma
 ${responseText}
 --- MALFORMED RESPONSE END ---
 
-Please analyze the original prompt's instructions for JSON output (paying close attention to the expected schema, field names, data types, and overall structure, especially for long string fields like markdown reports).
+Please analyze the original prompt's instructions for JSON output (paying close attention to the expected schema, field names, data types, and overall structure).
 Then, correct the malformed response to be valid JSON that accurately reflects the data described and adheres to the original prompt's schema.
+IMPORTANT: If the original prompt requested minified JSON, output minified JSON with no unnecessary whitespace.
 The output MUST be ONLY the corrected, valid JSON object or array. Ensure all string values are complete and correctly quoted, and that there are no trailing characters or missing terminators.
 Do not include any explanations, apologies, or surrounding text like markdown fences. Just the raw, corrected JSON.`;
         

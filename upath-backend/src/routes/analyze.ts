@@ -105,7 +105,7 @@ export default async function analyzeRoute(fastify: FastifyInstance) {
       const geminiModel = genAI.getGenerativeModel({ model: VALID_MODELS.includes(model) ? model : DEFAULT_MODEL });
 
       // Configure request
-      const generationConfig: any = { temperature, maxOutputTokens: 8192 };
+      const generationConfig: any = { temperature, maxOutputTokens: 65536 };
       
       if (isJsonOutput) {
         generationConfig.responseMimeType = 'application/json';

@@ -925,25 +925,18 @@ Instructions:
     *   Exclude (false): Interviewer questions, participant's meta-comments on the interview *process* (unless they also reveal experiential process), or purely descriptive (static) experiential content.
     *   Prioritize lines tagged "experiential_content" but evaluate all lines.
     *   If a single original line was very long and contained multiple distinct procedural steps, you MAY split it and represent each as a separate utterance. If you do this, use a format like "LINE_NUM.SUB_INDEX" for \`original_line_num\` (e.g., "23.1", "23.2").
-3.  Justification: For EVERY utterance, provide a \`selection_justification\` explaining why it was included or excluded.
-4.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from P-1.1 MUST be copied verbatim into the output.
+3.  Justification: For EVERY utterance, provide a BRIEF \`selection_justification\` (5-10 words maximum) explaining why it was included or excluded. Examples:
+    *   "Describes temporal progression"
+    *   "Static state description"
+    *   "Interviewer question"
+    *   "Meta-comment about interview"
+    *   "Action sequence described"
+4.  IMPORTANT: Output minified JSON with no unnecessary whitespace. Be extremely concise.
+5.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from P-1.1 MUST be copied verbatim into the output.
 
 Output:
-A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
-{
-  "transcript_id": "${input.transcript_id}",
-  "selected_procedural_utterances": [
-    {
-      "original_line_num": "string (e.g., '5' or '5.1')",
-      "utterance_text": "text of the utterance...",
-      "included": true or false,
-      "selection_justification": "Explanation of why this was included or excluded."
-    }
-    // ... ALL utterances from P0.2 must be represented here
-  ],
-  "independent_variable_details": "${input.p_neg1_1_output.independent_variable_details}",
-  "dependent_variable_focus": ${JSON.stringify(input.p_neg1_1_output.dependent_variable_focus)}
-}
+A MINIFIED JSON object (no extra whitespace) adhering EXACTLY to the following structure:
+{"transcript_id":"${input.transcript_id}","selected_procedural_utterances":[{"original_line_num":"1","utterance_text":"full text...","selection_justification":"brief reason here","included":false},{"original_line_num":"2","utterance_text":"full text...","selection_justification":"another brief reason","included":true}],"independent_variable_details":"${input.p_neg1_1_output.independent_variable_details}","dependent_variable_focus":${JSON.stringify(input.p_neg1_1_output.dependent_variable_focus)}}
 `,
   },
   [StepId.P1_1_INITIAL_SEGMENTATION]: {

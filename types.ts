@@ -60,8 +60,8 @@ export interface P0_2_Output {
 export interface SelectedUtterance {
   original_line_num: string; // Can be "X.Y" for split lines
   utterance_text: string;
-  included: boolean;
   selection_justification: string;
+  included: boolean;
 }
 export interface P0_3_Output {
   transcript_id: string;
