@@ -68,6 +68,23 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
         cellClass: 'text-center editable-cell'
       },
       { 
+        field: 'speaker', 
+        headerName: 'Speaker',
+        width: 150,
+        sortable: true,
+        resizable: true,
+        editable: false,
+        cellRenderer: (params: ICellRendererParams) => {
+          if (!params.value) return '';
+          return (
+            <span className="font-medium text-light-accent dark:text-dark-accent">
+              {params.value}
+            </span>
+          );
+        },
+        cellClass: (params) => params.data.included ? '' : 'opacity-60'
+      },
+      { 
         field: 'utterance_text', 
         headerName: 'Utterance Text',
         flex: 2,

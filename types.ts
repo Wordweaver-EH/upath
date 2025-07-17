@@ -48,21 +48,25 @@ export interface P0_1_Output {
 
 export interface RefinedLine {
   line_num: number;
+  speaker?: string;
   text: string;
   information_tags: string[];
   decision_notes?: string;
 }
+
 export interface P0_2_Output {
   transcript_id: string;
   refined_data_transcript: RefinedLine[];
 }
 
 export interface SelectedUtterance {
-  original_line_num: string; // Can be "X.Y" for split lines
+  original_line_num: string;
+  speaker?: string;
   utterance_text: string;
   selection_justification: string;
   included: boolean;
 }
+
 export interface P0_3_Output {
   transcript_id: string;
   selected_procedural_utterances: SelectedUtterance[];

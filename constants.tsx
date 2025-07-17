@@ -860,16 +860,51 @@ ${input.raw_transcript_text_from_file}
       if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P0.2." };
       const p0_1_data = allProcessedData?.get(currentTranscript.id)?.p0_1_output;
       if (!p0_1_data) return { data: null, error: `Missing P0.1 output for transcript ${currentTranscript.id}` };
-      return { data: p0_1_data };
+      
+      // Parse the line-numbered transcript to extract line numbers and text
+      const parsedLines = p0_1_data.line_numbered_transcript.map(line => {
+        // Extract line number (format: "1: ...")
+        const lineMatch = line.match(/^(\d+):\s*(.*)$/);
+        if (!lineMatch) {
+          return { lineNumber: '', speaker: '', text: line };
+        }
+        
+        const [, lineNumber, rest] = lineMatch;
+        
+        // Check for speaker (format: "Speaker Name: ..." or "P1: ...")
+        const speakerMatch = rest.match(/^([^:]+):\s*(.*)$/);
+        if (speakerMatch) {
+          const [, speaker, text] = speakerMatch;
+          // Check if this is actually a speaker and not just a colon in the text
+          if (speaker.match(/^[A-Z]\d+$/) || speaker.match(/^[A-Z][a-z]+ [A-Z][a-z]+$/) || speaker.length < 30) {
+            return { lineNumber, speaker: speaker.trim(), text: text.trim() };
+          }
+        }
+        
+        // No speaker found, treat as regular text
+        return { lineNumber, speaker: '', text: rest };
+      });
+      
+      return { 
+        data: {
+          ...p0_1_data,
+          parsed_lines: parsedLines
+        }
+      };
     },
-    generatePrompt: (input: P0_1_Output) => `You are a micro-phenomenological data preparation analyst. Your task is to refine the line-numbered transcript by identifying different types of information.
+    generatePrompt: (input: P0_1_Output & { parsed_lines: Array<{ lineNumber: string; speaker: string; text: string }> }) => `You are a micro-phenomenological data preparation analyst. Your task is to refine the line-numbered transcript by identifying different types of information.
 Input:
-The JSON output from the previous step (Prompt 0.1) for transcript ID ${input.transcript_id}.
-${JSON.stringify(input, null, 2)}
+The parsed transcript lines for transcript ID ${input.transcript_id}.
+${JSON.stringify({ 
+  transcript_id: input.transcript_id,
+  parsed_lines: input.parsed_lines,
+  transcription_convention_notes: input.transcription_convention_notes,
+  initial_impressions_log: input.initial_impressions_log
+}, null, 2)}
 
 Instructions:
-1. Re-read and categorize each line:
-   For each numbered line, determine if it primarily contains:
+1. Re-read and categorize each parsed line:
+   For each line in parsed_lines, determine if it primarily contains:
     - "procedural_information": Utterances related to the interview process itself (e.g., interviewer's questions, participant's reflections on the question or process, meta-comments).
     - "experiential_content": Utterances directly describing the lived experience being investigated.
     - "ambiguous_or_mixed": Lines that are hard to categorize or contain both.
@@ -885,7 +920,8 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
   "refined_data_transcript": [
     {
       "line_num": 1,
-      "text": "text of line 1...",
+      "speaker": "P1",
+      "text": "text content without line number or speaker prefix",
       "information_tags": ["tag1", "tag2"],
       "decision_notes": "Optional notes for line 1."
     },
@@ -921,6 +957,7 @@ P-1.1 Output: ${JSON.stringify(input.p_neg1_1_output, null, 2)}
 Instructions:
 1.  Focus: Evaluate EVERY line from the refined data transcript. For each line, determine whether it should be included for diachronic analysis based on whether it describes *how the experience unfolded*.
 2.  Selection Criteria:
+    *   IMPORTANT: Copy the speaker field from refined_data_transcript to the output. Use only the text content from refined_data_transcript (no line numbers or speaker prefixes in utterance_text).
     *   Include (true): Lines that describe actions, steps, stages, or temporal progression in the experience. These are "procedural utterances" in the context of the experience itself.
     *   Exclude (false): Interviewer questions, participant's meta-comments on the interview *process* (unless they also reveal experiential process), or purely descriptive (static) experiential content.
     *   Prioritize lines tagged "experiential_content" but evaluate all lines.
@@ -936,7 +973,7 @@ Instructions:
 
 Output:
 A MINIFIED JSON object (no extra whitespace) adhering EXACTLY to the following structure:
-{"transcript_id":"${input.transcript_id}","selected_procedural_utterances":[{"original_line_num":"1","utterance_text":"full text...","selection_justification":"brief reason here","included":false},{"original_line_num":"2","utterance_text":"full text...","selection_justification":"another brief reason","included":true}],"independent_variable_details":"${input.p_neg1_1_output.independent_variable_details}","dependent_variable_focus":${JSON.stringify(input.p_neg1_1_output.dependent_variable_focus)}}
+{"transcript_id":"${input.transcript_id}","selected_procedural_utterances":[{"original_line_num":"1","speaker":"P1","utterance_text":"full text...","selection_justification":"brief reason here","included":false},{"original_line_num":"2","speaker":"Kevin Sheldrake","utterance_text":"full text...","selection_justification":"another brief reason","included":true}],"independent_variable_details":"${input.p_neg1_1_output.independent_variable_details}","dependent_variable_focus":${JSON.stringify(input.p_neg1_1_output.dependent_variable_focus)}}
 `,
   },
   [StepId.P1_1_INITIAL_SEGMENTATION]: {

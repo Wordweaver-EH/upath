@@ -65,6 +65,22 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
         cellClass: 'text-center font-mono text-xs text-light-sidenote dark:text-dark-sidenote'
       },
       { 
+        field: 'speaker', 
+        headerName: 'Speaker',
+        width: 150,
+        sortable: true,
+        resizable: true,
+        editable: false,
+        cellRenderer: (params: ICellRendererParams) => {
+          if (!params.value) return '';
+          return (
+            <span className="font-medium text-light-accent dark:text-dark-accent">
+              {params.value}
+            </span>
+          );
+        }
+      },
+      { 
         field: 'text', 
         headerName: 'Text',
         flex: 2,
