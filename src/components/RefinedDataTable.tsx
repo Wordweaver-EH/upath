@@ -19,6 +19,7 @@ interface RefinedDataTableProps {
   refinedLines: RefinedLine[];
   theme: 'light' | 'dark';
   onLinesChange?: (updatedLines: RefinedLine[]) => void;
+  filename?: string;
 }
 
 const TagsRenderer: React.FC<ICellRendererParams> = (params) => {
@@ -51,7 +52,8 @@ const TagsRenderer: React.FC<ICellRendererParams> = (params) => {
 export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({ 
   refinedLines, 
   theme,
-  onLinesChange
+  onLinesChange,
+  filename
 }) => {
   const { rowData, columnDefs } = useMemo(() => {
     const cols: ColDef[] = [
@@ -194,7 +196,13 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
       { field: 'decision_notes', headerName: 'Decision Notes' }
     ];
     const csvContent = convertToCSV(rowData, columns);
-    downloadCSV(csvContent, 'refined_data_transcript.csv');
+    
+    // Generate filename with transcript name and date
+    const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const baseName = filename ? filename.replace(/\.[^/.]+$/, '') : 'transcript'; // Remove extension
+    const csvFilename = `${baseName}_P0-2_refined_${date}.csv`;
+    
+    downloadCSV(csvContent, csvFilename);
   };
 
   return (

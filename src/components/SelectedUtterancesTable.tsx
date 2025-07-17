@@ -18,12 +18,14 @@ interface SelectedUtterancesTableProps {
   utterances: SelectedUtterance[];
   theme: 'light' | 'dark';
   onUtterancesChange?: (updatedUtterances: SelectedUtterance[]) => void;
+  filename?: string;
 }
 
 export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = ({ 
   utterances, 
   theme,
-  onUtterancesChange
+  onUtterancesChange,
+  filename
 }) => {
   const { rowData, columnDefs } = useMemo(() => {
     const cols: ColDef[] = [
@@ -185,7 +187,13 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
       { field: 'selection_justification', headerName: 'Selection Justification' }
     ];
     const csvContent = convertToCSV(rowData, columns);
-    downloadCSV(csvContent, 'selected_utterances.csv');
+    
+    // Generate filename with transcript name and date
+    const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const baseName = filename ? filename.replace(/\.[^/.]+$/, '') : 'transcript'; // Remove extension
+    const csvFilename = `${baseName}_P0-3_utterances_${date}.csv`;
+    
+    downloadCSV(csvContent, csvFilename);
   };
 
   return (

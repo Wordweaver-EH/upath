@@ -146,7 +146,8 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                 lines: transcript.p0_1_output!.line_numbered_transcript,
                 transcriptId: transcript.p0_1_output!.transcript_id,
                 initialImpressions: transcript.p0_1_output!.initial_impressions_log,
-                conventionNotes: transcript.p0_1_output!.transcription_convention_notes
+                conventionNotes: transcript.p0_1_output!.transcription_convention_notes,
+                filename: transcript.filename
               }
             }));
         }}
@@ -217,7 +218,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                 <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
                   Line-Numbered Transcript (Not Editable)
                 </h4>
-                <TranscriptLinesTable lines={tabData.lines} theme={theme} />
+                <TranscriptLinesTable lines={tabData.lines} theme={theme} filename={tabData.filename} />
               </div>
             </div>
           );
@@ -242,7 +243,8 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               data: {
                 transcriptMapId: id,
                 transcriptId: transcript.p0_2_output!.transcript_id,
-                refinedLines: transcript.p0_2_output!.refined_data_transcript
+                refinedLines: transcript.p0_2_output!.refined_data_transcript,
+                filename: transcript.filename
               }
             }));
         }}
@@ -282,6 +284,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   refinedLines={tabData.refinedLines} 
                   theme={theme}
                   onLinesChange={handleLinesChange}
+                  filename={tabData.filename}
                 />
               </div>
             </div>
@@ -309,7 +312,8 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                 transcriptId: transcript.p0_3_output!.transcript_id,
                 utterances: transcript.p0_3_output!.selected_procedural_utterances,
                 ivDetails: transcript.p0_3_output!.independent_variable_details,
-                dvFocus: transcript.p0_3_output!.dependent_variable_focus
+                dvFocus: transcript.p0_3_output!.dependent_variable_focus,
+                filename: transcript.filename
               }
             }));
         }}
@@ -377,6 +381,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   utterances={tabData.utterances} 
                   theme={theme}
                   onUtterancesChange={handleUtterancesChange}
+                  filename={tabData.filename}
                 />
               </div>
             </div>

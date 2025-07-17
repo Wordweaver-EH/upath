@@ -10,6 +10,7 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 interface TranscriptLinesTableProps {
   lines: string[];
   theme: 'light' | 'dark';
+  filename?: string;
 }
 
 interface ParsedLine {
@@ -44,7 +45,8 @@ const parseTranscriptLine = (line: string): ParsedLine => {
 
 export const TranscriptLinesTable: React.FC<TranscriptLinesTableProps> = ({ 
   lines, 
-  theme 
+  theme,
+  filename 
 }) => {
   const { rowData, columnDefs } = useMemo(() => {
     const parsedLines = lines.map(parseTranscriptLine);
@@ -137,7 +139,13 @@ export const TranscriptLinesTable: React.FC<TranscriptLinesTableProps> = ({
       { field: 'text', headerName: 'Text' }
     ];
     const csvContent = convertToCSV(rowData, columns);
-    downloadCSV(csvContent, 'transcript_lines.csv');
+    
+    // Generate filename with transcript name and date
+    const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const baseName = filename ? filename.replace(/\.[^/.]+$/, '') : 'transcript'; // Remove extension
+    const csvFilename = `${baseName}_P0-1_lines_${date}.csv`;
+    
+    downloadCSV(csvContent, csvFilename);
   };
 
   return (
