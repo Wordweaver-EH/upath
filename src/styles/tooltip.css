@@ -1,10 +1,10 @@
 /* Nested Tooltip Styles */
 .nested-tooltip {
   @apply bg-light-bg dark:bg-dark-bg;
-  @apply border border-light-border dark:border-dark-border;
   @apply rounded-lg shadow-lg;
   @apply text-light-text dark:text-dark-text;
   background-color: #faf8f1 !important; /* Light mode background */
+  border: 2px solid #c4c1b8 !important; /* Darker than light-border for more contrast */
   opacity: 1 !important;
   pointer-events: auto;
   animation: tooltipFadeIn 0.2s ease-out;
@@ -12,6 +12,7 @@
 
 .dark .nested-tooltip {
   background-color: #1a1a1a !important; /* Dark mode background */
+  border: 2px solid #666666 !important; /* Lighter than dark-border for more contrast */
 }
 
 .nested-tooltip-content {
@@ -25,7 +26,6 @@
 /* Depth-based styling */
 .nested-tooltip.depth-0 {
   @apply shadow-xl;
-  @apply border-light-accent dark:border-dark-accent;
 }
 
 .nested-tooltip.depth-1 {
