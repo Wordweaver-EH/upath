@@ -84,25 +84,22 @@ export const NestedTooltip: React.FC<NestedTooltipProps> = ({
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     
-    let x = position.x;
+    // For wider tooltips, center them more aggressively
+    let x = viewportWidth / 2; // Start from center of viewport
     let y = position.y - tooltipRect.height - 10;
 
-    // Offset for nested tooltips
-    const offset = depth * 20;
-    x += offset;
+    // Small offset for nested tooltips
+    const offset = depth * 10;
     y += offset;
 
-    // Keep within viewport horizontally
-    if (x + tooltipRect.width / 2 > viewportWidth - 10) {
-      x = viewportWidth - tooltipRect.width / 2 - 10;
-    }
-    if (x - tooltipRect.width / 2 < 10) {
-      x = tooltipRect.width / 2 + 10;
-    }
-    
     // If tooltip would go above viewport, show below trigger instead
     if (y < 10) {
-      y = position.y + 10 + offset;
+      y = position.y + 20 + offset;
+    }
+    
+    // If tooltip would go below viewport, position it higher
+    if (y + tooltipRect.height > viewportHeight - 10) {
+      y = viewportHeight / 2 - tooltipRect.height / 2;
     }
 
     setPosition({ x, y });

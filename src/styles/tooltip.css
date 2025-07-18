@@ -16,7 +16,8 @@
 
 .nested-tooltip-content {
   @apply relative;
-  max-width: 28rem;
+  max-width: 90vw; /* Use viewport width instead of fixed rem */
+  width: 80vw; /* Default to 80% of viewport */
   max-height: 80vh;
   overflow: auto;
 }

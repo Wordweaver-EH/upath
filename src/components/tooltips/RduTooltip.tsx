@@ -15,7 +15,7 @@ export const RduTooltip: React.FC<RduTooltipProps> = ({ rduName, transcriptData 
   
   if (!rdu) {
     return (
-      <div className="p-4 max-w-md">
+      <div className="p-6">
         <p className="text-sm text-light-sidenote dark:text-dark-sidenote">
           RDU data not found for {rduName}
         </p>
@@ -32,7 +32,7 @@ export const RduTooltip: React.FC<RduTooltipProps> = ({ rduName, transcriptData 
   }).filter(Boolean);
 
   return (
-    <div className="p-4 max-w-md">
+    <div className="p-6">
       <h3 className="font-semibold text-light-text dark:text-dark-text mb-2">
         {rduName}
       </h3>
@@ -126,7 +126,7 @@ const DuTooltipContent: React.FC<DuTooltipContentProps> = ({ du, transcriptData 
   const utterances = Array.from(utteranceMap.values());
 
   return (
-    <div className="p-4 max-w-md">
+    <div className="p-6">
       <h3 className="font-semibold text-light-text dark:text-dark-text mb-2">
         {du.unit_id || du.du_id}
       </h3>
@@ -182,7 +182,7 @@ const UtteranceTooltipContent: React.FC<UtteranceTooltipContentProps> = ({ utter
   const text = utterance.utterance_text || utterance.text || '';
   
   return (
-    <div className="p-4 max-w-md">
+    <div className="p-6">
       <h3 className="font-semibold text-light-text dark:text-dark-text mb-2">
         Line {lineNum}
       </h3>

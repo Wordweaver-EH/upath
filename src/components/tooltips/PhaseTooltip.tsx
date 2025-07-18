@@ -13,7 +13,7 @@ export const PhaseTooltip: React.FC<PhaseTooltipProps> = ({ phaseTrace, transcri
   );
 
   return (
-    <div className="phase-tooltip-content p-4 max-w-md">
+    <div className="phase-tooltip-content p-6">
       <div className="font-bold text-light-accent dark:text-dark-accent mb-2">
         Phase: {phaseTrace.phaseName}
       </div>
@@ -61,7 +61,7 @@ interface RDUTooltipContentProps {
 
 const RDUTooltipContent: React.FC<RDUTooltipContentProps> = ({ rdu, transcriptId }) => {
   return (
-    <div className="rdu-tooltip-content p-4 max-w-md">
+    <div className="rdu-tooltip-content p-6">
       <div className="font-bold text-light-accent dark:text-dark-accent mb-2">
         RDU: {rdu.rduId}
       </div>
@@ -107,7 +107,7 @@ interface DUTooltipContentProps {
 
 const DUTooltipContent: React.FC<DUTooltipContentProps> = ({ du, transcriptId }) => {
   return (
-    <div className="du-tooltip-content p-4 max-w-md">
+    <div className="du-tooltip-content p-6">
       <div className="font-bold text-light-accent dark:text-dark-accent mb-2">
         DU: {du.duId}
       </div>
