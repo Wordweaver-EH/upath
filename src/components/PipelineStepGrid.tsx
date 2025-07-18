@@ -16,6 +16,8 @@ import { usePipelineStore } from '../stores/pipelineStore';
 import MermaidDiagram from '../../components/MermaidDiagram';
 import { DiachronicComparisonTable } from './DiachronicComparisonTable';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { NestedTooltip } from './NestedTooltip';
+import { RduTooltip } from './tooltips/RduTooltip';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -767,11 +769,27 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                           </td>
                           <td className="px-4 py-2 text-sm">
                             <div className="flex flex-wrap gap-1">
-                              {phase.units_involved.split('; ').map((unit, idx) => (
-                                <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                  {unit}
-                                </span>
-                              ))}
+                              {phase.units_involved.split('; ').map((unit, idx) => {
+                                const transcriptData = processedData.get(tabData.transcriptMapId);
+                                if (!transcriptData) {
+                                  return (
+                                    <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                      {unit}
+                                    </span>
+                                  );
+                                }
+                                
+                                return (
+                                  <NestedTooltip
+                                    key={idx}
+                                    content={<RduTooltip rduName={unit} transcriptData={transcriptData} />}
+                                  >
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors">
+                                      {unit}
+                                    </span>
+                                  </NestedTooltip>
+                                );
+                              })}
                             </div>
                           </td>
                         </tr>
