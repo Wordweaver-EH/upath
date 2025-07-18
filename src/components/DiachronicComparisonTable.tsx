@@ -1,9 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import { ColDef, GridOptions } from 'ag-grid-community';
+import { ColDef, GridOptions, ICellRendererParams } from 'ag-grid-community';
 import { usePipelineStore } from '../stores/pipelineStore';
-import { P1_4_Output } from '../types';
+import { P1_4_Output, TranscriptProcessedData } from '../types';
 import { downloadCSV } from '../utils/csvExport';
+import { NestedTooltip } from './NestedTooltip';
+import { PhaseTooltip } from './tooltips/PhaseTooltip';
+import { tracePhaseToUtterances } from '../utils/phaseTracingHelper';
 
 interface PhaseData {
   transcriptId: string;
@@ -86,59 +89,69 @@ export const DiachronicComparisonTable: React.FC = () => {
         field: `phase${i + 1}`,
         headerName: `Phase ${i + 1}`,
         width: 150,
-        tooltipField: `phase${i + 1}_tooltip`,
-        tooltipComponent: 'customTooltip',
-        cellClass: (params) => {
-          const value = params.value;
-          if (!value || value === '-') return 'text-light-sidenote dark:text-dark-sidenote';
-          
-          // Color-code common phase names
-          const lowerValue = value.toLowerCase();
-          if (lowerValue.includes('beginning') || lowerValue.includes('initial')) {
-            return 'bg-green-100 dark:bg-green-900';
-          } else if (lowerValue.includes('core') || lowerValue.includes('peak')) {
-            return 'bg-blue-100 dark:bg-blue-900';
-          } else if (lowerValue.includes('end') || lowerValue.includes('resolution') || lowerValue.includes('reflection')) {
-            return 'bg-purple-100 dark:bg-purple-900';
-          } else if (lowerValue.includes('transition')) {
-            return 'bg-yellow-100 dark:bg-yellow-900';
-          }
-          return '';
-        }
+        cellRenderer: 'phaseCellRenderer'
       });
     }
     
     return columns;
   }, [maxPhases]);
 
-  // Custom tooltip component
-  const CustomTooltip = useMemo(() => {
-    return (props: any) => {
-      const data = props.value;
-      if (!data) return null;
-      
-      return (
-        <div className="p-3 bg-light-bg dark:bg-dark-bg border border-light-border dark:border-dark-border rounded shadow-lg">
-          <div className="font-semibold mb-2">Description:</div>
-          <div className="text-sm mb-3">{data.description}</div>
-          <div className="font-semibold mb-1">Units Involved:</div>
-          <div className="text-sm">{data.units || 'None'}</div>
+  // Custom cell renderer with nested tooltips
+  const PhaseCellRenderer = useCallback((params: ICellRendererParams) => {
+    const { value, data, colDef } = params;
+    if (!value || value === '-') {
+      return <span className="text-light-sidenote dark:text-dark-sidenote">-</span>;
+    }
+
+    // Extract phase index from field name (e.g., "phase1" -> 0)
+    const phaseIndex = parseInt(colDef.field?.replace('phase', '') || '1') - 1;
+    const transcriptId = data.transcriptId;
+    const transcriptData = processedData.get(transcriptId);
+    
+    if (!transcriptData) {
+      return <span>{value}</span>;
+    }
+
+    // Get phase trace data
+    const phaseTrace = tracePhaseToUtterances(value, transcriptData);
+    
+    if (!phaseTrace) {
+      return <span>{value}</span>;
+    }
+
+    // Determine color class based on phase name
+    let colorClass = '';
+    const lowerValue = value.toLowerCase();
+    if (lowerValue.includes('beginning') || lowerValue.includes('initial')) {
+      colorClass = 'bg-green-100 dark:bg-green-900';
+    } else if (lowerValue.includes('core') || lowerValue.includes('peak')) {
+      colorClass = 'bg-blue-100 dark:bg-blue-900';
+    } else if (lowerValue.includes('end') || lowerValue.includes('resolution') || lowerValue.includes('reflection')) {
+      colorClass = 'bg-purple-100 dark:bg-purple-900';
+    } else if (lowerValue.includes('transition')) {
+      colorClass = 'bg-yellow-100 dark:bg-yellow-900';
+    }
+
+    return (
+      <NestedTooltip
+        content={<PhaseTooltip phaseTrace={phaseTrace} transcriptId={transcriptId} />}
+      >
+        <div className={`w-full h-full flex items-center justify-center px-2 py-1 cursor-pointer ${colorClass}`}>
+          {value}
         </div>
-      );
-    };
-  }, []);
+      </NestedTooltip>
+    );
+  }, [processedData]);
 
   const gridOptions: GridOptions = {
     components: {
-      customTooltip: CustomTooltip
+      phaseCellRenderer: PhaseCellRenderer
     },
     defaultColDef: {
       sortable: true,
       resizable: true,
       suppressMovable: true
     },
-    tooltipShowDelay: 200,
-    tooltipMouseTrack: true,
     rowHeight: 40,
     headerHeight: 45,
     animateRows: true,

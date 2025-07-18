@@ -38,6 +38,7 @@ import { PipelineStepGrid } from './src/components/PipelineStepGrid';
 // AG Grid CSS
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
+import './src/styles/tooltip.css';
 
 import { useUIStore, useSettingsStore, usePipelineStore, useIRRStore, initializeStores, selectCurrentStepDisplay } from './src/stores';
 import { useAutorunManager } from './src/hooks/useAutorunManager';
