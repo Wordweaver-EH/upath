@@ -14,6 +14,7 @@ import { RefinedDiachronicUnitTable } from './RefinedDiachronicUnitTable';
 import { EditableTextArea } from './EditableTextArea';
 import { usePipelineStore } from '../stores/pipelineStore';
 import MermaidDiagram from '../../components/MermaidDiagram';
+import { DiachronicComparisonTable } from './DiachronicComparisonTable';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
 
 // Register AG Grid modules
@@ -780,22 +781,10 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                 </div>
               </div>
               
-              {/* Mermaid diagram */}
-              {mermaidSyntax && (
-                <div>
-                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
-                    Diachronic Structure Visualization
-                  </h4>
-                  <div className="min-h-[300px]">
-                    <MermaidDiagram 
-                      key={`mermaid-${tabData.transcriptMapId}`}
-                      chart={mermaidSyntax} 
-                      theme={theme}
-                      uniqueId={tabData.transcriptMapId}
-                    />
-                  </div>
-                </div>
-              )}
+              {/* Comparative Diachronic Table */}
+              <div className="mt-8 pt-8 border-t border-light-border dark:border-dark-border">
+                <DiachronicComparisonTable />
+              </div>
             </div>
           );
         }}
