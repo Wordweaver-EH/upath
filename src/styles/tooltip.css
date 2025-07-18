@@ -4,8 +4,14 @@
   @apply border border-light-border dark:border-dark-border;
   @apply rounded-lg shadow-lg;
   @apply text-light-text dark:text-dark-text;
+  background-color: #faf8f1 !important; /* Light mode background */
+  opacity: 1 !important;
   pointer-events: auto;
   animation: tooltipFadeIn 0.2s ease-out;
+}
+
+.dark .nested-tooltip {
+  background-color: #1a1a1a !important; /* Dark mode background */
 }
 
 .nested-tooltip-content {
@@ -23,13 +29,11 @@
 
 .nested-tooltip.depth-1 {
   @apply shadow-lg;
-  @apply bg-opacity-95 dark:bg-opacity-95;
   margin-left: 1rem;
 }
 
 .nested-tooltip.depth-2 {
   @apply shadow-md;
-  @apply bg-opacity-90 dark:bg-opacity-90;
   margin-left: 2rem;
 }
 

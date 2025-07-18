@@ -94,7 +94,7 @@ export function tracePhaseToUtterances(
                   // Find which utterance contains this segment
                   for (const segUtt of transcriptData.p1_1_output.segmented_utterances) {
                     const segment = segUtt.segments?.find(s => s.segment_id === segId);
-                    if (segment) {
+                    if (segment && segUtt.original_utterance?.original_line_num) {
                       const lineNum = segUtt.original_utterance.original_line_num;
                       if (!utteranceMap.has(lineNum)) {
                         utteranceMap.set(lineNum, []);
@@ -108,13 +108,13 @@ export function tracePhaseToUtterances(
                 // Create utterance traces
                 for (const [lineNum, segs] of utteranceMap) {
                   const segUtt = transcriptData.p1_1_output.segmented_utterances.find(
-                    s => s.original_utterance.original_line_num === lineNum
+                    s => s.original_utterance?.original_line_num === lineNum
                   );
                   
-                  if (segUtt) {
+                  if (segUtt && segUtt.original_utterance) {
                     duTrace.utterances.push({
                       lineNumber: lineNum,
-                      text: segUtt.original_utterance.utterance_text,
+                      text: segUtt.original_utterance.utterance_text || '',
                       segments: segs
                     });
                   }

@@ -27,6 +27,7 @@ export const NestedTooltip: React.FC<NestedTooltipProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [position, setPosition] = useState<TooltipPosition>({ x: 0, y: 0 });
+  const [hasPositioned, setHasPositioned] = useState(false);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout>();
@@ -37,12 +38,16 @@ export const NestedTooltip: React.FC<NestedTooltipProps> = ({
     if (controlledIsOpen !== undefined) return;
     
     clearTimeout(hoverTimeoutRef.current);
+    // Capture the element reference before the timeout
+    const element = e.currentTarget as HTMLElement;
     hoverTimeoutRef.current = setTimeout(() => {
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      if (!element) return;
+      const rect = element.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
       const y = rect.top;
       
       setPosition({ x, y });
+      setHasPositioned(false);
       setIsOpen(true);
     }, 200);
   }, [controlledIsOpen]);
@@ -70,36 +75,39 @@ export const NestedTooltip: React.FC<NestedTooltipProps> = ({
     }
   }, [controlledIsOpen, onClose]);
 
-  // Adjust position to keep tooltip on screen
+  // Adjust position after render to keep tooltip on screen
   useEffect(() => {
-    if (!actualIsOpen || !tooltipRef.current) return;
+    if (!actualIsOpen || !tooltipRef.current || hasPositioned) return;
 
     const tooltip = tooltipRef.current;
-    const rect = tooltip.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     
-    let newX = position.x;
-    let newY = position.y - rect.height - 10;
+    let x = position.x;
+    let y = position.y - tooltipRect.height - 10;
 
     // Offset for nested tooltips
     const offset = depth * 20;
-    newX += offset;
-    newY += offset;
+    x += offset;
+    y += offset;
 
-    // Keep within viewport
-    if (newX + rect.width / 2 > viewportWidth - 10) {
-      newX = viewportWidth - rect.width / 2 - 10;
+    // Keep within viewport horizontally
+    if (x + tooltipRect.width / 2 > viewportWidth - 10) {
+      x = viewportWidth - tooltipRect.width / 2 - 10;
     }
-    if (newX - rect.width / 2 < 10) {
-      newX = rect.width / 2 + 10;
+    if (x - tooltipRect.width / 2 < 10) {
+      x = tooltipRect.width / 2 + 10;
     }
-    if (newY < 10) {
-      newY = position.y + 10;
+    
+    // If tooltip would go above viewport, show below trigger instead
+    if (y < 10) {
+      y = position.y + 10 + offset;
     }
 
-    setPosition({ x: newX, y: newY });
-  }, [actualIsOpen, depth, position.x, position.y]);
+    setPosition({ x, y });
+    setHasPositioned(true);
+  }, [actualIsOpen, hasPositioned, position.x, position.y, depth]);
 
   // Handle escape key
   useEffect(() => {
@@ -139,6 +147,7 @@ export const NestedTooltip: React.FC<NestedTooltipProps> = ({
             top: `${position.y}px`,
             transform: 'translateX(-50%)',
             zIndex: 1000 + depth * 10,
+            visibility: hasPositioned ? 'visible' : 'hidden',
           }}
           onMouseEnter={handleTooltipMouseEnter}
           onMouseLeave={handleTooltipMouseLeave}

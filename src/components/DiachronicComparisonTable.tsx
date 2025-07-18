@@ -144,6 +144,7 @@ export const DiachronicComparisonTable: React.FC = () => {
   }, [processedData]);
 
   const gridOptions: GridOptions = {
+    theme: 'legacy',
     components: {
       phaseCellRenderer: PhaseCellRenderer
     },
