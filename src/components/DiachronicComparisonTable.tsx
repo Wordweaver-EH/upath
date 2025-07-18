@@ -17,9 +17,16 @@ interface PhaseData {
   }[];
 }
 
-export const DiachronicComparisonTable: React.FC = () => {
+interface DiachronicComparisonTableProps {
+  theme?: 'light' | 'dark';
+}
+
+export const DiachronicComparisonTable: React.FC<DiachronicComparisonTableProps> = ({ theme }) => {
   const processedData = usePipelineStore(state => state.processedData);
   const activeTranscriptId = usePipelineStore(state => state.activeTranscriptId);
+  
+  // Detect theme from DOM if not provided
+  const effectiveTheme = theme || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
   
   // Collect all P1.4 outputs from all transcripts
   const phaseDataByTranscript = useMemo(() => {
@@ -204,7 +211,7 @@ export const DiachronicComparisonTable: React.FC = () => {
       </div>
       
       <div 
-        className="ag-theme-alpine dark:ag-theme-alpine-dark w-full" 
+        className={`${effectiveTheme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} w-full`}
         style={{ height: Math.min(400, 100 + rowData.length * 40) }}
       >
         <AgGridReact

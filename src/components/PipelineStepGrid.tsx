@@ -801,7 +801,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               
               {/* Comparative Diachronic Table */}
               <div className="mt-8 pt-8 border-t border-light-border dark:border-dark-border">
-                <DiachronicComparisonTable />
+                <DiachronicComparisonTable theme={theme} />
               </div>
             </div>
           );
