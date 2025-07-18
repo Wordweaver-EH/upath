@@ -123,13 +123,13 @@ export const DiachronicComparisonTable: React.FC = () => {
     let colorClass = '';
     const lowerValue = value.toLowerCase();
     if (lowerValue.includes('beginning') || lowerValue.includes('initial')) {
-      colorClass = 'bg-green-100 dark:bg-green-900';
+      colorClass = 'phase-beginning';
     } else if (lowerValue.includes('core') || lowerValue.includes('peak')) {
-      colorClass = 'bg-blue-100 dark:bg-blue-900';
+      colorClass = 'phase-core';
     } else if (lowerValue.includes('end') || lowerValue.includes('resolution') || lowerValue.includes('reflection')) {
-      colorClass = 'bg-purple-100 dark:bg-purple-900';
+      colorClass = 'phase-ending';
     } else if (lowerValue.includes('transition')) {
-      colorClass = 'bg-yellow-100 dark:bg-yellow-900';
+      colorClass = 'phase-transition';
     }
 
     return (
