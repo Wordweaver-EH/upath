@@ -59,8 +59,24 @@ export class PipelineOrchestrator {
   ): NextStepInfo | null {
     const { rawTranscripts, processedData, genericAnalysisState } = dataState
 
-    // Handle initial state
+    // Handle initial state with resume support
     if (currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length > 0) {
+      // Check if we have a resume checkpoint
+      if (processState.resumeCheckpoint) {
+        const { partIndex, stepIndex, iterationContext } = processState.resumeCheckpoint
+        
+        // Find the step from checkpoint
+        const part = this.pipelineStructure[partIndex]
+        if (part && stepIndex < part.steps.length) {
+          return {
+            nextStepId: part.steps[stepIndex],
+            nextTranscriptIndex: iterationContext.transcriptIndex ?? 0,
+            iterationType: part.iteration
+          }
+        }
+      }
+      
+      // No checkpoint, start from beginning
       return this.getFirstStep(rawTranscripts)
     }
 
@@ -404,6 +420,16 @@ export class PipelineOrchestrator {
         error,
         timestamp: Date.now()
       }
+    }
+
+    // Clear resumeCheckpoint when starting fresh or completing
+    if (currentStepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION && status === StepStatus.Loading) {
+      // Starting fresh from the beginning
+      newState.resumeCheckpoint = undefined
+    } else if (currentStepId === StepId.COMPLETE && status === StepStatus.Success) {
+      // Pipeline completed
+      newState.resumeCheckpoint = undefined
+      newState.status = 'complete'
     }
 
     return newState

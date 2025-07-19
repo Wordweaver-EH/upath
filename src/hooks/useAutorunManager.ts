@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { StepId, StepStatus } from '../../types'
 import { ESSENTIAL_STEPS_FOR_AUTODOWNLOAD, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_CONFIGS } from '../../constants'
 import { useUIStore } from '../stores'
@@ -140,12 +140,18 @@ export const useAutorunManager = () => {
            setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData: typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All complete." });
          }
          console.log(`🛑 Autorun stopped (no details)`);
+         // Save resume checkpoint before stopping
+         const updatedProcessState = orchestrator.createResumeCheckpoint(processState);
+         updateProcessState(updatedProcessState);
          setAutorunning(false);
       }
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Error) {
       console.log(`💥 Autorun active but step failed - stopping`);
       console.log(`- Error step: ${currentStepInfo.stepId}`);
       console.log(`🛑 Autorun stopped (error)`);
+      // Save resume checkpoint before stopping
+      const updatedProcessState = orchestrator.createResumeCheckpoint(processState);
+      updateProcessState(updatedProcessState);
       setAutorunning(false);
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Idle && rawTranscripts.length > 0) {
       console.log(`🚀 Autorun starting from Idle - checking for resume point`);
@@ -229,4 +235,23 @@ export const useAutorunManager = () => {
     updateProcessState,
     activeTranscriptIndex
   ]);
+
+  // Effect to save resume checkpoint when autorun is paused
+  const prevIsAutorunningRef = useRef(isAutorunning);
+  
+  useEffect(() => {
+    // Only save checkpoint when transitioning from running to not running
+    if (prevIsAutorunningRef.current === true && isAutorunning === false) {
+      // Check if we have a valid state to save
+      if (processState.status === 'running' && 
+          currentStepInfo.status === StepStatus.Success &&
+          !processState.resumeCheckpoint) { // Avoid saving if already saved
+        console.log('📌 Saving resume checkpoint on pause');
+        const updatedProcessState = orchestrator.createResumeCheckpoint(processState);
+        updateProcessState(updatedProcessState);
+      }
+    }
+    
+    prevIsAutorunningRef.current = isAutorunning;
+  }, [isAutorunning]); // Only watch isAutorunning to avoid loops
 }

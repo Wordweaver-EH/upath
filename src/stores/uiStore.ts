@@ -187,13 +187,16 @@ export const useUIStore = create<UIStore>()(
         // Starting
         set({ isAutorunning: true, processStartTime: Date.now(), elapsedTime: 0 });
       } else {
-        // Stopping/Pausing
+        // Stopping/Pausing - trigger resume checkpoint save in pipeline store
         const { processStartTime } = get();
         if (processStartTime) {
           set({ isAutorunning: false, elapsedTime: Math.floor((Date.now() - processStartTime) / 1000), processStartTime: null });
         } else {
           set({ isAutorunning: false });
         }
+        
+        // Save resume checkpoint when pausing
+        // This will be handled by the useAutorunManager effect watching isAutorunning changes
       }
     },
     

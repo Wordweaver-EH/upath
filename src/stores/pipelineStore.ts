@@ -1337,6 +1337,15 @@ export const usePipelineStore = create<PipelineStore>()(
       isNextStepDisabled: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
         const { genericAnalysisState, rawTranscripts, processedData, processState } = get()
         
+        // Handle special states first
+        if (currentStepInfo.stepId === StepId.IDLE) {
+          return rawTranscripts.length === 0 // Can only proceed from IDLE if we have transcripts
+        }
+        
+        if (currentStepInfo.stepId === StepId.COMPLETE) {
+          return true // Cannot proceed from COMPLETE
+        }
+        
         const orchestrator = new PipelineOrchestrator()
         
         const nextStep = orchestrator.getNextStep(
@@ -1826,19 +1835,22 @@ export const usePipelineStore = create<PipelineStore>()(
           }
         },
         setItem: async (name, value) => {
+          // Handle the case where value might be the state directly instead of wrapped
+          const stateData = value.state || value;
+          
           console.log('💾 [Storage] setItem - incoming value:', {
-            rawTranscriptsLength: value.state?.rawTranscripts?.length || 0,
-            processedDataType: value.state?.processedData?.constructor?.name || 'unknown',
-            processedDataSize: value.state?.processedData instanceof Map ? value.state.processedData.size : (value.state?.processedData?.length || 0)
+            rawTranscriptsLength: stateData?.rawTranscripts?.length || 0,
+            processedDataType: stateData?.processedData?.constructor?.name || 'unknown',
+            processedDataSize: stateData?.processedData instanceof Map ? stateData.processedData.size : (stateData?.processedData?.length || 0)
           })
           
           const dataToStore = {
             ...value,
             state: {
-              ...value.state,
+              ...stateData,
               // Convert Map to array for storage
-              processedData: value.state.processedData instanceof Map 
-                ? Array.from(value.state.processedData.entries()) 
+              processedData: stateData?.processedData instanceof Map 
+                ? Array.from(stateData.processedData.entries()) 
                 : []
             }
           }
@@ -1904,7 +1916,8 @@ export const usePipelineStore = create<PipelineStore>()(
           genericAnalysisState: state.genericAnalysisState,
           promptHistory: state.promptHistory,
           totalInputTokens: state.totalInputTokens,
-          totalOutputTokens: state.totalOutputTokens
+          totalOutputTokens: state.totalOutputTokens,
+          processState: state.processState
         }
       }
     }
