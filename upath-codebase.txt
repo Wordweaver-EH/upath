@@ -31,14 +31,23 @@ Directory structure:
     ├── src/
     │   ├── components/
     │   │   ├── AppLoadingScreen.tsx
+    │   │   ├── DiachronicComparisonTable.tsx
+    │   │   ├── DiachronicUnitTable.tsx
     │   │   ├── EditableTextArea.tsx
+    │   │   ├── InitialSegmentationTable.tsx
+    │   │   ├── NestedTooltip.tsx
     │   │   ├── PipelineStepGrid.tsx
     │   │   ├── RefinedDataTable.tsx
+    │   │   ├── RefinedDiachronicUnitTable.tsx
     │   │   ├── SelectedUtterancesTable.tsx
     │   │   ├── SessionRestoreNotification.tsx
     │   │   ├── TabbedStepDisplay.tsx
     │   │   ├── TagsEditor.tsx
+    │   │   ├── TemporalPhaseEditor.tsx
     │   │   ├── TranscriptLinesTable.tsx
+    │   │   ├── tooltips/
+    │   │   │   ├── PhaseTooltip.tsx
+    │   │   │   └── RduTooltip.tsx
     │   │   └── ui/
     │   │       ├── Button.tsx
     │   │       ├── index.ts
@@ -46,7 +55,17 @@ Directory structure:
     │   │       ├── Select.tsx
     │   │       └── TextArea.tsx
     │   ├── config/
-    │   │   └── pipelineDefinition.ts
+    │   │   ├── pipelineDefinition.ts
+    │   │   └── pipeline/
+    │   │       ├── index.ts
+    │   │       ├── types.ts
+    │   │       ├── part0/
+    │   │       │   └── index.ts
+    │   │       ├── part1/
+    │   │       │   └── index.ts
+    │   │       └── partNeg1/
+    │   │           ├── index.ts
+    │   │           └── variableIdentification.ts
     │   ├── hooks/
     │   │   ├── useAutorunManager.ts
     │   │   └── useEncryptedPrompt.ts
@@ -58,11 +77,15 @@ Directory structure:
     │   │   ├── pipelineStore.ts
     │   │   ├── settingsStore.ts
     │   │   └── uiStore.ts
+    │   ├── styles/
+    │   │   ├── ag-grid-custom-theme.css
+    │   │   └── tooltip.css
     │   └── utils/
     │       ├── csvExport.ts
     │       ├── htmlHelper.ts
     │       ├── irrReportHelper.ts
     │       ├── migration.ts
+    │       ├── phaseTracingHelper.ts
     │       ├── reportHelper.ts
     │       ├── statisticsHelper.ts
     │       ├── stepIdToDataKeyPrefix.ts
@@ -134,6 +157,8 @@ import { PipelineStepGrid } from './src/components/PipelineStepGrid';
 // AG Grid CSS
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
+import './src/styles/ag-grid-custom-theme.css';
+import './src/styles/tooltip.css';
 
 import { useUIStore, useSettingsStore, usePipelineStore, useIRRStore, initializeStores, selectCurrentStepDisplay } from './src/stores';
 import { useAutorunManager } from './src/hooks/useAutorunManager';
@@ -421,6 +446,7 @@ const App: React.FC = () => {
   const stepDisplay = selectCurrentStepDisplay(currentStepInfo, rawTranscripts.length);
   
   const renderOutput = () => {
+    console.log('[App Debug] stepDisplay:', stepDisplay, 'currentStepInfo.stepId:', currentStepInfo.stepId);
     switch (stepDisplay.type) {
       case 'loading':
         return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote animate-pulse">{stepDisplay.message}</div>;
@@ -432,6 +458,20 @@ const App: React.FC = () => {
         return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">{stepDisplay.message}</div>;
       
       case 'mermaid':
+        // Check if this step should use grid display instead
+        const gridStepsForMermaid = [
+          StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
+        ];
+        
+        if (gridStepsForMermaid.includes(currentStepInfo.stepId) && processedData.size > 0) {
+          console.log('[App Debug] Redirecting mermaid step to grid:', currentStepInfo.stepId);
+          return <PipelineStepGrid 
+            processedData={processedData} 
+            stepId={currentStepInfo.stepId}
+            theme={theme} 
+          />;
+        }
+        
         return <MermaidDiagram chart={stepDisplay.chart} theme={theme} />;
       
       case 'report':
@@ -443,10 +483,14 @@ const App: React.FC = () => {
           StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
           StepId.P0_1_TRANSCRIPTION_ADHERENCE,
           StepId.P0_2_REFINE_DATA_TYPES,
-          StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES
+          StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
+          StepId.P1_1_INITIAL_SEGMENTATION,
+          StepId.P1_2_DIACHRONIC_UNIT_ID,
+          StepId.P1_3_REFINE_DIACHRONIC_UNITS
         ];
         
         if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {
+          console.log('[App Debug] Rendering grid step:', currentStepInfo.stepId, 'processedData size:', processedData.size);
           return <PipelineStepGrid 
             processedData={processedData} 
             stepId={currentStepInfo.stepId}
@@ -561,6 +605,7 @@ FILE: constants.tsx
 import { StepId, UserDVFocus, SelectedUtterance, RawTranscript, TranscriptProcessedData, GenericAnalysisState, P_neg1_1_Output, P0_1_Output, P0_2_Output, P0_3_Output, P1_1_Output, P1_2_Output, P1_3_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_1_Output, P3_2_Output, P4S_1_A_Output, P5_1_ComparativeAnalysisOutput, P5_1_Input, P5_1_InputWithFlag, P5_2_RefinementOutput, P7_1_Output, P7_3_Output, P7_3b_Output, P7_4_Output, P7_2_ProposedLink, P7_1_CandidateVariable } from './types';
 import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './src/utils/htmlHelper'; // For P6.1 input
 import { ReportData } from './src/utils/reportHelper'; // Ensure this matches the actual path if different
+import { P_NEG1_1_VARIABLE_IDENTIFICATION_CONFIG } from './src/config/pipeline/partNeg1';
 
 export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash';
 
@@ -1315,56 +1360,7 @@ Basic Causal Elements (for P7.1 and P7.2):
 `;
 
 export const STEP_CONFIGS: ConfigMap = {
-  [StepId.P_NEG1_1_VARIABLE_IDENTIFICATION]: {
-    id: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
-    title: "P-1.1: Variable Identification",
-    part: "PartNeg1",
-    isJsonOutput: true,
-    getInput: (currentTranscript, _allProcessedData, _genericState, _apiKeyPresent, userDvFocus) => {
-        console.log(`[P-1.1 getInput] currentTranscript:`, currentTranscript ? { id: currentTranscript.id, contentLength: currentTranscript.content?.length } : null);
-        console.log(`[P-1.1 getInput] userDvFocus:`, userDvFocus);
-        
-        if (!currentTranscript?.content || !userDvFocus?.dv_focus || userDvFocus.dv_focus.length === 0) {
-            console.error(`[P-1.1 getInput] Validation failed - transcript content: ${!!currentTranscript?.content}, userDvFocus exists: ${!!userDvFocus}, dv_focus exists: ${!!userDvFocus?.dv_focus}, dv_focus length: ${userDvFocus?.dv_focus?.length || 0}`);
-            return { data: null, error: "Missing transcript content or DV focus for P-1.1." };
-        }
-        return {
-            data: {
-                filename_or_id: currentTranscript.filename || currentTranscript.id,
-                raw_transcript_text_from_file: currentTranscript.content,
-                dependent_variable_focus_list: userDvFocus.dv_focus,
-            },
-        };
-    },
-    generatePrompt: (input) => `You are a data extraction assistant for micro-phenomenological research. Your task is to process the beginning of a raw interview transcript to identify a potential independent variable (or condition/grouping factor) and use the user-provided dependent variable focuses for this analysis.
-
-Input:
-- Raw text content of a single interview transcript file.
-- Transcript Filename/ID: ${input.filename_or_id}
-- User-specified Dependent Variable Focus (as a list of strings): ${JSON.stringify(input.dependent_variable_focus_list)}
-
-Instructions:
-1.  Identify Independent Variable (IV) / Condition:
-    *   Examine the *first few lines* of the transcript. Look for a pattern like "Participant X, Condition Y (Score Z/W)" or similar identifying information that might indicate an experimental condition, grouping, or a key characteristic of this specific interview/participant.
-    *   Extract this information as the \`independent_variable_details\`. If no such clear IV is present in the first few lines, mark it as "Not explicitly stated in header."
-2.  Record DV Focus:
-    *   The \`dependent_variable_focus\` field in your output JSON MUST be the exact list of strings provided in "User-specified Dependent Variable Focus" from the Input section above.
-
-Output:
-A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
-{
-  "transcript_id": "${input.filename_or_id}",
-  "independent_variable_details": "The extracted IV information or 'Not explicitly stated in header.'",
-  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus_list)}
-}
-
-BEGIN VARIABLE IDENTIFICATION FOR RAW TRANSCRIPT:
-Transcript ID: ${input.filename_or_id}
-User-specified Dependent Variable Focus: ${JSON.stringify(input.dependent_variable_focus_list)}
-Content:
-${input.raw_transcript_text_from_file}
-`,
-  },
+  [StepId.P_NEG1_1_VARIABLE_IDENTIFICATION]: P_NEG1_1_VARIABLE_IDENTIFICATION_CONFIG,
   [StepId.P0_1_TRANSCRIPTION_ADHERENCE]: {
     id: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
     title: "P0.1: Transcription Adherence & Line Numbering",
@@ -6116,6 +6112,7 @@ declare global {
 interface MermaidDiagramProps {
   chart: string; // The Mermaid syntax string
   theme?: 'light' | 'dark'; // Theme prop is kept for useEffect dependency to re-render if app theme changes
+  uniqueId?: string; // Optional unique identifier to ensure proper component isolation
 }
 
 const sanitizeMermaidChartString = (chartString: string): string => {
@@ -6127,10 +6124,10 @@ const sanitizeMermaidChartString = (chartString: string): string => {
   return sanitized;
 };
 
-const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, theme }) => {
+const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, theme, uniqueId }) => {
   const mermaidRef = useRef<HTMLDivElement>(null);
   const componentId = useId();
-  const diagramId = `mermaid-chart-${componentId.replace(/:/g, '-')}`;
+  const diagramId = uniqueId ? `mermaid-chart-${uniqueId}` : `mermaid-chart-${componentId.replace(/:/g, '-')}`;
 
   useEffect(() => {
     const mermaidInstance = window.globalMermaidInstance;
@@ -6147,38 +6144,88 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, theme }) => {
       const currentDiv = mermaidRef.current;
       const debugPrefix = `[MermaidDiagram Debug - ID: ${diagramId}]`;
 
-      currentDiv.removeAttribute('data-processed');
+      // Clear any existing content
       currentDiv.innerHTML = '';
 
       const finalChart = sanitizeMermaidChartString(chart);
 
-      // console.log(`${debugPrefix} Sanitized chart (theme: ${theme}):\n${finalChart.substring(0,200)}...`);
       if (chart !== finalChart) {
         console.log(`${debugPrefix} Original chart (had init directive):\n${chart.substring(0,200)}...`);
       }
 
-      mermaidInstance.render(diagramId, finalChart)
-        .then(({ svg, bindFunctions }: { svg: string; bindFunctions?: (element: HTMLElement) => void }) => {
-          if (currentDiv) {
-            currentDiv.innerHTML = svg;
-            if (bindFunctions) {
-              bindFunctions(currentDiv);
-            }
-            // console.log(`${debugPrefix} SVG rendered and bindFunctions called.`);
+      try {
+        // Create a pre element with mermaid class containing the chart syntax
+        currentDiv.innerHTML = `<pre class="mermaid" id="${diagramId}">${finalChart}</pre>`;
+        
+        // Get the mermaid element we just created
+        const mermaidElement = currentDiv.querySelector('.mermaid') as HTMLElement;
+        if (!mermaidElement) {
+          throw new Error('Failed to create mermaid element');
+        }
 
-            const foreignObjects = currentDiv.querySelectorAll('svg foreignObject');
-            console.log(`${debugPrefix} Rendered. foreignObject count: ${foreignObjects.length}`);
-            if (foreignObjects.length > 0) {
-                console.warn(`${debugPrefix} foreignObject tags are STILL PRESENT! This indicates htmlLabels:true was effectively used for this render. SVG contains: ${svg.substring(0,500)}...`);
+        // Remove any existing data-processed attribute to force re-render
+        mermaidElement.removeAttribute('data-processed');
+        
+        console.log(`${debugPrefix} Running mermaid.run() on element with chart:`, finalChart.substring(0, 100) + '...');
+        
+        // Run mermaid on this specific element
+        // Wrap in async function to handle the Promise properly
+        const runMermaid = async () => {
+          try {
+            await mermaidInstance.run({ 
+              nodes: [mermaidElement],
+              suppressErrors: false 
+            });
+          } catch (runError: any) {
+            // In development, React Strict Mode may cause this to fail on second render
+            // Check if it's the parentElement error from double rendering
+            if (runError.message?.includes('parentElement') || runError.str?.includes('parentElement')) {
+              console.log(`${debugPrefix} Mermaid run failed due to React Strict Mode double-render (this is normal in development)`);
+              return; // Exit gracefully
             }
+            // Log but don't throw - let the component continue
+            console.warn(`${debugPrefix} Mermaid rendering warning:`, runError);
           }
-        })
-        .catch((e: any) => {
-          console.error(`${debugPrefix} Mermaid rendering error:`, e);
-          if (currentDiv) {
-            currentDiv.innerHTML = `<pre class="text-xs text-red-600 dark:text-red-400 p-2 bg-red-50 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded">Mermaid Diagram Render Error: ${(e as Error).message || String(e)}\n--- Chart Syntax Attempted (after sanitization) ---\n${finalChart}</pre>`;
+        };
+        
+        // Execute the async function
+        runMermaid().catch((e) => {
+          // Catch any remaining promise rejections
+          if (e.message?.includes('parentElement') || e.str?.includes('parentElement')) {
+            console.log(`${debugPrefix} Caught parentElement error in promise (normal in development)`);
+          } else {
+            console.error(`${debugPrefix} Unexpected error in mermaid.run:`, e);
           }
         });
+        
+        // Use setTimeout to check the result after Mermaid has finished rendering
+        setTimeout(() => {
+          if (!mermaidRef.current) return; // Component may have unmounted
+          
+          const svgElement = currentDiv.querySelector('svg');
+          if (svgElement) {
+            console.log(`${debugPrefix} SVG successfully rendered`);
+            
+            // Add some styling for better visibility
+            svgElement.style.maxWidth = '100%';
+            svgElement.style.height = 'auto';
+            
+            // Debug: Check if there are any rect or text elements
+            const rects = svgElement.querySelectorAll('rect');
+            const texts = svgElement.querySelectorAll('text');
+            console.log(`${debugPrefix} Found ${rects.length} rect elements and ${texts.length} text elements`);
+          } else {
+            // This is expected in React Strict Mode's second render
+            console.log(`${debugPrefix} No SVG element found (this may be normal in React Strict Mode)`);
+          }
+        }, 100); // Small delay to allow Mermaid to complete rendering
+        
+      } catch (e: any) {
+        console.error(`${debugPrefix} Mermaid rendering error:`, e);
+        if (currentDiv) {
+          currentDiv.innerHTML = `<pre class="text-xs text-red-600 dark:text-red-400 p-2 bg-red-50 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded">Mermaid Diagram Render Error: ${(e as Error).message || String(e)}\n--- Chart Syntax Attempted (after sanitization) ---\n${finalChart}</pre>`;
+        }
+      }
 
     } else if (mermaidRef.current) {
       const message = chart && chart.trim() !== ""
@@ -6186,6 +6233,17 @@ const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, theme }) => {
         : "No diagram to display or chart syntax is empty.";
       mermaidRef.current.innerHTML = `<div class="p-3 text-sm text-light-sidenote dark:text-dark-sidenote">${message}</div>`;
     }
+
+    // CRITICAL: Cleanup function to handle React Strict Mode double-rendering
+    return () => {
+      if (mermaidRef.current) {
+        const mermaidElement = mermaidRef.current.querySelector('.mermaid');
+        if (mermaidElement) {
+          mermaidElement.removeAttribute('data-processed');
+        }
+        mermaidRef.current.innerHTML = '';
+      }
+    };
   }, [chart, diagramId, theme]);
 
   return (
@@ -7052,6 +7110,487 @@ export const AppLoadingScreen: React.FC<AppLoadingScreenProps> = ({
 
 
 ================================================
+FILE: src/components/DiachronicComparisonTable.tsx
+================================================
+import React, { useMemo, useCallback } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import { ColDef, GridOptions, ICellRendererParams } from 'ag-grid-community';
+import { usePipelineStore } from '../stores/pipelineStore';
+import { P1_4_Output, TranscriptProcessedData } from '../types';
+import { downloadCSV } from '../utils/csvExport';
+import { NestedTooltip } from './NestedTooltip';
+import { PhaseTooltip } from './tooltips/PhaseTooltip';
+import { tracePhaseToUtterances } from '../utils/phaseTracingHelper';
+
+interface PhaseData {
+  transcriptId: string;
+  phases: {
+    name: string;
+    description: string;
+    units: string[];
+  }[];
+}
+
+interface DiachronicComparisonTableProps {
+  theme?: 'light' | 'dark';
+}
+
+export const DiachronicComparisonTable: React.FC<DiachronicComparisonTableProps> = ({ theme }) => {
+  const processedData = usePipelineStore(state => state.processedData);
+  const activeTranscriptId = usePipelineStore(state => state.activeTranscriptId);
+  
+  // Detect theme from DOM if not provided
+  const effectiveTheme = theme || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  
+  // Collect all P1.4 outputs from all transcripts
+  const phaseDataByTranscript = useMemo(() => {
+    const data: PhaseData[] = [];
+    
+    processedData.forEach((transcriptData, transcriptId) => {
+      if (transcriptData.p1_4_output) {
+        const output = transcriptData.p1_4_output as P1_4_Output;
+        if (output.specific_diachronic_structure?.phases) {
+          data.push({
+            transcriptId,
+            phases: output.specific_diachronic_structure.phases.map(phase => ({
+              name: phase.phase_name || 'Unnamed',
+              description: phase.description || '',
+              units: phase.units_involved || []
+            }))
+          });
+        }
+      }
+    });
+    
+    return data.sort((a, b) => a.transcriptId.localeCompare(b.transcriptId));
+  }, [processedData]);
+
+  // Find the maximum number of phases across all transcripts
+  const maxPhases = useMemo(() => {
+    return Math.max(...phaseDataByTranscript.map(d => d.phases.length), 0);
+  }, [phaseDataByTranscript]);
+
+  // Create row data for AG-Grid
+  const rowData = useMemo(() => {
+    return phaseDataByTranscript.map(transcript => {
+      const row: any = {
+        transcriptId: transcript.transcriptId,
+        isActive: transcript.transcriptId === activeTranscriptId
+      };
+      
+      // Add phase data for each phase slot
+      for (let i = 0; i < maxPhases; i++) {
+        const phase = transcript.phases[i];
+        row[`phase${i + 1}`] = phase ? phase.name : '-';
+        row[`phase${i + 1}_tooltip`] = phase ? {
+          description: phase.description,
+          units: phase.units.join(', ')
+        } : null;
+      }
+      
+      return row;
+    });
+  }, [phaseDataByTranscript, maxPhases, activeTranscriptId]);
+
+  // Create column definitions
+  const columnDefs = useMemo<ColDef[]>(() => {
+    const columns: ColDef[] = [
+      {
+        field: 'transcriptId',
+        headerName: 'Transcript',
+        pinned: 'left',
+        width: 120,
+        cellClass: (params) => params.data.isActive ? 'font-bold text-light-accent dark:text-dark-accent' : ''
+      }
+    ];
+    
+    // Add a column for each phase
+    for (let i = 0; i < maxPhases; i++) {
+      columns.push({
+        field: `phase${i + 1}`,
+        headerName: `Phase ${i + 1}`,
+        width: 150,
+        cellRenderer: 'phaseCellRenderer'
+      });
+    }
+    
+    return columns;
+  }, [maxPhases]);
+
+  // Custom cell renderer with nested tooltips
+  const PhaseCellRenderer = useCallback((params: ICellRendererParams) => {
+    const { value, data, colDef } = params;
+    if (!value || value === '-') {
+      return <span className="text-light-sidenote dark:text-dark-sidenote">-</span>;
+    }
+
+    // Extract phase index from field name (e.g., "phase1" -> 0)
+    const phaseIndex = parseInt(colDef.field?.replace('phase', '') || '1') - 1;
+    const transcriptId = data.transcriptId;
+    const transcriptData = processedData.get(transcriptId);
+    
+    if (!transcriptData) {
+      return <span>{value}</span>;
+    }
+
+    // Get phase trace data
+    const phaseTrace = tracePhaseToUtterances(value, transcriptData);
+    
+    if (!phaseTrace) {
+      return <span>{value}</span>;
+    }
+
+    // Determine color class based on phase name
+    let colorClass = '';
+    const lowerValue = value.toLowerCase();
+    if (lowerValue.includes('beginning') || lowerValue.includes('initial')) {
+      colorClass = 'phase-beginning';
+    } else if (lowerValue.includes('core') || lowerValue.includes('peak')) {
+      colorClass = 'phase-core';
+    } else if (lowerValue.includes('end') || lowerValue.includes('resolution') || lowerValue.includes('reflection')) {
+      colorClass = 'phase-ending';
+    } else if (lowerValue.includes('transition')) {
+      colorClass = 'phase-transition';
+    }
+
+    return (
+      <NestedTooltip
+        content={<PhaseTooltip phaseTrace={phaseTrace} transcriptId={transcriptId} />}
+      >
+        <div className={`w-full h-full flex items-center justify-center px-2 py-1 cursor-pointer ${colorClass}`}>
+          {value}
+        </div>
+      </NestedTooltip>
+    );
+  }, [processedData]);
+
+  const gridOptions: GridOptions = {
+    theme: 'legacy',
+    components: {
+      phaseCellRenderer: PhaseCellRenderer
+    },
+    defaultColDef: {
+      sortable: true,
+      resizable: true,
+      suppressMovable: true
+    },
+    rowHeight: 40,
+    headerHeight: 45,
+    animateRows: true,
+    suppressCellFocus: true
+  };
+
+  // Export functionality
+  const handleExport = () => {
+    const csvData = rowData.map(row => {
+      const csvRow: any = { Transcript: row.transcriptId };
+      for (let i = 0; i < maxPhases; i++) {
+        csvRow[`Phase ${i + 1}`] = row[`phase${i + 1}`] || '-';
+      }
+      return csvRow;
+    });
+    
+    const csvContent = csvData.map(row => 
+      Object.values(row).map(v => `"${v}"`).join(',')
+    ).join('\n');
+    
+    const header = Object.keys(csvData[0]).join(',');
+    const fullCsv = header + '\n' + csvContent;
+    
+    downloadCSV(fullCsv, 'diachronic_comparison.csv');
+  };
+
+  if (phaseDataByTranscript.length === 0) {
+    return (
+      <div className="p-4 text-center text-light-sidenote dark:text-dark-sidenote">
+        No diachronic structures available yet. Process transcripts with Part 1.4 to see comparison.
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold">Comparative Diachronic Phases</h3>
+        <button
+          onClick={handleExport}
+          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+        >
+          Download CSV
+        </button>
+      </div>
+      
+      <div className="text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+        Hover over phase names to see descriptions and units involved. Common phase types are color-coded.
+      </div>
+      
+      <div 
+        className={`${effectiveTheme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} w-full`}
+        style={{ height: Math.min(400, 100 + rowData.length * 40) }}
+      >
+        <AgGridReact
+          rowData={rowData}
+          columnDefs={columnDefs}
+          gridOptions={gridOptions}
+        />
+      </div>
+    </div>
+  );
+};
+
+
+================================================
+FILE: src/components/DiachronicUnitTable.tsx
+================================================
+import React, { useMemo, useCallback } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
+import { AllCommunityModule } from 'ag-grid-community';
+import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { P1_2_Output, P1_1_Output, DiachronicUnitP1_2 } from '../../types';
+
+// Register AG Grid modules
+ModuleRegistry.registerModules([AllCommunityModule]);
+
+interface DiachronicUnitTableProps {
+  diachronicData: P1_2_Output;
+  segmentationData?: P1_1_Output; // Optional, for showing segment details in tooltips
+  theme: 'light' | 'dark';
+  onDiachronicChange?: (updatedData: P1_2_Output) => void;
+  filename?: string;
+}
+
+// Custom cell renderer for source segment IDs
+const SourceSegmentsRenderer: React.FC<ICellRendererParams> = (params) => {
+  const segmentIds: string[] = params.value || [];
+  
+  if (segmentIds.length === 0) {
+    return <span className="text-gray-400 italic">No segments</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1 py-1">
+      {segmentIds.map((id, index) => (
+        <span
+          key={index}
+          className="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 font-mono"
+          title={`Segment ID: ${id}`}
+        >
+          {id}
+        </span>
+      ))}
+    </div>
+  );
+};
+
+export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
+  diachronicData,
+  segmentationData,
+  theme,
+  onDiachronicChange,
+  filename
+}) => {
+  console.log('[P1.2] diachronicData:', diachronicData);
+  console.log('[P1.2] diachronic_units:', diachronicData?.diachronic_units);
+  
+  // Defensive check for data validity
+  if (!diachronicData || !diachronicData.diachronic_units) {
+    return (
+      <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">
+        No diachronic data available
+      </div>
+    );
+  }
+
+  const { rowData, columnDefs } = useMemo(() => {
+    const cols: ColDef[] = [
+      { 
+        field: 'unit_id', 
+        headerName: 'Unit ID',
+        width: 100,
+        cellClass: 'font-mono text-xs text-light-sidenote dark:text-dark-sidenote'
+      },
+      { 
+        field: 'description', 
+        headerName: 'Description',
+        flex: 2,
+        wrapText: true,
+        autoHeight: true,
+        editable: true,
+        cellClass: 'py-2',
+        cellEditor: 'agLargeTextCellEditor',
+        cellEditorParams: {
+          maxLength: 500,
+          rows: 3
+        }
+      },
+      { 
+        field: 'source_segment_ids', 
+        headerName: 'Source Segment IDs',
+        flex: 1,
+        wrapText: true,
+        autoHeight: true,
+        cellRenderer: SourceSegmentsRenderer,
+        valueFormatter: (params) => {
+          const ids = params.value as string[];
+          return ids ? ids.join(', ') : '';
+        }
+      },
+      { 
+        field: 'segment_count', 
+        headerName: '# Segments',
+        width: 100,
+        cellClass: 'text-center',
+        cellRenderer: (params: ICellRendererParams) => {
+          return (
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs 
+              bg-light-bg-alt dark:bg-dark-bg-alt">
+              {params.value}
+            </span>
+          );
+        }
+      }
+    ];
+
+    const rows = diachronicData.diachronic_units.map(unit => ({
+      unit_id: unit.unit_id,
+      description: unit.description,
+      source_segment_ids: unit.source_segment_ids,
+      segment_count: unit.source_segment_ids.length
+    }));
+
+    console.log('[P1.2] rowData:', rows);
+    return { rowData: rows, columnDefs: cols };
+  }, [diachronicData]);
+
+  const handleCellValueChanged = useCallback((event: CellValueChangedEvent) => {
+    if (event.colDef.field === 'description' && onDiachronicChange) {
+      const updatedData = { ...diachronicData };
+      const unitIndex = updatedData.diachronic_units.findIndex(
+        u => u.unit_id === event.data.unit_id
+      );
+      
+      if (unitIndex !== -1) {
+        updatedData.diachronic_units[unitIndex] = {
+          ...updatedData.diachronic_units[unitIndex],
+          description: event.newValue
+        };
+        onDiachronicChange(updatedData);
+      }
+    }
+  }, [diachronicData, onDiachronicChange]);
+
+  const handleExportCSV = () => {
+    const csvData = diachronicData.diachronic_units.map(unit => ({
+      'Unit ID': unit.unit_id,
+      'Description': unit.description,
+      'Source Segment IDs': unit.source_segment_ids.join('; '),
+      'Segment Count': unit.source_segment_ids.length
+    }));
+
+    const columns = [
+      { field: 'Unit ID', headerName: 'Unit ID' },
+      { field: 'Description', headerName: 'Description' },
+      { field: 'Source Segment IDs', headerName: 'Source Segment IDs' },
+      { field: 'Segment Count', headerName: 'Segment Count' }
+    ];
+    const csv = convertToCSV(csvData, columns);
+    const defaultFilename = filename ? 
+      `${filename.replace(/\.[^/.]+$/, '')}_P1.2_diachronic_units.csv` : 
+      'P1.2_diachronic_units.csv';
+    
+    downloadCSV(csv, defaultFilename);
+  };
+
+  const defaultColDef = useMemo(() => ({
+    sortable: true,
+    resizable: true,
+    filter: true,
+  }), []);
+
+  // Define custom styles based on theme
+  const gridStyles = theme === 'dark' ? {
+    '--ag-background-color': '#1a1a1a',
+    '--ag-header-background-color': '#252525',
+    '--ag-odd-row-background-color': '#252525',
+    '--ag-foreground-color': '#e6e6e6',
+    '--ag-header-foreground-color': '#e6e6e6',
+    '--ag-border-color': '#444444',
+    '--ag-row-hover-color': '#333333',
+    '--ag-header-column-resize-handle-color': '#ff6b6b',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-row-border-style': 'solid',
+    '--ag-row-border-width': '1px',
+    '--ag-row-border-color': '#333333',
+  } : {
+    '--ag-background-color': '#faf8f1',
+    '--ag-header-background-color': '#f3f1ea',
+    '--ag-odd-row-background-color': '#f3f1ea',
+    '--ag-foreground-color': '#222222',
+    '--ag-header-foreground-color': '#222222',
+    '--ag-border-color': '#dcd9d0',
+    '--ag-row-hover-color': '#e9e6de',
+    '--ag-header-column-resize-handle-color': '#a00000',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-row-border-style': 'solid',
+    '--ag-row-border-width': '1px',
+    '--ag-row-border-color': '#e0ddd4',
+  };
+
+  // Helper function to get segment text for tooltip (if segmentationData is provided)
+  const getSegmentTooltip = useCallback((segmentId: string) => {
+    if (!segmentationData) return segmentId;
+    
+    for (const su of segmentationData.segmented_utterances) {
+      const segment = su.segments.find(s => s.segment_id === segmentId);
+      if (segment) {
+        return `${segmentId}: ${segment.segment_text.substring(0, 100)}...`;
+      }
+    }
+    return segmentId;
+  }, [segmentationData]);
+
+  return (
+    <>
+      <div className="mb-2 flex justify-between items-center">
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
+          💡 Click on description cells to edit them directly. Changes are saved automatically.
+        </div>
+        <button
+          onClick={handleExportCSV}
+          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+        >
+          Download CSV
+        </button>
+      </div>
+      
+      <div 
+        className={`${theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'}`}
+        style={{ 
+          height: '600px',
+          width: '100%',
+          ...gridStyles as React.CSSProperties
+        }}
+      >
+        <AgGridReact
+          rowData={rowData}
+          columnDefs={columnDefs}
+          defaultColDef={defaultColDef}
+          rowHeight={60}
+          animateRows={true}
+          theme="legacy"
+          rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+          onCellValueChanged={handleCellValueChanged}
+        />
+      </div>
+    </>
+  );
+};
+
+
+================================================
 FILE: src/components/EditableTextArea.tsx
 ================================================
 import React, { useState, useRef, useEffect } from 'react';
@@ -7167,6 +7706,675 @@ export const EditableTextArea: React.FC<EditableTextAreaProps> = ({
 
 
 ================================================
+FILE: src/components/InitialSegmentationTable.tsx
+================================================
+import React, { useMemo, useState, useCallback } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import { ColDef, ModuleRegistry, ICellRendererParams } from 'ag-grid-community';
+import { AllCommunityModule } from 'ag-grid-community';
+import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { P1_1_Output, SegmentedUtteranceSegment } from '../../types';
+
+// Register AG Grid modules
+ModuleRegistry.registerModules([AllCommunityModule]);
+
+interface InitialSegmentationTableProps {
+  segmentationData: P1_1_Output;
+  theme: 'light' | 'dark';
+  onSegmentationChange?: (updatedData: P1_1_Output) => void;
+  filename?: string;
+}
+
+interface SegmentEditModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  utteranceData: {
+    lineNum: string;
+    speaker?: string;
+    text: string;
+    segments: SegmentedUtteranceSegment[];
+  };
+  onSave: (segments: SegmentedUtteranceSegment[]) => void;
+  theme: 'light' | 'dark';
+}
+
+// Modal component for editing segments
+const SegmentEditModal: React.FC<SegmentEditModalProps> = ({
+  isOpen,
+  onClose,
+  utteranceData,
+  onSave,
+  theme
+}) => {
+  const [segments, setSegments] = useState<SegmentedUtteranceSegment[]>(utteranceData.segments);
+
+  React.useEffect(() => {
+    setSegments(utteranceData.segments);
+  }, [utteranceData.segments]);
+
+  if (!isOpen) return null;
+
+  const handleSegmentTextChange = (index: number, text: string) => {
+    const updated = [...segments];
+    updated[index] = { ...updated[index], segment_text: text };
+    setSegments(updated);
+  };
+
+  const handleTemporalCuesChange = (index: number, cuesText: string) => {
+    const updated = [...segments];
+    const cues = cuesText.split(',').map(s => s.trim()).filter(s => s);
+    updated[index] = { ...updated[index], temporal_cues: cues };
+    setSegments(updated);
+  };
+
+  const addSegment = () => {
+    const newId = `seg_${segments.length}`;
+    setSegments([...segments, {
+      segment_id: newId,
+      segment_text: '',
+      temporal_cues: []
+    }]);
+  };
+
+  const removeSegment = (index: number) => {
+    if (segments.length > 1) {
+      setSegments(segments.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleSave = () => {
+    onSave(segments);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+      <div className={`${theme === 'dark' ? 'bg-dark-bg text-dark-text' : 'bg-light-bg text-light-text'} 
+        rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col`}>
+        
+        <div className="p-6 border-b border-light-border dark:border-dark-border">
+          <h3 className="text-xl font-medium">
+            Edit Segments - Line {utteranceData.lineNum}
+            {utteranceData.speaker && ` (${utteranceData.speaker})`}
+          </h3>
+          <p className="mt-2 text-sm text-light-sidenote dark:text-dark-sidenote">
+            "{utteranceData.text}"
+          </p>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {segments.map((segment, index) => (
+            <div key={index} className="p-4 border border-light-border dark:border-dark-border rounded-lg">
+              <div className="flex justify-between items-start mb-3">
+                <h4 className="font-medium">Segment {index + 1}</h4>
+                {segments.length > 1 && (
+                  <button
+                    onClick={() => removeSegment(index)}
+                    className="text-red-600 hover:text-red-800 text-sm"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Segment Text
+                  </label>
+                  <textarea
+                    value={segment.segment_text}
+                    onChange={(e) => handleSegmentTextChange(index, e.target.value)}
+                    className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800 
+                      border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-light-accent 
+                      dark:focus:ring-dark-accent"
+                    rows={3}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Temporal Cues (comma-separated)
+                  </label>
+                  <input
+                    type="text"
+                    value={(segment.temporal_cues || []).join(', ')}
+                    onChange={(e) => handleTemporalCuesChange(index, e.target.value)}
+                    placeholder="e.g., first, then, after"
+                    className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800 
+                      border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-light-accent 
+                      dark:focus:ring-dark-accent"
+                  />
+                </div>
+              </div>
+            </div>
+          ))}
+          
+          <button
+            onClick={addSegment}
+            className="w-full py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 
+              rounded-lg hover:border-light-accent dark:hover:border-dark-accent transition-colors"
+          >
+            + Add Segment
+          </button>
+        </div>
+
+        <div className="p-6 border-t border-light-border dark:border-dark-border flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded 
+              hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-sm bg-light-accent dark:bg-dark-accent text-white rounded 
+              hover:opacity-90 transition-opacity"
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Custom cell renderer for segments
+const SegmentsRenderer: React.FC<ICellRendererParams> = (params) => {
+  const segments: SegmentedUtteranceSegment[] = params.value || [];
+  const onClick = params.onClick;
+  
+  if (segments.length === 0) {
+    return <span className="text-gray-400 italic">No segments</span>;
+  }
+
+  const handleClick = () => {
+    if (onClick && params.data) {
+      onClick(params.data);
+    }
+  };
+
+  return (
+    <div 
+      className="py-1 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 -mx-2 px-2 rounded"
+      onClick={handleClick}
+    >
+      {segments.map((segment, index) => (
+        <div key={segment.segment_id} className="mb-2 last:mb-0">
+          <div className="flex items-start gap-2">
+            <span className="text-xs font-mono text-light-accent dark:text-dark-accent">
+              [{index + 1}]
+            </span>
+            <div className="flex-1">
+              <div className="text-sm">{segment.segment_text}</div>
+              {segment.temporal_cues && segment.temporal_cues.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {segment.temporal_cues.map((cue, idx) => (
+                    <span key={idx} className="text-xs px-1.5 py-0.5 rounded bg-yellow-100 
+                      dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200">
+                      {cue}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ))}
+      <div className="text-xs text-gray-500 mt-1">Click to edit</div>
+    </div>
+  );
+};
+
+export const InitialSegmentationTable: React.FC<InitialSegmentationTableProps> = ({
+  segmentationData,
+  theme,
+  onSegmentationChange,
+  filename
+}) => {
+  const [editingUtterance, setEditingUtterance] = useState<{
+    lineNum: string;
+    speaker?: string;
+    text: string;
+    segments: SegmentedUtteranceSegment[];
+  } | null>(null);
+
+  // Defensive check for data validity
+  if (!segmentationData || !segmentationData.segmented_utterances) {
+    return (
+      <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">
+        No segmentation data available
+      </div>
+    );
+  }
+
+  const handleSegmentClick = useCallback((utteranceData: any) => {
+    setEditingUtterance({
+      lineNum: utteranceData.original_line_num,
+      speaker: utteranceData.speaker,
+      text: utteranceData.utterance_text,
+      segments: utteranceData.segments
+    });
+  }, []);
+
+  const handleSegmentSave = useCallback((updatedSegments: SegmentedUtteranceSegment[]) => {
+    if (onSegmentationChange && editingUtterance) {
+      const updatedData = { ...segmentationData };
+      const utteranceIndex = updatedData.segmented_utterances.findIndex(
+        su => su.original_utterance.original_line_num === editingUtterance.lineNum
+      );
+      
+      if (utteranceIndex !== -1) {
+        updatedData.segmented_utterances[utteranceIndex] = {
+          ...updatedData.segmented_utterances[utteranceIndex],
+          segments: updatedSegments
+        };
+        onSegmentationChange(updatedData);
+      }
+    }
+  }, [segmentationData, editingUtterance, onSegmentationChange]);
+
+  const handleExportCSV = () => {
+    const csvData: any[] = [];
+    
+    segmentationData.segmented_utterances.forEach(su => {
+      su.segments.forEach((segment, index) => {
+        csvData.push({
+          'Line #': su.original_utterance.original_line_num,
+          'Speaker': su.original_utterance.speaker || '',
+          'Utterance Text': su.original_utterance.utterance_text,
+          'Segment #': index + 1,
+          'Segment ID': segment.segment_id,
+          'Segment Text': segment.segment_text,
+          'Temporal Cues': (segment.temporal_cues || []).join('; ')
+        });
+      });
+    });
+
+    const columns = [
+      { field: 'Line #', headerName: 'Line #' },
+      { field: 'Speaker', headerName: 'Speaker' },
+      { field: 'Utterance Text', headerName: 'Utterance Text' },
+      { field: 'Segment #', headerName: 'Segment #' },
+      { field: 'Segment ID', headerName: 'Segment ID' },
+      { field: 'Segment Text', headerName: 'Segment Text' },
+      { field: 'Temporal Cues', headerName: 'Temporal Cues' }
+    ];
+    const csv = convertToCSV(csvData, columns);
+    const defaultFilename = filename ? 
+      `${filename.replace(/\.[^/.]+$/, '')}_P1.1_segmentation.csv` : 
+      'P1.1_segmentation.csv';
+    
+    downloadCSV(csv, defaultFilename);
+  };
+
+  // Column definitions for the main grid
+  const columnDefs: ColDef[] = useMemo(() => [
+    {
+      field: 'original_line_num',
+      headerName: 'Line #',
+      width: 80,
+      cellClass: 'text-center font-mono text-xs text-light-sidenote dark:text-dark-sidenote'
+    },
+    {
+      field: 'speaker',
+      headerName: 'Speaker',
+      width: 120,
+      cellRenderer: (params: ICellRendererParams) => {
+        if (!params.value) return '';
+        return (
+          <span className="font-medium text-light-accent dark:text-dark-accent">
+            {params.value}
+          </span>
+        );
+      }
+    },
+    {
+      field: 'utterance_text',
+      headerName: 'Utterance Text',
+      flex: 1,
+      wrapText: true,
+      autoHeight: true,
+      cellClass: 'py-2'
+    },
+    {
+      field: 'segments',
+      headerName: 'Segments & Temporal Cues',
+      flex: 1.5,
+      wrapText: true,
+      autoHeight: true,
+      cellRenderer: SegmentsRenderer,
+      cellRendererParams: {
+        onClick: handleSegmentClick
+      },
+      valueFormatter: (params: any) => {
+        const segments = params.value as SegmentedUtteranceSegment[];
+        if (!segments || segments.length === 0) return 'No segments';
+        return `${segments.length} segment${segments.length !== 1 ? 's' : ''}`;
+      }
+    },
+    {
+      field: 'segment_count',
+      headerName: '# Segs',
+      width: 80,
+      cellClass: 'text-center',
+      cellRenderer: (params: ICellRendererParams) => {
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs 
+            bg-light-bg-alt dark:bg-dark-bg-alt">
+            {params.value}
+          </span>
+        );
+      }
+    }
+  ], [handleSegmentClick]);
+
+  const rowData = useMemo(() => {
+    console.log('[P1.1] segmentationData:', segmentationData);
+    console.log('[P1.1] segmented_utterances:', segmentationData.segmented_utterances);
+    
+    const data = segmentationData.segmented_utterances
+      .filter(su => su && su.original_utterance) // Add defensive check
+      .map(su => ({
+        original_line_num: su.original_utterance.original_line_num,
+        speaker: su.original_utterance.speaker,
+        utterance_text: su.original_utterance.utterance_text,
+        segments: su.segments || [],
+        segment_count: su.segments?.length || 0
+      }));
+    
+    console.log('[P1.1] rowData:', data);
+    return data;
+  }, [segmentationData]);
+
+  const defaultColDef = useMemo(() => ({
+    sortable: true,
+    resizable: true,
+    filter: true,
+  }), []);
+
+  // Define custom styles based on theme
+  const gridStyles = theme === 'dark' ? {
+    '--ag-background-color': '#1a1a1a',
+    '--ag-header-background-color': '#252525',
+    '--ag-odd-row-background-color': '#252525',
+    '--ag-foreground-color': '#e6e6e6',
+    '--ag-header-foreground-color': '#e6e6e6',
+    '--ag-border-color': '#444444',
+    '--ag-row-hover-color': '#333333',
+    '--ag-header-column-resize-handle-color': '#ff6b6b',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-row-border-style': 'solid',
+    '--ag-row-border-width': '1px',
+    '--ag-row-border-color': '#333333',
+  } : {
+    '--ag-background-color': '#faf8f1',
+    '--ag-header-background-color': '#f3f1ea',
+    '--ag-odd-row-background-color': '#f3f1ea',
+    '--ag-foreground-color': '#222222',
+    '--ag-header-foreground-color': '#222222',
+    '--ag-border-color': '#dcd9d0',
+    '--ag-row-hover-color': '#e9e6de',
+    '--ag-header-column-resize-handle-color': '#a00000',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-row-border-style': 'solid',
+    '--ag-row-border-width': '1px',
+    '--ag-row-border-color': '#e0ddd4',
+  };
+
+  return (
+    <>
+      <div className="mb-2 flex justify-between items-center">
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
+          💡 Click on the segments column to edit individual segments and temporal cues.
+        </div>
+        <button
+          onClick={handleExportCSV}
+          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+        >
+          Download CSV
+        </button>
+      </div>
+      
+      <div 
+        className={`${theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'}`}
+        style={{ 
+          height: '600px', 
+          width: '100%',
+          ...gridStyles as React.CSSProperties
+        }}
+      >
+        <AgGridReact
+          rowData={rowData}
+          columnDefs={columnDefs}
+          defaultColDef={defaultColDef}
+          rowHeight={80}
+          animateRows={true}
+          theme="legacy"
+          rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+        />
+      </div>
+
+      {editingUtterance && (
+        <SegmentEditModal
+          isOpen={!!editingUtterance}
+          onClose={() => setEditingUtterance(null)}
+          utteranceData={editingUtterance}
+          onSave={handleSegmentSave}
+          theme={theme}
+        />
+      )}
+    </>
+  );
+};
+
+
+================================================
+FILE: src/components/NestedTooltip.tsx
+================================================
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+
+export interface TooltipPosition {
+  x: number;
+  y: number;
+}
+
+export interface NestedTooltipProps {
+  children: React.ReactNode;
+  content: React.ReactNode;
+  depth?: number;
+  isOpen?: boolean;
+  onClose?: () => void;
+  parentRef?: React.RefObject<HTMLElement>;
+  className?: string;
+}
+
+export const NestedTooltip: React.FC<NestedTooltipProps> = ({
+  children,
+  content,
+  depth = 0,
+  isOpen: controlledIsOpen,
+  onClose,
+  parentRef,
+  className = ''
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState<TooltipPosition>({ x: 0, y: 0 });
+  const [hasPositioned, setHasPositioned] = useState(false);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout>();
+
+  const actualIsOpen = controlledIsOpen !== undefined ? controlledIsOpen : isOpen;
+
+  const handleMouseEnter = useCallback((e: React.MouseEvent) => {
+    if (controlledIsOpen !== undefined) return;
+    
+    clearTimeout(hoverTimeoutRef.current);
+    // Capture the element reference before the timeout
+    const element = e.currentTarget as HTMLElement;
+    hoverTimeoutRef.current = setTimeout(() => {
+      if (!element) return;
+      const rect = element.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top;
+      
+      setPosition({ x, y });
+      setHasPositioned(false);
+      setIsOpen(true);
+    }, 200);
+  }, [controlledIsOpen]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (controlledIsOpen !== undefined) return;
+    
+    clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => {
+      setIsOpen(false);
+    }, 300);
+  }, [controlledIsOpen]);
+
+  const handleTooltipMouseEnter = useCallback(() => {
+    clearTimeout(hoverTimeoutRef.current);
+  }, []);
+
+  const handleTooltipMouseLeave = useCallback(() => {
+    if (controlledIsOpen !== undefined) {
+      onClose?.();
+    } else {
+      hoverTimeoutRef.current = setTimeout(() => {
+        setIsOpen(false);
+      }, 300);
+    }
+  }, [controlledIsOpen, onClose]);
+
+  // Adjust position after render to keep tooltip on screen
+  useEffect(() => {
+    if (!actualIsOpen || !tooltipRef.current || hasPositioned) return;
+
+    const tooltip = tooltipRef.current;
+    const tooltipRect = tooltip.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // For wider tooltips, center them more aggressively
+    let x = viewportWidth / 2; // Start from center of viewport
+    let y = position.y - tooltipRect.height - 10;
+
+    // Small offset for nested tooltips
+    const offset = depth * 10;
+    y += offset;
+
+    // If tooltip would go above viewport, show below trigger instead
+    if (y < 10) {
+      y = position.y + 20 + offset;
+    }
+    
+    // If tooltip would go below viewport, position it higher
+    if (y + tooltipRect.height > viewportHeight - 10) {
+      y = viewportHeight / 2 - tooltipRect.height / 2;
+    }
+
+    setPosition({ x, y });
+    setHasPositioned(true);
+  }, [actualIsOpen, hasPositioned, position.x, position.y, depth]);
+
+  // Handle escape key
+  useEffect(() => {
+    if (!actualIsOpen) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (controlledIsOpen !== undefined) {
+          onClose?.();
+        } else {
+          setIsOpen(false);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [actualIsOpen, controlledIsOpen, onClose]);
+
+  return (
+    <>
+      <div
+        ref={triggerRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className="inline-block"
+      >
+        {children}
+      </div>
+      {actualIsOpen && createPortal(
+        <div
+          ref={tooltipRef}
+          className={`nested-tooltip depth-${depth} ${className}`}
+          style={{
+            position: 'fixed',
+            left: `${position.x}px`,
+            top: `${position.y}px`,
+            transform: 'translateX(-50%)',
+            zIndex: 1000 + depth * 10,
+            visibility: hasPositioned ? 'visible' : 'hidden',
+          }}
+          onMouseEnter={handleTooltipMouseEnter}
+          onMouseLeave={handleTooltipMouseLeave}
+        >
+          <div className="nested-tooltip-content">
+            {content}
+          </div>
+          <div 
+            className="nested-tooltip-arrow"
+            style={{
+              position: 'absolute',
+              bottom: '-8px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 0,
+              height: 0,
+              borderLeft: '8px solid transparent',
+              borderRight: '8px solid transparent',
+              borderTop: '8px solid var(--tooltip-bg)',
+            }}
+          />
+        </div>,
+        document.body
+      )}
+    </>
+  );
+};
+
+// Hook for managing nested tooltip state
+export function useNestedTooltip() {
+  const [openTooltips, setOpenTooltips] = useState<Set<string>>(new Set());
+
+  const openTooltip = useCallback((id: string) => {
+    setOpenTooltips(prev => new Set(prev).add(id));
+  }, []);
+
+  const closeTooltip = useCallback((id: string) => {
+    setOpenTooltips(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const isTooltipOpen = useCallback((id: string) => {
+    return openTooltips.has(id);
+  }, [openTooltips]);
+
+  return { openTooltip, closeTooltip, isTooltipOpen };
+}
+
+
+================================================
 FILE: src/components/PipelineStepGrid.tsx
 ================================================
 import React, { useMemo, useState } from 'react';
@@ -7179,8 +8387,16 @@ import { TabbedStepDisplay } from './TabbedStepDisplay';
 import { TranscriptLinesTable } from './TranscriptLinesTable';
 import { RefinedDataTable } from './RefinedDataTable';
 import { SelectedUtterancesTable } from './SelectedUtterancesTable';
+import { InitialSegmentationTable } from './InitialSegmentationTable';
+import { DiachronicUnitTable } from './DiachronicUnitTable';
+import { RefinedDiachronicUnitTable } from './RefinedDiachronicUnitTable';
 import { EditableTextArea } from './EditableTextArea';
 import { usePipelineStore } from '../stores/pipelineStore';
+import MermaidDiagram from '../../components/MermaidDiagram';
+import { DiachronicComparisonTable } from './DiachronicComparisonTable';
+import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { NestedTooltip } from './NestedTooltip';
+import { RduTooltip } from './tooltips/RduTooltip';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -7300,6 +8516,16 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
 }) => {
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const updateProcessedData = usePipelineStore(state => state.updateProcessedData);
+  
+  // Get config and prepare grid data - must call hooks before any returns
+  const config = STEP_GRID_CONFIGS[stepId];
+  const { rowData, columnDefs } = useMemo(() => {
+    if (!config) {
+      return { rowData: [], columnDefs: [] };
+    }
+    const data = config.extractData(processedData);
+    return { rowData: data, columnDefs: config.columns };
+  }, [processedData, config, stepId]);
   
   // Special handling for P0_1 with tabbed display
   if (stepId === StepId.P0_1_TRANSCRIPTION_ADHERENCE) {
@@ -7564,8 +8790,408 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
     );
   }
   
-  const config = STEP_GRID_CONFIGS[stepId];
+  // Special handling for P1_1 with tabbed display
+  if (stepId === StepId.P1_1_INITIAL_SEGMENTATION) {
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          return Array.from(data.entries())
+            .filter(([_, transcript]) => transcript.p1_1_output)
+            .map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                transcriptMapId: id,
+                segmentationData: transcript.p1_1_output!,
+                filename: transcript.filename
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => {
+          const handleSegmentationChange = (updatedData: any) => {
+            updateProcessedData(tabData.transcriptMapId, {
+              p1_1_output: updatedData
+            });
+          };
+          
+          return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.segmentationData.transcript_id}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Independent Variable
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {tabData.segmentationData.independent_variable_details}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {tabData.segmentationData.dependent_variable_focus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Segmentation table */}
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                  Initial Segmentation of Procedural Utterances
+                </h4>
+                <InitialSegmentationTable 
+                  segmentationData={tabData.segmentationData}
+                  theme={theme}
+                  onSegmentationChange={handleSegmentationChange}
+                  filename={tabData.filename}
+                />
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No transcripts with P1.1 output available"
+      />
+    );
+  }
   
+  // Special handling for P1_2 with tabbed display
+  if (stepId === StepId.P1_2_DIACHRONIC_UNIT_ID) {
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          return Array.from(data.entries())
+            .filter(([_, transcript]) => transcript.p1_2_output)
+            .map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                transcriptMapId: id,
+                diachronicData: transcript.p1_2_output!,
+                segmentationData: transcript.p1_1_output,
+                filename: transcript.filename
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => {
+          const handleDiachronicChange = (updatedData: any) => {
+            updateProcessedData(tabData.transcriptMapId, {
+              p1_2_output: updatedData
+            });
+          };
+          
+          return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.diachronicData.transcript_id}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Total Diachronic Units
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.diachronicData.diachronic_units.length}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Diachronic units table */}
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                  Diachronic Units (DUs)
+                </h4>
+                <DiachronicUnitTable 
+                  diachronicData={tabData.diachronicData}
+                  segmentationData={tabData.segmentationData}
+                  theme={theme}
+                  onDiachronicChange={handleDiachronicChange}
+                  filename={tabData.filename}
+                />
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No transcripts with P1.2 output available"
+      />
+    );
+  }
+  
+  // Special handling for P1_3 with tabbed display
+  if (stepId === StepId.P1_3_REFINE_DIACHRONIC_UNITS) {
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          return Array.from(data.entries())
+            .filter(([_, transcript]) => transcript.p1_3_output)
+            .map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                transcriptMapId: id,
+                refinedData: transcript.p1_3_output!,
+                filename: transcript.filename
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => {
+          const handleRefinedChange = (updatedData: any) => {
+            updateProcessedData(tabData.transcriptMapId, {
+              p1_3_output: updatedData
+            });
+          };
+          
+          return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.refinedData.transcript_id}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Total Refined DUs
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.refinedData.refined_diachronic_units.length}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Refined diachronic units table */}
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                  Refined Diachronic Units with Temporal Phases
+                </h4>
+                <RefinedDiachronicUnitTable 
+                  refinedData={tabData.refinedData}
+                  theme={theme}
+                  onRefinedChange={handleRefinedChange}
+                  filename={tabData.filename}
+                />
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No transcripts with P1.3 output available"
+      />
+    );
+  }
+  
+  // Special handling for P1_4 with tabbed display
+  if (stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
+    console.log('[P1.4 Debug] Rendering P1.4 component, processedData size:', processedData.size);
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          const entries = Array.from(data.entries());
+          console.log('[P1.4 Debug] Total transcripts:', entries.length);
+          const filtered = entries.filter(([_, transcript]) => {
+            console.log('[P1.4 Debug] Transcript:', transcript.filename, 'has p1_4_output:', !!transcript.p1_4_output);
+            return transcript.p1_4_output;
+          });
+          console.log('[P1.4 Debug] Filtered transcripts with P1.4 output:', filtered.length);
+          return filtered.map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                transcriptMapId: id,
+                diachronicStructure: transcript.p1_4_output!,
+                mermaidSyntax: transcript.p1_4_mermaid_syntax || transcript.p1_4_output?.mermaid_syntax_specific_diachronic,
+                filename: transcript.filename
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => {
+          const { diachronicStructure, mermaidSyntax, filename } = tabData;
+          console.log('[P1.4 Debug] Rendering content for:', filename, 'mermaidSyntax:', mermaidSyntax);
+          
+          // Prepare phases data for CSV export
+          const phasesData = diachronicStructure.specific_diachronic_structure.phases.map((phase: any, index: number) => ({
+            phase_number: index + 1,
+            phase_name: phase.phase_name,
+            description: phase.description,
+            units_involved: phase.units_involved.join('; ')
+          }));
+          
+          const handleDownloadCSV = () => {
+            const columns = [
+              { field: 'phase_number', headerName: 'Phase #' },
+              { field: 'phase_name', headerName: 'Phase Name' },
+              { field: 'description', headerName: 'Description' },
+              { field: 'units_involved', headerName: 'Units Involved' }
+            ];
+            const csvContent = convertToCSV(phasesData, columns);
+            const timestamp = new Date().toISOString().split('T')[0];
+            downloadCSV(csvContent, `${filename}_P1.4_phases_${timestamp}.csv`);
+          };
+          
+          return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {diachronicStructure.transcript_id}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Summary
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {diachronicStructure.specific_diachronic_structure.summary}
+                  </p>
+                </div>
+                
+                {diachronicStructure.specific_diachronic_structure.iv_preliminary_observation && (
+                  <div>
+                    <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                      IV Preliminary Observation
+                    </h4>
+                    <p className="text-light-text dark:text-dark-text text-sm">
+                      {diachronicStructure.specific_diachronic_structure.iv_preliminary_observation}
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {/* Phases table */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote">
+                    Diachronic Phases ({phasesData.length} phases)
+                  </h4>
+                  <button
+                    onClick={handleDownloadCSV}
+                    className="flex items-center gap-2 px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt border border-light-border dark:border-dark-border rounded hover:bg-light-accent/10 dark:hover:bg-dark-accent/10 transition-colors"
+                    title="Download phases as CSV"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    CSV
+                  </button>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-light-border dark:divide-dark-border">
+                    <thead className="bg-light-bg-alt dark:bg-dark-bg-alt">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
+                          Phase
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
+                          Name
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
+                          Description
+                        </th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-light-sidenote dark:text-dark-sidenote uppercase tracking-wider">
+                          Units
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-light-bg dark:bg-dark-bg divide-y divide-light-border dark:divide-dark-border">
+                      {phasesData.map((phase) => (
+                        <tr key={phase.phase_number}>
+                          <td className="px-4 py-2 whitespace-nowrap text-sm">
+                            {phase.phase_number}
+                          </td>
+                          <td className="px-4 py-2 text-sm font-medium">
+                            {phase.phase_name}
+                          </td>
+                          <td className="px-4 py-2 text-sm">
+                            {phase.description}
+                          </td>
+                          <td className="px-4 py-2 text-sm">
+                            <div className="flex flex-wrap gap-1">
+                              {phase.units_involved.split('; ').map((unit, idx) => {
+                                const transcriptData = processedData.get(tabData.transcriptMapId);
+                                if (!transcriptData) {
+                                  return (
+                                    <span key={idx} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                      {unit}
+                                    </span>
+                                  );
+                                }
+                                
+                                return (
+                                  <NestedTooltip
+                                    key={idx}
+                                    content={<RduTooltip rduName={unit} transcriptData={transcriptData} />}
+                                  >
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors">
+                                      {unit}
+                                    </span>
+                                  </NestedTooltip>
+                                );
+                              })}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              
+              {/* Comparative Diachronic Table */}
+              <div className="mt-8 pt-8 border-t border-light-border dark:border-dark-border">
+                <DiachronicComparisonTable theme={theme} />
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No transcripts with P1.4 output available"
+      />
+    );
+  }
+  
+  // Config check - using the values from the hook above
   if (!config) {
     // Fallback to JSON display if no config
     return (
@@ -7574,11 +9200,6 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
       </div>
     );
   }
-  
-  const { rowData, columnDefs } = useMemo(() => {
-    const data = config.extractData(processedData);
-    return { rowData: data, columnDefs: config.columns };
-  }, [processedData, config]);
 
   // Define custom styles based on theme
   const gridStyles = theme === 'dark' ? {
@@ -7966,6 +9587,308 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
               }
             }
           }}
+        />
+      </div>
+    </>
+  );
+};
+
+
+================================================
+FILE: src/components/RefinedDiachronicUnitTable.tsx
+================================================
+import React, { useMemo, useCallback } from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
+import { AllCommunityModule } from 'ag-grid-community';
+import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { P1_3_Output, RefinedDiachronicUnitP1_3 } from '../../types';
+import { TemporalPhaseEditor } from './TemporalPhaseEditor';
+
+// Register AG Grid modules
+ModuleRegistry.registerModules([AllCommunityModule]);
+
+interface RefinedDiachronicUnitTableProps {
+  refinedData: P1_3_Output;
+  theme: 'light' | 'dark';
+  onRefinedChange?: (updatedData: P1_3_Output) => void;
+  filename?: string;
+}
+
+// Custom renderer for temporal phase badges
+const TemporalPhaseRenderer: React.FC<ICellRendererParams> = (params) => {
+  const phase = params.value || 'Unknown';
+  
+  const getPhaseColor = (phase: string) => {
+    switch (phase) {
+      case 'Beginning':
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'Early-Middle':
+        return 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200';
+      case 'Core Event':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'Late-Middle':
+        return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200';
+      case 'Ending':
+        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
+      case 'Reflection':
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+      case 'Transition':
+        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+      case 'Other':
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+      default:
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+    }
+  };
+
+  return (
+    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getPhaseColor(phase)}`}>
+      {phase}
+    </span>
+  );
+};
+
+// Custom renderer for confidence with visual indicator
+const ConfidenceRenderer: React.FC<ICellRendererParams> = (params) => {
+  const confidence = params.value || 0;
+  const percentage = Math.round(confidence * 100);
+  
+  const getConfidenceColor = (value: number) => {
+    if (value >= 0.8) return 'bg-green-500';
+    if (value >= 0.6) return 'bg-yellow-500';
+    if (value >= 0.4) return 'bg-orange-500';
+    return 'bg-red-500';
+  };
+
+  return (
+    <div className="flex items-center space-x-2">
+      <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+        <div 
+          className={`h-2 rounded-full ${getConfidenceColor(confidence)}`}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <span className="text-xs font-mono w-10 text-right">{percentage}%</span>
+    </div>
+  );
+};
+
+// Custom renderer for source DU IDs
+const SourceDuIdsRenderer: React.FC<ICellRendererParams> = (params) => {
+  const ids: string[] = params.value || [];
+  
+  if (ids.length === 0) {
+    return <span className="text-gray-400 italic">No source DUs</span>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1 py-1">
+      {ids.map((id, index) => (
+        <span
+          key={index}
+          className="text-xs px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 font-mono"
+        >
+          {id}
+        </span>
+      ))}
+    </div>
+  );
+};
+
+export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProps> = ({
+  refinedData,
+  theme,
+  onRefinedChange,
+  filename
+}) => {
+  // Defensive check for data validity
+  if (!refinedData || !refinedData.refined_diachronic_units) {
+    return (
+      <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">
+        No refined diachronic data available
+      </div>
+    );
+  }
+
+  const { rowData, columnDefs } = useMemo(() => {
+    const cols: ColDef[] = [
+      {
+        field: 'unit_id',
+        headerName: 'Unit ID',
+        width: 100,
+        pinned: 'left',
+        cellClass: 'font-mono text-xs text-light-sidenote dark:text-dark-sidenote'
+      },
+      {
+        field: 'description',
+        headerName: 'Description',
+        flex: 2,
+        wrapText: true,
+        autoHeight: true,
+        editable: true,
+        cellClass: 'py-2',
+        cellEditor: 'agLargeTextCellEditor',
+        cellEditorParams: {
+          maxLength: 500,
+          rows: 3
+        }
+      },
+      {
+        field: 'source_p1_2_du_ids',
+        headerName: 'Source DU IDs',
+        width: 200,
+        wrapText: true,
+        autoHeight: true,
+        cellRenderer: SourceDuIdsRenderer,
+        valueFormatter: (params) => {
+          const ids = params.value as string[];
+          return ids ? ids.join(', ') : '';
+        }
+      },
+      {
+        field: 'temporal_phase',
+        headerName: 'Temporal Phase',
+        width: 180,
+        editable: true,
+        cellRenderer: TemporalPhaseRenderer,
+        cellEditor: TemporalPhaseEditor
+      },
+      {
+        field: 'confidence',
+        headerName: 'Confidence',
+        width: 150,
+        editable: true,
+        cellRenderer: ConfidenceRenderer,
+        cellEditor: 'agNumberCellEditor',
+        cellEditorParams: {
+          min: 0,
+          max: 1,
+          precision: 2
+        },
+        valueParser: (params) => {
+          const val = Number(params.newValue);
+          if (isNaN(val)) return params.oldValue;
+          return Math.min(1, Math.max(0, val));
+        }
+      }
+    ];
+
+    const rows = refinedData.refined_diachronic_units.map(unit => ({
+      ...unit
+    }));
+
+    return { rowData: rows, columnDefs: cols };
+  }, [refinedData]);
+
+  const handleCellValueChanged = useCallback((event: CellValueChangedEvent) => {
+    if (onRefinedChange) {
+      const updatedData = { ...refinedData };
+      const unitIndex = updatedData.refined_diachronic_units.findIndex(
+        u => u.unit_id === event.data.unit_id
+      );
+      
+      if (unitIndex !== -1) {
+        updatedData.refined_diachronic_units[unitIndex] = {
+          ...event.data
+        };
+        onRefinedChange(updatedData);
+      }
+    }
+  }, [refinedData, onRefinedChange]);
+
+  const handleExportCSV = () => {
+    const csvData = refinedData.refined_diachronic_units.map(unit => ({
+      'Unit ID': unit.unit_id,
+      'Description': unit.description,
+      'Source P1.2 DU IDs': unit.source_p1_2_du_ids.join('; '),
+      'Temporal Phase': unit.temporal_phase,
+      'Confidence': unit.confidence
+    }));
+
+    const columns = [
+      { field: 'Unit ID', headerName: 'Unit ID' },
+      { field: 'Description', headerName: 'Description' },
+      { field: 'Source P1.2 DU IDs', headerName: 'Source P1.2 DU IDs' },
+      { field: 'Temporal Phase', headerName: 'Temporal Phase' },
+      { field: 'Confidence', headerName: 'Confidence' }
+    ];
+    const csv = convertToCSV(csvData, columns);
+    const defaultFilename = filename ? 
+      `${filename.replace(/\.[^/.]+$/, '')}_P1.3_refined_units.csv` : 
+      'P1.3_refined_units.csv';
+    
+    downloadCSV(csv, defaultFilename);
+  };
+
+  const defaultColDef = useMemo(() => ({
+    sortable: true,
+    resizable: true,
+    filter: true,
+  }), []);
+
+  // Define custom styles based on theme
+  const gridStyles = theme === 'dark' ? {
+    '--ag-background-color': '#1a1a1a',
+    '--ag-header-background-color': '#252525',
+    '--ag-odd-row-background-color': '#252525',
+    '--ag-foreground-color': '#e6e6e6',
+    '--ag-header-foreground-color': '#e6e6e6',
+    '--ag-border-color': '#444444',
+    '--ag-row-hover-color': '#333333',
+    '--ag-header-column-resize-handle-color': '#ff6b6b',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-row-border-style': 'solid',
+    '--ag-row-border-width': '1px',
+    '--ag-row-border-color': '#333333',
+  } : {
+    '--ag-background-color': '#faf8f1',
+    '--ag-header-background-color': '#f3f1ea',
+    '--ag-odd-row-background-color': '#f3f1ea',
+    '--ag-foreground-color': '#222222',
+    '--ag-header-foreground-color': '#222222',
+    '--ag-border-color': '#dcd9d0',
+    '--ag-row-hover-color': '#e9e6de',
+    '--ag-header-column-resize-handle-color': '#a00000',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-row-border-style': 'solid',
+    '--ag-row-border-width': '1px',
+    '--ag-row-border-color': '#e0ddd4',
+  };
+
+  return (
+    <>
+      <div className="mb-2 flex justify-between items-center">
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
+          💡 Edit descriptions, temporal phases, and confidence levels directly in the grid. Changes are saved automatically.
+        </div>
+        <button
+          onClick={handleExportCSV}
+          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+        >
+          Download CSV
+        </button>
+      </div>
+      
+      <div 
+        className={`${theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'}`}
+        style={{ 
+          height: '600px',
+          width: '100%',
+          ...gridStyles as React.CSSProperties
+        }}
+      >
+        <AgGridReact
+          rowData={rowData}
+          columnDefs={columnDefs}
+          defaultColDef={defaultColDef}
+          rowHeight={60}
+          animateRows={true}
+          theme="legacy"
+          rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
+          onCellValueChanged={handleCellValueChanged}
         />
       </div>
     </>
@@ -8488,6 +10411,70 @@ export const TagsEditor: React.FC<ICellEditorParams> = (props) => {
 
 
 ================================================
+FILE: src/components/TemporalPhaseEditor.tsx
+================================================
+import React, { forwardRef, useImperativeHandle, useState } from 'react';
+import { ICellEditorComp, ICellEditorParams } from 'ag-grid-community';
+
+// Define the allowed temporal phase values based on constants.tsx
+const TEMPORAL_PHASES = [
+  'Beginning',
+  'Early-Middle',
+  'Core Event',
+  'Late-Middle',
+  'Ending',
+  'Reflection',
+  'Transition',
+  'Other'
+];
+
+export const TemporalPhaseEditor = forwardRef<ICellEditorComp, ICellEditorParams>((props, ref) => {
+  const [value, setValue] = useState(props.value || 'Beginning');
+
+  useImperativeHandle(ref, () => ({
+    getValue() {
+      return value;
+    },
+    isCancelBeforeStart() {
+      return false;
+    },
+    isCancelAfterEnd() {
+      return false;
+    }
+  }));
+
+  const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setValue(e.target.value);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      props.stopEditing();
+    } else if (e.key === 'Escape') {
+      props.stopEditing(true);
+    }
+  };
+
+  return (
+    <select
+      value={value}
+      onChange={handleChange}
+      onKeyDown={handleKeyDown}
+      className="w-full h-full px-2 py-1 border-0 outline-none focus:ring-2 
+        focus:ring-light-accent dark:focus:ring-dark-accent bg-white dark:bg-gray-800"
+      autoFocus
+    >
+      {TEMPORAL_PHASES.map(phase => (
+        <option key={phase} value={phase}>
+          {phase}
+        </option>
+      ))}
+    </select>
+  );
+});
+
+
+================================================
 FILE: src/components/TranscriptLinesTable.tsx
 ================================================
 import React, { useMemo } from 'react';
@@ -8683,6 +10670,374 @@ export const TranscriptLinesTable: React.FC<TranscriptLinesTableProps> = ({
       />
     </div>
     </>
+  );
+};
+
+
+================================================
+FILE: src/components/tooltips/PhaseTooltip.tsx
+================================================
+import React from 'react';
+import { NestedTooltip } from '../NestedTooltip';
+import { PhaseTraceData } from '../../utils/phaseTracingHelper';
+
+interface PhaseTooltipProps {
+  phaseTrace: PhaseTraceData;
+  transcriptId: string;
+}
+
+export const PhaseTooltip: React.FC<PhaseTooltipProps> = ({ phaseTrace, transcriptId }) => {
+  const utteranceCount = phaseTrace.rdus.reduce((total, rdu) => 
+    total + rdu.dus.reduce((duTotal, du) => duTotal + du.utterances.length, 0), 0
+  );
+
+  return (
+    <div className="phase-tooltip-content p-6">
+      <div className="font-bold text-light-accent dark:text-dark-accent mb-2">
+        Phase: {phaseTrace.phaseName}
+      </div>
+      
+      <div className="text-sm mb-3 text-light-text dark:text-dark-text">
+        {phaseTrace.phaseDescription}
+      </div>
+
+      <div className="border-t border-light-border dark:border-dark-border pt-2 mb-2">
+        <div className="text-xs text-light-sidenote dark:text-dark-sidenote">
+          {phaseTrace.rdus.length} Refined Diachronic Units • {utteranceCount} Utterances
+        </div>
+      </div>
+
+      <div className="space-y-2 max-h-64 overflow-y-auto">
+        {phaseTrace.rdus.map((rdu, idx) => (
+          <div key={rdu.rduId} className="rdu-item">
+            <NestedTooltip
+              depth={1}
+              content={<RDUTooltipContent rdu={rdu} transcriptId={transcriptId} />}
+            >
+              <div className="p-2 bg-light-bg-alt dark:bg-dark-bg-alt rounded cursor-pointer hover:bg-light-border dark:hover:bg-dark-border transition-colors">
+                <div className="font-semibold text-sm">
+                  {rdu.rduId}
+                </div>
+                <div className="text-xs text-light-sidenote dark:text-dark-sidenote line-clamp-2">
+                  {rdu.rduDescription}
+                </div>
+                <div className="text-xs text-light-accent dark:text-dark-accent mt-1">
+                  {rdu.dus.length} DUs • {rdu.temporalPhase}
+                </div>
+              </div>
+            </NestedTooltip>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+interface RDUTooltipContentProps {
+  rdu: import('../../utils/phaseTracingHelper').RDUTraceData;
+  transcriptId: string;
+}
+
+const RDUTooltipContent: React.FC<RDUTooltipContentProps> = ({ rdu, transcriptId }) => {
+  return (
+    <div className="rdu-tooltip-content p-6">
+      <div className="font-bold text-light-accent dark:text-dark-accent mb-2">
+        RDU: {rdu.rduId}
+      </div>
+      
+      <div className="text-sm mb-3 text-light-text dark:text-dark-text">
+        {rdu.rduDescription}
+      </div>
+
+      <div className="text-xs text-light-sidenote dark:text-dark-sidenote mb-3">
+        Temporal Phase: {rdu.temporalPhase}
+      </div>
+
+      <div className="border-t border-light-border dark:border-dark-border pt-2">
+        <div className="font-semibold text-sm mb-2">Diachronic Units:</div>
+        <div className="space-y-2 max-h-48 overflow-y-auto">
+          {rdu.dus.map((du) => (
+            <div key={du.duId} className="du-item">
+              <NestedTooltip
+                depth={2}
+                content={<DUTooltipContent du={du} transcriptId={transcriptId} />}
+              >
+                <div className="p-2 bg-light-subtle dark:bg-dark-subtle rounded cursor-pointer hover:bg-light-bg-alt dark:hover:bg-dark-bg-alt transition-colors">
+                  <div className="font-semibold text-sm">
+                    {du.duId}
+                  </div>
+                  <div className="text-xs text-light-sidenote dark:text-dark-sidenote">
+                    {du.utterances.length} utterances
+                  </div>
+                </div>
+              </NestedTooltip>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface DUTooltipContentProps {
+  du: import('../../utils/phaseTracingHelper').DUTraceData;
+  transcriptId: string;
+}
+
+const DUTooltipContent: React.FC<DUTooltipContentProps> = ({ du, transcriptId }) => {
+  return (
+    <div className="du-tooltip-content p-6">
+      <div className="font-bold text-light-accent dark:text-dark-accent mb-2">
+        DU: {du.duId}
+      </div>
+      
+      <div className="text-sm mb-3 text-light-text dark:text-dark-text">
+        {du.duDescription}
+      </div>
+
+      <div className="border-t border-light-border dark:border-dark-border pt-2">
+        <div className="font-semibold text-sm mb-2">Source Utterances:</div>
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {du.utterances.map((utt, idx) => (
+            <div 
+              key={`${utt.lineNumber}-${idx}`}
+              className="p-2 bg-light-subtle dark:bg-dark-subtle rounded border-l-2 border-light-accent dark:border-dark-accent"
+            >
+              <div className="text-xs font-semibold text-light-accent dark:text-dark-accent mb-1">
+                Line {utt.lineNumber}
+              </div>
+              <div className="text-sm text-light-text dark:text-dark-text">
+                {utt.text}
+              </div>
+              {utt.segments && utt.segments.length > 0 && (
+                <div className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">
+                  Segments: {utt.segments.join(', ')}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+================================================
+FILE: src/components/tooltips/RduTooltip.tsx
+================================================
+import React from 'react';
+import { TranscriptProcessedData } from '../../types';
+import { NestedTooltip } from '../NestedTooltip';
+
+interface RduTooltipProps {
+  rduName: string;
+  transcriptData: TranscriptProcessedData;
+}
+
+export const RduTooltip: React.FC<RduTooltipProps> = ({ rduName, transcriptData }) => {
+  // Find the RDU in P1.3 output - checking both unit_id and rdu_id fields
+  const rdu = transcriptData.p1_3_output?.refined_diachronic_units.find(
+    unit => unit.unit_id === rduName || unit.rdu_id === rduName
+  );
+  
+  if (!rdu) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-light-sidenote dark:text-dark-sidenote">
+          RDU data not found for {rduName}
+        </p>
+      </div>
+    );
+  }
+
+  // Get the DUs from P1.2 output - using source_p1_2_du_ids (as used in phaseTracingHelper)
+  const duIds = rdu.source_p1_2_du_ids || rdu.dus_included || [];
+  const dus = duIds.map(duId => {
+    return transcriptData.p1_2_output?.diachronic_units.find(
+      du => du.unit_id === duId || du.du_id === duId
+    );
+  }).filter(Boolean);
+
+  return (
+    <div className="p-6">
+      <h3 className="font-semibold text-light-text dark:text-dark-text mb-2">
+        {rduName}
+      </h3>
+      
+      <div className="space-y-3 text-sm">
+        {rdu.description && (
+          <div>
+            <span className="text-light-sidenote dark:text-dark-sidenote">Description:</span>
+            <p className="mt-1">{rdu.description}</p>
+          </div>
+        )}
+
+        {rdu.temporal_phase && (
+          <div>
+            <span className="text-light-sidenote dark:text-dark-sidenote">Temporal Phase:</span>
+            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+              {rdu.temporal_phase}
+            </span>
+          </div>
+        )}
+
+        {rdu.temporal_categories && (
+          <div>
+            <span className="text-light-sidenote dark:text-dark-sidenote">Temporal Categories:</span>
+            <div className="flex flex-wrap gap-1 mt-1">
+              {Object.entries(rdu.temporal_categories).map(([category, present]) => (
+                present && (
+                  <span
+                    key={category}
+                    className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                  >
+                    {category}
+                  </span>
+                )
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <span className="text-light-sidenote dark:text-dark-sidenote">DUs Included:</span>
+          <div className="mt-1 space-y-2">
+            {dus.map(du => (
+              <NestedTooltip
+                key={du!.unit_id || du!.du_id}
+                content={<DuTooltipContent du={du!} transcriptData={transcriptData} />}
+                depth={1}
+              >
+                <div className="cursor-pointer hover:bg-light-bg-alt dark:hover:bg-dark-bg-alt p-2 rounded transition-colors">
+                  <div className="font-medium text-light-accent dark:text-dark-accent">
+                    {du!.unit_id || du!.du_id}
+                  </div>
+                  <div className="text-xs text-light-sidenote dark:text-dark-sidenote line-clamp-2">
+                    {du!.description || du!.summary || 'No description available'}
+                  </div>
+                </div>
+              </NestedTooltip>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface DuTooltipContentProps {
+  du: any;
+  transcriptData: TranscriptProcessedData;
+}
+
+const DuTooltipContent: React.FC<DuTooltipContentProps> = ({ du, transcriptData }) => {
+  // Get segments from P1.1 output, then trace to utterances
+  const segmentIds = du.source_segment_ids || du.segment_ids || [];
+  const utteranceMap = new Map<string, any>();
+  
+  if (transcriptData.p1_1_output?.segmented_utterances) {
+    for (const segId of segmentIds) {
+      // Find which utterance contains this segment
+      for (const segUtt of transcriptData.p1_1_output.segmented_utterances) {
+        const segment = segUtt.segments?.find(s => s.segment_id === segId);
+        if (segment && segUtt.original_utterance) {
+          const lineNum = segUtt.original_utterance.original_line_num || segUtt.original_utterance.utterance_number?.toString();
+          if (lineNum && !utteranceMap.has(lineNum)) {
+            utteranceMap.set(lineNum, segUtt.original_utterance);
+          }
+        }
+      }
+    }
+  }
+  
+  const utterances = Array.from(utteranceMap.values());
+
+  return (
+    <div className="p-6">
+      <h3 className="font-semibold text-light-text dark:text-dark-text mb-2">
+        {du.unit_id || du.du_id}
+      </h3>
+      
+      <div className="space-y-3 text-sm">
+        {du.description && (
+          <div>
+            <span className="text-light-sidenote dark:text-dark-sidenote">Description:</span>
+            <p className="mt-1">{du.description}</p>
+          </div>
+        )}
+        
+        {du.summary && (
+          <div>
+            <span className="text-light-sidenote dark:text-dark-sidenote">Summary:</span>
+            <p className="mt-1">{du.summary}</p>
+          </div>
+        )}
+
+        <div>
+          <span className="text-light-sidenote dark:text-dark-sidenote">Utterances:</span>
+          <div className="mt-1 space-y-2">
+            {utterances.map(utt => (
+              <NestedTooltip
+                key={utt.original_line_num || utt.utterance_number}
+                content={<UtteranceTooltipContent utterance={utt} />}
+                depth={2}
+              >
+                <div className="cursor-pointer hover:bg-light-bg-alt dark:hover:bg-dark-bg-alt p-2 rounded transition-colors">
+                  <div className="font-medium text-light-accent dark:text-dark-accent">
+                    Line {utt.original_line_num || utt.utterance_number}
+                  </div>
+                  <div className="text-xs text-light-sidenote dark:text-dark-sidenote line-clamp-2">
+                    {utt.utterance_text}
+                  </div>
+                </div>
+              </NestedTooltip>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface UtteranceTooltipContentProps {
+  utterance: any;
+}
+
+const UtteranceTooltipContent: React.FC<UtteranceTooltipContentProps> = ({ utterance }) => {
+  const lineNum = utterance.original_line_num || utterance.utterance_number;
+  const speaker = utterance.speaker || 'Unknown';
+  const text = utterance.utterance_text || utterance.text || '';
+  
+  return (
+    <div className="p-6">
+      <h3 className="font-semibold text-light-text dark:text-dark-text mb-2">
+        Line {lineNum}
+      </h3>
+      
+      <div className="space-y-3 text-sm">
+        <div>
+          <span className="text-light-sidenote dark:text-dark-sidenote">Speaker:</span>
+          <span className="ml-2 font-medium">{speaker}</span>
+        </div>
+
+        <div>
+          <span className="text-light-sidenote dark:text-dark-sidenote">Full Text:</span>
+          <p className="mt-1 italic">"{text}"</p>
+        </div>
+
+        {utterance.experiential_markers && utterance.experiential_markers.length > 0 && (
+          <div>
+            <span className="text-light-sidenote dark:text-dark-sidenote">Experiential Markers:</span>
+            <ul className="mt-1 list-disc list-inside">
+              {utterance.experiential_markers.map((marker: string, idx: number) => (
+                <li key={idx} className="text-xs">{marker}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
@@ -9306,6 +11661,110 @@ export function getStepDisplayName(stepId: StepId): string {
 }
 
 // Note: STEP_CONFIGS will be moved here from constants.tsx in the next step
+
+
+================================================
+FILE: src/config/pipeline/index.ts
+================================================
+
+
+
+================================================
+FILE: src/config/pipeline/types.ts
+================================================
+import { StepId } from '../../../types';
+
+export interface StepConfig {
+  id: StepId;
+  title: string;
+  part: string;
+  isJsonOutput: boolean;
+  getInput: (...args: any[]) => { data: any; error?: string } | { data: null; error: string };
+  generatePrompt: (input: any) => string;
+  validateAndClean?: (output: any, ...args: any[]) => any;
+}
+
+export type ConfigMap = { [key in StepId]?: StepConfig };
+
+
+================================================
+FILE: src/config/pipeline/part0/index.ts
+================================================
+
+
+
+================================================
+FILE: src/config/pipeline/part1/index.ts
+================================================
+
+
+
+================================================
+FILE: src/config/pipeline/partNeg1/index.ts
+================================================
+import { StepId } from '../../../../types';
+
+export { P_NEG1_1_VARIABLE_IDENTIFICATION_CONFIG } from './variableIdentification';
+
+export const STEP_ORDER_PART_NEG1 = [StepId.P_NEG1_1_VARIABLE_IDENTIFICATION];
+
+
+================================================
+FILE: src/config/pipeline/partNeg1/variableIdentification.ts
+================================================
+import { StepId } from '../../../../types';
+import { StepConfig } from '../types';
+
+export const P_NEG1_1_VARIABLE_IDENTIFICATION_CONFIG: StepConfig = {
+  id: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
+  title: "P-1.1: Variable Identification",
+  part: "PartNeg1",
+  isJsonOutput: true,
+  getInput: (currentTranscript, _allProcessedData, _genericState, _apiKeyPresent, userDvFocus) => {
+    console.log(`[P-1.1 getInput] currentTranscript:`, currentTranscript ? { id: currentTranscript.id, contentLength: currentTranscript.content?.length } : null);
+    console.log(`[P-1.1 getInput] userDvFocus:`, userDvFocus);
+    
+    if (!currentTranscript?.content || !userDvFocus?.dv_focus || userDvFocus.dv_focus.length === 0) {
+      console.error(`[P-1.1 getInput] Validation failed - transcript content: ${!!currentTranscript?.content}, userDvFocus exists: ${!!userDvFocus}, dv_focus exists: ${!!userDvFocus?.dv_focus}, dv_focus length: ${userDvFocus?.dv_focus?.length || 0}`);
+      return { data: null, error: "Missing transcript content or DV focus for P-1.1." };
+    }
+    return {
+      data: {
+        filename_or_id: currentTranscript.filename || currentTranscript.id,
+        raw_transcript_text_from_file: currentTranscript.content,
+        dependent_variable_focus_list: userDvFocus.dv_focus,
+      },
+    };
+  },
+  generatePrompt: (input) => `You are a data extraction assistant for micro-phenomenological research. Your task is to process the beginning of a raw interview transcript to identify a potential independent variable (or condition/grouping factor) and use the user-provided dependent variable focuses for this analysis.
+
+Input:
+- Raw text content of a single interview transcript file.
+- Transcript Filename/ID: ${input.filename_or_id}
+- User-specified Dependent Variable Focus (as a list of strings): ${JSON.stringify(input.dependent_variable_focus_list)}
+
+Instructions:
+1.  Identify Independent Variable (IV) / Condition:
+    *   Examine the *first few lines* of the transcript. Look for a pattern like "Participant X, Condition Y (Score Z/W)" or similar identifying information that might indicate an experimental condition, grouping, or a key characteristic of this specific interview/participant.
+    *   Extract this information as the \`independent_variable_details\`. If no such clear IV is present in the first few lines, mark it as "Not explicitly stated in header."
+2.  Record DV Focus:
+    *   The \`dependent_variable_focus\` field in your output JSON MUST be the exact list of strings provided in "User-specified Dependent Variable Focus" from the Input section above.
+
+Output:
+A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
+{
+  "transcript_id": "${input.filename_or_id}",
+  "independent_variable_details": "The extracted IV information or 'Not explicitly stated in header.'",
+  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus_list)}
+}
+
+BEGIN VARIABLE IDENTIFICATION FOR RAW TRANSCRIPT:
+Transcript ID: ${input.filename_or_id}
+User-specified Dependent Variable Focus: ${JSON.stringify(input.dependent_variable_focus_list)}
+Content:
+${input.raw_transcript_text_from_file}
+`,
+};
 
 
 ================================================
@@ -13225,6 +15684,259 @@ Please provide a corrected response addressing the user's feedback.`
 
 
 ================================================
+FILE: src/styles/ag-grid-custom-theme.css
+================================================
+/* Custom AG-Grid Theme for µ-PATH */
+
+/* Light theme */
+.ag-theme-alpine {
+  --ag-background-color: #faf8f1;
+  --ag-foreground-color: #111111;
+  --ag-header-background-color: #f3f1ea;
+  --ag-header-foreground-color: #111111;
+  --ag-odd-row-background-color: #faf8f1;
+  --ag-row-hover-color: #e9e6de;
+  --ag-border-color: #dcd9d0;
+  --ag-secondary-border-color: #dcd9d0;
+  --ag-header-cell-hover-background-color: #e9e6de;
+  --ag-selected-row-background-color: rgba(160, 0, 0, 0.1);
+  --ag-range-selection-border-color: #a00000;
+  --ag-header-column-separator-color: #dcd9d0;
+  --ag-header-column-resize-handle-color: #a00000;
+  --ag-input-border-color: #dcd9d0;
+  --ag-input-focus-border-color: #a00000;
+  --ag-disabled-foreground-color: #999999;
+  --ag-chip-background-color: #f3f1ea;
+  --ag-chip-border-color: #dcd9d0;
+}
+
+/* Dark theme */
+.ag-theme-alpine-dark {
+  --ag-background-color: #1a1a1a;
+  --ag-foreground-color: #e6e6e6;
+  --ag-header-background-color: #252525;
+  --ag-header-foreground-color: #e6e6e6;
+  --ag-odd-row-background-color: #1a1a1a;
+  --ag-row-hover-color: #333333;
+  --ag-border-color: #444444;
+  --ag-secondary-border-color: #444444;
+  --ag-header-cell-hover-background-color: #333333;
+  --ag-selected-row-background-color: rgba(255, 107, 107, 0.1);
+  --ag-range-selection-border-color: #ff6b6b;
+  --ag-header-column-separator-color: #444444;
+  --ag-header-column-resize-handle-color: #ff6b6b;
+  --ag-input-border-color: #444444;
+  --ag-input-focus-border-color: #ff6b6b;
+  --ag-disabled-foreground-color: #666666;
+  --ag-chip-background-color: #252525;
+  --ag-chip-border-color: #444444;
+}
+
+/* Additional customizations */
+.ag-theme-alpine,
+.ag-theme-alpine-dark {
+  font-family: 'EB Garamond', 'et-book', Palatino, 'Palatino Linotype', 'Palatino LT STD', Georgia, serif;
+}
+
+.ag-theme-alpine .ag-header-cell,
+.ag-theme-alpine-dark .ag-header-cell {
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ag-theme-alpine .ag-cell,
+.ag-theme-alpine-dark .ag-cell {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Remove cell focus outline */
+.ag-theme-alpine .ag-cell-focus,
+.ag-theme-alpine-dark .ag-cell-focus {
+  border: none !important;
+  outline: none !important;
+}
+
+/* Custom scrollbar */
+.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar,
+.ag-theme-alpine-dark .ag-body-viewport::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-track {
+  background: #f3f1ea;
+}
+
+.ag-theme-alpine-dark .ag-body-viewport::-webkit-scrollbar-track {
+  background: #252525;
+}
+
+.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb {
+  background: #dcd9d0;
+  border-radius: 4px;
+}
+
+.ag-theme-alpine-dark .ag-body-viewport::-webkit-scrollbar-thumb {
+  background: #444444;
+  border-radius: 4px;
+}
+
+.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb:hover {
+  background: #a00000;
+}
+
+.ag-theme-alpine-dark .ag-body-viewport::-webkit-scrollbar-thumb:hover {
+  background: #ff6b6b;
+}
+
+/* Phase color classes - matching annotated transcript theme */
+.phase-beginning { 
+  background-color: rgba(173, 216, 230, 0.3); /* lightblue */
+  color: #111111;
+}
+.dark .phase-beginning { 
+  background-color: rgba(70, 130, 180, 0.25); /* steelblue */
+  color: #e6e6e6;
+}
+
+.phase-core { 
+  background-color: rgba(127, 255, 212, 0.3); /* aquamarine */
+  color: #111111;
+}
+.dark .phase-core { 
+  background-color: rgba(32, 178, 170, 0.25); /* lightseagreen */
+  color: #e6e6e6;
+}
+
+.phase-ending { 
+  background-color: rgba(221, 160, 221, 0.25); /* plum */
+  color: #111111;
+}
+.dark .phase-ending { 
+  background-color: rgba(147, 112, 219, 0.2); /* mediumslateblue */
+  color: #e6e6e6;
+}
+
+.phase-transition { 
+  background-color: rgba(255, 215, 0, 0.25); /* gold */
+  color: #111111;
+}
+.dark .phase-transition { 
+  background-color: rgba(218, 165, 32, 0.2); /* goldenrod */
+  color: #e6e6e6;
+}
+
+
+================================================
+FILE: src/styles/tooltip.css
+================================================
+/* Nested Tooltip Styles */
+.nested-tooltip {
+  @apply bg-light-bg dark:bg-dark-bg;
+  @apply rounded-lg shadow-lg;
+  @apply text-light-text dark:text-dark-text;
+  background-color: #faf8f1 !important; /* Light mode background */
+  border: 2px solid #c4c1b8 !important; /* Darker than light-border for more contrast */
+  opacity: 1 !important;
+  pointer-events: auto;
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+.dark .nested-tooltip {
+  background-color: #1a1a1a !important; /* Dark mode background */
+  border: 2px solid #666666 !important; /* Lighter than dark-border for more contrast */
+}
+
+.nested-tooltip-content {
+  @apply relative;
+  max-width: 90vw; /* Use viewport width instead of fixed rem */
+  width: 80vw; /* Default to 80% of viewport */
+  max-height: 80vh;
+  overflow: auto;
+}
+
+/* Depth-based styling */
+.nested-tooltip.depth-0 {
+  @apply shadow-xl;
+}
+
+.nested-tooltip.depth-1 {
+  @apply shadow-lg;
+  margin-left: 1rem;
+}
+
+.nested-tooltip.depth-2 {
+  @apply shadow-md;
+  margin-left: 2rem;
+}
+
+/* Animation */
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Scrollbar styling for tooltips */
+.nested-tooltip-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.nested-tooltip-content::-webkit-scrollbar-track {
+  @apply bg-light-bg-alt dark:bg-dark-bg-alt;
+  border-radius: 3px;
+}
+
+.nested-tooltip-content::-webkit-scrollbar-thumb {
+  @apply bg-light-border dark:bg-dark-border;
+  border-radius: 3px;
+}
+
+.nested-tooltip-content::-webkit-scrollbar-thumb:hover {
+  @apply bg-light-accent dark:bg-dark-accent;
+}
+
+/* Utility classes for tooltip content */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Phase-specific coloring in tooltips */
+.phase-tooltip-content .rdu-item:hover {
+  transform: translateX(2px);
+  transition: transform 0.2s ease;
+}
+
+.rdu-tooltip-content .du-item:hover {
+  transform: translateX(2px);
+  transition: transform 0.2s ease;
+}
+
+/* Visual connection between nested tooltips */
+.nested-tooltip.depth-1::before,
+.nested-tooltip.depth-2::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 20px;
+  width: 10px;
+  height: 2px;
+  @apply bg-light-border dark:bg-dark-border;
+}
+
+
+================================================
 FILE: src/utils/csvExport.ts
 ================================================
 export function convertToCSV(data: any[], columns: { field: string; headerName: string }[]): string {
@@ -14974,6 +17686,177 @@ export async function performDataMigration(): Promise<void> {
 
 
 ================================================
+FILE: src/utils/phaseTracingHelper.ts
+================================================
+import {
+  TranscriptProcessedData,
+  P1_3_Output,
+  P1_4_Output,
+  SelectedUtterance
+} from '../types';
+
+export interface PhaseTraceData {
+  phaseName: string;
+  phaseDescription: string;
+  rdus: RDUTraceData[];
+}
+
+export interface RDUTraceData {
+  rduId: string;
+  rduDescription: string;
+  temporalPhase: string;
+  dus: DUTraceData[];
+}
+
+export interface DUTraceData {
+  duId: string;
+  duDescription: string;
+  utterances: UtteranceTraceData[];
+}
+
+export interface UtteranceTraceData {
+  lineNumber: string;
+  text: string;
+  segments?: string[];
+}
+
+/**
+ * Traces from a phase name back through RDUs, DUs, segments to original utterances
+ */
+export function tracePhaseToUtterances(
+  phaseName: string,
+  transcriptData: TranscriptProcessedData
+): PhaseTraceData | null {
+  if (!transcriptData.p1_4_output?.specific_diachronic_structure?.phases) {
+    return null;
+  }
+
+  // Find the phase
+  const phase = transcriptData.p1_4_output.specific_diachronic_structure.phases.find(
+    p => p.phase_name === phaseName
+  );
+  
+  if (!phase) {
+    return null;
+  }
+
+  const phaseTrace: PhaseTraceData = {
+    phaseName: phase.phase_name || '',
+    phaseDescription: phase.description || '',
+    rdus: []
+  };
+
+  // Get RDUs for this phase
+  if (phase.units_involved && transcriptData.p1_3_output?.refined_diachronic_units) {
+    for (const rduId of phase.units_involved) {
+      const rdu = transcriptData.p1_3_output.refined_diachronic_units.find(
+        r => r.unit_id === rduId
+      );
+      
+      if (rdu) {
+        const rduTrace: RDUTraceData = {
+          rduId: rdu.unit_id,
+          rduDescription: rdu.description || '',
+          temporalPhase: rdu.temporal_phase || '',
+          dus: []
+        };
+
+        // Get DUs for this RDU
+        if (rdu.source_p1_2_du_ids && transcriptData.p1_2_output?.diachronic_units) {
+          for (const duId of rdu.source_p1_2_du_ids) {
+            const du = transcriptData.p1_2_output.diachronic_units.find(
+              d => d.unit_id === duId
+            );
+            
+            if (du) {
+              const duTrace: DUTraceData = {
+                duId: du.unit_id,
+                duDescription: du.description || '',
+                utterances: []
+              };
+
+              // Get utterances for this DU
+              if (du.source_segment_ids && transcriptData.p1_1_output?.segmented_utterances) {
+                // Group segments by utterance
+                const utteranceMap = new Map<string, string[]>();
+                
+                for (const segId of du.source_segment_ids) {
+                  // Find which utterance contains this segment
+                  for (const segUtt of transcriptData.p1_1_output.segmented_utterances) {
+                    const segment = segUtt.segments?.find(s => s.segment_id === segId);
+                    if (segment && segUtt.original_utterance?.original_line_num) {
+                      const lineNum = segUtt.original_utterance.original_line_num;
+                      if (!utteranceMap.has(lineNum)) {
+                        utteranceMap.set(lineNum, []);
+                      }
+                      utteranceMap.get(lineNum)!.push(segId);
+                      break;
+                    }
+                  }
+                }
+
+                // Create utterance traces
+                for (const [lineNum, segs] of utteranceMap) {
+                  const segUtt = transcriptData.p1_1_output.segmented_utterances.find(
+                    s => s.original_utterance?.original_line_num === lineNum
+                  );
+                  
+                  if (segUtt && segUtt.original_utterance) {
+                    duTrace.utterances.push({
+                      lineNumber: lineNum,
+                      text: segUtt.original_utterance.utterance_text || '',
+                      segments: segs
+                    });
+                  }
+                }
+              }
+
+              if (duTrace.utterances.length > 0) {
+                rduTrace.dus.push(duTrace);
+              }
+            }
+          }
+        }
+
+        if (rduTrace.dus.length > 0) {
+          phaseTrace.rdus.push(rduTrace);
+        }
+      }
+    }
+  }
+
+  return phaseTrace;
+}
+
+/**
+ * Get a simplified summary of units in a phase
+ */
+export function getPhaseUnitSummary(
+  phaseName: string,
+  transcriptData: TranscriptProcessedData
+): { rduCount: number; utteranceCount: number } {
+  const trace = tracePhaseToUtterances(phaseName, transcriptData);
+  if (!trace) {
+    return { rduCount: 0, utteranceCount: 0 };
+  }
+
+  const utteranceSet = new Set<string>();
+  for (const rdu of trace.rdus) {
+    for (const du of rdu.dus) {
+      for (const utt of du.utterances) {
+        utteranceSet.add(utt.lineNumber);
+      }
+    }
+  }
+
+  return {
+    rduCount: trace.rdus.length,
+    utteranceCount: utteranceSet.size
+  };
+}
+
+
+================================================
 FILE: src/utils/reportHelper.ts
 ================================================
 
@@ -16464,33 +19347,8 @@ export function transformSynchronicToMermaid(
 
 
 export function transformDiachronicToMermaid(structure?: SpecificDiachronicStructureType): string {
-  if (!structure || !structure.phases || structure.phases.length === 0) {
-    return `gantt
-dateFormat X
-title Specific Diachronic Structure (No Phases)
-axisFormat %s
-
-section Empty
-Empty Phase :empty_phase, 0, 1d`;
-  }
-  const titleText = structure.summary ? `SDS: ${structure.summary}` : 'Specific Diachronic Experience';
-  const safeTitle = sanitizeMermaidLabel(titleText.substring(0, 70) + (titleText.length > 70 ? "..." : "")).slice(1,-1);
-
-  let mermaidSyntax = `gantt
-dateFormat X
-title ${safeTitle}
-axisFormat %s\n\n`;
-
-  mermaidSyntax += `section Phases\n`;
-  structure.phases.forEach((phase, index) => {
-    const duration = Math.max(1, phase.units_involved?.length || 1);
-    const phaseId = sanitizeMermaidId(phase.phase_name || `phase_${index}`, `ph_`);
-    const phaseLabelText = phase.phase_name || `Phase ${index + 1}`;
-    const safePhaseLabel = phaseLabelText.replace(/:/g, '-').replace(/,/g, '');
-
-    mermaidSyntax += `${safePhaseLabel} :${phaseId}, ${index}, ${duration}d\n`;
-  });
-  return mermaidSyntax;
+  // Return empty string - we'll use a comparison table instead of individual Gantt charts
+  return '';
 }
 
 export function transformGenericDiachronicToMermaid(gdsDefinition?: GenericDiachronicStructureDefinition): string {
