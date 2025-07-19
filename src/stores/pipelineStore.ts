@@ -2013,8 +2013,9 @@ export const selectMermaidChartForStep = (stepInfo: CurrentStepInfo): string | u
   const gdu = stepInfo.currentGduForP4S
   
   switch (stepInfo.stepId) {
-    case StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE:
-      return tId ? processedData.get(tId)?.p1_4_mermaid_syntax : undefined
+    // P1.4 no longer uses mermaid - it uses table display with comparison
+    // case StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE:
+    //   return tId ? processedData.get(tId)?.p1_4_mermaid_syntax : undefined
       
     case StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE:
       return tId && phase ? processedData.get(tId)?.p2s_outputs_by_phase?.[phase]?.p2s_3_mermaid_syntax : undefined

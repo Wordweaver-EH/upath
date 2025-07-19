@@ -339,20 +339,7 @@ const App: React.FC = () => {
         return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">{stepDisplay.message}</div>;
       
       case 'mermaid':
-        // Check if this step should use grid display instead
-        const gridStepsForMermaid = [
-          StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
-        ];
-        
-        if (gridStepsForMermaid.includes(currentStepInfo.stepId) && processedData.size > 0) {
-          console.log('[App Debug] Redirecting mermaid step to grid:', currentStepInfo.stepId);
-          return <PipelineStepGrid 
-            processedData={processedData} 
-            stepId={currentStepInfo.stepId}
-            theme={theme} 
-          />;
-        }
-        
+        // P1.4 no longer uses mermaid display - it's handled in the 'output' case
         return <MermaidDiagram chart={stepDisplay.chart} theme={theme} />;
       
       case 'report':
@@ -367,7 +354,8 @@ const App: React.FC = () => {
           StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
           StepId.P1_1_INITIAL_SEGMENTATION,
           StepId.P1_2_DIACHRONIC_UNIT_ID,
-          StepId.P1_3_REFINE_DIACHRONIC_UNITS
+          StepId.P1_3_REFINE_DIACHRONIC_UNITS,
+          StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
         ];
         
         if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {
