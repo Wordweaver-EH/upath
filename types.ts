@@ -102,34 +102,71 @@ export interface P1_2_Output {
   dependent_variable_focus: string[];
 }
 
-export interface RefinedDiachronicUnitP1_3 {
-  unit_id: string; // Can be same as P1.2 ID or new if merged/split
-  description: string;
-  confidence: number;
-  temporal_phase: string;
-  source_p1_2_du_ids: string[]; // IDs from P1.2 DiachronicUnitP1_2.unit_id
-}
-export interface P1_3_Output {
+// New P1.3: Temporal Phase Assignment
+export interface P1_3_Input {
   transcript_id: string;
-  refined_diachronic_units: RefinedDiachronicUnitP1_3[];
+  diachronic_units: Array<{
+    unit_id: string;
+    description: string;
+    source_segment_ids: string[];
+    // Enriched with source text by getInput
+    source_segments_text?: Array<{
+      segment_id: string;
+      segment_text: string;
+      temporal_cues: string[];
+    }>;
+  }>;
   independent_variable_details: string;
   dependent_variable_focus: string[];
 }
 
+export interface P1_3_Output {
+  transcript_id: string;
+  phased_diachronic_units: Array<{
+    unit_id: string;
+    description: string;
+    source_segment_ids: string[];
+    phase_type: string;
+  }>;
+  independent_variable_details: string;
+  dependent_variable_focus: string[];
+}
+
+// Updated P1.4: Refine Diachronic Units (was P1.3)
+export interface RefinedDiachronicUnitP1_4 {
+  unit_id: string;
+  description: string;
+  source_du_ids: string[];
+  merge_justification?: string; // NEW: Required when multiple DUs are merged
+  phase: {
+    sequence_id: number;
+    phase_type: string;
+  };
+}
+export interface P1_4_Output {
+  transcript_id: string;
+  refined_diachronic_units: RefinedDiachronicUnitP1_4[];
+  independent_variable_details: string;
+  dependent_variable_focus: string[];
+}
+
+// Updated P1.5: Construct Specific Diachronic Structure (was P1.4)
 export interface SpecificDiachronicPhase {
     phase_name: string;
     description: string;
-    units_involved: string[]; // refined_du_ids from P1_3_Output.refined_diachronic_units[].unit_id
+    units_involved: string[]; // refined_du_ids from P1_4_Output.refined_diachronic_units[].unit_id
 }
 export interface SpecificDiachronicStructureType {
     summary: string;
     phases: SpecificDiachronicPhase[];
+    validation_errors?: string[];
     visualization_hint?: string;
     iv_preliminary_observation?: string;
 }
-export interface P1_4_Output {
+export interface P1_5_Output {
   transcript_id: string;
   specific_diachronic_structure: SpecificDiachronicStructureType;
+  refined_diachronic_units: RefinedDiachronicUnitP1_4[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
   mermaid_syntax_specific_diachronic?: string;
@@ -143,7 +180,7 @@ export interface P2S_1_ThematicGroup {
 }
 export interface P2S_1_Output {
   transcript_id: string;
-  analyzed_diachronic_unit: string; // This is the phase_name from P1.4
+  analyzed_diachronic_unit: string; // This is the phase_name from P1.5
   synchronic_thematic_groups: P2S_1_ThematicGroup[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
@@ -557,7 +594,8 @@ export interface TranscriptProcessedData {
   p1_3_error?: string;
   p1_4_output?: P1_4_Output;
   p1_4_error?: string;
-  p1_4_mermaid_syntax?: string;
+  p1_5_output?: P1_5_Output;
+  p1_5_error?: string;
   isFullyProcessedSpecificDiachronic: boolean;
 
   p2s_outputs_by_phase?: Record<string, P2SPhaseData>; // Key is phase_name
@@ -657,8 +695,9 @@ export enum StepId {
   // Part I: Specific Diachronic Analysis
   P1_1_INITIAL_SEGMENTATION = "P1_1_INITIAL_SEGMENTATION",
   P1_2_DIACHRONIC_UNIT_ID = "P1_2_DIACHRONIC_UNIT_ID",
-  P1_3_REFINE_DIACHRONIC_UNITS = "P1_3_REFINE_DIACHRONIC_UNITS",
-  P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE = "P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE",
+  P1_3_TEMPORAL_PHASE_ASSIGNMENT = "P1_3_TEMPORAL_PHASE_ASSIGNMENT",
+  P1_4_REFINE_DIACHRONIC_UNITS = "P1_4_REFINE_DIACHRONIC_UNITS",
+  P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE = "P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE",
 
   // Part II: Specific Synchronic Analysis
   P2S_1_GROUP_UTTERANCES_BY_TOPIC = "P2S_1_GROUP_UTTERANCES_BY_TOPIC",

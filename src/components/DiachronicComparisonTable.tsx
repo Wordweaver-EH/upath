@@ -2,7 +2,7 @@ import React, { useMemo, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, GridOptions, ICellRendererParams } from 'ag-grid-community';
 import { usePipelineStore } from '../stores/pipelineStore';
-import { P1_4_Output, TranscriptProcessedData } from '../types';
+import { P1_5_Output, TranscriptProcessedData } from '../types';
 import { downloadCSV } from '../utils/csvExport';
 import { NestedTooltip } from './NestedTooltip';
 import { PhaseTooltip } from './tooltips/PhaseTooltip';
@@ -28,13 +28,13 @@ export const DiachronicComparisonTable: React.FC<DiachronicComparisonTableProps>
   // Detect theme from DOM if not provided
   const effectiveTheme = theme || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
   
-  // Collect all P1.4 outputs from all transcripts
+  // Collect all P1.5 outputs from all transcripts
   const phaseDataByTranscript = useMemo(() => {
     const data: PhaseData[] = [];
     
     processedData.forEach((transcriptData, transcriptId) => {
-      if (transcriptData.p1_4_output) {
-        const output = transcriptData.p1_4_output as P1_4_Output;
+      if (transcriptData.p1_5_output) {
+        const output = transcriptData.p1_5_output as P1_5_Output;
         if (output.specific_diachronic_structure?.phases) {
           data.push({
             transcriptId,

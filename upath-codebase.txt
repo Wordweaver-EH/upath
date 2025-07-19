@@ -8,9 +8,6 @@ Directory structure:
     ├── index.tsx
     ├── jest.config.js
     ├── LICENSE
-    ├── metadata.json
-    ├── package.json
-    ├── tsconfig.json
     ├── types.ts
     ├── vite.config.ts
     ├── .env.example
@@ -43,6 +40,7 @@ Directory structure:
     │   │   ├── SessionRestoreNotification.tsx
     │   │   ├── TabbedStepDisplay.tsx
     │   │   ├── TagsEditor.tsx
+    │   │   ├── TemporalPhaseAssignmentTable.tsx
     │   │   ├── TemporalPhaseEditor.tsx
     │   │   ├── TranscriptLinesTable.tsx
     │   │   ├── tooltips/
@@ -60,9 +58,17 @@ Directory structure:
     │   │       ├── index.ts
     │   │       ├── types.ts
     │   │       ├── part0/
-    │   │       │   └── index.ts
+    │   │       │   ├── index.ts
+    │   │       │   ├── refineDataTypes.ts
+    │   │       │   ├── selectProceduralUtterances.ts
+    │   │       │   └── transcriptionAdherence.ts
     │   │       ├── part1/
-    │   │       │   └── index.ts
+    │   │       │   ├── constructSpecificDiachronicStructure.ts
+    │   │       │   ├── diachronicUnitId.ts
+    │   │       │   ├── index.ts
+    │   │       │   ├── initialSegmentation.ts
+    │   │       │   ├── refineDiachronicUnits.ts
+    │   │       │   └── temporalPhaseAssignment.ts
     │   │       └── partNeg1/
     │   │           ├── index.ts
     │   │           └── variableIdentification.ts
@@ -96,8 +102,6 @@ Directory structure:
     │       └── visualizationHelper.ts
     ├── upath-backend/
     │   ├── frontend-encrypt-example.js
-    │   ├── package.json
-    │   ├── tsconfig.json
     │   ├── .env.example
     │   └── src/
     │       ├── index.ts
@@ -106,8 +110,6 @@ Directory structure:
     │       │   └── analyze.ts
     │       └── utils/
     │           └── encrypt.ts
-    ├── .claude/
-    │   └── settings.local.json
     └── .serena/
         ├── project.yml
         └── cache/
@@ -458,20 +460,7 @@ const App: React.FC = () => {
         return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">{stepDisplay.message}</div>;
       
       case 'mermaid':
-        // Check if this step should use grid display instead
-        const gridStepsForMermaid = [
-          StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
-        ];
-        
-        if (gridStepsForMermaid.includes(currentStepInfo.stepId) && processedData.size > 0) {
-          console.log('[App Debug] Redirecting mermaid step to grid:', currentStepInfo.stepId);
-          return <PipelineStepGrid 
-            processedData={processedData} 
-            stepId={currentStepInfo.stepId}
-            theme={theme} 
-          />;
-        }
-        
+        // P1.4 no longer uses mermaid display - it's handled in the 'output' case
         return <MermaidDiagram chart={stepDisplay.chart} theme={theme} />;
       
       case 'report':
@@ -486,7 +475,9 @@ const App: React.FC = () => {
           StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
           StepId.P1_1_INITIAL_SEGMENTATION,
           StepId.P1_2_DIACHRONIC_UNIT_ID,
-          StepId.P1_3_REFINE_DIACHRONIC_UNITS
+          StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT,
+          StepId.P1_4_REFINE_DIACHRONIC_UNITS,
+          StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
         ];
         
         if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {
@@ -606,6 +597,14 @@ import { StepId, UserDVFocus, SelectedUtterance, RawTranscript, TranscriptProces
 import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './src/utils/htmlHelper'; // For P6.1 input
 import { ReportData } from './src/utils/reportHelper'; // Ensure this matches the actual path if different
 import { P_NEG1_1_VARIABLE_IDENTIFICATION_CONFIG } from './src/config/pipeline/partNeg1';
+import { P0_1_TRANSCRIPTION_ADHERENCE_CONFIG, P0_2_REFINE_DATA_TYPES_CONFIG, P0_3_SELECT_PROCEDURAL_UTTERANCES_CONFIG } from './src/config/pipeline/part0';
+import { 
+  P1_1_INITIAL_SEGMENTATION_CONFIG, 
+  P1_2_DIACHRONIC_UNIT_ID_CONFIG, 
+  P1_3_TEMPORAL_PHASE_ASSIGNMENT_CONFIG,
+  P1_4_REFINE_DIACHRONIC_UNITS_CONFIG, 
+  P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG 
+} from './src/config/pipeline/part1';
 
 export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash';
 
@@ -1361,417 +1360,14 @@ Basic Causal Elements (for P7.1 and P7.2):
 
 export const STEP_CONFIGS: ConfigMap = {
   [StepId.P_NEG1_1_VARIABLE_IDENTIFICATION]: P_NEG1_1_VARIABLE_IDENTIFICATION_CONFIG,
-  [StepId.P0_1_TRANSCRIPTION_ADHERENCE]: {
-    id: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
-    title: "P0.1: Transcription Adherence & Line Numbering",
-    part: "Part0",
-    isJsonOutput: true,
-    getInput: (currentTranscript) => {
-      if (!currentTranscript?.content) return { data: null, error: "Missing transcript content for P0.1." };
-      return {
-        data: {
-          filename_or_id: currentTranscript.filename || currentTranscript.id,
-          raw_transcript_text_from_file: currentTranscript.content,
-        },
-      };
-    },
-    generatePrompt: (input) => `You are a micro-phenomenological data preparation assistant. Your first task is to process a raw interview transcript file.
-Input:
-Raw text content of a single interview transcript file.
-Transcript Filename/ID: ${input.filename_or_id}
-
-Instructions:
-1. Verify Transcription Conventions (as much as possible from text):
-   Check if the transcript appears to be verbatim and orthographic.
-   Note any apparent deviations (e.g., summarized, para-verbal/non-verbal cues missing). This is a best-effort check.
-2. Automatic Line Numbering:
-   Assign a unique, sequential line number to each line of the transcript. Start numbering from 1.
-3. Initial Impression Log (Optional but Recommended by Paper §18):
-   Read through the transcript once. Record any very initial impressions regarding evocation quality or nature of described experience. Keep brief and marked as preliminary.
-
-Output:
-A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
-{
-  "transcript_id": "${input.filename_or_id}",
-  "line_numbered_transcript": ["1: text of line 1...", "2: text of line 2..."],
-  "transcription_convention_notes": "Your notes here.",
-  "initial_impressions_log": "Your brief impressions here."
-}
-
-BEGIN PROCESSING RAW TRANSCRIPT:
-Transcript ID: ${input.filename_or_id}
-Content:
-${input.raw_transcript_text_from_file}
-`,
-  },
-  [StepId.P0_2_REFINE_DATA_TYPES]: {
-    id: StepId.P0_2_REFINE_DATA_TYPES,
-    title: "P0.2: Refining Data - Identifying Information Types",
-    part: "Part0",
-    isJsonOutput: true,
-    getInput: (currentTranscript, allProcessedData) => {
-      if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P0.2." };
-      const p0_1_data = allProcessedData?.get(currentTranscript.id)?.p0_1_output;
-      if (!p0_1_data) return { data: null, error: `Missing P0.1 output for transcript ${currentTranscript.id}` };
-      
-      // Parse the line-numbered transcript to extract line numbers and text
-      const parsedLines = p0_1_data.line_numbered_transcript.map(line => {
-        // Extract line number (format: "1: ...")
-        const lineMatch = line.match(/^(\d+):\s*(.*)$/);
-        if (!lineMatch) {
-          return { lineNumber: '', speaker: '', text: line };
-        }
-        
-        const [, lineNumber, rest] = lineMatch;
-        
-        // Check for speaker (format: "Speaker Name: ..." or "P1: ...")
-        const speakerMatch = rest.match(/^([^:]+):\s*(.*)$/);
-        if (speakerMatch) {
-          const [, speaker, text] = speakerMatch;
-          // Check if this is actually a speaker and not just a colon in the text
-          if (speaker.match(/^[A-Z]\d+$/) || speaker.match(/^[A-Z][a-z]+ [A-Z][a-z]+$/) || speaker.length < 30) {
-            return { lineNumber, speaker: speaker.trim(), text: text.trim() };
-          }
-        }
-        
-        // No speaker found, treat as regular text
-        return { lineNumber, speaker: '', text: rest };
-      });
-      
-      return { 
-        data: {
-          ...p0_1_data,
-          parsed_lines: parsedLines
-        }
-      };
-    },
-    generatePrompt: (input: P0_1_Output & { parsed_lines: Array<{ lineNumber: string; speaker: string; text: string }> }) => `You are a micro-phenomenological data preparation analyst. Your task is to refine the line-numbered transcript by identifying different types of information.
-Input:
-The parsed transcript lines for transcript ID ${input.transcript_id}.
-${JSON.stringify({ 
-  transcript_id: input.transcript_id,
-  parsed_lines: input.parsed_lines,
-  transcription_convention_notes: input.transcription_convention_notes,
-  initial_impressions_log: input.initial_impressions_log
-}, null, 2)}
-
-Instructions:
-1. Re-read and categorize each parsed line:
-   For each line in parsed_lines, determine if it primarily contains:
-    - "procedural_information": Utterances related to the interview process itself (e.g., interviewer's questions, participant's reflections on the question or process, meta-comments).
-    - "experiential_content": Utterances directly describing the lived experience being investigated.
-    - "ambiguous_or_mixed": Lines that are hard to categorize or contain both.
-2. Tagging:
-   Based on this, assign one or more \`information_tags\` to each line (e.g., ["procedural_information"], ["experiential_content"], ["procedural_information", "experiential_content"]).
-3. Decision Notes (Optional):
-   If a line is particularly complex or its categorization is non-obvious, add a brief \`decision_notes\` explaining your reasoning.
-
-Output:
-A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
-{
-  "transcript_id": "${input.transcript_id}",
-  "refined_data_transcript": [
-    {
-      "line_num": 1,
-      "speaker": "P1",
-      "text": "text content without line number or speaker prefix",
-      "information_tags": ["tag1", "tag2"],
-      "decision_notes": "Optional notes for line 1."
-    },
-    {
-      "line_num": 2,
-      "text": "text of line 2...",
-      "information_tags": ["tag1"],
-      "decision_notes": null
-    }
-    // ... and so on for all lines
-  ]
-}
-`,
-  },
-  [StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]: {
-    id: StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
-    title: "P0.3: Select Procedural Utterances for Diachronic Analysis",
-    part: "Part0",
-    isJsonOutput: true,
-    getInput: (currentTranscript, allProcessedData) => {
-      if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P0.3." };
-      const p0_2_data = allProcessedData?.get(currentTranscript.id)?.p0_2_output;
-      const p_neg1_1_data = allProcessedData?.get(currentTranscript.id)?.p_neg1_1_output;
-      if (!p0_2_data || !p_neg1_1_data) return { data: null, error: `Missing P0.2 or P-1.1 output for transcript ${currentTranscript.id}` };
-      return { data: { ...p0_2_data, p_neg1_1_output: p_neg1_1_data } };
-    },
-    generatePrompt: (input: P0_2_Output & { p_neg1_1_output: P_neg1_1_Output }) => `You are a micro-phenomenological analyst. Your task is to evaluate ALL utterances from the refined data transcript and determine which are crucial for understanding the diachronic (temporal) structure of the *experience itself*.
-Input:
-The JSON output from P0.2 (refined data transcript) and P-1.1 (IV/DV info) for transcript ID ${input.transcript_id}.
-P0.2 Output: ${JSON.stringify({ transcript_id: input.transcript_id, refined_data_transcript: input.refined_data_transcript }, null, 2)}
-P-1.1 Output: ${JSON.stringify(input.p_neg1_1_output, null, 2)}
-
-Instructions:
-1.  Focus: Evaluate EVERY line from the refined data transcript. For each line, determine whether it should be included for diachronic analysis based on whether it describes *how the experience unfolded*.
-2.  Selection Criteria:
-    *   IMPORTANT: Copy the speaker field from refined_data_transcript to the output. Use only the text content from refined_data_transcript (no line numbers or speaker prefixes in utterance_text).
-    *   Include (true): Lines that describe actions, steps, stages, or temporal progression in the experience. These are "procedural utterances" in the context of the experience itself.
-    *   Exclude (false): Interviewer questions, participant's meta-comments on the interview *process* (unless they also reveal experiential process), or purely descriptive (static) experiential content.
-    *   Prioritize lines tagged "experiential_content" but evaluate all lines.
-    *   If a single original line was very long and contained multiple distinct procedural steps, you MAY split it and represent each as a separate utterance. If you do this, use a format like "LINE_NUM.SUB_INDEX" for \`original_line_num\` (e.g., "23.1", "23.2").
-3.  Justification: For EVERY utterance, provide a BRIEF \`selection_justification\` (5-10 words maximum) explaining why it was included or excluded. Examples:
-    *   "Describes temporal progression"
-    *   "Static state description"
-    *   "Interviewer question"
-    *   "Meta-comment about interview"
-    *   "Action sequence described"
-4.  IMPORTANT: Output minified JSON with no unnecessary whitespace. Be extremely concise.
-5.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from P-1.1 MUST be copied verbatim into the output.
-
-Output:
-A MINIFIED JSON object (no extra whitespace) adhering EXACTLY to the following structure:
-{"transcript_id":"${input.transcript_id}","selected_procedural_utterances":[{"original_line_num":"1","speaker":"P1","utterance_text":"full text...","selection_justification":"brief reason here","included":false},{"original_line_num":"2","speaker":"Kevin Sheldrake","utterance_text":"full text...","selection_justification":"another brief reason","included":true}],"independent_variable_details":"${input.p_neg1_1_output.independent_variable_details}","dependent_variable_focus":${JSON.stringify(input.p_neg1_1_output.dependent_variable_focus)}}
-`,
-  },
-  [StepId.P1_1_INITIAL_SEGMENTATION]: {
-    id: StepId.P1_1_INITIAL_SEGMENTATION,
-    title: "P1.1: Initial Segmentation of Procedural Utterances",
-    part: "PartI_Dia",
-    isJsonOutput: true,
-    getInput: (currentTranscript, allProcessedData) => {
-        if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.1." };
-        const p0_3_data = allProcessedData?.get(currentTranscript.id)?.p0_3_output;
-        if (!p0_3_data) return { data: null, error: `Missing P0.3 output for transcript ${currentTranscript.id}` };
-        return { data: p0_3_data };
-    },
-    generatePrompt: (input: P0_3_Output) => {
-      // Filter to only include utterances where included === true
-      const includedUtterances = input.selected_procedural_utterances.filter(u => u.included);
-      const filteredInput = {
-        ...input,
-        selected_procedural_utterances: includedUtterances
-      };
-      
-      return `You are a micro-phenomenological analyst. Your task is to segment the selected procedural utterances based on temporal cues, focusing on the described experience's unfolding.
-Input:
-JSON output from P0.3 for transcript ID ${input.transcript_id} (showing only INCLUDED utterances).
-P0.3 Output: ${JSON.stringify(filteredInput, null, 2)}
-
-Instructions:
-1.  Focus on "Action Units": Read each selected procedural utterance. Identify "minimal action units" or "elementary acts" within them. An utterance might contain one or multiple such segments.
-2.  Temporal Cues: Look for explicit or implicit temporal markers (e.g., "then", "after that", "firstly", "suddenly", sequence of verbs) that help delineate these segments. Also consider logical sequence.
-3.  Segment Creation:
-    *   For each original utterance, create an array of \`segments\`.
-    *   Each segment should have a unique \`segment_id\` (e.g., "utt_ORIGINAL_LINE_NUM_seg_INDEX", like "utt_5.1_seg_0", "utt_5.1_seg_1"). Ensure ORIGINAL_LINE_NUM is safe for an ID (replace '.' with '_').
-    *   \`segment_text\` should be the text of that minimal action unit.
-    *   \`temporal_cues\` should be an array of strings listing any temporal words/phrases identified *within or at the beginning of* that specific segment that justify its distinctness or position.
-4.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from the input P0.3 MUST be copied verbatim into the output.
-
-Output:
-A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
-{
-  "transcript_id": "${input.transcript_id}",
-  "segmented_utterances": [
-    {
-      "original_utterance": { // Copied from P0.3 input
-        "original_line_num": "string",
-        "utterance_text": "text of the original utterance...",
-        "selection_justification": "Brief justification for selection."
-      },
-      "segments": [
-        {
-          "segment_id": "utt_5_1_seg_0", // Example: utt_ORIGLINE_seg_INDEX
-          "segment_text": "first part of the action...",
-          "temporal_cues": ["firstly", "then"]
-        },
-        {
-          "segment_id": "utt_5_1_seg_1",
-          "segment_text": "next part of the action...",
-          "temporal_cues": ["after that"]
-        }
-      ]
-    }
-    // ... more segmented utterances
-  ],
-  "independent_variable_details": "${filteredInput.independent_variable_details}",
-  "dependent_variable_focus": ${JSON.stringify(filteredInput.dependent_variable_focus)}
-}
-`;
-    },
-  },
-  [StepId.P1_2_DIACHRONIC_UNIT_ID]: {
-    id: StepId.P1_2_DIACHRONIC_UNIT_ID,
-    title: "P1.2: Diachronic Unit Identification (DU)",
-    part: "PartI_Dia",
-    isJsonOutput: true,
-    getInput: (currentTranscript, allProcessedData) => {
-        if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.2." };
-        const p1_1_data = allProcessedData?.get(currentTranscript.id)?.p1_1_output;
-        if (!p1_1_data) return { data: null, error: `Missing P1.1 output for transcript ${currentTranscript.id}` };
-        return { data: p1_1_data };
-    },
-    generatePrompt: (input: P1_1_Output) => `You are a micro-phenomenological analyst. Your task is to group the segments from P1.1 into initial Diachronic Units (DUs). A DU represents a meaningful "moment" or "phase" in the described experience.
-Input:
-JSON output from P1.1 for transcript ID ${input.transcript_id}.
-P1.1 Output: ${JSON.stringify(input, null, 2)}
-
-Instructions:
-1.  Review Segments: Examine all \`segments\` generated in P1.1.
-2.  Group into Diachronic Units (DUs):
-    *   Identify groups of one or more consecutive (or thematically related and temporally close) segments that form a coherent "moment" or "step" in the experience. These are your DUs.
-    *   Each DU should have a unique \`unit_id\` (e.g., "du_1", "du_2").
-    *   Provide a concise \`description\` for each DU, capturing its essence. This description should be based on the content of the source segments.
-    *   List the \`source_segment_ids\` (from P1.1 segment_id) that constitute this DU. A segment should ideally belong to only one DU.
-3.  Aim for a reasonable number of DUs that capture the main temporal beats of the experience. Avoid over-segmentation into too many DUs or under-segmentation into too few.
-4.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from the input P1.1 MUST be copied verbatim into the output.
-
-Output:
-A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
-{
-  "transcript_id": "${input.transcript_id}",
-  "diachronic_units": [
-    {
-      "unit_id": "du_1",
-      "description": "Initial orienting and noticing the object.",
-      "source_segment_ids": ["utt_5_1_seg_0", "utt_6_1_seg_0", "utt_6_1_seg_1"]
-    },
-    {
-      "unit_id": "du_2",
-      "description": "Detailed examination of the object's texture.",
-      "source_segment_ids": ["utt_8_1_seg_0"]
-    }
-    // ... more diachronic units
-  ],
-  "independent_variable_details": "${input.independent_variable_details}",
-  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
-}
-`,
-  },
-  [StepId.P1_3_REFINE_DIACHRONIC_UNITS]: {
-    id: StepId.P1_3_REFINE_DIACHRONIC_UNITS,
-    title: "P1.3: Refine Diachronic Units & Assign Temporal Phase",
-    part: "PartI_Dia",
-    isJsonOutput: true,
-    getInput: (currentTranscript, allProcessedData) => {
-        if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.3." };
-        const p1_2_data = allProcessedData?.get(currentTranscript.id)?.p1_2_output;
-        if (!p1_2_data) return { data: null, error: `Missing P1.2 output for transcript ${currentTranscript.id}` };
-        return { data: p1_2_data };
-    },
-    generatePrompt: (input: P1_2_Output) => `You are a micro-phenomenological analyst. Your task is to refine the Diachronic Units (DUs) from P1.2 and assign a temporal phase to each.
-Input:
-JSON output from P1.2 for transcript ID ${input.transcript_id}.
-P1.2 Output: ${JSON.stringify(input, null, 2)}
-User-defined Dependent Variable Focus: ${JSON.stringify(input.dependent_variable_focus)}
-
-Instructions:
-1.  Review DUs: Examine the DUs identified in P1.2.
-2.  Refine DUs:
-    *   Consider if any DUs from P1.2 should be merged or split based on a deeper understanding of the experiential flow.
-    *   The output \`refined_diachronic_units\` will be a new list. Each refined DU should have a unique \`unit_id\` (can be same as P1.2 ID if not changed, or new if merged/split).
-    *   Maintain a concise \`description\`.
-    *   The \`source_p1_2_du_ids\` field MUST list the \`unit_id\`(s) from the P1.2 DUs that form this refined DU.
-3.  Assign Temporal Phase: For each *refined* DU, assign a \`temporal_phase\` from the following FIXED list that best describes its position in the overall experiential arc:
-    *   "Beginning"
-    *   "Early-Middle"
-    *   "Core Event" (if there's a clear central moment)
-    *   "Late-Middle"
-    *   "Ending"
-    *   "Reflection" (if the DU is about looking back on the experience)
-    *   "Transition" (if the DU primarily marks a shift between other phases)
-    *   "Other" (use sparingly, if no other category fits)
-4.  Confidence: Assign a \`confidence\` score (0.0 to 1.0) for each refined DU, reflecting how clear and well-defined it seems.
-5.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from the input P1.2 MUST be copied verbatim into the output.
-
-Output:
-A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
-{
-  "transcript_id": "${input.transcript_id}",
-  "refined_diachronic_units": [
-    {
-      "unit_id": "rdu_1", // Can be same as P1.2 ID or new
-      "description": "Initial orienting and noticing the object (refined).",
-      "source_p1_2_du_ids": ["du_1"], // ID(s) from P1.2 DUs
-      "temporal_phase": "Beginning",
-      "confidence": 0.9
-    },
-    {
-      "unit_id": "rdu_2",
-      "description": "Detailed examination and interaction.",
-      "source_p1_2_du_ids": ["du_2", "du_3"], // Example of merged DUs
-      "temporal_phase": "Core Event",
-      "confidence": 0.85
-    }
-    // ... more refined diachronic units
-  ],
-  "independent_variable_details": "${input.independent_variable_details}",
-  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
-}
-`,
-  },
-  [StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: {
-    id: StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
-    title: "P1.4: Construct Specific Diachronic Structure (SDS)",
-    part: "PartI_Dia",
-    isJsonOutput: true,
-    getInput: (currentTranscript, allProcessedData) => {
-        if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.4." };
-        const p1_3_data = allProcessedData?.get(currentTranscript.id)?.p1_3_output;
-        if (!p1_3_data) return { data: null, error: `Missing P1.3 output for transcript ${currentTranscript.id}` };
-        return { data: p1_3_data };
-    },
-    generatePrompt: (input: P1_3_Output) => `You are a micro-phenomenological analyst. Your task is to construct the Specific Diachronic Structure (SDS) for this transcript based on the refined DUs and their temporal phases.
-Input:
-JSON output from P1.3 for transcript ID ${input.transcript_id}.
-P1.3 Output: ${JSON.stringify(input, null, 2)}
-User-defined Dependent Variable Focus: ${JSON.stringify(input.dependent_variable_focus)}
-Independent Variable details: ${input.independent_variable_details}
-
-Instructions:
-1.  Define Specific Diachronic Phases:
-    *   Group the refined DUs from P1.3 by their assigned \`temporal_phase\`.
-    *   For each unique temporal phase present in the P1.3 output, create a \`SpecificDiachronicPhase\` object.
-    *   \`phase_name\` should be the temporal phase (e.g., "Beginning", "Core Event").
-    *   \`description\` should be a brief summary of what happens in this phase, derived from the descriptions of the DUs within it.
-    *   \`units_involved\` must be an array of \`unit_id\`s from P1.3 that belong to this phase.
-2.  Structure Summary: Provide an overall \`summary\` of the entire Specific Diachronic Structure.
-3.  Visualization Hint: Optionally, provide a \`visualization_hint\` (e.g., "Linear", "Cyclical elements present", "Branching paths noted") based on the flow of phases.
-4.  IV Preliminary Observation: Based on the \`independent_variable_details\` provided in the input, make a very brief, preliminary observation IF any immediate connection seems apparent between the IV and the overall diachronic structure observed. If no connection is obvious, state "No immediate IV connection apparent at this stage." This is a speculative note.
-5.  Mermaid Syntax for Gantt Chart:
-    *   Generate Mermaid.js syntax for a Gantt chart representing the SDS.
-    *   The Gantt chart should display the \`SpecificDiachronicPhase\` objects as tasks.
-    *   The title of the Gantt chart should be descriptive, like "Specific Diachronic Structure for ${input.transcript_id}".
-    *   Use the \`phase_name\` for task labels. Task IDs should be derived from \`phase_name\` (sanitized for Mermaid).
-    *   Order tasks by their natural temporal progression (Beginning, Early-Middle, etc.).
-    *   The duration of each phase task can be heuristically based on the number of \`units_involved\` (e.g., 1 day per unit, or a fixed small duration like 2d or 3d if number of units is fairly consistent).
-    *   Ensure \`dateFormat X\` and \`axisFormat %s\` are used for relative sequencing.
-    Example segment for one phase: \`Beginning Phase :bgn_phase, 0, 3d\` (label:id, start_day_index, duration_days)
-6.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from the input P1.3 MUST be copied verbatim into the main output JSON.
-
-Output:
-A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
-{
-  "transcript_id": "${input.transcript_id}",
-  "specific_diachronic_structure": {
-    "summary": "Overall summary of the experience's diachronic flow.",
-    "phases": [
-      {
-        "phase_name": "Beginning",
-        "description": "Summary of the beginning phase.",
-        "units_involved": ["rdu_1"] // unit_ids from P1.3
-      },
-      {
-        "phase_name": "Core Event",
-        "description": "Summary of the core event phase.",
-        "units_involved": ["rdu_2", "rdu_3"]
-      }
-      // ... more phases
-    ],
-    "visualization_hint": "e.g., Linear progression",
-    "iv_preliminary_observation": "Brief note on potential IV connection or N/A."
-  },
-  "independent_variable_details": "${input.independent_variable_details}",
-  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)},
-  "mermaid_syntax_specific_diachronic": "gantt\\ndateFormat X\\ntitle Specific Diachronic Structure for ${input.transcript_id}\\naxisFormat %s\\n\\nsection Phases\\nBeginning :ph_beginning, 0, 2d\\nCore Event :ph_core, 2, 3d\\nEnding :ph_ending, 5, 1d"
-}
-`,
-  },
+  [StepId.P0_1_TRANSCRIPTION_ADHERENCE]: P0_1_TRANSCRIPTION_ADHERENCE_CONFIG,
+  [StepId.P0_2_REFINE_DATA_TYPES]: P0_2_REFINE_DATA_TYPES_CONFIG,
+  [StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]: P0_3_SELECT_PROCEDURAL_UTTERANCES_CONFIG,
+  [StepId.P1_1_INITIAL_SEGMENTATION]: P1_1_INITIAL_SEGMENTATION_CONFIG,
+  [StepId.P1_2_DIACHRONIC_UNIT_ID]: P1_2_DIACHRONIC_UNIT_ID_CONFIG,
+  [StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT]: P1_3_TEMPORAL_PHASE_ASSIGNMENT_CONFIG,
+  [StepId.P1_4_REFINE_DIACHRONIC_UNITS]: P1_4_REFINE_DIACHRONIC_UNITS_CONFIG,
+  [StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG,
   [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: {
     id: StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC,
     title: "P2S.1: Group Utterances by Topic within a Diachronic Phase",
@@ -1780,18 +1376,18 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
     getInput: (currentTranscript, allProcessedData, _genericState, _apiKeyPresent, _userDvFocus, _allRawTranscripts, currentPhaseName) => {
         if (!currentTranscript?.id || !currentPhaseName) return { data: null, error: "Missing current transcript ID or phase name for P2S.1." };
         const p0_3_data = allProcessedData?.get(currentTranscript.id)?.p0_3_output;
-        const p1_4_data = allProcessedData?.get(currentTranscript.id)?.p1_4_output;
-        if (!p0_3_data || !p1_4_data) return { data: null, error: `Missing P0.3 or P1.4 output for transcript ${currentTranscript.id}` };
+        const p1_5_data = allProcessedData?.get(currentTranscript.id)?.p1_5_output;
+        if (!p0_3_data || !p1_5_data) return { data: null, error: `Missing P0.3 or P1.5 output for transcript ${currentTranscript.id}` };
         
-        const phaseObject = p1_4_data.specific_diachronic_structure.phases.find(p => p.phase_name === currentPhaseName);
-        if (!phaseObject) return { data: null, error: `Phase ${currentPhaseName} not found in P1.4 output for transcript ${currentTranscript.id}` };
+        const phaseObject = p1_5_data.specific_diachronic_structure.phases.find(p => p.phase_name === currentPhaseName);
+        if (!phaseObject) return { data: null, error: `Phase ${currentPhaseName} not found in P1.5 output for transcript ${currentTranscript.id}` };
         
         const rduIdsInPhase = phaseObject.units_involved;
         const p1_2_du_ids = new Set<string>();
-        const p1_3_data = allProcessedData?.get(currentTranscript.id)?.p1_3_output;
+        const p1_4_data = allProcessedData?.get(currentTranscript.id)?.p1_4_output;
         rduIdsInPhase.forEach(rduId => {
-            const rdu = p1_3_data?.refined_diachronic_units.find(u => u.unit_id === rduId);
-            rdu?.source_p1_2_du_ids.forEach(id => p1_2_du_ids.add(id));
+            const rdu = p1_4_data?.refined_diachronic_units.find(u => u.unit_id === rduId);
+            rdu?.source_du_ids.forEach(id => p1_2_du_ids.add(id));
         });
 
         const segment_ids_in_phase = new Set<string>();
@@ -4071,100 +3667,6 @@ For licensing inquiries, contact: wordweaver.eh@gmail.com
 
 
 ================================================
-FILE: metadata.json
-================================================
-{
-  "name": "Copy of wkCopy of Copy of uPATH : Micro-Phenomenological Analytic Threader v6.2",
-  "description": "A React application to perform fullanalysis on micro-phenomenological interview transcripts using a prompt chain system with Gemini API.\n\nValenzuela-Moguillansky, Camila, and Alejandra Vásquez-Rosati. \"An analysis procedure for the micro-phenomenological interview.\" Constructivist Foundations 14.2 (2019): 123-145.",
-  "requestFramePermissions": [],
-  "prompt": ""
-}
-
-
-================================================
-FILE: package.json
-================================================
-{
-  "name": "upath",
-  "private": true,
-  "version": "0.11.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:run": "vitest run"
-  },
-  "dependencies": {
-    "@fastify/deepmerge": "^3.1.0",
-    "@google/genai": "^1.3.0",
-    "@headlessui/react": "^2.2.4",
-    "@types/crypto-js": "^4.2.2",
-    "ag-grid-community": "^34.0.2",
-    "ag-grid-react": "^34.0.2",
-    "crypto-js": "^4.2.0",
-    "immer": "^10.1.1",
-    "localforage": "^1.10.0",
-    "marked": "^13.0.2",
-    "mermaid": "^11.6.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "zustand": "^5.0.6"
-  },
-  "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "@vitest/ui": "^3.2.4",
-    "jsdom": "^26.1.0",
-    "typescript": "~5.7.2",
-    "vite": "^6.2.0",
-    "vitest": "^3.2.4"
-  }
-}
-
-
-
-================================================
-FILE: tsconfig.json
-================================================
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "experimentalDecorators": true,
-    "useDefineForClassFields": false,
-    "module": "ESNext",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "skipLibCheck": true,
-
-    /* Bundler mode */
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-    "allowJs": true,
-    "jsx": "react-jsx",
-
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true,
-
-    "baseUrl": ".",
-    "paths": {
-      "@/*" :  ["./*"]
-    }
-  }
-}
-
-
-
-================================================
 FILE: types.ts
 ================================================
 // General Types
@@ -4271,34 +3773,71 @@ export interface P1_2_Output {
   dependent_variable_focus: string[];
 }
 
-export interface RefinedDiachronicUnitP1_3 {
-  unit_id: string; // Can be same as P1.2 ID or new if merged/split
-  description: string;
-  confidence: number;
-  temporal_phase: string;
-  source_p1_2_du_ids: string[]; // IDs from P1.2 DiachronicUnitP1_2.unit_id
-}
-export interface P1_3_Output {
+// New P1.3: Temporal Phase Assignment
+export interface P1_3_Input {
   transcript_id: string;
-  refined_diachronic_units: RefinedDiachronicUnitP1_3[];
+  diachronic_units: Array<{
+    unit_id: string;
+    description: string;
+    source_segment_ids: string[];
+    // Enriched with source text by getInput
+    source_segments_text?: Array<{
+      segment_id: string;
+      segment_text: string;
+      temporal_cues: string[];
+    }>;
+  }>;
   independent_variable_details: string;
   dependent_variable_focus: string[];
 }
 
+export interface P1_3_Output {
+  transcript_id: string;
+  phased_diachronic_units: Array<{
+    unit_id: string;
+    description: string;
+    source_segment_ids: string[];
+    phase_type: string;
+  }>;
+  independent_variable_details: string;
+  dependent_variable_focus: string[];
+}
+
+// Updated P1.4: Refine Diachronic Units (was P1.3)
+export interface RefinedDiachronicUnitP1_4 {
+  unit_id: string;
+  description: string;
+  source_du_ids: string[];
+  merge_justification?: string; // NEW: Required when multiple DUs are merged
+  phase: {
+    sequence_id: number;
+    phase_type: string;
+  };
+}
+export interface P1_4_Output {
+  transcript_id: string;
+  refined_diachronic_units: RefinedDiachronicUnitP1_4[];
+  independent_variable_details: string;
+  dependent_variable_focus: string[];
+}
+
+// Updated P1.5: Construct Specific Diachronic Structure (was P1.4)
 export interface SpecificDiachronicPhase {
     phase_name: string;
     description: string;
-    units_involved: string[]; // refined_du_ids from P1_3_Output.refined_diachronic_units[].unit_id
+    units_involved: string[]; // refined_du_ids from P1_4_Output.refined_diachronic_units[].unit_id
 }
 export interface SpecificDiachronicStructureType {
     summary: string;
     phases: SpecificDiachronicPhase[];
+    validation_errors?: string[];
     visualization_hint?: string;
     iv_preliminary_observation?: string;
 }
-export interface P1_4_Output {
+export interface P1_5_Output {
   transcript_id: string;
   specific_diachronic_structure: SpecificDiachronicStructureType;
+  refined_diachronic_units: RefinedDiachronicUnitP1_4[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
   mermaid_syntax_specific_diachronic?: string;
@@ -4312,7 +3851,7 @@ export interface P2S_1_ThematicGroup {
 }
 export interface P2S_1_Output {
   transcript_id: string;
-  analyzed_diachronic_unit: string; // This is the phase_name from P1.4
+  analyzed_diachronic_unit: string; // This is the phase_name from P1.5
   synchronic_thematic_groups: P2S_1_ThematicGroup[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
@@ -4726,7 +4265,8 @@ export interface TranscriptProcessedData {
   p1_3_error?: string;
   p1_4_output?: P1_4_Output;
   p1_4_error?: string;
-  p1_4_mermaid_syntax?: string;
+  p1_5_output?: P1_5_Output;
+  p1_5_error?: string;
   isFullyProcessedSpecificDiachronic: boolean;
 
   p2s_outputs_by_phase?: Record<string, P2SPhaseData>; // Key is phase_name
@@ -4826,8 +4366,9 @@ export enum StepId {
   // Part I: Specific Diachronic Analysis
   P1_1_INITIAL_SEGMENTATION = "P1_1_INITIAL_SEGMENTATION",
   P1_2_DIACHRONIC_UNIT_ID = "P1_2_DIACHRONIC_UNIT_ID",
-  P1_3_REFINE_DIACHRONIC_UNITS = "P1_3_REFINE_DIACHRONIC_UNITS",
-  P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE = "P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE",
+  P1_3_TEMPORAL_PHASE_ASSIGNMENT = "P1_3_TEMPORAL_PHASE_ASSIGNMENT",
+  P1_4_REFINE_DIACHRONIC_UNITS = "P1_4_REFINE_DIACHRONIC_UNITS",
+  P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE = "P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE",
 
   // Part II: Specific Synchronic Analysis
   P2S_1_GROUP_UTTERANCES_BY_TOPIC = "P2S_1_GROUP_UTTERANCES_BY_TOPIC",
@@ -6530,12 +6071,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             {SaveIcon} <span>Export State to File</span>
           </Button>
           <div>
-            <label htmlFor="loadStateFile">
-              <Button as="span" variant="secondary" className="w-full cursor-pointer">
-                {LoadIcon} <span>Load State</span>
-              </Button>
+            <label
+              htmlFor="loadStateFile"
+              className="inline-flex items-center justify-center space-x-2 font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-150 px-3 py-1.5 text-sm bg-light-btn dark:bg-dark-btn text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border border border-light-border dark:border-dark-border focus:ring-offset-light-bg-alt dark:focus:ring-offset-dark-bg-alt w-full cursor-pointer"
+            >
+              {LoadIcon} <span>Load State</span>
             </label>
-            <input id="loadStateFile" type="file" accept=".json" onChange={loadStateFromFile} className="hidden" ref={loadStateInputRef} />
+            <input id="loadStateFile" type="file" accept=".json" onChange={(e) => { loadStateFromFile(e); e.target.value = ''; }} className="hidden" ref={loadStateInputRef} />
           </div>
       </div>
        <div
@@ -7116,7 +6658,7 @@ import React, { useMemo, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, GridOptions, ICellRendererParams } from 'ag-grid-community';
 import { usePipelineStore } from '../stores/pipelineStore';
-import { P1_4_Output, TranscriptProcessedData } from '../types';
+import { P1_5_Output, TranscriptProcessedData } from '../types';
 import { downloadCSV } from '../utils/csvExport';
 import { NestedTooltip } from './NestedTooltip';
 import { PhaseTooltip } from './tooltips/PhaseTooltip';
@@ -7142,13 +6684,13 @@ export const DiachronicComparisonTable: React.FC<DiachronicComparisonTableProps>
   // Detect theme from DOM if not provided
   const effectiveTheme = theme || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
   
-  // Collect all P1.4 outputs from all transcripts
+  // Collect all P1.5 outputs from all transcripts
   const phaseDataByTranscript = useMemo(() => {
     const data: PhaseData[] = [];
     
     processedData.forEach((transcriptData, transcriptId) => {
-      if (transcriptData.p1_4_output) {
-        const output = transcriptData.p1_4_output as P1_4_Output;
+      if (transcriptData.p1_5_output) {
+        const output = transcriptData.p1_5_output as P1_5_Output;
         if (output.specific_diachronic_structure?.phases) {
           data.push({
             transcriptId,
@@ -8390,6 +7932,7 @@ import { SelectedUtterancesTable } from './SelectedUtterancesTable';
 import { InitialSegmentationTable } from './InitialSegmentationTable';
 import { DiachronicUnitTable } from './DiachronicUnitTable';
 import { RefinedDiachronicUnitTable } from './RefinedDiachronicUnitTable';
+import { TemporalPhaseAssignmentTable } from './TemporalPhaseAssignmentTable';
 import { EditableTextArea } from './EditableTextArea';
 import { usePipelineStore } from '../stores/pipelineStore';
 import MermaidDiagram from '../../components/MermaidDiagram';
@@ -8947,7 +8490,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
   }
   
   // Special handling for P1_3 with tabbed display
-  if (stepId === StepId.P1_3_REFINE_DIACHRONIC_UNITS) {
+  if (stepId === StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT) {
     return (
       <TabbedStepDisplay
         processedData={processedData}
@@ -8959,19 +8502,125 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
-                refinedData: transcript.p1_3_output!,
+                phaseData: transcript.p1_3_output!,
+                p1_2_output: transcript.p1_2_output,
                 filename: transcript.filename
               }
             }));
         }}
         renderContent={(tabData, theme) => {
-          const handleRefinedChange = (updatedData: any) => {
+          const handlePhaseChange = (updatedData: any) => {
             updateProcessedData(tabData.transcriptMapId, {
               p1_3_output: updatedData
             });
           };
           
           return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.phaseData.transcript_id}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Total DUs with Phase Assignment
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.phaseData.phased_diachronic_units.length}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Independent Variable
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {tabData.phaseData.independent_variable_details}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {tabData.phaseData.dependent_variable_focus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Temporal phase assignment table */}
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                  Temporal Phase Assignment
+                </h4>
+                <TemporalPhaseAssignmentTable 
+                  phaseData={tabData.phaseData}
+                  theme={theme}
+                  onPhaseChange={handlePhaseChange}
+                  filename={tabData.filename}
+                />
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No transcripts with P1.3 output available"
+      />
+    );
+  }
+  
+  // Special handling for P1_4 with tabbed display
+  if (stepId === StepId.P1_4_REFINE_DIACHRONIC_UNITS) {
+    console.log('[P1.4 Debug] Rendering P1.4 component, processedData size:', processedData.size);
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          return Array.from(data.entries())
+            .filter(([_, transcript]) => transcript.p1_4_output)
+            .map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                transcriptMapId: id,
+                refinedData: transcript.p1_4_output!,
+                p1_3_output: transcript.p1_3_output,
+                filename: transcript.filename
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => {
+          try {
+            console.log('[P1.4 Debug] tabData:', tabData);
+            console.log('[P1.4 Debug] refinedData structure:', {
+              hasRefinedData: !!tabData.refinedData,
+              hasTranscriptId: !!tabData.refinedData?.transcript_id,
+              hasRefinedDiachronicUnits: !!tabData.refinedData?.refined_diachronic_units,
+              refinedUnitsLength: tabData.refinedData?.refined_diachronic_units?.length || 0
+            });
+            
+            const handleRefinedChange = (updatedData: any) => {
+              updateProcessedData(tabData.transcriptMapId, {
+                p1_4_output: updatedData
+              });
+            };
+            
+            return (
             <div className="space-y-4">
               {/* Metadata section */}
               <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
@@ -8992,12 +8641,31 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     {tabData.refinedData.refined_diachronic_units.length}
                   </p>
                 </div>
+                
+                {/* Show phase groups if available */}
+                {tabData.refinedData.phase_groups && (
+                  <div>
+                    <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                      Phase Groups
+                    </h4>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {Object.entries(tabData.refinedData.phase_groups).map(([phase, units]) => (
+                        <span
+                          key={phase}
+                          className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                        >
+                          Phase {phase}: {(units as string[]).length} units
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               
               {/* Refined diachronic units table */}
               <div>
                 <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
-                  Refined Diachronic Units with Temporal Phases
+                  Refined Diachronic Units (RDUs)
                 </h4>
                 <RefinedDiachronicUnitTable 
                   refinedData={tabData.refinedData}
@@ -9008,41 +8676,48 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               </div>
             </div>
           );
+          } catch (error) {
+            console.error('[P1.4 Debug] Error rendering content:', error);
+            return (
+              <div className="text-red-600 dark:text-red-400 p-4">
+                Error rendering P1.4 content: {error instanceof Error ? error.message : String(error)}
+              </div>
+            );
+          }
         }}
         theme={theme}
-        emptyMessage="No transcripts with P1.3 output available"
+        emptyMessage="No transcripts with P1.4 output available"
       />
     );
   }
   
-  // Special handling for P1_4 with tabbed display
-  if (stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
-    console.log('[P1.4 Debug] Rendering P1.4 component, processedData size:', processedData.size);
+  // Special handling for P1_5 with tabbed display
+  if (stepId === StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
+    console.log('[P1.5 Debug] Rendering P1.5 component, processedData size:', processedData.size);
     return (
       <TabbedStepDisplay
         processedData={processedData}
         extractTabs={(data) => {
           const entries = Array.from(data.entries());
-          console.log('[P1.4 Debug] Total transcripts:', entries.length);
+          console.log('[P1.5 Debug] Total transcripts:', entries.length);
           const filtered = entries.filter(([_, transcript]) => {
-            console.log('[P1.4 Debug] Transcript:', transcript.filename, 'has p1_4_output:', !!transcript.p1_4_output);
-            return transcript.p1_4_output;
+            console.log('[P1.5 Debug] Transcript:', transcript.filename, 'has p1_5_output:', !!transcript.p1_5_output);
+            return transcript.p1_5_output;
           });
-          console.log('[P1.4 Debug] Filtered transcripts with P1.4 output:', filtered.length);
+          console.log('[P1.5 Debug] Filtered transcripts with P1.5 output:', filtered.length);
           return filtered.map(([id, transcript]) => ({
               id,
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
-                diachronicStructure: transcript.p1_4_output!,
-                mermaidSyntax: transcript.p1_4_mermaid_syntax || transcript.p1_4_output?.mermaid_syntax_specific_diachronic,
+                diachronicStructure: transcript.p1_5_output!,
                 filename: transcript.filename
               }
             }));
         }}
         renderContent={(tabData, theme) => {
-          const { diachronicStructure, mermaidSyntax, filename } = tabData;
-          console.log('[P1.4 Debug] Rendering content for:', filename, 'mermaidSyntax:', mermaidSyntax);
+          const { diachronicStructure, filename } = tabData;
+          console.log('[P1.5 Debug] Rendering content for:', filename);
           
           // Prepare phases data for CSV export
           const phasesData = diachronicStructure.specific_diachronic_structure.phases.map((phase: any, index: number) => ({
@@ -9061,7 +8736,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
             ];
             const csvContent = convertToCSV(phasesData, columns);
             const timestamp = new Date().toISOString().split('T')[0];
-            downloadCSV(csvContent, `${filename}_P1.4_phases_${timestamp}.csv`);
+            downloadCSV(csvContent, `${filename}_P1.5_phases_${timestamp}.csv`);
           };
           
           return (
@@ -9094,6 +8769,20 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     <p className="text-light-text dark:text-dark-text text-sm">
                       {diachronicStructure.specific_diachronic_structure.iv_preliminary_observation}
                     </p>
+                  </div>
+                )}
+                
+                {/* Validation errors if present */}
+                {diachronicStructure.validation_errors && diachronicStructure.validation_errors.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm text-red-600 dark:text-red-400 mb-1">
+                      Validation Errors
+                    </h4>
+                    <ul className="list-disc list-inside text-sm text-red-600 dark:text-red-400">
+                      {diachronicStructure.validation_errors.map((error: string, idx: number) => (
+                        <li key={idx}>{error}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
@@ -9186,7 +8875,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
           );
         }}
         theme={theme}
-        emptyMessage="No transcripts with P1.4 output available"
+        emptyMessage="No transcripts with P1.5 output available"
       />
     );
   }
@@ -9602,16 +9291,15 @@ import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_3_Output, RefinedDiachronicUnitP1_3 } from '../../types';
-import { TemporalPhaseEditor } from './TemporalPhaseEditor';
+import { P1_4_Output, RefinedDiachronicUnitP1_4 } from '../../types';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface RefinedDiachronicUnitTableProps {
-  refinedData: P1_3_Output;
+  refinedData: P1_4_Output;
   theme: 'light' | 'dark';
-  onRefinedChange?: (updatedData: P1_3_Output) => void;
+  onRefinedChange?: (updatedData: P1_4_Output) => void;
   filename?: string;
 }
 
@@ -9702,6 +9390,13 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
   onRefinedChange,
   filename
 }) => {
+  console.log('[RefinedDiachronicUnitTable] Props:', { refinedData, theme, filename });
+  
+  // Log the structure of the first unit if available
+  if (refinedData?.refined_diachronic_units?.[0]) {
+    console.log('[RefinedDiachronicUnitTable] First unit structure:', refinedData.refined_diachronic_units[0]);
+  }
+  
   // Defensive check for data validity
   if (!refinedData || !refinedData.refined_diachronic_units) {
     return (
@@ -9735,7 +9430,7 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
         }
       },
       {
-        field: 'source_p1_2_du_ids',
+        field: 'source_du_ids',
         headerName: 'Source DU IDs',
         width: 200,
         wrapText: true,
@@ -9747,36 +9442,37 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
         }
       },
       {
-        field: 'temporal_phase',
-        headerName: 'Temporal Phase',
-        width: 180,
-        editable: true,
-        cellRenderer: TemporalPhaseRenderer,
-        cellEditor: TemporalPhaseEditor
+        field: 'phase.sequence_id',
+        headerName: 'Phase #',
+        width: 80,
+        valueGetter: (params) => params.data?.phase?.sequence_id || 0
       },
       {
-        field: 'confidence',
-        headerName: 'Confidence',
+        field: 'phase.phase_type',
+        headerName: 'Phase Type',
         width: 150,
-        editable: true,
-        cellRenderer: ConfidenceRenderer,
-        cellEditor: 'agNumberCellEditor',
-        cellEditorParams: {
-          min: 0,
-          max: 1,
-          precision: 2
-        },
-        valueParser: (params) => {
-          const val = Number(params.newValue);
-          if (isNaN(val)) return params.oldValue;
-          return Math.min(1, Math.max(0, val));
+        cellRenderer: (params) => {
+          const phaseType = params.data?.phase?.phase_type || 'Unknown';
+          return <TemporalPhaseRenderer {...params} value={phaseType} />;
         }
+      },
+      {
+        field: 'merge_justification',
+        headerName: 'Merge Justification',
+        flex: 1,
+        wrapText: true,
+        autoHeight: true,
+        valueFormatter: (params) => params.value || 'N/A',
+        cellStyle: { fontStyle: 'italic' }
       }
     ];
 
     const rows = refinedData.refined_diachronic_units.map(unit => ({
       ...unit
     }));
+    
+    console.log('[RefinedDiachronicUnitTable] Generated rows:', rows);
+    console.log('[RefinedDiachronicUnitTable] Column definitions:', cols);
 
     return { rowData: rows, columnDefs: cols };
   }, [refinedData]);
@@ -9801,9 +9497,10 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
     const csvData = refinedData.refined_diachronic_units.map(unit => ({
       'Unit ID': unit.unit_id,
       'Description': unit.description,
-      'Source P1.2 DU IDs': unit.source_p1_2_du_ids.join('; '),
-      'Temporal Phase': unit.temporal_phase,
-      'Confidence': unit.confidence
+      'Source DU IDs': unit.source_du_ids.join('; '),
+      'Phase #': unit.phase.sequence_id,
+      'Phase Type': unit.phase.phase_type,
+      'Merge Justification': unit.merge_justification || 'N/A'
     }));
 
     const columns = [
@@ -10404,6 +10101,221 @@ export const TagsEditor: React.FC<ICellEditorParams> = (props) => {
         >
           Done
         </button>
+      </div>
+    </div>
+  );
+};
+
+
+================================================
+FILE: src/components/TemporalPhaseAssignmentTable.tsx
+================================================
+import React from 'react';
+import { AgGridReact } from 'ag-grid-react';
+import { ColDef, ModuleRegistry } from 'ag-grid-community';
+import { AllCommunityModule } from 'ag-grid-community';
+import { P1_3_Output } from '../../types';
+import { convertToCSV, downloadCSV } from '../utils/csvExport';
+
+// Register AG Grid modules
+ModuleRegistry.registerModules([AllCommunityModule]);
+
+interface TemporalPhaseAssignmentTableProps {
+  phaseData: P1_3_Output;
+  theme: 'light' | 'dark';
+  onPhaseChange: (updatedData: P1_3_Output) => void;
+  filename: string;
+}
+
+export const TemporalPhaseAssignmentTable: React.FC<TemporalPhaseAssignmentTableProps> = ({ 
+  phaseData, 
+  theme, 
+  onPhaseChange,
+  filename 
+}) => {
+  // Prepare data for the grid
+  const rowData = phaseData.phased_diachronic_units.map((phasedUnit, index) => {
+    // Get source segments text
+    const sourceSegmentsText = phasedUnit.source_segments_text
+      ?.map(seg => `[${seg.segment_id}] ${seg.segment_text}`)
+      .join(' | ') || '';
+    
+    const temporalCues = phasedUnit.source_segments_text
+      ?.flatMap(seg => seg.temporal_cues)
+      .filter((cue, idx, arr) => arr.indexOf(cue) === idx) // unique cues
+      .join(', ') || '';
+
+    return {
+      unit_id: phasedUnit.unit_id,
+      phase: phasedUnit.phase,
+      phase_description: phasedUnit.phase_description,
+      description: phasedUnit.description,
+      temporal_cues: temporalCues,
+      source_segments: sourceSegmentsText,
+      source_segment_ids: phasedUnit.source_segment_ids
+    };
+  });
+
+  const columnDefs: ColDef[] = [
+    { 
+      field: 'unit_id', 
+      headerName: 'Unit ID',
+      width: 90,
+      sortable: true,
+      pinned: 'left'
+    },
+    { 
+      field: 'phase', 
+      headerName: 'Phase',
+      width: 80,
+      sortable: true,
+      cellClass: 'font-medium',
+      cellStyle: params => ({
+        backgroundColor: theme === 'dark' ? 'rgba(147, 51, 234, 0.1)' : 'rgba(147, 51, 234, 0.05)'
+      })
+    },
+    { 
+      field: 'phase_description', 
+      headerName: 'Phase Description',
+      width: 150,
+      wrapText: true,
+      autoHeight: true,
+      sortable: true
+    },
+    { 
+      field: 'description', 
+      headerName: 'Unit Description',
+      flex: 1,
+      minWidth: 200,
+      wrapText: true,
+      autoHeight: true,
+      sortable: true
+    },
+    { 
+      field: 'temporal_cues', 
+      headerName: 'Temporal Cues',
+      width: 200,
+      wrapText: true,
+      autoHeight: true,
+      sortable: true,
+      cellClass: 'text-xs',
+      cellStyle: {
+        fontStyle: 'italic'
+      }
+    },
+    { 
+      field: 'source_segments', 
+      headerName: 'Source Segments',
+      flex: 2,
+      minWidth: 300,
+      wrapText: true,
+      autoHeight: true,
+      sortable: false,
+      cellClass: 'text-xs'
+    }
+  ];
+
+  const handleDownloadCSV = () => {
+    const csvContent = convertToCSV(rowData, columnDefs);
+    const timestamp = new Date().toISOString().split('T')[0];
+    downloadCSV(csvContent, `${filename}_P1.3_temporal_phases_${timestamp}.csv`);
+  };
+
+  // Define custom styles based on theme
+  const gridStyles = theme === 'dark' ? {
+    '--ag-background-color': '#1a1a1a',
+    '--ag-header-background-color': '#252525',
+    '--ag-odd-row-background-color': '#252525',
+    '--ag-foreground-color': '#e6e6e6',
+    '--ag-header-foreground-color': '#e6e6e6',
+    '--ag-border-color': '#444444',
+    '--ag-row-hover-color': '#333333',
+    '--ag-header-column-resize-handle-color': '#ff6b6b',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-cell-horizontal-border': 'solid 1px #444444',
+  } : {
+    '--ag-background-color': '#faf8f1',
+    '--ag-header-background-color': '#f3f1ea',
+    '--ag-odd-row-background-color': '#f3f1ea',
+    '--ag-foreground-color': '#222222',
+    '--ag-header-foreground-color': '#222222',
+    '--ag-border-color': '#dcd9d0',
+    '--ag-row-hover-color': '#e9e6de',
+    '--ag-header-column-resize-handle-color': '#a00000',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-cell-horizontal-border': 'solid 1px #dcd9d0',
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
+          Showing {rowData.length} diachronic units with temporal phase assignments
+        </div>
+        <button
+          onClick={handleDownloadCSV}
+          className="flex items-center gap-2 px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt border border-light-border dark:border-dark-border rounded hover:bg-light-accent/10 dark:hover:bg-dark-accent/10 transition-colors"
+          title="Download as CSV"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          CSV
+        </button>
+      </div>
+      
+      <div 
+        className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
+        style={{ 
+          height: '500px', 
+          width: '100%',
+          ...gridStyles as React.CSSProperties
+        }}
+      >
+        <AgGridReact
+          rowData={rowData}
+          columnDefs={columnDefs}
+          defaultColDef={{
+            resizable: true,
+            sortable: true
+          }}
+          animateRows={true}
+          domLayout='normal'
+          theme='legacy'
+          rowHeight={undefined}
+          suppressRowClickSelection={true}
+        />
+      </div>
+      
+      {/* Phase distribution summary */}
+      <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg">
+        <h5 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+          Phase Distribution
+        </h5>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(
+            phaseData.phased_diachronic_units.reduce((acc, unit) => {
+              const key = `${unit.phase}: ${unit.phase_description}`;
+              acc[key] = (acc[key] || 0) + 1;
+              return acc;
+            }, {} as Record<string, number>)
+          )
+            .sort(([a], [b]) => {
+              const phaseA = parseInt(a.split(':')[0]);
+              const phaseB = parseInt(b.split(':')[0]);
+              return phaseA - phaseB;
+            })
+            .map(([phase, count]) => (
+              <span
+                key={phase}
+                className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+              >
+                {phase} ({count} units)
+              </span>
+            ))}
+        </div>
       </div>
     </div>
   );
@@ -11389,8 +11301,9 @@ export const STEP_ORDER_PART_0 = [
 export const STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC = [
   StepId.P1_1_INITIAL_SEGMENTATION,
   StepId.P1_2_DIACHRONIC_UNIT_ID,
-  StepId.P1_3_REFINE_DIACHRONIC_UNITS,
-  StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
+  StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT,
+  StepId.P1_4_REFINE_DIACHRONIC_UNITS,
+  StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
 ]
 
 export const STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC = [
@@ -11532,8 +11445,9 @@ export const stepIdToDataKeyPrefix: Partial<Record<StepId, keyof GenericAnalysis
   [StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]: "p0_3_output",
   [StepId.P1_1_INITIAL_SEGMENTATION]: "p1_1_output",
   [StepId.P1_2_DIACHRONIC_UNIT_ID]: "p1_2_output",
-  [StepId.P1_3_REFINE_DIACHRONIC_UNITS]: "p1_3_output",
-  [StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "p1_4_output",
+  [StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT]: "p1_3_output",
+  [StepId.P1_4_REFINE_DIACHRONIC_UNITS]: "p1_4_output",
+  [StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "p1_5_output",
   [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "p2s_1_output",
   [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "p2s_2_output",
   [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "p2s_3_output",
@@ -11575,7 +11489,7 @@ export const ESSENTIAL_STEPS_FOR_AUTODOWNLOAD: StepId[] = [
   // Part 0
   StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
   // Part I
-  StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
+  StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
   // Part II_S (Note: P2S_3 output is per phase, handled in App.tsx)
   StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
   // Part III
@@ -11609,22 +11523,23 @@ export const STEP_DISPLAY_NAMES: Record<StepId, string> = {
   // Part 3: Temporal Analysis
   [StepId.P1_1_INITIAL_SEGMENTATION]: "5. Initial Segmentation",
   [StepId.P1_2_DIACHRONIC_UNIT_ID]: "6. Temporal Unit Identification", 
-  [StepId.P1_3_REFINE_DIACHRONIC_UNITS]: "7. Temporal Unit Refinement",
-  [StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "8. Temporal Structure",
+  [StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT]: "7. Phase Assignment",
+  [StepId.P1_4_REFINE_DIACHRONIC_UNITS]: "8. Temporal Unit Refinement",
+  [StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "9. Temporal Structure",
   
   // Part 4: Synchronic Analysis
-  [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "9. Topic Grouping",
-  [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "10. Synchronic Units",
-  [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "11. Synchronic Structure",
+  [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "10. Topic Grouping",
+  [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "11. Synchronic Units",
+  [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "12. Synchronic Structure",
   
   // Part 5: Cross-Transcript Analysis  
-  [StepId.P3_1_ALIGN_STRUCTURES]: "12. Structure Alignment",
-  [StepId.P3_2_IDENTIFY_GDUS]: "13. Generic Unit Identification",
-  [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "14. Generic Structure",
+  [StepId.P3_1_ALIGN_STRUCTURES]: "13. Structure Alignment",
+  [StepId.P3_2_IDENTIFY_GDUS]: "14. Generic Unit Identification",
+  [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "15. Generic Structure",
   
   // Part 6: Generic Synchronic Analysis
-  [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES]: "15. Node Identification", 
-  [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: "16. Generic Synchronic Groups",
+  [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES]: "16. Node Identification", 
+  [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: "17. Generic Synchronic Groups",
   
   // Part 7: Refinement
   [StepId.P5_1_IV_COMPARATIVE_ANALYSIS]: "17. Comparative Analysis",
@@ -11690,13 +11605,653 @@ export type ConfigMap = { [key in StepId]?: StepConfig };
 ================================================
 FILE: src/config/pipeline/part0/index.ts
 ================================================
+export { P0_1_TRANSCRIPTION_ADHERENCE_CONFIG } from './transcriptionAdherence';
+export { P0_2_REFINE_DATA_TYPES_CONFIG } from './refineDataTypes';
+export { P0_3_SELECT_PROCEDURAL_UTTERANCES_CONFIG } from './selectProceduralUtterances';
 
+
+================================================
+FILE: src/config/pipeline/part0/refineDataTypes.ts
+================================================
+import { StepId, P0_1_Output } from '../../../../types';
+import { StepConfig } from '../types';
+
+export const P0_2_REFINE_DATA_TYPES_CONFIG: StepConfig = {
+  id: StepId.P0_2_REFINE_DATA_TYPES,
+  title: "P0.2: Refining Data - Identifying Information Types",
+  part: "Part0",
+  isJsonOutput: true,
+  getInput: (currentTranscript, allProcessedData) => {
+    if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P0.2." };
+    const p0_1_data = allProcessedData?.get(currentTranscript.id)?.p0_1_output;
+    if (!p0_1_data) return { data: null, error: `Missing P0.1 output for transcript ${currentTranscript.id}` };
+    
+    // Parse the line-numbered transcript to extract line numbers and text
+    const parsedLines = p0_1_data.line_numbered_transcript.map(line => {
+      // Extract line number (format: "1: ...")
+      const lineMatch = line.match(/^(\d+):\s*(.*)$/);
+      if (!lineMatch) {
+        return { lineNumber: '', speaker: '', text: line };
+      }
+      
+      const [, lineNumber, rest] = lineMatch;
+      
+      // Check for speaker (format: "Speaker Name: ..." or "P1: ...")
+      const speakerMatch = rest.match(/^([^:]+):\s*(.*)$/);
+      if (speakerMatch) {
+        const [, speaker, text] = speakerMatch;
+        // Check if this is actually a speaker and not just a colon in the text
+        if (speaker.match(/^[A-Z]\d+$/) || speaker.match(/^[A-Z][a-z]+ [A-Z][a-z]+$/) || speaker.length < 30) {
+          return { lineNumber, speaker: speaker.trim(), text: text.trim() };
+        }
+      }
+      
+      // No speaker found, treat as regular text
+      return { lineNumber, speaker: '', text: rest };
+    });
+    
+    return { 
+      data: {
+        ...p0_1_data,
+        parsed_lines: parsedLines
+      }
+    };
+  },
+  generatePrompt: (input: P0_1_Output & { parsed_lines: Array<{ lineNumber: string; speaker: string; text: string }> }) => `You are a micro-phenomenological data preparation analyst. Your task is to refine the line-numbered transcript by identifying different types of information.
+Input:
+The parsed transcript lines for transcript ID ${input.transcript_id}.
+${JSON.stringify({ 
+  transcript_id: input.transcript_id,
+  parsed_lines: input.parsed_lines,
+  transcription_convention_notes: input.transcription_convention_notes,
+  initial_impressions_log: input.initial_impressions_log
+}, null, 2)}
+
+Instructions:
+1. Re-read and categorize each parsed line:
+   For each line in parsed_lines, determine if it primarily contains:
+    - "procedural_information": Utterances related to the interview process itself (e.g., interviewer's questions, participant's reflections on the question or process, meta-comments).
+    - "experiential_content": Utterances directly describing the lived experience being investigated.
+    - "ambiguous_or_mixed": Lines that are hard to categorize or contain both.
+2. Tagging:
+   Based on this, assign one or more \`information_tags\` to each line (e.g., ["procedural_information"], ["experiential_content"], ["procedural_information", "experiential_content"]).
+3. Decision Notes (Optional):
+   If a line is particularly complex or its categorization is non-obvious, add a brief \`decision_notes\` explaining your reasoning.
+
+Output:
+A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
+{
+  "transcript_id": "${input.transcript_id}",
+  "refined_data_transcript": [
+    {
+      "line_num": 1,
+      "speaker": "P1",
+      "text": "text content without line number or speaker prefix",
+      "information_tags": ["tag1", "tag2"],
+      "decision_notes": "Optional notes for line 1."
+    },
+    {
+      "line_num": 2,
+      "text": "text of line 2...",
+      "information_tags": ["tag1"],
+      "decision_notes": null
+    }
+    // ... and so on for all lines
+  ]
+}
+`,
+};
+
+
+================================================
+FILE: src/config/pipeline/part0/selectProceduralUtterances.ts
+================================================
+import { StepId, P0_2_Output, P_neg1_1_Output, P0_3_Output } from '../../../../types';
+import { StepConfig } from '../types';
+
+export const P0_3_SELECT_PROCEDURAL_UTTERANCES_CONFIG: StepConfig = {
+  id: StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
+  title: "P0.3: Select Procedural Utterances for Diachronic Analysis",
+  part: "Part0",
+  isJsonOutput: true,
+  getInput: (currentTranscript, allProcessedData) => {
+    if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P0.3." };
+    const p0_2_data = allProcessedData?.get(currentTranscript.id)?.p0_2_output;
+    const p_neg1_1_data = allProcessedData?.get(currentTranscript.id)?.p_neg1_1_output;
+    if (!p0_2_data || !p_neg1_1_data) return { data: null, error: `Missing P0.2 or P-1.1 output for transcript ${currentTranscript.id}` };
+    return { data: { ...p0_2_data, p_neg1_1_output: p_neg1_1_data } };
+  },
+  generatePrompt: (input: P0_2_Output & { p_neg1_1_output: P_neg1_1_Output }) => `You are a micro-phenomenological analyst. Your task is to evaluate ALL utterances from the refined data transcript and determine which are crucial for understanding the diachronic (temporal) structure of the *experience itself*.
+Input:
+The JSON output from P0.2 (refined data transcript) and P-1.1 (IV/DV info) for transcript ID ${input.transcript_id}.
+P0.2 Output: ${JSON.stringify(input, null, 2)}
+
+Instructions:
+1.  Temporal Structure: Focus on utterances that help reveal the temporal unfolding of the lived experience.
+2.  Procedural Priority: Procedural utterances (interviewer questions, meta-comments) SHOULD be included if they:
+    *   Elicit temporal information about the experience
+    *   Help situate when/how the experience unfolded
+    *   Provide crucial context for understanding the temporal flow
+3.  Evaluation Criteria for EACH utterance: Ask yourself: "Does this utterance contribute to understanding the temporal/diachronic structure of the experience?" Consider:
+    *   Direct temporal markers or sequencing
+    *   Action sequences
+    *   Process descriptions  
+    *   Transition points
+    *   Questions that elicit temporal detail
+    *   Context that frames temporal understanding
+4.  IMPORTANT: Output minified JSON with no unnecessary whitespace. Be extremely concise.
+5.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from P-1.1 MUST be copied verbatim into the output.
+
+Output:
+A MINIFIED JSON object (no extra whitespace) adhering EXACTLY to the following structure:
+{"transcript_id":"${input.transcript_id}","selected_procedural_utterances":[{"original_line_num":"1","speaker":"P1","utterance_text":"full text...","selection_justification":"brief reason here","included":false},{"original_line_num":"2","speaker":"Kevin Sheldrake","utterance_text":"full text...","selection_justification":"another brief reason","included":true}],"independent_variable_details":"${input.p_neg1_1_output.independent_variable_details}","dependent_variable_focus":${JSON.stringify(input.p_neg1_1_output.dependent_variable_focus)}}
+`,
+};
+
+
+================================================
+FILE: src/config/pipeline/part0/transcriptionAdherence.ts
+================================================
+import { StepId } from '../../../../types';
+import { StepConfig } from '../types';
+
+export const P0_1_TRANSCRIPTION_ADHERENCE_CONFIG: StepConfig = {
+  id: StepId.P0_1_TRANSCRIPTION_ADHERENCE,
+  title: "P0.1: Transcription Adherence & Line Numbering",
+  part: "Part0",
+  isJsonOutput: true,
+  getInput: (currentTranscript) => {
+    if (!currentTranscript?.content) return { data: null, error: "Missing transcript content for P0.1." };
+    return {
+      data: {
+        filename_or_id: currentTranscript.filename || currentTranscript.id,
+        raw_transcript_text_from_file: currentTranscript.content,
+      },
+    };
+  },
+  generatePrompt: (input) => `You are a micro-phenomenological data preparation assistant. Your first task is to process a raw interview transcript file.
+Input:
+Raw text content of a single interview transcript file.
+Transcript Filename/ID: ${input.filename_or_id}
+
+Instructions:
+1. Verify Transcription Conventions (as much as possible from text):
+   Check if the transcript appears to be verbatim and orthographic.
+   Note any apparent deviations (e.g., summarized, para-verbal/non-verbal cues missing). This is a best-effort check.
+2. Automatic Line Numbering:
+   Assign a unique, sequential line number to each line of the transcript. Start numbering from 1.
+3. Initial Impression Log (Optional but Recommended by Paper §18):
+   Read through the transcript once. Record any very initial impressions regarding evocation quality or nature of described experience. Keep brief and marked as preliminary.
+
+Output:
+A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
+{
+  "transcript_id": "${input.filename_or_id}",
+  "line_numbered_transcript": ["1: text of line 1...", "2: text of line 2..."],
+  "transcription_convention_notes": "Your notes here.",
+  "initial_impressions_log": "Your brief impressions here."
+}
+
+BEGIN PROCESSING RAW TRANSCRIPT:
+Transcript ID: ${input.filename_or_id}
+Content:
+${input.raw_transcript_text_from_file}
+`,
+};
+
+
+================================================
+FILE: src/config/pipeline/part1/constructSpecificDiachronicStructure.ts
+================================================
+import { StepId, P1_4_Output } from '../../../../types';
+import { StepConfig } from '../types';
+
+export const P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG: StepConfig = {
+  id: StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
+  title: "P1.5: Construct Specific Diachronic Structure (SDS)",
+  part: "PartI_Dia",
+  isJsonOutput: true,
+  getInput: (currentTranscript, allProcessedData) => {
+    if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.5." };
+    
+    const transcriptData = allProcessedData?.get(currentTranscript.id);
+    const p1_4_data = transcriptData?.p1_4_output;
+    
+    if (!p1_4_data) return { data: null, error: `Missing P1.4 output for transcript ${currentTranscript.id}` };
+    
+    // Validate the RDU sequence
+    const validationErrors: string[] = [];
+    
+    // Check for duplicate single-use phases
+    const phaseTypes = p1_4_data.refined_diachronic_units.map(rdu => rdu.phase.phase_type);
+    const onsetCount = phaseTypes.filter(p => p === 'Onset').length;
+    const conclusionCount = phaseTypes.filter(p => p === 'Conclusion').length;
+    
+    if (onsetCount > 1) validationErrors.push("Multiple 'Onset' phases detected");
+    if (conclusionCount > 1) validationErrors.push("Multiple 'Conclusion' phases detected");
+    
+    // Check sequence IDs are consecutive
+    const sequenceIds = p1_4_data.refined_diachronic_units.map(rdu => rdu.phase.sequence_id).sort((a, b) => a - b);
+    for (let i = 0; i < sequenceIds.length - 1; i++) {
+      if (sequenceIds[i + 1] !== sequenceIds[i] + 1) {
+        validationErrors.push(`Non-consecutive sequence IDs: ${sequenceIds[i]} -> ${sequenceIds[i + 1]}`);
+      }
+    }
+    
+    // Check logical phase progression
+    const phaseProgression = p1_4_data.refined_diachronic_units
+      .sort((a, b) => a.phase.sequence_id - b.phase.sequence_id)
+      .map(rdu => rdu.phase.phase_type);
+    
+    if (phaseProgression.length > 0 && phaseProgression[0] !== 'Onset') {
+      validationErrors.push("Experience should start with 'Onset' phase");
+    }
+    
+    return { 
+      data: {
+        ...p1_4_data,
+        validation_errors: validationErrors
+      }
+    };
+  },
+  generatePrompt: (input: any) => `You are a micro-phenomenological analyst. Your task is to construct the Specific Diachronic Structure (SDS) for this transcript based on the refined DUs and their phases.
+
+Input:
+JSON output from P1.4 for transcript ID ${input.transcript_id}.
+P1.4 Output: ${JSON.stringify(input, null, 2)}
+${input.validation_errors?.length > 0 ? `\nValidation Warnings: ${input.validation_errors.join('; ')}` : ''}
+
+Instructions:
+1. Define Specific Diachronic Phases:
+   - Group the refined DUs from P1.4 by their phase.phase_type
+   - For each unique phase type, create a phase object with:
+     * phase_name: The phase type (e.g., "Onset", "Development_1")
+     * description: Summary of what happens in this phase, derived from RDU descriptions
+     * units_involved: Array of unit_ids from P1.4 RDUs in this phase
+
+2. Structure Summary: Provide an overall summary of the entire Specific Diachronic Structure.
+
+3. Validation: Include any validation_errors from the input if present.
+
+4. Visualization Hint: Provide a visualization_hint (e.g., "Linear progression with clear phase transitions")
+
+5. IV Preliminary Observation: Based on the independent_variable_details, make a brief observation about any apparent connection to the diachronic structure. If none is obvious, state "No immediate IV connection apparent at this stage."
+
+6. Include the refined_diachronic_units from P1.4 in the output for reference.
+
+7. Preserve IV/DV: Copy the independent_variable_details and dependent_variable_focus verbatim.
+
+Output:
+{
+  "transcript_id": "${input.transcript_id}",
+  "specific_diachronic_structure": {
+    "summary": "Experience unfolded through X distinct moments across Y phases.",
+    "phases": [
+      {
+        "phase_name": "Onset",
+        "description": "Summary of the onset phase.",
+        "units_involved": ["rdu_1"]
+      }
+    ],
+    "validation_errors": ${JSON.stringify(input.validation_errors || [])},
+    "visualization_hint": "Linear progression with clear phase transitions",
+    "iv_preliminary_observation": "Brief note on potential IV connection or N/A."
+  },
+  "refined_diachronic_units": [/* Copy from P1.4 output */],
+  "independent_variable_details": "${input.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
+}
+`
+};
+
+
+================================================
+FILE: src/config/pipeline/part1/diachronicUnitId.ts
+================================================
+import { StepId, P1_1_Output } from '../../../../types';
+import { StepConfig } from '../types';
+
+export const P1_2_DIACHRONIC_UNIT_ID_CONFIG: StepConfig = {
+  id: StepId.P1_2_DIACHRONIC_UNIT_ID,
+  title: "P1.2: Diachronic Unit Identification (DU)",
+  part: "PartI_Dia",
+  isJsonOutput: true,
+  getInput: (currentTranscript, allProcessedData) => {
+    if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.2." };
+    const p1_1_data = allProcessedData?.get(currentTranscript.id)?.p1_1_output;
+    if (!p1_1_data) return { data: null, error: `Missing P1.1 output for transcript ${currentTranscript.id}` };
+    return { data: p1_1_data };
+  },
+  generatePrompt: (input: P1_1_Output) => `You are a micro-phenomenological analyst. Your task is to group the segments from P1.1 into initial Diachronic Units (DUs). A DU represents a meaningful "moment" or "phase" in the described experience.
+Input:
+JSON output from P1.1 for transcript ID ${input.transcript_id}.
+P1.1 Output: ${JSON.stringify(input, null, 2)}
+
+Instructions:
+1.  Review Segments: Examine all \`segments\` generated in P1.1.
+2.  Group into Diachronic Units (DUs):
+    *   Identify groups of one or more consecutive (or thematically related and temporally close) segments that form a coherent "moment" or "step" in the experience. These are your DUs.
+    *   Each DU should have a unique \`unit_id\` (e.g., "du_1", "du_2").
+    *   Provide a concise \`description\` for each DU, capturing its essence. This description should be based on the content of the source segments.
+    *   List the \`source_segment_ids\` (from P1.1 segment_id) that constitute this DU. A segment should ideally belong to only one DU.
+3.  Aim for a reasonable number of DUs that capture the main temporal beats of the experience. Avoid over-segmentation into too many DUs or under-segmentation into too few.
+4.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from the input P1.1 MUST be copied verbatim into the output.
+
+Output:
+A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
+{
+  "transcript_id": "${input.transcript_id}",
+  "diachronic_units": [
+    {
+      "unit_id": "du_1",
+      "description": "Initial orienting and noticing the object.",
+      "source_segment_ids": ["utt_5_1_seg_0", "utt_6_1_seg_0", "utt_6_1_seg_1"]
+    },
+    {
+      "unit_id": "du_2",
+      "description": "Detailed examination of the object's texture.",
+      "source_segment_ids": ["utt_8_1_seg_0"]
+    }
+    // ... more diachronic units
+  ],
+  "independent_variable_details": "${input.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
+}
+`,
+};
 
 
 ================================================
 FILE: src/config/pipeline/part1/index.ts
 ================================================
+export { P1_1_INITIAL_SEGMENTATION_CONFIG } from './initialSegmentation';
+export { P1_2_DIACHRONIC_UNIT_ID_CONFIG } from './diachronicUnitId';
+export { P1_3_TEMPORAL_PHASE_ASSIGNMENT_CONFIG } from './temporalPhaseAssignment';
+export { P1_4_REFINE_DIACHRONIC_UNITS_CONFIG } from './refineDiachronicUnits';
+export { P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG } from './constructSpecificDiachronicStructure';
 
+
+================================================
+FILE: src/config/pipeline/part1/initialSegmentation.ts
+================================================
+import { StepId, P0_3_Output } from '../../../../types';
+import { StepConfig } from '../types';
+
+export const P1_1_INITIAL_SEGMENTATION_CONFIG: StepConfig = {
+  id: StepId.P1_1_INITIAL_SEGMENTATION,
+  title: "P1.1: Initial Segmentation of Procedural Utterances",
+  part: "PartI_Dia",
+  isJsonOutput: true,
+  getInput: (currentTranscript, allProcessedData) => {
+    if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.1." };
+    const p0_3_data = allProcessedData?.get(currentTranscript.id)?.p0_3_output;
+    if (!p0_3_data) return { data: null, error: `Missing P0.3 output for transcript ${currentTranscript.id}` };
+    return { data: p0_3_data };
+  },
+  generatePrompt: (input: P0_3_Output) => {
+    // Filter to only include utterances where included === true
+    const includedUtterances = input.selected_procedural_utterances.filter(u => u.included);
+    const filteredInput = {
+      ...input,
+      selected_procedural_utterances: includedUtterances
+    };
+    
+    return `You are a micro-phenomenological analyst. Your task is to segment the selected procedural utterances based on temporal cues, focusing on the described experience's unfolding.
+Input:
+JSON output from P0.3 for transcript ID ${input.transcript_id} (showing only INCLUDED utterances).
+P0.3 Output: ${JSON.stringify(filteredInput, null, 2)}
+
+Instructions:
+1. Focus on "Action Units": Read each selected procedural utterance. Identify "minimal action units" or "elementary acts" within them. An utterance might contain one or multiple such segments.
+
+2. Temporal Cues: Look for explicit or implicit temporal markers that delineate these segments.
+   
+   EXPLICIT temporal markers include:
+   - Time words: "then", "after", "before", "suddenly", "meanwhile", "finally"
+   - Beginning markers: "at the start", "initially", "first"
+   - Sequence markers: "next", "subsequently", "afterwards"
+   
+   IMPLICIT temporal markers include:
+   - Sequence of distinct verbs: "I noticed... I felt... I realized..."
+   - Progression indicators: "The sensation grew stronger", "It gradually faded", "It was building"
+   - Transition markers: "My attention shifted", "The quality changed", "It transformed into"
+   - Causal language (causation implies temporal sequence):
+     * "Because of this, I..." (cause precedes effect)
+     * "This led to..." (one thing follows another)
+     * "As a result..." (consequence follows cause)
+     * "Which made me..." (causal chain shows temporal flow)
+     * "So I..." (therefore, subsequently)
+3.  Segment Creation:
+    *   For each original utterance, create an array of \`segments\`.
+    *   Each segment should have a unique \`segment_id\` (e.g., "utt_ORIGINAL_LINE_NUM_seg_INDEX", like "utt_5.1_seg_0", "utt_5.1_seg_1"). Ensure ORIGINAL_LINE_NUM is safe for an ID (replace '.' with '_').
+    *   \`segment_text\` should be the text of that minimal action unit.
+    *   \`temporal_cues\` should be an array of strings listing any temporal words/phrases identified *within or at the beginning of* that specific segment that justify its distinctness or position.
+4.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from the input P0.3 MUST be copied verbatim into the output.
+
+Output:
+A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
+{
+  "transcript_id": "${input.transcript_id}",
+  "segmented_utterances": [
+    {
+      "original_utterance": { // Copied from P0.3 input
+        "original_line_num": "string",
+        "utterance_text": "text of the original utterance...",
+        "selection_justification": "Brief justification for selection."
+      },
+      "segments": [
+        {
+          "segment_id": "utt_59_seg_0",
+          "segment_text": "Just yeah, just I had a at the start. I had, like a brief images of... glue.",
+          "temporal_cues": ["at the start"]
+        }
+      ]
+    }
+    // ... more segmented utterances
+  ],
+  "independent_variable_details": "${filteredInput.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(filteredInput.dependent_variable_focus)}
+}
+`;
+  },
+};
+
+
+================================================
+FILE: src/config/pipeline/part1/refineDiachronicUnits.ts
+================================================
+import { StepId, P1_3_Output, P1_1_Output } from '../../../../types';
+import { StepConfig } from '../types';
+
+export const P1_4_REFINE_DIACHRONIC_UNITS_CONFIG: StepConfig = {
+  id: StepId.P1_4_REFINE_DIACHRONIC_UNITS,
+  title: "P1.4: Refine Diachronic Units (RDU)",
+  part: "PartI_Dia",
+  isJsonOutput: true,
+  getInput: (currentTranscript, allProcessedData) => {
+    if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.4." };
+    
+    const transcriptData = allProcessedData?.get(currentTranscript.id);
+    const p1_3_data = transcriptData?.p1_3_output;
+    const p1_1_data = transcriptData?.p1_1_output;
+    
+    if (!p1_3_data) return { data: null, error: `Missing P1.3 output for transcript ${currentTranscript.id}` };
+    if (!p1_1_data) return { data: null, error: `Missing P1.1 output for transcript ${currentTranscript.id}` };
+    
+    // Group DUs by phase_type for processing
+    const dusByPhase: Record<string, any[]> = {};
+    
+    p1_3_data.phased_diachronic_units.forEach(du => {
+      if (!dusByPhase[du.phase_type]) {
+        dusByPhase[du.phase_type] = [];
+      }
+      
+      // Enrich each DU with its source segments and temporal cues
+      const enrichedDU = {
+        ...du,
+        source_segments_with_cues: du.source_segment_ids.map(segId => {
+          for (const uttData of p1_1_data.segmented_utterances) {
+            const segment = uttData.segments.find(s => s.segment_id === segId);
+            if (segment) return segment;
+          }
+          return null;
+        }).filter(Boolean)
+      };
+      
+      dusByPhase[du.phase_type].push(enrichedDU);
+    });
+    
+    return { 
+      data: {
+        transcript_id: p1_3_data.transcript_id,
+        dusByPhase,
+        independent_variable_details: p1_3_data.independent_variable_details,
+        dependent_variable_focus: p1_3_data.dependent_variable_focus
+      }
+    };
+  },
+  generatePrompt: (input: any) => `You are a micro-phenomenological analyst. Your task is to refine Diachronic Units (DUs) by examining them within their phase groups to determine if any should be merged.
+
+Input:
+Transcript ID: ${input.transcript_id}
+DUs grouped by phase: ${JSON.stringify(input.dusByPhase, null, 2)}
+
+Instructions:
+1. **Process Each Phase Group:** For each phase type, examine all DUs within that phase.
+
+2. **Ground Your Analysis:** For each DU, carefully review both its synthesized description and the raw source_segments_with_cues. The original text and temporal cues are the primary source of truth.
+
+3. **Merging Decision:** Within each phase group:
+   - MERGE DUs if they describe different facets of the SAME unified moment
+   - KEEP SEPARATE if they describe distinct, sequential moments
+   - Temporal cues like 'then', 'after', or logical progression indicate sequence
+
+4. **Create RDUs:** For each phase group, create refined DUs with:
+   - Unique unit_id (e.g., "rdu_1", "rdu_2") numbered sequentially across all phases
+   - Synthesized description
+   - source_du_ids listing the original DU IDs
+   - merge_justification if multiple DUs were merged
+   - phase object with sequence_id (chronological order) and phase_type
+
+5. **Merging Guidelines:**
+   MERGE when describing:
+   - Different sensory aspects of the same instant
+   - Multiple perspectives on a single moment
+   - Redundant descriptions of the same experience
+
+   KEEP SEPARATE when describing:
+   - Clear sequential steps (indicated by 'then', 'after')
+   - Different instances of similar experiences
+   - Cause and effect relationships
+
+Output:
+{
+  "transcript_id": "${input.transcript_id}",
+  "refined_diachronic_units": [
+    {
+      "unit_id": "rdu_1",
+      "description": "The participant's initial experience...",
+      "source_du_ids": ["du_1"],
+      "phase": { "sequence_id": 1, "phase_type": "Onset" }
+    },
+    {
+      "unit_id": "rdu_2", 
+      "description": "Visual and emotional opening moment...",
+      "source_du_ids": ["du_2", "du_3"],
+      "merge_justification": "Merged du_2 and du_3 as they describe complementary aspects of the same moment",
+      "phase": { "sequence_id": 2, "phase_type": "Development_1" }
+    }
+  ],
+  "independent_variable_details": "${input.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
+}
+`
+};
+
+
+================================================
+FILE: src/config/pipeline/part1/temporalPhaseAssignment.ts
+================================================
+import { StepId, P1_2_Output, P1_1_Output, P1_3_Input } from '../../../../types';
+import { StepConfig } from '../types';
+
+export const P1_3_TEMPORAL_PHASE_ASSIGNMENT_CONFIG: StepConfig = {
+  id: StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT,
+  title: "P1.3: Temporal Phase Assignment",
+  part: "PartI_Dia",
+  isJsonOutput: true,
+  getInput: (currentTranscript, allProcessedData) => {
+    if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.3." };
+    
+    const transcriptData = allProcessedData?.get(currentTranscript.id);
+    const p1_2_data = transcriptData?.p1_2_output;
+    const p1_1_data = transcriptData?.p1_1_output;
+    
+    if (!p1_2_data) return { data: null, error: `Missing P1.2 output for transcript ${currentTranscript.id}` };
+    if (!p1_1_data) return { data: null, error: `Missing P1.1 output for transcript ${currentTranscript.id}` };
+    
+    // Enrich DUs with source segment text for context
+    const enrichedDUs = p1_2_data.diachronic_units.map(du => {
+      const sourceSegments = du.source_segment_ids.map(segId => {
+        // Find the segment in P1.1 output
+        for (const uttData of p1_1_data.segmented_utterances) {
+          const segment = uttData.segments.find(s => s.segment_id === segId);
+          if (segment) return segment;
+        }
+        return null;
+      }).filter(Boolean);
+      
+      return {
+        ...du,
+        source_segments_text: sourceSegments
+      };
+    });
+    
+    const enrichedInput: P1_3_Input = {
+      ...p1_2_data,
+      diachronic_units: enrichedDUs
+    };
+    
+    return { data: enrichedInput };
+  },
+  generatePrompt: (input: P1_3_Input) => `You are a micro-phenomenological analyst. Your task is to assign a temporal phase to each Diachronic Unit (DU). This is a categorization step only.
+
+Input:
+A list of DUs for transcript ID ${input.transcript_id}. Each DU includes a synthesized \`description\` and the raw \`source_segments_text\` it was derived from.
+Input DUs: ${JSON.stringify(input.diachronic_units, null, 2)}
+
+Instructions:
+1. For each DU, read both its \`description\` and the detailed \`source_segments_text\` to get the full context.
+2. Assign a \`phase_type\` from the FIXED list below that best describes the temporal quality of the DU.
+3. **Indexing Rule:** For \`Development\`, \`Peak\`, and \`Transition\`, you MUST add a sequential index if the type is repeated (e.g., "Development_1", "Development_2"). \`Onset\` and \`Conclusion\` must be used only once.
+4. Do NOT merge, split, or change the DUs. Simply copy each DU and add the \`phase_type\` key.
+5. Preserve IV/DV.
+
+**Phase Vocabulary:**
+- \`Onset\`: The very beginning of the experience.
+- \`Development_n\`: A period where the experience is unfolding or being sustained.
+- \`Peak_n\`: A moment of maximal intensity or a key realization.
+- \`Transition_n\`: A moment that marks a clear shift between other phases.
+- \`Conclusion\`: The final moment of the experience.
+- \`Reflection\`: A period of meta-commentary or looking back on the experience.
+
+Output:
+A JSON object adhering EXACTLY to the following structure:
+{
+  "transcript_id": "${input.transcript_id}",
+  "phased_diachronic_units": [
+    {
+      "unit_id": "du_1",
+      "description": "Initial brief images of glue appeared at the start of the experience.",
+      "source_segment_ids": ["utt_59_seg_0"],
+      "phase_type": "Onset"
+    }
+  ],
+  "independent_variable_details": "${input.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
+}
+`
+};
 
 
 ================================================
@@ -11770,7 +12325,7 @@ ${input.raw_transcript_text_from_file}
 ================================================
 FILE: src/hooks/useAutorunManager.ts
 ================================================
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { StepId, StepStatus } from '../../types'
 import { ESSENTIAL_STEPS_FOR_AUTODOWNLOAD, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_CONFIGS } from '../../constants'
 import { useUIStore } from '../stores'
@@ -11912,12 +12467,18 @@ export const useAutorunManager = () => {
            setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData: typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All complete." });
          }
          console.log(`🛑 Autorun stopped (no details)`);
+         // Save resume checkpoint before stopping
+         const updatedProcessState = orchestrator.createResumeCheckpoint(processState);
+         updateProcessState(updatedProcessState);
          setAutorunning(false);
       }
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Error) {
       console.log(`💥 Autorun active but step failed - stopping`);
       console.log(`- Error step: ${currentStepInfo.stepId}`);
       console.log(`🛑 Autorun stopped (error)`);
+      // Save resume checkpoint before stopping
+      const updatedProcessState = orchestrator.createResumeCheckpoint(processState);
+      updateProcessState(updatedProcessState);
       setAutorunning(false);
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Idle && rawTranscripts.length > 0) {
       console.log(`🚀 Autorun starting from Idle - checking for resume point`);
@@ -12001,6 +12562,25 @@ export const useAutorunManager = () => {
     updateProcessState,
     activeTranscriptIndex
   ]);
+
+  // Effect to save resume checkpoint when autorun is paused
+  const prevIsAutorunningRef = useRef(isAutorunning);
+  
+  useEffect(() => {
+    // Only save checkpoint when transitioning from running to not running
+    if (prevIsAutorunningRef.current === true && isAutorunning === false) {
+      // Check if we have a valid state to save
+      if (processState.status === 'running' && 
+          currentStepInfo.status === StepStatus.Success &&
+          !processState.resumeCheckpoint) { // Avoid saving if already saved
+        console.log('📌 Saving resume checkpoint on pause');
+        const updatedProcessState = orchestrator.createResumeCheckpoint(processState);
+        updateProcessState(updatedProcessState);
+      }
+    }
+    
+    prevIsAutorunningRef.current = isAutorunning;
+  }, [isAutorunning]); // Only watch isAutorunning to avoid loops
 }
 
 
@@ -12180,8 +12760,24 @@ export class PipelineOrchestrator {
   ): NextStepInfo | null {
     const { rawTranscripts, processedData, genericAnalysisState } = dataState
 
-    // Handle initial state
+    // Handle initial state with resume support
     if (currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length > 0) {
+      // Check if we have a resume checkpoint
+      if (processState.resumeCheckpoint) {
+        const { partIndex, stepIndex, iterationContext } = processState.resumeCheckpoint
+        
+        // Find the step from checkpoint
+        const part = this.pipelineStructure[partIndex]
+        if (part && stepIndex < part.steps.length) {
+          return {
+            nextStepId: part.steps[stepIndex],
+            nextTranscriptIndex: iterationContext.transcriptIndex ?? 0,
+            iterationType: part.iteration
+          }
+        }
+      }
+      
+      // No checkpoint, start from beginning
       return this.getFirstStep(rawTranscripts)
     }
 
@@ -12525,6 +13121,16 @@ export class PipelineOrchestrator {
         error,
         timestamp: Date.now()
       }
+    }
+
+    // Clear resumeCheckpoint when starting fresh or completing
+    if (currentStepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION && status === StepStatus.Loading) {
+      // Starting fresh from the beginning
+      newState.resumeCheckpoint = undefined
+    } else if (currentStepId === StepId.COMPLETE && status === StepStatus.Success) {
+      // Pipeline completed
+      newState.resumeCheckpoint = undefined
+      newState.status = 'complete'
     }
 
     return newState
@@ -13115,7 +13721,8 @@ import {
   SavedState,
   P2SPhaseData,
   CurrentStepInfo,
-  HilContext
+  HilContext,
+  P1_5_Output
 } from '../../types'
 import { ProcessState } from '../config/pipelineDefinition'
 import { 
@@ -13485,6 +14092,18 @@ export const usePipelineStore = create<PipelineStore>()(
         }
         
         console.log(`✅ Step config found for: ${stepId}`);
+        
+        // Add special debug logging for P1.5
+        if (stepId === StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
+          console.log('🔍 [P1.5 Debug] Starting P1.5 processing');
+          console.log('- transcriptIdToProcess:', transcriptIdToProcess);
+          console.log('- currentTranscript exists:', !!rawTranscripts.find(t => t.id === transcriptIdToProcess));
+          if (transcriptIdToProcess) {
+            const transcriptData = processedData.get(transcriptIdToProcess);
+            console.log('- P1.4 output exists:', !!transcriptData?.p1_4_output);
+            console.log('- P1.4 output:', transcriptData?.p1_4_output);
+          }
+        }
         
         // Prepare context variables
         const currentTranscript = transcriptIdToProcess 
@@ -13883,16 +14502,18 @@ export const usePipelineStore = create<PipelineStore>()(
                 [`${key.replace('_output','_error')}` as keyof TranscriptProcessedData]: undefined
               } as any
               
-              // Special handling for P1.4
-              if (stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && output) {
+              // Special handling for P1.5
+              if (stepId === StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && output) {
+                console.log('🔍 [P1.5 Debug] Handling P1.5 successful output');
                 nD.isFullyProcessedSpecificDiachronic = true
-                nD.p1_4_mermaid_syntax = transformDiachronicToMermaid((output as P1_4_Output).specific_diachronic_structure)
-                const phases = (output as P1_4_Output)?.specific_diachronic_structure?.phases.map(p => p.phase_name) || []
+                // No mermaid generation for P1.5 - that's only for synchronic structures
+                const phases = (output as P1_5_Output)?.specific_diachronic_structure?.phases.map(p => p.phase_name) || []
                 nD.phases_for_p2s_processing = phases
                 nD.current_phase_for_p2s_processing = phases[0] || undefined
                 nD.processed_phases_for_p2s = []
                 nD.p2s_outputs_by_phase = {}
                 nD.isFullyProcessedSpecificSynchronic = phases.length === 0
+                console.log('🔍 [P1.5 Debug] Set phases for P2S processing:', phases);
               }
               
               state.processedData.set(transcriptIdToProcess, nD)
@@ -14438,6 +15059,15 @@ export const usePipelineStore = create<PipelineStore>()(
       isNextStepDisabled: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
         const { genericAnalysisState, rawTranscripts, processedData, processState } = get()
         
+        // Handle special states first
+        if (currentStepInfo.stepId === StepId.IDLE) {
+          return rawTranscripts.length === 0 // Can only proceed from IDLE if we have transcripts
+        }
+        
+        if (currentStepInfo.stepId === StepId.COMPLETE) {
+          return true // Cannot proceed from COMPLETE
+        }
+        
         const orchestrator = new PipelineOrchestrator()
         
         const nextStep = orchestrator.getNextStep(
@@ -14927,19 +15557,22 @@ export const usePipelineStore = create<PipelineStore>()(
           }
         },
         setItem: async (name, value) => {
+          // Handle the case where value might be the state directly instead of wrapped
+          const stateData = value.state || value;
+          
           console.log('💾 [Storage] setItem - incoming value:', {
-            rawTranscriptsLength: value.state?.rawTranscripts?.length || 0,
-            processedDataType: value.state?.processedData?.constructor?.name || 'unknown',
-            processedDataSize: value.state?.processedData instanceof Map ? value.state.processedData.size : (value.state?.processedData?.length || 0)
+            rawTranscriptsLength: stateData?.rawTranscripts?.length || 0,
+            processedDataType: stateData?.processedData?.constructor?.name || 'unknown',
+            processedDataSize: stateData?.processedData instanceof Map ? stateData.processedData.size : (stateData?.processedData?.length || 0)
           })
           
           const dataToStore = {
             ...value,
             state: {
-              ...value.state,
+              ...stateData,
               // Convert Map to array for storage
-              processedData: value.state.processedData instanceof Map 
-                ? Array.from(value.state.processedData.entries()) 
+              processedData: stateData?.processedData instanceof Map 
+                ? Array.from(stateData.processedData.entries()) 
                 : []
             }
           }
@@ -15005,7 +15638,8 @@ export const usePipelineStore = create<PipelineStore>()(
           genericAnalysisState: state.genericAnalysisState,
           promptHistory: state.promptHistory,
           totalInputTokens: state.totalInputTokens,
-          totalOutputTokens: state.totalOutputTokens
+          totalOutputTokens: state.totalOutputTokens,
+          processState: state.processState
         }
       }
     }
@@ -15101,8 +15735,9 @@ export const selectMermaidChartForStep = (stepInfo: CurrentStepInfo): string | u
   const gdu = stepInfo.currentGduForP4S
   
   switch (stepInfo.stepId) {
-    case StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE:
-      return tId ? processedData.get(tId)?.p1_4_mermaid_syntax : undefined
+    // P1.4 no longer uses mermaid - it uses table display with comparison
+    // case StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE:
+    //   return tId ? processedData.get(tId)?.p1_4_mermaid_syntax : undefined
       
     case StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE:
       return tId && phase ? processedData.get(tId)?.p2s_outputs_by_phase?.[phase]?.p2s_3_mermaid_syntax : undefined
@@ -15466,13 +16101,16 @@ export const useUIStore = create<UIStore>()(
         // Starting
         set({ isAutorunning: true, processStartTime: Date.now(), elapsedTime: 0 });
       } else {
-        // Stopping/Pausing
+        // Stopping/Pausing - trigger resume checkpoint save in pipeline store
         const { processStartTime } = get();
         if (processStartTime) {
           set({ isAutorunning: false, elapsedTime: Math.floor((Date.now() - processStartTime) / 1000), processStartTime: null });
         } else {
           set({ isAutorunning: false });
         }
+        
+        // Save resume checkpoint when pausing
+        // This will be handled by the useAutorunManager effect watching isAutorunning changes
       }
     },
     
@@ -17692,6 +18330,7 @@ import {
   TranscriptProcessedData,
   P1_3_Output,
   P1_4_Output,
+  P1_5_Output,
   SelectedUtterance
 } from '../types';
 
@@ -17727,12 +18366,12 @@ export function tracePhaseToUtterances(
   phaseName: string,
   transcriptData: TranscriptProcessedData
 ): PhaseTraceData | null {
-  if (!transcriptData.p1_4_output?.specific_diachronic_structure?.phases) {
+  if (!transcriptData.p1_5_output?.specific_diachronic_structure?.phases) {
     return null;
   }
 
   // Find the phase
-  const phase = transcriptData.p1_4_output.specific_diachronic_structure.phases.find(
+  const phase = transcriptData.p1_5_output.specific_diachronic_structure.phases.find(
     p => p.phase_name === phaseName
   );
   
@@ -19544,82 +20183,6 @@ function encryptPrompt(text, key) {
 
 
 ================================================
-FILE: upath-backend/package.json
-================================================
-{
-  "name": "upath-backend",
-  "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "dev": "nodemon --exec tsx src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:run": "vitest run"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
-  "dependencies": {
-    "@fastify/cors": "^11.0.1",
-    "@google/generative-ai": "^0.24.1",
-    "dotenv": "^17.1.0",
-    "fastify": "^5.4.0"
-  },
-  "devDependencies": {
-    "@types/node": "^24.0.11",
-    "@types/supertest": "^6.0.3",
-    "@vitest/ui": "^3.2.4",
-    "jsdom": "^26.1.0",
-    "nodemon": "^3.1.10",
-    "supertest": "^7.1.3",
-    "tsx": "^4.20.3",
-    "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
-  }
-}
-
-
-
-================================================
-FILE: upath-backend/tsconfig.json
-================================================
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "commonjs",
-    "lib": ["ES2020"],
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "removeComments": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "noImplicitThis": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "allowUnusedLabels": false,
-    "allowUnreachableCode": false,
-    "exactOptionalPropertyTypes": true
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
-}
-
-
-================================================
 FILE: upath-backend/.env.example
 ================================================
 # Gemini API Configuration
@@ -19924,102 +20487,6 @@ fetch('/api/analyze', {
 .then(response => response.json())
 .then(data => console.log(data));
 `);
-}
-
-
-================================================
-FILE: .claude/settings.local.json
-================================================
-{
-  "permissions": {
-    "allow": [
-      "mcp__serena__activate_project",
-      "mcp__serena__initial_instructions",
-      "mcp__serena__check_onboarding_performed",
-      "mcp__serena__onboarding",
-      "mcp__serena__get_symbols_overview",
-      "mcp__serena__find_symbol",
-      "mcp__serena__list_dir",
-      "mcp__serena__search_for_pattern",
-      "mcp__serena__write_memory",
-      "mcp__serena__replace_regex",
-      "Bash(find:*)",
-      "Bash(grep:*)",
-      "mcp__serena__read_memory",
-      "mcp__zen__thinkdeep",
-      "mcp__zen__chat",
-      "mcp__zen__analyze",
-      "Bash(npx tsc:*)",
-      "mcp__serena__think_about_task_adherence",
-      "Bash(npm run dev:*)",
-      "mcp__serena__think_about_collected_information",
-      "mcp__serena__insert_after_symbol",
-      "mcp__serena__replace_symbol_body",
-      "mcp__serena__summarize_changes",
-      "Bash(ls:*)",
-      "Bash(git check-ignore:*)",
-      "mcp__serena__get_current_config",
-      "mcp__serena__restart_language_server",
-      "mcp__serena__find_referencing_symbols",
-      "mcp__zen__debug",
-      "Bash(npm run test:run:*)",
-      "Bash(npm run test:*)",
-      "Bash(node:*)",
-      "mcp__zen__planner",
-      "Bash(curl:*)",
-      "mcp__playwright__browser_navigate",
-      "mcp__serena__find_file",
-      "Bash(mkdir:*)",
-      "Bash(npm run build:*)",
-      "Bash(jq:*)",
-      "Bash(awk:*)",
-      "Bash(sed:*)",
-      "mcp__serena__think_about_whether_you_are_done",
-      "mcp__serena__insert_before_symbol",
-      "Bash(rg:*)",
-      "Bash(git checkout:*)",
-      "mcp__serena__list_memories",
-      "Bash(npm test:*)",
-      "Bash(npm run lint)",
-      "Bash(npm run:*)",
-      "mcp__serena__switch_modes",
-      "mcp__zen__listmodels",
-      "mcp__zen__codereview",
-      "Bash(timeout 10s npm run dev:*)",
-      "mcp__context7__resolve-library-id",
-      "mcp__context7__get-library-docs",
-      "Bash(npm install:*)",
-      "Bash(pkill:*)",
-      "mcp__ide__getDiagnostics",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "Bash(rm:*)",
-      "Bash(gemini:*)",
-      "Bash(mv:*)",
-      "Bash(kill:*)",
-      "Bash(true)",
-      "Bash(cat:*)",
-      "mcp__zen__consensus",
-      "Bash(cp:*)",
-      "Bash(gh issue create:*)",
-      "Bash(gh issue close:*)",
-      "Bash(gh issue:*)",
-      "Bash(npm init:*)",
-      "Bash(timeout 5s npm run dev)",
-      "Bash(git worktree:*)",
-      "Bash(git branch:*)",
-      "Bash(NODE_ENV=test npm run test -- P1_3_RefineDiachronicUnitsNode.test.ts)",
-      "mcp__deepwiki__read_wiki_structure",
-      "mcp__deepwiki__read_wiki_contents",
-      "mcp__deepwiki__ask_question",
-      "Bash(npx tsx:*)",
-      "Bash(GEMINI_API_KEY=test-key npm run dev)",
-      "Bash(GEMINI_API_KEY=test-key timeout 6s npm run dev)",
-      "Bash(gitingest --help)"
-    ],
-    "deny": []
-  }
 }
 
 

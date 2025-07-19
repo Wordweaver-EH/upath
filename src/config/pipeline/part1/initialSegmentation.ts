@@ -26,8 +26,25 @@ JSON output from P0.3 for transcript ID ${input.transcript_id} (showing only INC
 P0.3 Output: ${JSON.stringify(filteredInput, null, 2)}
 
 Instructions:
-1.  Focus on "Action Units": Read each selected procedural utterance. Identify "minimal action units" or "elementary acts" within them. An utterance might contain one or multiple such segments.
-2.  Temporal Cues: Look for explicit or implicit temporal markers (e.g., "then", "after that", "firstly", "suddenly", sequence of verbs) that help delineate these segments. Also consider logical sequence.
+1. Focus on "Action Units": Read each selected procedural utterance. Identify "minimal action units" or "elementary acts" within them. An utterance might contain one or multiple such segments.
+
+2. Temporal Cues: Look for explicit or implicit temporal markers that delineate these segments.
+   
+   EXPLICIT temporal markers include:
+   - Time words: "then", "after", "before", "suddenly", "meanwhile", "finally"
+   - Beginning markers: "at the start", "initially", "first"
+   - Sequence markers: "next", "subsequently", "afterwards"
+   
+   IMPLICIT temporal markers include:
+   - Sequence of distinct verbs: "I noticed... I felt... I realized..."
+   - Progression indicators: "The sensation grew stronger", "It gradually faded", "It was building"
+   - Transition markers: "My attention shifted", "The quality changed", "It transformed into"
+   - Causal language (causation implies temporal sequence):
+     * "Because of this, I..." (cause precedes effect)
+     * "This led to..." (one thing follows another)
+     * "As a result..." (consequence follows cause)
+     * "Which made me..." (causal chain shows temporal flow)
+     * "So I..." (therefore, subsequently)
 3.  Segment Creation:
     *   For each original utterance, create an array of \`segments\`.
     *   Each segment should have a unique \`segment_id\` (e.g., "utt_ORIGINAL_LINE_NUM_seg_INDEX", like "utt_5.1_seg_0", "utt_5.1_seg_1"). Ensure ORIGINAL_LINE_NUM is safe for an ID (replace '.' with '_').
@@ -48,14 +65,9 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
       },
       "segments": [
         {
-          "segment_id": "utt_5_1_seg_0", // Example: utt_ORIGLINE_seg_INDEX
-          "segment_text": "first part of the action...",
-          "temporal_cues": ["firstly", "then"]
-        },
-        {
-          "segment_id": "utt_5_1_seg_1",
-          "segment_text": "next part of the action...",
-          "temporal_cues": ["after that"]
+          "segment_id": "utt_59_seg_0",
+          "segment_text": "Just yeah, just I had a at the start. I had, like a brief images of... glue.",
+          "temporal_cues": ["at the start"]
         }
       ]
     }

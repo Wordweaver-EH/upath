@@ -1,65 +1,107 @@
-import { StepId, P1_2_Output } from '../../../../types';
+import { StepId, P1_3_Output, P1_1_Output } from '../../../../types';
 import { StepConfig } from '../types';
 
-export const P1_3_REFINE_DIACHRONIC_UNITS_CONFIG: StepConfig = {
-  id: StepId.P1_3_REFINE_DIACHRONIC_UNITS,
-  title: "P1.3: Refine Diachronic Units & Assign Temporal Phase",
+export const P1_4_REFINE_DIACHRONIC_UNITS_CONFIG: StepConfig = {
+  id: StepId.P1_4_REFINE_DIACHRONIC_UNITS,
+  title: "P1.4: Refine Diachronic Units (RDU)",
   part: "PartI_Dia",
   isJsonOutput: true,
   getInput: (currentTranscript, allProcessedData) => {
-    if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.3." };
-    const p1_2_data = allProcessedData?.get(currentTranscript.id)?.p1_2_output;
-    if (!p1_2_data) return { data: null, error: `Missing P1.2 output for transcript ${currentTranscript.id}` };
-    return { data: p1_2_data };
+    if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.4." };
+    
+    const transcriptData = allProcessedData?.get(currentTranscript.id);
+    const p1_3_data = transcriptData?.p1_3_output;
+    const p1_1_data = transcriptData?.p1_1_output;
+    
+    if (!p1_3_data) return { data: null, error: `Missing P1.3 output for transcript ${currentTranscript.id}` };
+    if (!p1_1_data) return { data: null, error: `Missing P1.1 output for transcript ${currentTranscript.id}` };
+    
+    // Group DUs by phase_type for processing
+    const dusByPhase: Record<string, any[]> = {};
+    
+    p1_3_data.phased_diachronic_units.forEach(du => {
+      if (!dusByPhase[du.phase_type]) {
+        dusByPhase[du.phase_type] = [];
+      }
+      
+      // Enrich each DU with its source segments and temporal cues
+      const enrichedDU = {
+        ...du,
+        source_segments_with_cues: du.source_segment_ids.map(segId => {
+          for (const uttData of p1_1_data.segmented_utterances) {
+            const segment = uttData.segments.find(s => s.segment_id === segId);
+            if (segment) return segment;
+          }
+          return null;
+        }).filter(Boolean)
+      };
+      
+      dusByPhase[du.phase_type].push(enrichedDU);
+    });
+    
+    return { 
+      data: {
+        transcript_id: p1_3_data.transcript_id,
+        dusByPhase,
+        independent_variable_details: p1_3_data.independent_variable_details,
+        dependent_variable_focus: p1_3_data.dependent_variable_focus
+      }
+    };
   },
-  generatePrompt: (input: P1_2_Output) => `You are a micro-phenomenological analyst. Your task is to refine the Diachronic Units (DUs) from P1.2 and assign a temporal phase to each.
+  generatePrompt: (input: any) => `You are a micro-phenomenological analyst. Your task is to refine Diachronic Units (DUs) by examining them within their phase groups to determine if any should be merged.
+
 Input:
-JSON output from P1.2 for transcript ID ${input.transcript_id}.
-P1.2 Output: ${JSON.stringify(input, null, 2)}
-User-defined Dependent Variable Focus: ${JSON.stringify(input.dependent_variable_focus)}
+Transcript ID: ${input.transcript_id}
+DUs grouped by phase: ${JSON.stringify(input.dusByPhase, null, 2)}
 
 Instructions:
-1.  Review DUs: Examine the DUs identified in P1.2.
-2.  Refine DUs:
-    *   Consider if any DUs from P1.2 should be merged or split based on a deeper understanding of the experiential flow.
-    *   The output \`refined_diachronic_units\` will be a new list. Each refined DU should have a unique \`unit_id\` (can be same as P1.2 ID if not changed, or new if merged/split).
-    *   Maintain a concise \`description\`.
-    *   The \`source_p1_2_du_ids\` field MUST list the \`unit_id\`(s) from the P1.2 DUs that form this refined DU.
-3.  Assign Temporal Phase: For each *refined* DU, assign a \`temporal_phase\` from the following FIXED list that best describes its position in the overall experiential arc:
-    *   "Beginning"
-    *   "Early-Middle"
-    *   "Core Event" (if there's a clear central moment)
-    *   "Late-Middle"
-    *   "Ending"
-    *   "Reflection" (if the DU is about looking back on the experience)
-    *   "Transition" (if the DU primarily marks a shift between other phases)
-    *   "Other" (use sparingly, if no other category fits)
-4.  Confidence: Assign a \`confidence\` score (0.0 to 1.0) for each refined DU, reflecting how clear and well-defined it seems.
-5.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from the input P1.2 MUST be copied verbatim into the output.
+1. **Process Each Phase Group:** For each phase type, examine all DUs within that phase.
+
+2. **Ground Your Analysis:** For each DU, carefully review both its synthesized description and the raw source_segments_with_cues. The original text and temporal cues are the primary source of truth.
+
+3. **Merging Decision:** Within each phase group:
+   - MERGE DUs if they describe different facets of the SAME unified moment
+   - KEEP SEPARATE if they describe distinct, sequential moments
+   - Temporal cues like 'then', 'after', or logical progression indicate sequence
+
+4. **Create RDUs:** For each phase group, create refined DUs with:
+   - Unique unit_id (e.g., "rdu_1", "rdu_2") numbered sequentially across all phases
+   - Synthesized description
+   - source_du_ids listing the original DU IDs
+   - merge_justification if multiple DUs were merged
+   - phase object with sequence_id (chronological order) and phase_type
+
+5. **Merging Guidelines:**
+   MERGE when describing:
+   - Different sensory aspects of the same instant
+   - Multiple perspectives on a single moment
+   - Redundant descriptions of the same experience
+
+   KEEP SEPARATE when describing:
+   - Clear sequential steps (indicated by 'then', 'after')
+   - Different instances of similar experiences
+   - Cause and effect relationships
 
 Output:
-A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
 {
   "transcript_id": "${input.transcript_id}",
   "refined_diachronic_units": [
     {
-      "unit_id": "rdu_1", // Can be same as P1.2 ID or new
-      "description": "Initial orienting and noticing the object (refined).",
-      "source_p1_2_du_ids": ["du_1"], // ID(s) from P1.2 DUs
-      "temporal_phase": "Beginning",
-      "confidence": 0.9
+      "unit_id": "rdu_1",
+      "description": "The participant's initial experience...",
+      "source_du_ids": ["du_1"],
+      "phase": { "sequence_id": 1, "phase_type": "Onset" }
     },
     {
-      "unit_id": "rdu_2",
-      "description": "Detailed examination and interaction.",
-      "source_p1_2_du_ids": ["du_2", "du_3"], // Example of merged DUs
-      "temporal_phase": "Core Event",
-      "confidence": 0.85
+      "unit_id": "rdu_2", 
+      "description": "Visual and emotional opening moment...",
+      "source_du_ids": ["du_2", "du_3"],
+      "merge_justification": "Merged du_2 and du_3 as they describe complementary aspects of the same moment",
+      "phase": { "sequence_id": 2, "phase_type": "Development_1" }
     }
-    // ... more refined diachronic units
   ],
   "independent_variable_details": "${input.independent_variable_details}",
   "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
 }
-`,
+`
 };

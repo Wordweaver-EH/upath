@@ -8,10 +8,8 @@ interface RduTooltipProps {
 }
 
 export const RduTooltip: React.FC<RduTooltipProps> = ({ rduName, transcriptData }) => {
-  // Find the RDU in P1.3 output - checking both unit_id and rdu_id fields
-  const rdu = transcriptData.p1_3_output?.refined_diachronic_units.find(
-    unit => unit.unit_id === rduName || unit.rdu_id === rduName
-  );
+  // Find the RDU in P1.4 output (where RDUs are defined)
+  const rdu = transcriptData.p1_4_output?.refined_diachronic_units.find(unit => unit.unit_id === rduName);
   
   if (!rdu) {
     return (
@@ -23,8 +21,8 @@ export const RduTooltip: React.FC<RduTooltipProps> = ({ rduName, transcriptData 
     );
   }
 
-  // Get the DUs from P1.2 output - using source_p1_2_du_ids (as used in phaseTracingHelper)
-  const duIds = rdu.source_p1_2_du_ids || rdu.dus_included || [];
+  // Get the DUs from P1.2 output using the correct source field
+  const duIds = rdu.source_du_ids || [];
   const dus = duIds.map(duId => {
     return transcriptData.p1_2_output?.diachronic_units.find(
       du => du.unit_id === duId || du.du_id === duId
@@ -45,32 +43,15 @@ export const RduTooltip: React.FC<RduTooltipProps> = ({ rduName, transcriptData 
           </div>
         )}
 
-        {rdu.temporal_phase && (
+        {rdu.phase?.phase_type && (
           <div>
             <span className="text-light-sidenote dark:text-dark-sidenote">Temporal Phase:</span>
             <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-              {rdu.temporal_phase}
+              {rdu.phase.phase_type}
             </span>
           </div>
         )}
 
-        {rdu.temporal_categories && (
-          <div>
-            <span className="text-light-sidenote dark:text-dark-sidenote">Temporal Categories:</span>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {Object.entries(rdu.temporal_categories).map(([category, present]) => (
-                present && (
-                  <span
-                    key={category}
-                    className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                  >
-                    {category}
-                  </span>
-                )
-              ))}
-            </div>
-          </div>
-        )}
 
         <div>
           <span className="text-light-sidenote dark:text-dark-sidenote">DUs Included:</span>

@@ -109,8 +109,9 @@ export const STEP_ORDER_PART_0 = [
 export const STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC = [
   StepId.P1_1_INITIAL_SEGMENTATION,
   StepId.P1_2_DIACHRONIC_UNIT_ID,
-  StepId.P1_3_REFINE_DIACHRONIC_UNITS,
-  StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
+  StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT,
+  StepId.P1_4_REFINE_DIACHRONIC_UNITS,
+  StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
 ]
 
 export const STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC = [
@@ -252,8 +253,9 @@ export const stepIdToDataKeyPrefix: Partial<Record<StepId, keyof GenericAnalysis
   [StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]: "p0_3_output",
   [StepId.P1_1_INITIAL_SEGMENTATION]: "p1_1_output",
   [StepId.P1_2_DIACHRONIC_UNIT_ID]: "p1_2_output",
-  [StepId.P1_3_REFINE_DIACHRONIC_UNITS]: "p1_3_output",
-  [StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "p1_4_output",
+  [StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT]: "p1_3_output",
+  [StepId.P1_4_REFINE_DIACHRONIC_UNITS]: "p1_4_output",
+  [StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "p1_5_output",
   [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "p2s_1_output",
   [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "p2s_2_output",
   [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "p2s_3_output",
@@ -295,7 +297,7 @@ export const ESSENTIAL_STEPS_FOR_AUTODOWNLOAD: StepId[] = [
   // Part 0
   StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
   // Part I
-  StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
+  StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
   // Part II_S (Note: P2S_3 output is per phase, handled in App.tsx)
   StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
   // Part III
@@ -329,22 +331,23 @@ export const STEP_DISPLAY_NAMES: Record<StepId, string> = {
   // Part 3: Temporal Analysis
   [StepId.P1_1_INITIAL_SEGMENTATION]: "5. Initial Segmentation",
   [StepId.P1_2_DIACHRONIC_UNIT_ID]: "6. Temporal Unit Identification", 
-  [StepId.P1_3_REFINE_DIACHRONIC_UNITS]: "7. Temporal Unit Refinement",
-  [StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "8. Temporal Structure",
+  [StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT]: "7. Phase Assignment",
+  [StepId.P1_4_REFINE_DIACHRONIC_UNITS]: "8. Temporal Unit Refinement",
+  [StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "9. Temporal Structure",
   
   // Part 4: Synchronic Analysis
-  [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "9. Topic Grouping",
-  [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "10. Synchronic Units",
-  [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "11. Synchronic Structure",
+  [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "10. Topic Grouping",
+  [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "11. Synchronic Units",
+  [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "12. Synchronic Structure",
   
   // Part 5: Cross-Transcript Analysis  
-  [StepId.P3_1_ALIGN_STRUCTURES]: "12. Structure Alignment",
-  [StepId.P3_2_IDENTIFY_GDUS]: "13. Generic Unit Identification",
-  [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "14. Generic Structure",
+  [StepId.P3_1_ALIGN_STRUCTURES]: "13. Structure Alignment",
+  [StepId.P3_2_IDENTIFY_GDUS]: "14. Generic Unit Identification",
+  [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "15. Generic Structure",
   
   // Part 6: Generic Synchronic Analysis
-  [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES]: "15. Node Identification", 
-  [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: "16. Generic Synchronic Groups",
+  [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES]: "16. Node Identification", 
+  [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: "17. Generic Synchronic Groups",
   
   // Part 7: Refinement
   [StepId.P5_1_IV_COMPARATIVE_ANALYSIS]: "17. Comparative Analysis",

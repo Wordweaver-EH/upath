@@ -11,6 +11,7 @@ import { SelectedUtterancesTable } from './SelectedUtterancesTable';
 import { InitialSegmentationTable } from './InitialSegmentationTable';
 import { DiachronicUnitTable } from './DiachronicUnitTable';
 import { RefinedDiachronicUnitTable } from './RefinedDiachronicUnitTable';
+import { TemporalPhaseAssignmentTable } from './TemporalPhaseAssignmentTable';
 import { EditableTextArea } from './EditableTextArea';
 import { usePipelineStore } from '../stores/pipelineStore';
 import MermaidDiagram from '../../components/MermaidDiagram';
@@ -568,7 +569,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
   }
   
   // Special handling for P1_3 with tabbed display
-  if (stepId === StepId.P1_3_REFINE_DIACHRONIC_UNITS) {
+  if (stepId === StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT) {
     return (
       <TabbedStepDisplay
         processedData={processedData}
@@ -580,19 +581,125 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
-                refinedData: transcript.p1_3_output!,
+                phaseData: transcript.p1_3_output!,
+                p1_2_output: transcript.p1_2_output,
                 filename: transcript.filename
               }
             }));
         }}
         renderContent={(tabData, theme) => {
-          const handleRefinedChange = (updatedData: any) => {
+          const handlePhaseChange = (updatedData: any) => {
             updateProcessedData(tabData.transcriptMapId, {
               p1_3_output: updatedData
             });
           };
           
           return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.phaseData.transcript_id}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Total DUs with Phase Assignment
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.phaseData.phased_diachronic_units.length}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Independent Variable
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {tabData.phaseData.independent_variable_details}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {tabData.phaseData.dependent_variable_focus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Temporal phase assignment table */}
+              <div>
+                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
+                  Temporal Phase Assignment
+                </h4>
+                <TemporalPhaseAssignmentTable 
+                  phaseData={tabData.phaseData}
+                  theme={theme}
+                  onPhaseChange={handlePhaseChange}
+                  filename={tabData.filename}
+                />
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No transcripts with P1.3 output available"
+      />
+    );
+  }
+  
+  // Special handling for P1_4 with tabbed display
+  if (stepId === StepId.P1_4_REFINE_DIACHRONIC_UNITS) {
+    console.log('[P1.4 Debug] Rendering P1.4 component, processedData size:', processedData.size);
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          return Array.from(data.entries())
+            .filter(([_, transcript]) => transcript.p1_4_output)
+            .map(([id, transcript]) => ({
+              id,
+              label: transcript.filename,
+              data: {
+                transcriptMapId: id,
+                refinedData: transcript.p1_4_output!,
+                p1_3_output: transcript.p1_3_output,
+                filename: transcript.filename
+              }
+            }));
+        }}
+        renderContent={(tabData, theme) => {
+          try {
+            console.log('[P1.4 Debug] tabData:', tabData);
+            console.log('[P1.4 Debug] refinedData structure:', {
+              hasRefinedData: !!tabData.refinedData,
+              hasTranscriptId: !!tabData.refinedData?.transcript_id,
+              hasRefinedDiachronicUnits: !!tabData.refinedData?.refined_diachronic_units,
+              refinedUnitsLength: tabData.refinedData?.refined_diachronic_units?.length || 0
+            });
+            
+            const handleRefinedChange = (updatedData: any) => {
+              updateProcessedData(tabData.transcriptMapId, {
+                p1_4_output: updatedData
+              });
+            };
+            
+            return (
             <div className="space-y-4">
               {/* Metadata section */}
               <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
@@ -613,12 +720,31 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     {tabData.refinedData.refined_diachronic_units.length}
                   </p>
                 </div>
+                
+                {/* Show phase groups if available */}
+                {tabData.refinedData.phase_groups && (
+                  <div>
+                    <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                      Phase Groups
+                    </h4>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {Object.entries(tabData.refinedData.phase_groups).map(([phase, units]) => (
+                        <span
+                          key={phase}
+                          className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                        >
+                          Phase {phase}: {(units as string[]).length} units
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               
               {/* Refined diachronic units table */}
               <div>
                 <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
-                  Refined Diachronic Units with Temporal Phases
+                  Refined Diachronic Units (RDUs)
                 </h4>
                 <RefinedDiachronicUnitTable 
                   refinedData={tabData.refinedData}
@@ -629,41 +755,48 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               </div>
             </div>
           );
+          } catch (error) {
+            console.error('[P1.4 Debug] Error rendering content:', error);
+            return (
+              <div className="text-red-600 dark:text-red-400 p-4">
+                Error rendering P1.4 content: {error instanceof Error ? error.message : String(error)}
+              </div>
+            );
+          }
         }}
         theme={theme}
-        emptyMessage="No transcripts with P1.3 output available"
+        emptyMessage="No transcripts with P1.4 output available"
       />
     );
   }
   
-  // Special handling for P1_4 with tabbed display
-  if (stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
-    console.log('[P1.4 Debug] Rendering P1.4 component, processedData size:', processedData.size);
+  // Special handling for P1_5 with tabbed display
+  if (stepId === StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
+    console.log('[P1.5 Debug] Rendering P1.5 component, processedData size:', processedData.size);
     return (
       <TabbedStepDisplay
         processedData={processedData}
         extractTabs={(data) => {
           const entries = Array.from(data.entries());
-          console.log('[P1.4 Debug] Total transcripts:', entries.length);
+          console.log('[P1.5 Debug] Total transcripts:', entries.length);
           const filtered = entries.filter(([_, transcript]) => {
-            console.log('[P1.4 Debug] Transcript:', transcript.filename, 'has p1_4_output:', !!transcript.p1_4_output);
-            return transcript.p1_4_output;
+            console.log('[P1.5 Debug] Transcript:', transcript.filename, 'has p1_5_output:', !!transcript.p1_5_output);
+            return transcript.p1_5_output;
           });
-          console.log('[P1.4 Debug] Filtered transcripts with P1.4 output:', filtered.length);
+          console.log('[P1.5 Debug] Filtered transcripts with P1.5 output:', filtered.length);
           return filtered.map(([id, transcript]) => ({
               id,
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
-                diachronicStructure: transcript.p1_4_output!,
-                mermaidSyntax: transcript.p1_4_mermaid_syntax || transcript.p1_4_output?.mermaid_syntax_specific_diachronic,
+                diachronicStructure: transcript.p1_5_output!,
                 filename: transcript.filename
               }
             }));
         }}
         renderContent={(tabData, theme) => {
-          const { diachronicStructure, mermaidSyntax, filename } = tabData;
-          console.log('[P1.4 Debug] Rendering content for:', filename, 'mermaidSyntax:', mermaidSyntax);
+          const { diachronicStructure, filename } = tabData;
+          console.log('[P1.5 Debug] Rendering content for:', filename);
           
           // Prepare phases data for CSV export
           const phasesData = diachronicStructure.specific_diachronic_structure.phases.map((phase: any, index: number) => ({
@@ -682,7 +815,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
             ];
             const csvContent = convertToCSV(phasesData, columns);
             const timestamp = new Date().toISOString().split('T')[0];
-            downloadCSV(csvContent, `${filename}_P1.4_phases_${timestamp}.csv`);
+            downloadCSV(csvContent, `${filename}_P1.5_phases_${timestamp}.csv`);
           };
           
           return (
@@ -715,6 +848,20 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     <p className="text-light-text dark:text-dark-text text-sm">
                       {diachronicStructure.specific_diachronic_structure.iv_preliminary_observation}
                     </p>
+                  </div>
+                )}
+                
+                {/* Validation errors if present */}
+                {diachronicStructure.validation_errors && diachronicStructure.validation_errors.length > 0 && (
+                  <div>
+                    <h4 className="font-medium text-sm text-red-600 dark:text-red-400 mb-1">
+                      Validation Errors
+                    </h4>
+                    <ul className="list-disc list-inside text-sm text-red-600 dark:text-red-400">
+                      {diachronicStructure.validation_errors.map((error: string, idx: number) => (
+                        <li key={idx}>{error}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
               </div>
@@ -807,7 +954,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
           );
         }}
         theme={theme}
-        emptyMessage="No transcripts with P1.4 output available"
+        emptyMessage="No transcripts with P1.5 output available"
       />
     );
   }

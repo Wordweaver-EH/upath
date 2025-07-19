@@ -144,12 +144,13 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             {SaveIcon} <span>Export State to File</span>
           </Button>
           <div>
-            <label htmlFor="loadStateFile">
-              <Button as="span" variant="secondary" className="w-full cursor-pointer">
-                {LoadIcon} <span>Load State</span>
-              </Button>
+            <label
+              htmlFor="loadStateFile"
+              className="inline-flex items-center justify-center space-x-2 font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-150 px-3 py-1.5 text-sm bg-light-btn dark:bg-dark-btn text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border border border-light-border dark:border-dark-border focus:ring-offset-light-bg-alt dark:focus:ring-offset-dark-bg-alt w-full cursor-pointer"
+            >
+              {LoadIcon} <span>Load State</span>
             </label>
-            <input id="loadStateFile" type="file" accept=".json" onChange={loadStateFromFile} className="hidden" ref={loadStateInputRef} />
+            <input id="loadStateFile" type="file" accept=".json" onChange={(e) => { loadStateFromFile(e); e.target.value = ''; }} className="hidden" ref={loadStateInputRef} />
           </div>
       </div>
        <div

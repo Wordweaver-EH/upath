@@ -14,7 +14,8 @@ import {
   SavedState,
   P2SPhaseData,
   CurrentStepInfo,
-  HilContext
+  HilContext,
+  P1_5_Output
 } from '../../types'
 import { ProcessState } from '../config/pipelineDefinition'
 import { 
@@ -385,6 +386,18 @@ export const usePipelineStore = create<PipelineStore>()(
         
         console.log(`✅ Step config found for: ${stepId}`);
         
+        // Add special debug logging for P1.5
+        if (stepId === StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
+          console.log('🔍 [P1.5 Debug] Starting P1.5 processing');
+          console.log('- transcriptIdToProcess:', transcriptIdToProcess);
+          console.log('- currentTranscript exists:', !!rawTranscripts.find(t => t.id === transcriptIdToProcess));
+          if (transcriptIdToProcess) {
+            const transcriptData = processedData.get(transcriptIdToProcess);
+            console.log('- P1.4 output exists:', !!transcriptData?.p1_4_output);
+            console.log('- P1.4 output:', transcriptData?.p1_4_output);
+          }
+        }
+        
         // Prepare context variables
         const currentTranscript = transcriptIdToProcess 
           ? rawTranscripts.find(t => t.id === transcriptIdToProcess) 
@@ -526,9 +539,19 @@ export const usePipelineStore = create<PipelineStore>()(
         let groundingSources: PromptHistoryEntry['groundingSources']
         let estIn: number | undefined = 0
         let estOut: number | undefined = 0
-        let promptForHistory = hilMetaPrompt || config.generatePrompt(inputData)
+        // NEW LOGIC: Check if this is a programmatic step (no generatePrompt function)
+        const isProgrammaticStep = !config.generatePrompt;
         
-        if (isReportStepForThisCall) {
+        let promptForHistory = isProgrammaticStep 
+          ? "Programmatic step execution. No LLM prompt."
+          : (hilMetaPrompt || config.generatePrompt!(inputData))
+        
+        if (isProgrammaticStep) {
+          console.log(`⚙️ [pipelineStore] Executing programmatic step: ${stepId}`);
+          output = inputData; // The 'input' is the final output for programmatic steps
+          apiError = undefined;
+          console.log('✅ Programmatic step execution successful');
+        } else if (isReportStepForThisCall) {
           console.log('📝 Generating report programmatically...');
           // Generate report programmatically
           try {
@@ -782,16 +805,18 @@ export const usePipelineStore = create<PipelineStore>()(
                 [`${key.replace('_output','_error')}` as keyof TranscriptProcessedData]: undefined
               } as any
               
-              // Special handling for P1.4
-              if (stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && output) {
+              // Special handling for P1.5
+              if (stepId === StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && output) {
+                console.log('🔍 [P1.5 Debug] Handling P1.5 successful output');
                 nD.isFullyProcessedSpecificDiachronic = true
-                nD.p1_4_mermaid_syntax = transformDiachronicToMermaid((output as P1_4_Output).specific_diachronic_structure)
-                const phases = (output as P1_4_Output)?.specific_diachronic_structure?.phases.map(p => p.phase_name) || []
+                // No mermaid generation for P1.5 - that's only for synchronic structures
+                const phases = (output as P1_5_Output)?.specific_diachronic_structure?.phases.map(p => p.phase_name) || []
                 nD.phases_for_p2s_processing = phases
                 nD.current_phase_for_p2s_processing = phases[0] || undefined
                 nD.processed_phases_for_p2s = []
                 nD.p2s_outputs_by_phase = {}
                 nD.isFullyProcessedSpecificSynchronic = phases.length === 0
+                console.log('🔍 [P1.5 Debug] Set phases for P2S processing:', phases);
               }
               
               state.processedData.set(transcriptIdToProcess, nD)

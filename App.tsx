@@ -354,8 +354,9 @@ const App: React.FC = () => {
           StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
           StepId.P1_1_INITIAL_SEGMENTATION,
           StepId.P1_2_DIACHRONIC_UNIT_ID,
-          StepId.P1_3_REFINE_DIACHRONIC_UNITS,
-          StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
+          StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT,
+          StepId.P1_4_REFINE_DIACHRONIC_UNITS,
+          StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
         ];
         
         if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {

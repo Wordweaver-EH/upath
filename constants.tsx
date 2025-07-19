@@ -6,7 +6,13 @@ import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calcu
 import { ReportData } from './src/utils/reportHelper'; // Ensure this matches the actual path if different
 import { P_NEG1_1_VARIABLE_IDENTIFICATION_CONFIG } from './src/config/pipeline/partNeg1';
 import { P0_1_TRANSCRIPTION_ADHERENCE_CONFIG, P0_2_REFINE_DATA_TYPES_CONFIG, P0_3_SELECT_PROCEDURAL_UTTERANCES_CONFIG } from './src/config/pipeline/part0';
-import { P1_1_INITIAL_SEGMENTATION_CONFIG, P1_2_DIACHRONIC_UNIT_ID_CONFIG, P1_3_REFINE_DIACHRONIC_UNITS_CONFIG, P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG } from './src/config/pipeline/part1';
+import { 
+  P1_1_INITIAL_SEGMENTATION_CONFIG, 
+  P1_2_DIACHRONIC_UNIT_ID_CONFIG, 
+  P1_3_TEMPORAL_PHASE_ASSIGNMENT_CONFIG,
+  P1_4_REFINE_DIACHRONIC_UNITS_CONFIG, 
+  P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG 
+} from './src/config/pipeline/part1';
 
 export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash';
 
@@ -767,8 +773,9 @@ export const STEP_CONFIGS: ConfigMap = {
   [StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]: P0_3_SELECT_PROCEDURAL_UTTERANCES_CONFIG,
   [StepId.P1_1_INITIAL_SEGMENTATION]: P1_1_INITIAL_SEGMENTATION_CONFIG,
   [StepId.P1_2_DIACHRONIC_UNIT_ID]: P1_2_DIACHRONIC_UNIT_ID_CONFIG,
-  [StepId.P1_3_REFINE_DIACHRONIC_UNITS]: P1_3_REFINE_DIACHRONIC_UNITS_CONFIG,
-  [StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG,
+  [StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT]: P1_3_TEMPORAL_PHASE_ASSIGNMENT_CONFIG,
+  [StepId.P1_4_REFINE_DIACHRONIC_UNITS]: P1_4_REFINE_DIACHRONIC_UNITS_CONFIG,
+  [StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG,
   [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: {
     id: StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC,
     title: "P2S.1: Group Utterances by Topic within a Diachronic Phase",
@@ -777,18 +784,18 @@ export const STEP_CONFIGS: ConfigMap = {
     getInput: (currentTranscript, allProcessedData, _genericState, _apiKeyPresent, _userDvFocus, _allRawTranscripts, currentPhaseName) => {
         if (!currentTranscript?.id || !currentPhaseName) return { data: null, error: "Missing current transcript ID or phase name for P2S.1." };
         const p0_3_data = allProcessedData?.get(currentTranscript.id)?.p0_3_output;
-        const p1_4_data = allProcessedData?.get(currentTranscript.id)?.p1_4_output;
-        if (!p0_3_data || !p1_4_data) return { data: null, error: `Missing P0.3 or P1.4 output for transcript ${currentTranscript.id}` };
+        const p1_5_data = allProcessedData?.get(currentTranscript.id)?.p1_5_output;
+        if (!p0_3_data || !p1_5_data) return { data: null, error: `Missing P0.3 or P1.5 output for transcript ${currentTranscript.id}` };
         
-        const phaseObject = p1_4_data.specific_diachronic_structure.phases.find(p => p.phase_name === currentPhaseName);
-        if (!phaseObject) return { data: null, error: `Phase ${currentPhaseName} not found in P1.4 output for transcript ${currentTranscript.id}` };
+        const phaseObject = p1_5_data.specific_diachronic_structure.phases.find(p => p.phase_name === currentPhaseName);
+        if (!phaseObject) return { data: null, error: `Phase ${currentPhaseName} not found in P1.5 output for transcript ${currentTranscript.id}` };
         
         const rduIdsInPhase = phaseObject.units_involved;
         const p1_2_du_ids = new Set<string>();
-        const p1_3_data = allProcessedData?.get(currentTranscript.id)?.p1_3_output;
+        const p1_4_data = allProcessedData?.get(currentTranscript.id)?.p1_4_output;
         rduIdsInPhase.forEach(rduId => {
-            const rdu = p1_3_data?.refined_diachronic_units.find(u => u.unit_id === rduId);
-            rdu?.source_p1_2_du_ids.forEach(id => p1_2_du_ids.add(id));
+            const rdu = p1_4_data?.refined_diachronic_units.find(u => u.unit_id === rduId);
+            rdu?.source_du_ids.forEach(id => p1_2_du_ids.add(id));
         });
 
         const segment_ids_in_phase = new Set<string>();

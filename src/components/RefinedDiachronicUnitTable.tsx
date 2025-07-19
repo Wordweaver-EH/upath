@@ -3,16 +3,15 @@ import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_3_Output, RefinedDiachronicUnitP1_3 } from '../../types';
-import { TemporalPhaseEditor } from './TemporalPhaseEditor';
+import { P1_4_Output, RefinedDiachronicUnitP1_4 } from '../../types';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface RefinedDiachronicUnitTableProps {
-  refinedData: P1_3_Output;
+  refinedData: P1_4_Output;
   theme: 'light' | 'dark';
-  onRefinedChange?: (updatedData: P1_3_Output) => void;
+  onRefinedChange?: (updatedData: P1_4_Output) => void;
   filename?: string;
 }
 
@@ -103,6 +102,13 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
   onRefinedChange,
   filename
 }) => {
+  console.log('[RefinedDiachronicUnitTable] Props:', { refinedData, theme, filename });
+  
+  // Log the structure of the first unit if available
+  if (refinedData?.refined_diachronic_units?.[0]) {
+    console.log('[RefinedDiachronicUnitTable] First unit structure:', refinedData.refined_diachronic_units[0]);
+  }
+  
   // Defensive check for data validity
   if (!refinedData || !refinedData.refined_diachronic_units) {
     return (
@@ -136,7 +142,7 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
         }
       },
       {
-        field: 'source_p1_2_du_ids',
+        field: 'source_du_ids',
         headerName: 'Source DU IDs',
         width: 200,
         wrapText: true,
@@ -148,36 +154,37 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
         }
       },
       {
-        field: 'temporal_phase',
-        headerName: 'Temporal Phase',
-        width: 180,
-        editable: true,
-        cellRenderer: TemporalPhaseRenderer,
-        cellEditor: TemporalPhaseEditor
+        field: 'phase.sequence_id',
+        headerName: 'Phase #',
+        width: 80,
+        valueGetter: (params) => params.data?.phase?.sequence_id || 0
       },
       {
-        field: 'confidence',
-        headerName: 'Confidence',
+        field: 'phase.phase_type',
+        headerName: 'Phase Type',
         width: 150,
-        editable: true,
-        cellRenderer: ConfidenceRenderer,
-        cellEditor: 'agNumberCellEditor',
-        cellEditorParams: {
-          min: 0,
-          max: 1,
-          precision: 2
-        },
-        valueParser: (params) => {
-          const val = Number(params.newValue);
-          if (isNaN(val)) return params.oldValue;
-          return Math.min(1, Math.max(0, val));
+        cellRenderer: (params) => {
+          const phaseType = params.data?.phase?.phase_type || 'Unknown';
+          return <TemporalPhaseRenderer {...params} value={phaseType} />;
         }
+      },
+      {
+        field: 'merge_justification',
+        headerName: 'Merge Justification',
+        flex: 1,
+        wrapText: true,
+        autoHeight: true,
+        valueFormatter: (params) => params.value || 'N/A',
+        cellStyle: { fontStyle: 'italic' }
       }
     ];
 
     const rows = refinedData.refined_diachronic_units.map(unit => ({
       ...unit
     }));
+    
+    console.log('[RefinedDiachronicUnitTable] Generated rows:', rows);
+    console.log('[RefinedDiachronicUnitTable] Column definitions:', cols);
 
     return { rowData: rows, columnDefs: cols };
   }, [refinedData]);
@@ -202,9 +209,10 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
     const csvData = refinedData.refined_diachronic_units.map(unit => ({
       'Unit ID': unit.unit_id,
       'Description': unit.description,
-      'Source P1.2 DU IDs': unit.source_p1_2_du_ids.join('; '),
-      'Temporal Phase': unit.temporal_phase,
-      'Confidence': unit.confidence
+      'Source DU IDs': unit.source_du_ids.join('; '),
+      'Phase #': unit.phase.sequence_id,
+      'Phase Type': unit.phase.phase_type,
+      'Merge Justification': unit.merge_justification || 'N/A'
     }));
 
     const columns = [
