@@ -130,12 +130,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       <div className="flex items-center"> <input id="autoDownload" type="checkbox" checked={autoDownloadResults} onChange={(e) => updateSettings({ autoDownloadResults: e.target.checked })} className="h-4 w-4 rounded border-light-border dark:border-dark-border text-light-accent dark:text-dark-accent focus:ring-light-accent dark:focus:ring-dark-accent bg-light-input-bg dark:bg-dark-input-bg" /> <label htmlFor="autoDownload" className="ml-2 block text-sm text-light-text dark:text-dark-text">Autodownload essential results</label> </div>
       <div className="grid grid-cols-2 gap-2">
           <Button
-            onClick={() => saveStateToFile(activeTranscriptIndex, currentStepInfo, {
-              apiKey: apiKeyPresent ? 'present' : '',
-              temperature,
-              seed,
-              userDvFocus
-            })}
+            onClick={saveStateToFile}
             disabled={rawTranscripts.length === 0 && currentStepInfo.stepId === StepId.IDLE}
             variant="secondary"
             className="w-full"
