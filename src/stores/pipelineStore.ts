@@ -131,6 +131,7 @@ interface PipelineActions {
     processedData: Map<string, TranscriptProcessedData>
   ) => void
   invalidateStateFromStep: (stepId: StepId, transcriptId?: string) => void
+  invalidateFromPart: (partName: string) => void
   getInvalidatedStates: (
     startInvalidationFromStepId: StepId,
     currentActiveTxId: string | undefined,
@@ -1263,6 +1264,102 @@ export const usePipelineStore = create<PipelineStore>()(
           state.processedData = invalidatedProcessedData
           state.genericAnalysisState = invalidatedGenericState
         })
+      },
+      
+      invalidateFromPart: (partName: string) => {
+        const { processedData, genericAnalysisState, rawTranscripts } = get()
+        
+        // Find the first step of the specified part
+        let firstStepOfPart: StepId | undefined
+        
+        switch (partName) {
+          case 'Part -1':
+          case 'Part -1: Variable ID':
+          case 'Part -1: Variable Identification':
+            firstStepOfPart = STEP_ORDER_PART_NEG1[0]
+            break
+          case 'Part 0':
+          case 'Part 0: Data Prep':
+          case 'Part 0: Data Preparation':
+            firstStepOfPart = STEP_ORDER_PART_0[0]
+            break
+          case 'Part 1':
+          case 'Part I':
+          case 'Part I: Specific Diachronic':
+          case 'Part I: Specific Diachronic Analysis':
+            firstStepOfPart = STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0]
+            break
+          case 'Part 2':
+          case 'Part II':
+          case 'Part II: Specific Synchronic':
+          case 'Part II: Specific Synchronic Analysis':
+            firstStepOfPart = STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0]
+            break
+          case 'Part 3':
+          case 'Part III':
+          case 'Part III: Generic Diachronic':
+          case 'Part III: Generic Diachronic Analysis':
+            firstStepOfPart = STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0]
+            break
+          case 'Part 4':
+          case 'Part IV':
+          case 'Part IV: Generic Synchronic':
+          case 'Part IV: Generic Synchronic Analysis':
+            firstStepOfPart = STEP_ORDER_PART_4_GENERIC_SYNCHRONIC[0]
+            break
+          case 'Part 5':
+          case 'Part V':
+          case 'Part V: Refinement':
+            firstStepOfPart = STEP_ORDER_PART_5_REFINEMENT[0]
+            break
+          case 'Part 6':
+          case 'Part VI':
+          case 'Part VI: Report':
+          case 'Part VI: Report Generation':
+            firstStepOfPart = STEP_ORDER_PART_6_REPORT[0]
+            break
+          case 'Part 7':
+          case 'Part VII':
+          case 'Part VII: Causal Modeling':
+            firstStepOfPart = STEP_ORDER_PART_7_CAUSAL_MODELING[0]
+            break
+        }
+        
+        if (!firstStepOfPart) {
+          console.error(`Invalid part name: ${partName}`)
+          return
+        }
+        
+        // For per-transcript parts, we need to invalidate all transcripts
+        let newProcessedData = new Map(processedData)
+        let newGenericState = { ...genericAnalysisState }
+        
+        // Invalidate for all transcripts
+        for (const transcript of rawTranscripts) {
+          const { invalidatedProcessedData, invalidatedGenericState } = get().getInvalidatedStates(
+            firstStepOfPart,
+            transcript.id,
+            newProcessedData,
+            newGenericState
+          )
+          newProcessedData = invalidatedProcessedData
+          newGenericState = invalidatedGenericState
+        }
+        
+        // Also invalidate without a specific transcript to catch global steps
+        const { invalidatedProcessedData: finalProcessedData, invalidatedGenericState: finalGenericState } = get().getInvalidatedStates(
+          firstStepOfPart,
+          undefined,
+          newProcessedData,
+          newGenericState
+        )
+        
+        set((state) => {
+          state.processedData = finalProcessedData
+          state.genericAnalysisState = finalGenericState
+        })
+        
+        console.log(`Invalidated all steps from ${partName} (${firstStepOfPart}) onward`)
       },
       
       resetPipeline: () => {
