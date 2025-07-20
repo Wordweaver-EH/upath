@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { persist, subscribeWithSelector } from 'zustand/middleware'
-import { queuedLocalForageStorage } from '../utils/storage'
+import { queuedLocalForageStorage, localForageStorage } from '../utils/storage'
 import { performDataMigration } from '../utils/migration'
 import { useUIStore } from './uiStore'
 import { 

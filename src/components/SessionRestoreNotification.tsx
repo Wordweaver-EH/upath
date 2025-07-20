@@ -1,6 +1,7 @@
 import React from 'react'
 import { useUIStore } from '../stores/uiStore'
 import { usePipelineStore } from '../stores/pipelineStore'
+import { useSettingsStore } from '../stores/settingsStore'
 
 export const SessionRestoreNotification: React.FC = () => {
   const sessionWasRestored = useUIStore(state => state.sessionWasRestored)
@@ -8,12 +9,16 @@ export const SessionRestoreNotification: React.FC = () => {
   const clearAutosaveData = usePipelineStore(state => state.clearAutosaveData)
   const resetPipeline = usePipelineStore(state => state.resetPipeline)
   const resetUIState = useUIStore(state => state.resetUIState)
+  const clearSettings = useSettingsStore(state => state.clearSettings)
   
   if (!sessionWasRestored) return null
   
   const handleStartNewSession = async () => {
     // Clear autosaved data
     await clearAutosaveData()
+    
+    // Clear settings data
+    await clearSettings()
     
     // Reset both stores
     resetPipeline()

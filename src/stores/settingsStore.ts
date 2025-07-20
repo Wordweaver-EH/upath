@@ -46,6 +46,7 @@ interface SettingsActions {
   setTemperature: (temp: number) => void
   setOutputDirectory: (dir: string) => void
   setDebugMode: (enabled: boolean) => void
+  clearSettings: () => Promise<void>
 }
 
 type SettingsStore = SettingsState & SettingsActions
@@ -129,6 +130,31 @@ export const useSettingsStore = create<SettingsStore>()(
       
       setDebugMode: (enabled: boolean) => {
         set({ debugMode: enabled })
+      },
+      
+      clearSettings: async () => {
+        // Reset to default values
+        const initialDvFocusArray = parseDvFocusString(DEFAULT_DV_FOCUS_INPUT)
+        set({
+          userDvFocus: { dv_focus: initialDvFocusArray },
+          dvFocusInput: DEFAULT_DV_FOCUS_INPUT,
+          dvFocusError: '',
+          temperature: 0.0,
+          seedInput: '42',
+          seed: 42,
+          retrySeedInput: '',
+          outputDirectory: 'MicroPheno_Analysis_Outputs',
+          autoDownloadResults: false,
+          debugMode: false
+        })
+        
+        // Clear persisted storage
+        try {
+          const storage = window.localStorage
+          storage.removeItem('upath-settings')
+        } catch (error) {
+          console.error('Failed to clear settings storage:', error)
+        }
       }
       }
     },
