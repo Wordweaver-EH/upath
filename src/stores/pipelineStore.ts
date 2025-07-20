@@ -78,6 +78,7 @@ interface GenericAnalysisSlice {
   lastError?: string
   lastHilContext?: HilContext
   shouldStopAutorun?: boolean
+  autorunResumePosition?: StepId // Track where autorun should resume from
 }
 
 interface DependencyInjectionSlice {
@@ -163,6 +164,7 @@ interface PipelineActions {
   // State cleanup actions
   clearShouldStopAutorunFlag: () => void
   clearLastHilContext: () => void
+  clearAutorunResumePosition: () => void
 }
 
 
@@ -352,6 +354,9 @@ export const usePipelineStore = create<PipelineStore>()(
       processSingleStep: async (params) => {
         const { stepId, transcriptIdToProcess, overrideSeed, hilMetaPrompt, settings } = params
         const { rawTranscripts, processedData, genericAnalysisState } = get()
+
+        // Clear autorun resume position when we start processing a step
+        get().clearAutorunResumePosition();
 
         console.groupCollapsed(`🚀 [pipelineStore] processSingleStep: ${stepId}`);
         console.log(`- Transcript ID: ${transcriptIdToProcess || 'N/A (Global Step)'}`);
@@ -1357,6 +1362,8 @@ export const usePipelineStore = create<PipelineStore>()(
         set((state) => {
           state.processedData = finalProcessedData
           state.genericAnalysisState = finalGenericState
+          // Set the autorun resume position to the first step of the invalidated part
+          state.autorunResumePosition = firstStepOfPart
         })
         
         console.log(`Invalidated all steps from ${partName} (${firstStepOfPart}) onward`)
@@ -1920,6 +1927,12 @@ export const usePipelineStore = create<PipelineStore>()(
       clearLastHilContext: () => {
         set((state) => {
           state.lastHilContext = undefined
+        })
+      },
+      
+      clearAutorunResumePosition: () => {
+        set((state) => {
+          state.autorunResumePosition = undefined
         })
       }
     })),

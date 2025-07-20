@@ -34,6 +34,7 @@ export const useAutorunManager = () => {
   const processSingleStep = usePipelineStore(state => state.processSingleStep)
   const downloadOutput = usePipelineStore(state => state.downloadOutput)
   const isGlobalStep = usePipelineStore(state => state.isGlobalStep)
+  const autorunResumePosition = usePipelineStore(state => state.autorunResumePosition)
 
   // Settings Store state
   const autoDownloadResults = useSettingsStore(state => state.autoDownloadResults)
@@ -155,6 +156,25 @@ export const useAutorunManager = () => {
       setAutorunning(false);
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Idle && rawTranscripts.length > 0) {
       console.log(`🚀 Autorun starting from Idle - checking for resume point`);
+      
+      // First check if we have an explicit autorun resume position from clearing a part
+      if (autorunResumePosition) {
+        console.log(`📍 Found autorun resume position from part clear: ${autorunResumePosition}`);
+        const isResumeGlobal = isGlobalStep(autorunResumePosition) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(autorunResumePosition);
+        const resumeTxId = isResumeGlobal ? undefined : rawTranscripts[activeTranscriptIndex]?.id;
+        
+        processSingleStep({ 
+          stepId: autorunResumePosition, 
+          transcriptIdToProcess: resumeTxId,
+          settings: {
+            apiKey,
+            temperature,
+            seed,
+            userDvFocus
+          }
+        });
+        return; // Exit early after processing the resume position
+      }
       
       // Check if we should resume from a previous point by getting next step details
       // This handles the case where the pipeline was paused and we're resuming
