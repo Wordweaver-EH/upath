@@ -1,9 +1,8 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { persist, subscribeWithSelector } from 'zustand/middleware'
-import { localForageStorage } from '../utils/storage'
+import { queuedLocalForageStorage } from '../utils/storage'
 import { performDataMigration } from '../utils/migration'
-import { useSettingsStore } from './settingsStore'
 import { useUIStore } from './uiStore'
 import { 
   RawTranscript, 
@@ -47,7 +46,6 @@ import {
 } from '../utils/visualizationHelper'
 import { downloadFile, generateTsvForPromptHistory } from '../utils/tsvHelper'
 import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from '../utils/htmlHelper'
-import packageJson from '../../package.json'
 import { PipelineOrchestrator } from '../services/PipelineOrchestrator'
 
 // Dependency injection interfaces for breaking circular dependencies
@@ -91,6 +89,7 @@ interface ProcessSlice {
   updateProcessState: (updates: Partial<ProcessState>) => void
   setProcessState: (state: ProcessState) => void
 }
+
 
 interface PromptSlice {
   promptHistory: PromptHistoryEntry[]
@@ -335,6 +334,7 @@ const createProcessSlice = (set: any, get: any): ProcessSlice => ({
     })
   }
 })
+
 
 // Main store
 export const usePipelineStore = create<PipelineStore>()(
@@ -1316,29 +1316,23 @@ export const usePipelineStore = create<PipelineStore>()(
         // Note: currentStepInfo is not restored from saved state
       },
       
-      getSaveState: (): SavedState => {
+      getSaveState: (activeTranscriptIndex: number, currentStepInfo: CurrentStepInfo, settingsData: { userDvFocus: string, temperature: number, seed: number }): SavedState => {
         const state = get()
-        const uiState = useUIStore.getState()
-        const settingsState = useSettingsStore.getState()
         
         return {
-          version: packageJson.version,
+          version: '1.0',
           savedAt: new Date().toISOString(),
           rawTranscripts: state.rawTranscripts,
           processedDataArray: Array.from(state.processedData.entries()),
           genericAnalysisState: state.genericAnalysisState,
           promptHistory: state.promptHistory,
-          currentStepInfo: uiState.currentStepInfo,
-          activeTranscriptIndex: uiState.activeTranscriptIndex,
-          userDvFocus: settingsState.userDvFocus,
-          dvFocusInput: settingsState.dvFocusInput,
-          temperature: settingsState.temperature,
-          seedInput: settingsState.seedInput,
-          outputDirectory: settingsState.outputDirectory,
-          autoDownloadResults: settingsState.autoDownloadResults,
+          activeTranscriptIndex: activeTranscriptIndex,
           totalInputTokens: state.totalInputTokens,
           totalOutputTokens: state.totalOutputTokens,
-          elapsedTime: uiState.elapsedTime
+          userDvFocus: settingsData.userDvFocus,
+          temperature: settingsData.temperature,
+          seed: settingsData.seed,
+          currentStepInfo: currentStepInfo
         }
       },
 
@@ -1502,12 +1496,23 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       // New actions for SettingsPanel integration
-      saveStateToFile: () => {
-        const savedState = get().getSaveState()
-        const settingsState = useSettingsStore.getState()
+      saveStateToFile: (activeTranscriptIndex: number, currentStepInfo: CurrentStepInfo, settings: SettingsData) => {
+        // Call getSaveState with required parameters
+        const savedState = get().getSaveState(
+          activeTranscriptIndex,
+          currentStepInfo,
+          {
+            userDvFocus: settings.userDvFocus,
+            temperature: settings.temperature,
+            seed: settings.seed
+          }
+        )
+        
+        // Use output directory from passed settings  
+        const outputDirectory = 'upath_outputs' // Default fallback
         
         const content = JSON.stringify(savedState, null, 2)
-        const filename = `${settingsState.outputDirectory}/upath_state_${new Date().toISOString().replace(/:/g, '-')}.json`
+        const filename = `${outputDirectory}/upath_state_${new Date().toISOString().slice(0,10)}.json`
         downloadFile(content, filename, 'application/json')
       },
 
@@ -1520,48 +1525,10 @@ export const usePipelineStore = create<PipelineStore>()(
           try {
             const content = e.target?.result as string
             const savedState = JSON.parse(content) as SavedState
-            
-            // 1. Restore pipeline data
             get().loadState(savedState)
             
-            // 2. Restore UI state
-            const uiStore = useUIStore.getState()
-            if (savedState.currentStepInfo) {
-              uiStore.setCurrentStepInfo(savedState.currentStepInfo)
-            }
-            if (savedState.activeTranscriptIndex !== undefined) {
-              uiStore.setActiveTranscript(savedState.activeTranscriptIndex)
-            }
-            if (savedState.elapsedTime) {
-              useUIStore.setState({ elapsedTime: savedState.elapsedTime, processStartTime: null })
-            }
-            
-            // 3. Restore settings state
-            const settingsStore = useSettingsStore.getState()
-            
-            // Handle older saved states that might not have all fields
-            const settingsUpdate: any = {}
-            if (savedState.userDvFocus !== undefined) settingsUpdate.userDvFocus = savedState.userDvFocus
-            if (savedState.dvFocusInput !== undefined) settingsUpdate.dvFocusInput = savedState.dvFocusInput
-            if (savedState.temperature !== undefined) settingsUpdate.temperature = savedState.temperature
-            if (savedState.seedInput !== undefined) settingsUpdate.seedInput = savedState.seedInput
-            if (savedState.outputDirectory !== undefined) settingsUpdate.outputDirectory = savedState.outputDirectory
-            if (savedState.autoDownloadResults !== undefined) settingsUpdate.autoDownloadResults = savedState.autoDownloadResults
-            
-            settingsStore.updateSettings(settingsUpdate)
-            
-            // Re-validate derived state in settings store if the values exist
-            if (savedState.dvFocusInput) {
-              settingsStore.validateAndSetDvFocus(savedState.dvFocusInput)
-            }
-            if (savedState.seedInput) {
-              settingsStore.validateAndSetSeed(savedState.seedInput)
-            }
-            
             // Reset file input
-            if (event.target) {
-              event.target.value = ''
-            }
+            event.target.value = ''
             
             alert('State loaded successfully!')
           } catch (error) {
@@ -1863,7 +1830,7 @@ export const usePipelineStore = create<PipelineStore>()(
       name: 'upath-autosave-session-v2-localforage',
       storage: {
         getItem: async (name) => {
-          const str = await localForageStorage.getItem(name)
+          const str = await queuedLocalForageStorage.getItem(name)
           if (!str) return null
           
           try {
@@ -1883,11 +1850,6 @@ export const usePipelineStore = create<PipelineStore>()(
               }
             }
             
-            console.log('🔍 [Storage] Returning deserialized data:', {
-              rawTranscriptsLength: result.state?.rawTranscripts?.length || 0,
-              processedDataSize: result.state?.processedData?.size || 0
-            })
-            
             return result
           } catch (e) {
             console.error('Failed to parse stored data:', e)
@@ -1897,12 +1859,6 @@ export const usePipelineStore = create<PipelineStore>()(
         setItem: async (name, value) => {
           // Handle the case where value might be the state directly instead of wrapped
           const stateData = value.state || value;
-          
-          console.log('💾 [Storage] setItem - incoming value:', {
-            rawTranscriptsLength: stateData?.rawTranscripts?.length || 0,
-            processedDataType: stateData?.processedData?.constructor?.name || 'unknown',
-            processedDataSize: stateData?.processedData instanceof Map ? stateData.processedData.size : (stateData?.processedData?.length || 0)
-          })
           
           const dataToStore = {
             ...value,
@@ -1915,14 +1871,9 @@ export const usePipelineStore = create<PipelineStore>()(
             }
           }
           
-          console.log('💾 [Storage] setItem - final data:', {
-            rawTranscriptsLength: dataToStore.state?.rawTranscripts?.length || 0,
-            processedDataLength: dataToStore.state?.processedData?.length || 0
-          })
-          
-          await localForageStorage.setItem(name, JSON.stringify(dataToStore))
+          await queuedLocalForageStorage.setItem(name, JSON.stringify(dataToStore))
         },
-        removeItem: async (name) => await localForageStorage.removeItem(name)
+        removeItem: async (name) => await queuedLocalForageStorage.removeItem(name)
       },
       onRehydrateStorage: () => (state, error) => {
         console.log('🔄 [Rehydration] onRehydrateStorage callback called')
