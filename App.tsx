@@ -162,7 +162,8 @@ const App: React.FC = () => {
     outputDirectory,
     temperature,
     seed,
-    apiKeyPresent
+    apiKeyPresent,
+    debugMode
   } = useSettingsStore();
   
   // IRR Store - consolidated selector
@@ -328,6 +329,26 @@ const App: React.FC = () => {
   
   const renderOutput = () => {
     console.log('[App Debug] stepDisplay:', stepDisplay, 'currentStepInfo.stepId:', currentStepInfo.stepId);
+    
+    // Debug mode - show raw JSON for all outputs
+    if (debugMode) {
+      const debugData = {
+        stepId: currentStepInfo.stepId,
+        stepDisplay: stepDisplay,
+        processedData: processedData.size > 0 ? Object.fromEntries(processedData) : null
+      };
+      return (
+        <div className="space-y-2">
+          <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+            🐛 Debug Mode Active - Showing Raw JSON Output
+          </div>
+          <pre className="text-xs whitespace-pre-wrap break-all overflow-x-auto">
+            {JSON.stringify(debugData, null, 2)}
+          </pre>
+        </div>
+      );
+    }
+    
     switch (stepDisplay.type) {
       case 'loading':
         return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote animate-pulse">{stepDisplay.message}</div>;

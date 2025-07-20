@@ -28,6 +28,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const autoDownloadResults = useSettingsStore(state => state.autoDownloadResults)
   const userDvFocus = useSettingsStore(state => state.userDvFocus)
   const seed = useSettingsStore(state => state.seed)
+  const debugMode = useSettingsStore(state => state.debugMode)
   
   const validateAndSetDvFocus = useSettingsStore(state => state.validateAndSetDvFocus)
   const validateAndSetSeed = useSettingsStore(state => state.validateAndSetSeed)
@@ -35,6 +36,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const setOutputDirectory = useSettingsStore(state => state.setOutputDirectory)
   const updateSettings = useSettingsStore(state => state.updateSettings)
   const checkApiKey = useSettingsStore(state => state.checkApiKey)
+  const setDebugMode = useSettingsStore(state => state.setDebugMode)
 
   // UI store - state and actions
   const currentStepInfo = useUIStore(state => state.currentStepInfo)
@@ -128,6 +130,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         />
       </div>
       <div className="flex items-center"> <input id="autoDownload" type="checkbox" checked={autoDownloadResults} onChange={(e) => updateSettings({ autoDownloadResults: e.target.checked })} className="h-4 w-4 rounded border-light-border dark:border-dark-border text-light-accent dark:text-dark-accent focus:ring-light-accent dark:focus:ring-dark-accent bg-light-input-bg dark:bg-dark-input-bg" /> <label htmlFor="autoDownload" className="ml-2 block text-sm text-light-text dark:text-dark-text">Autodownload essential results</label> </div>
+      <div className="flex items-center"> <input id="debugMode" type="checkbox" checked={debugMode} onChange={(e) => setDebugMode(e.target.checked)} className="h-4 w-4 rounded border-light-border dark:border-dark-border text-light-accent dark:text-dark-accent focus:ring-light-accent dark:focus:ring-dark-accent bg-light-input-bg dark:bg-dark-input-bg" /> <label htmlFor="debugMode" className="ml-2 block text-sm text-light-text dark:text-dark-text">Debug Mode (show raw JSON)</label> </div>
       <div className="grid grid-cols-2 gap-2">
           <Button
             onClick={() => saveStateToFile(activeTranscriptIndex, currentStepInfo, {

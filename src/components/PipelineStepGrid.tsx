@@ -14,6 +14,7 @@ import { RefinedDiachronicUnitTable } from './RefinedDiachronicUnitTable';
 import { TemporalPhaseAssignmentTable } from './TemporalPhaseAssignmentTable';
 import { EditableTextArea } from './EditableTextArea';
 import { usePipelineStore } from '../stores/pipelineStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import MermaidDiagram from '../../components/MermaidDiagram';
 import { DiachronicComparisonTable } from './DiachronicComparisonTable';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
@@ -138,6 +139,25 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
 }) => {
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const updateProcessedData = usePipelineStore(state => state.updateProcessedData);
+  const debugMode = useSettingsStore(state => state.debugMode);
+  
+  // Debug mode - show raw JSON
+  if (debugMode) {
+    const debugData = {
+      stepId: stepId,
+      processedData: processedData.size > 0 ? Object.fromEntries(processedData) : null
+    };
+    return (
+      <div className="space-y-2">
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+          🐛 Debug Mode Active - PipelineStepGrid Raw JSON
+        </div>
+        <pre className="text-xs whitespace-pre-wrap break-all overflow-x-auto">
+          {JSON.stringify(debugData, null, 2)}
+        </pre>
+      </div>
+    );
+  }
   
   // Get config and prepare grid data - must call hooks before any returns
   const config = STEP_GRID_CONFIGS[stepId];

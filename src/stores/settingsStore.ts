@@ -33,6 +33,9 @@ interface SettingsState {
   // Output
   outputDirectory: string
   autoDownloadResults: boolean
+  
+  // Debug
+  debugMode: boolean
 }
 
 interface SettingsActions {
@@ -42,6 +45,7 @@ interface SettingsActions {
   checkApiKey: () => void
   setTemperature: (temp: number) => void
   setOutputDirectory: (dir: string) => void
+  setDebugMode: (enabled: boolean) => void
 }
 
 type SettingsStore = SettingsState & SettingsActions
@@ -64,6 +68,7 @@ export const useSettingsStore = create<SettingsStore>()(
       retrySeedInput: '',
       outputDirectory: 'MicroPheno_Analysis_Outputs',
       autoDownloadResults: false,
+      debugMode: (process.env as any).REACT_APP_DEBUG_MODE === 'true',
       
       // Actions
       updateSettings: (updates) => set(updates),
@@ -120,6 +125,10 @@ export const useSettingsStore = create<SettingsStore>()(
       
       setOutputDirectory: (dir: string) => {
         set({ outputDirectory: dir })
+      },
+      
+      setDebugMode: (enabled: boolean) => {
+        set({ debugMode: enabled })
       }
       }
     },
@@ -133,7 +142,8 @@ export const useSettingsStore = create<SettingsStore>()(
         seedInput: state.seedInput,
         seed: state.seed,
         outputDirectory: state.outputDirectory,
-        autoDownloadResults: state.autoDownloadResults
+        autoDownloadResults: state.autoDownloadResults,
+        debugMode: state.debugMode
       })
     }
   )
