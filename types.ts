@@ -107,50 +107,30 @@ export interface P1_2_Output {
   dependent_variable_focus: string[];
 }
 
-// New P1.3: Temporal Phase Assignment
-export interface P1_3_Input {
-  transcript_id: string;
-  diachronic_units: Array<{
-    unit_id: string;
-    description: string;
-    source_segment_ids: string[];
-    // Enriched with source text by getInput
-    source_segments_text?: Array<{
-      segment_id: string;
-      segment_text: string;
-      temporal_cues: string[];
-    }>;
-  }>;
-  independent_variable_details: string;
-  dependent_variable_focus: string[];
+// P1.3: Intra-Phase Sorting
+export interface SortedSegment extends PhaseTaggedSegment {
+  chronological_index: number;
+  placement_justification: string;
+  original_utterance: SelectedUtterance;
 }
 
 export interface P1_3_Output {
   transcript_id: string;
-  phased_diachronic_units: Array<{
-    unit_id: string;
-    description: string;
-    source_segment_ids: string[];
-    phase_type: string;
-  }>;
+  sorted_segments: SortedSegment[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
 }
 
-// Updated P1.4: Refine Diachronic Units (was P1.3)
-export interface RefinedDiachronicUnitP1_4 {
+// P1.4: Diachronic Unit Grouping
+export interface DiachronicUnit {
   unit_id: string;
   description: string;
-  source_du_ids: string[];
-  merge_justification?: string; // NEW: Required when multiple DUs are merged
-  phase: {
-    sequence_id: number;
-    phase_type: string;
-  };
+  source_segment_ids: string[];
 }
+
 export interface P1_4_Output {
   transcript_id: string;
-  refined_diachronic_units: RefinedDiachronicUnitP1_4[];
+  diachronic_units: DiachronicUnit[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
 }
@@ -171,7 +151,7 @@ export interface SpecificDiachronicStructureType {
 export interface P1_5_Output {
   transcript_id: string;
   specific_diachronic_structure: SpecificDiachronicStructureType;
-  refined_diachronic_units: RefinedDiachronicUnitP1_4[];
+  diachronic_units: DiachronicUnit[]; // From P1_4
   independent_variable_details: string;
   dependent_variable_focus: string[];
   mermaid_syntax_specific_diachronic?: string;
@@ -700,8 +680,8 @@ export enum StepId {
   // Part I: Specific Diachronic Analysis
   P1_1_INITIAL_SEGMENTATION = "P1_1_INITIAL_SEGMENTATION",
   P1_2_COARSE_PHASE_TAGGING = "P1_2_COARSE_PHASE_TAGGING",
-  P1_3_TEMPORAL_PHASE_ASSIGNMENT = "P1_3_TEMPORAL_PHASE_ASSIGNMENT",
-  P1_4_REFINE_DIACHRONIC_UNITS = "P1_4_REFINE_DIACHRONIC_UNITS",
+  P1_3_INTRA_PHASE_SORTING = "P1_3_INTRA_PHASE_SORTING",
+  P1_4_DIACHRONIC_UNIT_GROUPING = "P1_4_DIACHRONIC_UNIT_GROUPING",
   P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE = "P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE",
 
   // Part II: Specific Synchronic Analysis

@@ -1,76 +1,82 @@
-import { StepId, P1_4_Output, P1_5_Output, RefinedDiachronicUnitP1_4, SpecificDiachronicPhase } from '../../../../types';
+import { StepId, P1_4_Output, P1_5_Output, DiachronicUnit, SpecificDiachronicPhase } from '../../../../types';
 import { StepConfig } from '../types';
 
 const MAX_DESCRIPTION_LENGTH = 500;
 
 /**
  * Programmatically constructs the Specific Diachronic Structure from P1.4 output
- * This is a deterministic aggregation function that groups RDUs by phase
+ * Since P1_4 now provides chronologically ordered DUs without phases,
+ * this step will identify natural phase transitions in the DU sequence
  */
 function programmaticallyConstructSds(p1_4_data: P1_4_Output): P1_5_Output {
-  const { refined_diachronic_units, transcript_id, independent_variable_details, dependent_variable_focus } = p1_4_data;
+  const { diachronic_units, transcript_id, independent_variable_details, dependent_variable_focus } = p1_4_data;
 
-  // 1. Group RDUs by phase
-  const phasesMap = new Map<string, RefinedDiachronicUnitP1_4[]>();
-  refined_diachronic_units.forEach(rdu => {
-    const phaseType = rdu.phase.phase_type;
-    if (!phasesMap.has(phaseType)) {
-      phasesMap.set(phaseType, []);
-    }
-    phasesMap.get(phaseType)!.push(rdu);
-  });
-
-  // 2. Create the final phase objects, ensuring chronological order
-  const sortedPhaseTypes = Array.from(phasesMap.keys()).sort((a, b) => {
-    const seqA = phasesMap.get(a)![0].phase.sequence_id;
-    const seqB = phasesMap.get(b)![0].phase.sequence_id;
-    return seqA - seqB;
-  });
-
-  const phases: SpecificDiachronicPhase[] = sortedPhaseTypes.map(phaseType => {
-    const rdusInPhase = phasesMap.get(phaseType)!;
-    // Programmatically generate a description by combining RDU descriptions
-    const descriptions = rdusInPhase.map(r => r.description).filter(d => d).join('. ');
-    const description = descriptions.length > 0 
-      ? descriptions.substring(0, MAX_DESCRIPTION_LENGTH) // Truncate to avoid excessive length
-      : `This phase consists of ${rdusInPhase.length} refined diachronic unit(s).`;
+  // Since DUs are already chronologically ordered, we can identify natural phases
+  // by looking for significant transitions or groupings in the narrative
+  
+  // For now, we'll create a simple structure that preserves the chronological flow
+  // Future enhancement: Could use more sophisticated phase detection
+  
+  const phases: SpecificDiachronicPhase[] = [];
+  
+  // Group DUs into natural phases based on their position in the sequence
+  // This is a simplified approach - in practice, you might want to analyze
+  // the content of descriptions to find natural breakpoints
+  
+  if (diachronic_units.length === 0) {
+    // No units to process
+  } else if (diachronic_units.length <= 3) {
+    // For very short sequences, treat as a single phase
+    phases.push({
+      phase_name: 'Main Experience',
+      description: diachronic_units.map(du => du.description).join('. ').substring(0, MAX_DESCRIPTION_LENGTH),
+      units_involved: diachronic_units.map(du => du.unit_id)
+    });
+  } else {
+    // For longer sequences, divide into Beginning, Middle, End
+    const firstThird = Math.ceil(diachronic_units.length / 3);
+    const secondThird = Math.ceil(2 * diachronic_units.length / 3);
     
-    return {
-      phase_name: phaseType,
-      description,
-      units_involved: rdusInPhase.map(rdu => rdu.unit_id),
-    };
-  });
+    phases.push({
+      phase_name: 'Initial Phase',
+      description: diachronic_units.slice(0, firstThird).map(du => du.description).join('. ').substring(0, MAX_DESCRIPTION_LENGTH),
+      units_involved: diachronic_units.slice(0, firstThird).map(du => du.unit_id)
+    });
+    
+    phases.push({
+      phase_name: 'Development Phase',
+      description: diachronic_units.slice(firstThird, secondThird).map(du => du.description).join('. ').substring(0, MAX_DESCRIPTION_LENGTH),
+      units_involved: diachronic_units.slice(firstThird, secondThird).map(du => du.unit_id)
+    });
+    
+    phases.push({
+      phase_name: 'Concluding Phase',
+      description: diachronic_units.slice(secondThird).map(du => du.description).join('. ').substring(0, MAX_DESCRIPTION_LENGTH),
+      units_involved: diachronic_units.slice(secondThird).map(du => du.unit_id)
+    });
+  }
 
   // 3. Perform validation checks
   const validationErrors: string[] = [];
   
-  // Check for single-unit phases like 'Onset' and 'Conclusion'
-  const onsetRDUs = phasesMap.get('Onset');
-  if (onsetRDUs && onsetRDUs.length > 1) {
-    validationErrors.push(`Multiple units (${onsetRDUs.length}) found in 'Onset' phase. It should only contain one.`);
-  }
-
-  const conclusionRDUs = phasesMap.get('Conclusion');
-  if (conclusionRDUs && conclusionRDUs.length > 1) {
-    validationErrors.push(`Multiple units (${conclusionRDUs.length}) found in 'Conclusion' phase. It should only contain one.`);
+  // Basic validation - ensure we have units and phases
+  if (diachronic_units.length === 0) {
+    validationErrors.push("No diachronic units found in input");
   }
   
-  // Check sequence IDs are consecutive
-  const uniqueSequenceIds = Array.from(new Set(refined_diachronic_units.map(rdu => rdu.phase.sequence_id))).sort((a, b) => a - b);
-  for (let i = 0; i < uniqueSequenceIds.length - 1; i++) {
-    if (uniqueSequenceIds[i + 1] !== uniqueSequenceIds[i] + 1) {
-      validationErrors.push(`Non-consecutive phase sequence IDs: ${uniqueSequenceIds[i]} -> ${uniqueSequenceIds[i + 1]}`);
-    }
+  if (phases.length === 0 && diachronic_units.length > 0) {
+    validationErrors.push("Failed to create phase structure from diachronic units");
   }
   
-  // Check logical phase progression (using sorted phase types)
-  if (sortedPhaseTypes.length > 0 && sortedPhaseTypes[0] !== 'Onset') {
-    validationErrors.push("Experience should start with 'Onset' phase");
+  // Ensure all units are assigned to phases
+  const assignedUnits = new Set(phases.flatMap(p => p.units_involved));
+  const missingUnits = diachronic_units.filter(du => !assignedUnits.has(du.unit_id));
+  if (missingUnits.length > 0) {
+    validationErrors.push(`Some units not assigned to phases: ${missingUnits.map(u => u.unit_id).join(', ')}`);
   }
 
   // 4. Programmatically generate the summary
-  const summary = `The experience is structured into ${phases.length} distinct phase(s), comprising a total of ${refined_diachronic_units.length} refined diachronic unit(s).`;
+  const summary = `The experience is structured into ${phases.length} distinct phase(s), comprising a total of ${diachronic_units.length} diachronic unit(s).`;
 
   // 5. Assemble the final P1_5_Output object
   return {
@@ -82,7 +88,7 @@ function programmaticallyConstructSds(p1_4_data: P1_4_Output): P1_5_Output {
       visualization_hint: "Linear progression with clear phase transitions",
       iv_preliminary_observation: "No immediate IV connection apparent at this programmatic stage."
     },
-    refined_diachronic_units, // Pass through the RDUs for reference
+    diachronic_units, // Pass through the DUs for reference
     independent_variable_details,
     dependent_variable_focus,
   };

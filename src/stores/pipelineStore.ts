@@ -15,7 +15,11 @@ import {
   P2SPhaseData,
   CurrentStepInfo,
   HilContext,
-  P1_5_Output
+  P1_5_Output,
+  P1_2_Output,
+  P1_3_Output,
+  PhaseTaggedSegment,
+  SortedSegment
 } from '../../types'
 import { ProcessState } from '../config/pipelineDefinition'
 import { 
@@ -559,6 +563,79 @@ export const usePipelineStore = create<PipelineStore>()(
           output = inputData; // The 'input' is the final output for programmatic steps
           apiError = undefined;
           console.log('✅ Programmatic step execution successful');
+        } else if (stepId === StepId.P1_3_INTRA_PHASE_SORTING) {
+          // Special handling for P1_3 which needs multiple LLM calls
+          console.log('🔄 [P1_3] Special handling for Intra-Phase Sorting - multiple LLM calls');
+          const p1_2_output = inputData as P1_2_Output;
+          
+          // Group segments by phase
+          const phaseGroups: Record<string, PhaseTaggedSegment[]> = {
+            'Initial State': [],
+            'Core Experience': [],
+            'Final Action': [],
+            'Post-Hoc Reflection': []
+          };
+          
+          // Populate phase groups
+          p1_2_output.phase_tagged_utterances.forEach(ptu => {
+            ptu.segments.forEach(segment => {
+              if (phaseGroups[segment.coarse_phase]) {
+                phaseGroups[segment.coarse_phase].push(segment);
+              }
+            });
+          });
+          
+          // Make LLM calls for each phase
+          const sortedSegments: SortedSegment[] = [];
+          
+          for (const [phaseName, segments] of Object.entries(phaseGroups)) {
+            if (segments.length === 0) continue;
+            
+            console.log(`📞 [P1_3] Processing ${phaseName} phase with ${segments.length} segments`);
+            
+            // Import the prompt generator function dynamically
+            const { generatePhaseSpecificPrompt } = await import('../config/pipeline/part1/P1_3_intraPhaSorting');
+            const phasePrompt = generatePhaseSpecificPrompt(phaseName, segments);
+            
+            const phaseResult = await callGeminiAPI(
+              phasePrompt,
+              true, // isJsonOutput
+              false, // useGrounding
+              temperature,
+              overrideSeed !== undefined ? overrideSeed : seed,
+              1 // maxRetries
+            );
+            
+            if (phaseResult.error) {
+              apiError = `Phase ${phaseName} sorting failed: ${phaseResult.error}`;
+              break;
+            }
+            
+            // Add original utterance data to sorted segments
+            const phaseSortedSegments = phaseResult.parsedJson?.sorted_segments || [];
+            phaseSortedSegments.forEach((seg: any) => {
+              // Find the original utterance for this segment
+              const originalUtterance = p1_2_output.phase_tagged_utterances.find(ptu => 
+                ptu.segments.some(s => s.segment_id === seg.segment_id)
+              )?.original_utterance;
+              
+              sortedSegments.push({
+                ...seg,
+                original_utterance: originalUtterance
+              } as SortedSegment);
+            });
+          }
+          
+          if (!apiError) {
+            output = {
+              transcript_id: p1_2_output.transcript_id,
+              sorted_segments: sortedSegments,
+              independent_variable_details: p1_2_output.independent_variable_details,
+              dependent_variable_focus: p1_2_output.dependent_variable_focus
+            } as P1_3_Output;
+          }
+          
+          promptForHistory = "P1_3 Intra-Phase Sorting: Multiple phase-specific LLM calls";
         } else if (isReportStepForThisCall) {
           console.log('📝 Generating report programmatically...');
           // Generate report programmatically
