@@ -61,11 +61,10 @@ export class PipelineOrchestrator {
 
     // Handle initial state with resume support
     if (currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length > 0) {
-      // Check if we have a resume checkpoint
+      // Check if we have a resume checkpoint from an explicit pause
       if (processState.resumeCheckpoint) {
         const { partIndex, stepIndex, iterationContext } = processState.resumeCheckpoint
         
-        // Find the step from checkpoint
         const part = this.pipelineStructure[partIndex]
         if (part && stepIndex < part.steps.length) {
           return {
@@ -76,7 +75,27 @@ export class PipelineOrchestrator {
         }
       }
       
-      // No checkpoint, start from beginning
+      // NEW LOGIC: If no checkpoint, check the main processState to find the *last completed step*
+      // and then calculate the *next* step from there. This handles resuming after a page reload.
+      if (processState.currentPartIndex > -1 && processState.currentStepIndex > -1) {
+        const lastPart = this.pipelineStructure[processState.currentPartIndex];
+        if (lastPart) {
+          const lastStepId = lastPart.steps[processState.currentStepIndex];
+          const lastPosition = {
+            partIndex: processState.currentPartIndex,
+            stepIndex: processState.currentStepIndex,
+            part: lastPart
+          };
+          
+          // Use the persisted iteration context to determine the correct transcript index to resume from.
+          const resumeTranscriptIndex = processState.iterationContext.transcriptIndex ?? activeTranscriptIndex;
+          
+          // Now, we can find the next step as if the last step just completed.
+          return this.getNextIteration(lastPosition, dataState, resumeTranscriptIndex);
+        }
+      }
+      
+      // No checkpoint and no progress in processState, start from beginning
       return this.getFirstStep(rawTranscripts)
     }
 
@@ -400,6 +419,11 @@ export class PipelineOrchestrator {
     currentState: ProcessState,
     currentStepId: StepId,
     status: StepStatus,
+    iterationContext?: {
+      transcriptIndex?: number
+      phaseIndex?: number
+      gduIndex?: number
+    },
     error?: string
   ): ProcessState {
     const position = this.findCurrentPosition(currentStepId)
@@ -409,6 +433,7 @@ export class PipelineOrchestrator {
       ...currentState,
       currentPartIndex: position.partIndex,
       currentStepIndex: position.stepIndex,
+      iterationContext: iterationContext ? { ...currentState.iterationContext, ...iterationContext } : currentState.iterationContext,
       status: status === StepStatus.Loading ? 'running' : 
               status === StepStatus.Error ? 'error' :
               status === StepStatus.Success ? 'running' : 'idle'
@@ -438,13 +463,19 @@ export class PipelineOrchestrator {
   /**
    * Create a resume checkpoint
    */
-  createResumeCheckpoint(processState: ProcessState): ProcessState {
+  createResumeCheckpoint(processState: ProcessState, iterationContext?: {
+      transcriptIndex?: number
+      phaseIndex?: number
+      gduIndex?: number
+    }): ProcessState {
+    const newContext = iterationContext ? { ...processState.iterationContext, ...iterationContext } : processState.iterationContext;
     return {
       ...processState,
+      iterationContext: newContext,
       resumeCheckpoint: {
         partIndex: processState.currentPartIndex,
         stepIndex: processState.currentStepIndex,
-        iterationContext: { ...processState.iterationContext }
+        iterationContext: newContext
       }
     }
   }

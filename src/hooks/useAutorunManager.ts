@@ -94,7 +94,8 @@ export const useAutorunManager = () => {
         const newProcessState = orchestrator.updateProcessState(
           processState,
           currentStepInfo.stepId,
-          currentStepInfo.status
+          currentStepInfo.status,
+          { transcriptIndex: activeTranscriptIndex }
         );
         updateProcessState(newProcessState); 
         
@@ -142,7 +143,7 @@ export const useAutorunManager = () => {
          }
          console.log(`🛑 Autorun stopped (no details)`);
          // Save resume checkpoint before stopping
-         const updatedProcessState = orchestrator.createResumeCheckpoint(processState);
+         const updatedProcessState = orchestrator.createResumeCheckpoint(processState, { transcriptIndex: activeTranscriptIndex });
          updateProcessState(updatedProcessState);
          setAutorunning(false);
       }
@@ -151,7 +152,7 @@ export const useAutorunManager = () => {
       console.log(`- Error step: ${currentStepInfo.stepId}`);
       console.log(`🛑 Autorun stopped (error)`);
       // Save resume checkpoint before stopping
-      const updatedProcessState = orchestrator.createResumeCheckpoint(processState);
+      const updatedProcessState = orchestrator.createResumeCheckpoint(processState, { transcriptIndex: activeTranscriptIndex });
       updateProcessState(updatedProcessState);
       setAutorunning(false);
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Idle && rawTranscripts.length > 0) {
@@ -267,7 +268,7 @@ export const useAutorunManager = () => {
           currentStepInfo.status === StepStatus.Success &&
           !processState.resumeCheckpoint) { // Avoid saving if already saved
         console.log('📌 Saving resume checkpoint on pause');
-        const updatedProcessState = orchestrator.createResumeCheckpoint(processState);
+        const updatedProcessState = orchestrator.createResumeCheckpoint(processState, { transcriptIndex: activeTranscriptIndex });
         updateProcessState(updatedProcessState);
       }
     }

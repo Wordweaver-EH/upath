@@ -2,12 +2,13 @@ Directory structure:
 └── upath/
     ├── App.tsx
     ├── constants.tsx
-    ├── debug-autosave.js
-    ├── debug-simple.js
     ├── index.html
     ├── index.tsx
     ├── jest.config.js
     ├── LICENSE
+    ├── metadata.json
+    ├── package.json
+    ├── tsconfig.json
     ├── types.ts
     ├── vite.config.ts
     ├── .env.example
@@ -102,6 +103,8 @@ Directory structure:
     │       └── visualizationHelper.ts
     ├── upath-backend/
     │   ├── frontend-encrypt-example.js
+    │   ├── package.json
+    │   ├── tsconfig.json
     │   ├── .env.example
     │   └── src/
     │       ├── index.ts
@@ -110,6 +113,8 @@ Directory structure:
     │       │   └── analyze.ts
     │       └── utils/
     │           └── encrypt.ts
+    ├── .claude/
+    │   └── settings.local.json
     └── .serena/
         ├── project.yml
         └── cache/
@@ -283,7 +288,8 @@ const App: React.FC = () => {
     outputDirectory,
     temperature,
     seed,
-    apiKeyPresent
+    apiKeyPresent,
+    debugMode
   } = useSettingsStore();
   
   // IRR Store - consolidated selector
@@ -449,6 +455,26 @@ const App: React.FC = () => {
   
   const renderOutput = () => {
     console.log('[App Debug] stepDisplay:', stepDisplay, 'currentStepInfo.stepId:', currentStepInfo.stepId);
+    
+    // Debug mode - show raw JSON for all outputs
+    if (debugMode) {
+      const debugData = {
+        stepId: currentStepInfo.stepId,
+        stepDisplay: stepDisplay,
+        processedData: processedData.size > 0 ? Object.fromEntries(processedData) : null
+      };
+      return (
+        <div className="space-y-2">
+          <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+            🐛 Debug Mode Active - Showing Raw JSON Output
+          </div>
+          <pre className="text-xs whitespace-pre-wrap break-all overflow-x-auto">
+            {JSON.stringify(debugData, null, 2)}
+          </pre>
+        </div>
+      );
+    }
+    
     switch (stepDisplay.type) {
       case 'loading':
         return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote animate-pulse">{stepDisplay.message}</div>;
@@ -3005,104 +3031,6 @@ if (missingActualConfigs.length > 0) {
 
 
 ================================================
-FILE: debug-autosave.js
-================================================
-// Debug script for autosave functionality
-// Run this in the browser console to check autosave status
-
-console.log('=== µ-PATH Autosave Debug ===');
-
-// Check if localforage is available
-console.log('1. LocalForage available:', typeof localforage !== 'undefined');
-
-// Check current store state
-if (typeof window !== 'undefined' && window.usePipelineStore) {
-  const state = window.usePipelineStore.getState();
-  console.log('2. Current store state:');
-  console.log('   - Raw transcripts:', state.rawTranscripts?.length || 0);
-  console.log('   - Processed data entries:', state.processedData?.size || 0);
-} else {
-  console.log('2. Store not available on window object');
-}
-
-// Check what's in IndexedDB
-if (typeof localforage !== 'undefined') {
-  localforage.getItem('upath-autosave-session-v2-localforage')
-    .then(data => {
-      console.log('3. Data in IndexedDB:');
-      if (data) {
-        const parsed = JSON.parse(data);
-        console.log('   - Raw transcripts:', parsed.state?.rawTranscripts?.length || 0);
-        console.log('   - Processed data entries:', parsed.state?.processedData?.length || 0);
-        console.log('   - Full data:', parsed);
-      } else {
-        console.log('   - No data found in IndexedDB');
-      }
-    })
-    .catch(err => {
-      console.error('   - Error reading IndexedDB:', err);
-    });
-} else {
-  console.log('3. LocalForage not available');
-}
-
-// Check UI store hydration state
-if (typeof window !== 'undefined' && window.useUIStore) {
-  const uiState = window.useUIStore.getState();
-  console.log('4. UI Store hydration:');
-  console.log('   - Has rehydrated:', uiState.hasRehydrated);
-  console.log('   - Session was restored:', uiState.sessionWasRestored);
-} else {
-  console.log('4. UI Store not available');
-}
-
-
-================================================
-FILE: debug-simple.js
-================================================
-// Simple debug - paste this in browser console after uploading a transcript
-// This checks if the stores are working by inspecting React DevTools globals
-
-console.log('=== Simple Debug ===');
-
-// Check if React DevTools has access to stores
-if (window.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
-  console.log('React DevTools available - check Components tab for store state');
-} else {
-  console.log('React DevTools not available');
-}
-
-// Check IndexedDB directly
-if ('indexedDB' in window) {
-  console.log('IndexedDB available');
-  
-  // Open the database to see if data is there
-  const request = indexedDB.open('uPATH-Analysis-Storage');
-  request.onsuccess = function(event) {
-    const db = event.target.result;
-    console.log('Database opened successfully');
-    console.log('Object stores:', Array.from(db.objectStoreNames));
-    
-    if (db.objectStoreNames.contains('state_store')) {
-      const transaction = db.transaction(['state_store'], 'readonly');
-      const objectStore = transaction.objectStore('state_store');
-      const getAllRequest = objectStore.getAll();
-      
-      getAllRequest.onsuccess = function() {
-        console.log('Data in IndexedDB:', getAllRequest.result);
-      };
-    }
-  };
-  
-  request.onerror = function() {
-    console.log('Failed to open database');
-  };
-} else {
-  console.log('IndexedDB not available');
-}
-
-
-================================================
 FILE: index.html
 ================================================
 <!DOCTYPE html>
@@ -3664,6 +3592,100 @@ By using this software, you acknowledge that you have read this License,
 understand it, and agree to be bound by its terms and conditions.
 
 For licensing inquiries, contact: wordweaver.eh@gmail.com
+
+
+================================================
+FILE: metadata.json
+================================================
+{
+  "name": "Copy of wkCopy of Copy of uPATH : Micro-Phenomenological Analytic Threader v6.2",
+  "description": "A React application to perform fullanalysis on micro-phenomenological interview transcripts using a prompt chain system with Gemini API.\n\nValenzuela-Moguillansky, Camila, and Alejandra Vásquez-Rosati. \"An analysis procedure for the micro-phenomenological interview.\" Constructivist Foundations 14.2 (2019): 123-145.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
+
+
+================================================
+FILE: package.json
+================================================
+{
+  "name": "upath",
+  "private": true,
+  "version": "0.11.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/deepmerge": "^3.1.0",
+    "@google/genai": "^1.3.0",
+    "@headlessui/react": "^2.2.4",
+    "@types/crypto-js": "^4.2.2",
+    "ag-grid-community": "^34.0.2",
+    "ag-grid-react": "^34.0.2",
+    "crypto-js": "^4.2.0",
+    "immer": "^10.1.1",
+    "localforage": "^1.10.0",
+    "marked": "^13.0.2",
+    "mermaid": "^11.6.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zustand": "^5.0.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitest/ui": "^3.2.4",
+    "jsdom": "^26.1.0",
+    "typescript": "~5.7.2",
+    "vite": "^6.2.0",
+    "vitest": "^3.2.4"
+  }
+}
+
+
+
+================================================
+FILE: tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "allowJs": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*" :  ["./*"]
+    }
+  }
+}
+
 
 
 ================================================
@@ -4550,6 +4572,7 @@ export default defineConfig(({ mode }) => {
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
         'process.env.REACT_APP_P3_2_APPROACH': JSON.stringify(env.REACT_APP_P3_2_APPROACH),
+        'process.env.REACT_APP_DEBUG_MODE': JSON.stringify(env.REACT_APP_DEBUG_MODE),
         'import.meta.env.VITE_APP_VERSION': JSON.stringify(pkg.version)
       },
       resolve: {
@@ -5811,6 +5834,7 @@ import React from 'react';
 import { StepId, StepStatus, CurrentStepInfo } from '../types';
 import { STEP_CONFIGS as StepConfigsType, CheckCircleIcon, InfoIcon, getStepDisplayName } from '../constants';
 import CollapsibleSection from './CollapsibleSection';
+import { usePipelineStore } from '../src/stores/pipelineStore';
 
 interface PipelineStepNodeProps {
   stepId: StepId;
@@ -5891,12 +5915,29 @@ const PipelineOverview: React.FC<PipelineOverviewProps> = ({
   getStepStatusForPipelineView, handlePipelineStepClick,
   PipelineStepNodeComponent: NodeComponent // Use the passed component
 }) => {
+  const invalidateFromPart = usePipelineStore(state => state.invalidateFromPart);
+  
+  const handleInvalidateFromPart = (partName: string) => {
+    if (window.confirm(`Are you sure you want to invalidate all steps from ${partName} onward? This will clear all computed data for these steps across all transcripts.`)) {
+      invalidateFromPart(partName);
+    }
+  };
+  
   return (
     <CollapsibleSection title="Analysis Pipeline Overview" defaultOpen={false} contentMaxHeight="60vh">
       <div className="flex flex-col space-y-3 p-1">
         {allPipelineParts.map(part => (
           <div key={part.name} className="p-2 border border-light-border dark:border-dark-border rounded-md bg-light-bg-alt dark:bg-dark-bg-alt shadow-sm">
-            <h4 className="text-sm font-semibold mb-2 text-light-accent dark:text-dark-accent">{part.name}</h4>
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="text-sm font-semibold text-light-accent dark:text-dark-accent">{part.name}</h4>
+              <button
+                onClick={() => handleInvalidateFromPart(part.name)}
+                className="text-xs px-2 py-1 rounded bg-red-100 hover:bg-red-200 dark:bg-red-900 dark:hover:bg-red-800 text-red-700 dark:text-red-300 transition-colors"
+                title={`Invalidate all steps from ${part.name} onward`}
+              >
+                ↻ Reset from here
+              </button>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-2">
               {part.steps.map(stepId => {
                 const config = STEP_CONFIGS[stepId];
@@ -5955,6 +5996,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const autoDownloadResults = useSettingsStore(state => state.autoDownloadResults)
   const userDvFocus = useSettingsStore(state => state.userDvFocus)
   const seed = useSettingsStore(state => state.seed)
+  const debugMode = useSettingsStore(state => state.debugMode)
   
   const validateAndSetDvFocus = useSettingsStore(state => state.validateAndSetDvFocus)
   const validateAndSetSeed = useSettingsStore(state => state.validateAndSetSeed)
@@ -5962,6 +6004,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const setOutputDirectory = useSettingsStore(state => state.setOutputDirectory)
   const updateSettings = useSettingsStore(state => state.updateSettings)
   const checkApiKey = useSettingsStore(state => state.checkApiKey)
+  const setDebugMode = useSettingsStore(state => state.setDebugMode)
 
   // UI store - state and actions
   const currentStepInfo = useUIStore(state => state.currentStepInfo)
@@ -6055,6 +6098,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         />
       </div>
       <div className="flex items-center"> <input id="autoDownload" type="checkbox" checked={autoDownloadResults} onChange={(e) => updateSettings({ autoDownloadResults: e.target.checked })} className="h-4 w-4 rounded border-light-border dark:border-dark-border text-light-accent dark:text-dark-accent focus:ring-light-accent dark:focus:ring-dark-accent bg-light-input-bg dark:bg-dark-input-bg" /> <label htmlFor="autoDownload" className="ml-2 block text-sm text-light-text dark:text-dark-text">Autodownload essential results</label> </div>
+      <div className="flex items-center"> <input id="debugMode" type="checkbox" checked={debugMode} onChange={(e) => setDebugMode(e.target.checked)} className="h-4 w-4 rounded border-light-border dark:border-dark-border text-light-accent dark:text-dark-accent focus:ring-light-accent dark:focus:ring-dark-accent bg-light-input-bg dark:bg-dark-input-bg" /> <label htmlFor="debugMode" className="ml-2 block text-sm text-light-text dark:text-dark-text">Debug Mode (show raw JSON)</label> </div>
       <div className="grid grid-cols-2 gap-2">
           <Button
             onClick={() => saveStateToFile(activeTranscriptIndex, currentStepInfo, {
@@ -6070,15 +6114,21 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           >
             {SaveIcon} <span>Export State to File</span>
           </Button>
-          <div>
-            <label
-              htmlFor="loadStateFile"
-              className="inline-flex items-center justify-center space-x-2 font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-150 px-3 py-1.5 text-sm bg-light-btn dark:bg-dark-btn text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border border border-light-border dark:border-dark-border focus:ring-offset-light-bg-alt dark:focus:ring-offset-dark-bg-alt w-full cursor-pointer"
-            >
-              {LoadIcon} <span>Load State</span>
-            </label>
-            <input id="loadStateFile" type="file" accept=".json" onChange={(e) => { loadStateFromFile(e); e.target.value = ''; }} className="hidden" ref={loadStateInputRef} />
-          </div>
+          <Button
+            onClick={() => loadStateInputRef.current?.click()}
+            variant="secondary"
+            className="w-full"
+            title="Load a previously saved analysis state from a JSON file"
+          >
+            {LoadIcon} <span>Load State from File</span>
+          </Button>
+          <input 
+            type="file" 
+            accept=".json" 
+            onChange={(e) => { loadStateFromFile(e); e.target.value = ''; }} 
+            className="hidden" 
+            ref={loadStateInputRef} 
+          />
       </div>
        <div
           onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
@@ -7935,6 +7985,7 @@ import { RefinedDiachronicUnitTable } from './RefinedDiachronicUnitTable';
 import { TemporalPhaseAssignmentTable } from './TemporalPhaseAssignmentTable';
 import { EditableTextArea } from './EditableTextArea';
 import { usePipelineStore } from '../stores/pipelineStore';
+import { useSettingsStore } from '../stores/settingsStore';
 import MermaidDiagram from '../../components/MermaidDiagram';
 import { DiachronicComparisonTable } from './DiachronicComparisonTable';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
@@ -8059,6 +8110,25 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
 }) => {
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const updateProcessedData = usePipelineStore(state => state.updateProcessedData);
+  const debugMode = useSettingsStore(state => state.debugMode);
+  
+  // Debug mode - show raw JSON
+  if (debugMode) {
+    const debugData = {
+      stepId: stepId,
+      processedData: processedData.size > 0 ? Object.fromEntries(processedData) : null
+    };
+    return (
+      <div className="space-y-2">
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+          🐛 Debug Mode Active - PipelineStepGrid Raw JSON
+        </div>
+        <pre className="text-xs whitespace-pre-wrap break-all overflow-x-auto">
+          {JSON.stringify(debugData, null, 2)}
+        </pre>
+      </div>
+    );
+  }
   
   // Get config and prepare grid data - must call hooks before any returns
   const config = STEP_GRID_CONFIGS[stepId];
@@ -9872,6 +9942,7 @@ FILE: src/components/SessionRestoreNotification.tsx
 import React from 'react'
 import { useUIStore } from '../stores/uiStore'
 import { usePipelineStore } from '../stores/pipelineStore'
+import { useSettingsStore } from '../stores/settingsStore'
 
 export const SessionRestoreNotification: React.FC = () => {
   const sessionWasRestored = useUIStore(state => state.sessionWasRestored)
@@ -9879,12 +9950,16 @@ export const SessionRestoreNotification: React.FC = () => {
   const clearAutosaveData = usePipelineStore(state => state.clearAutosaveData)
   const resetPipeline = usePipelineStore(state => state.resetPipeline)
   const resetUIState = useUIStore(state => state.resetUIState)
+  const clearSettings = useSettingsStore(state => state.clearSettings)
   
   if (!sessionWasRestored) return null
   
   const handleStartNewSession = async () => {
     // Clear autosaved data
     await clearAutosaveData()
+    
+    // Clear settings data
+    await clearSettings()
     
     // Reset both stores
     resetPipeline()
@@ -10748,10 +10823,8 @@ interface RduTooltipProps {
 }
 
 export const RduTooltip: React.FC<RduTooltipProps> = ({ rduName, transcriptData }) => {
-  // Find the RDU in P1.3 output - checking both unit_id and rdu_id fields
-  const rdu = transcriptData.p1_3_output?.refined_diachronic_units.find(
-    unit => unit.unit_id === rduName || unit.rdu_id === rduName
-  );
+  // Find the RDU in P1.4 output (where RDUs are defined)
+  const rdu = transcriptData.p1_4_output?.refined_diachronic_units.find(unit => unit.unit_id === rduName);
   
   if (!rdu) {
     return (
@@ -10763,8 +10836,8 @@ export const RduTooltip: React.FC<RduTooltipProps> = ({ rduName, transcriptData 
     );
   }
 
-  // Get the DUs from P1.2 output - using source_p1_2_du_ids (as used in phaseTracingHelper)
-  const duIds = rdu.source_p1_2_du_ids || rdu.dus_included || [];
+  // Get the DUs from P1.2 output using the correct source field
+  const duIds = rdu.source_du_ids || [];
   const dus = duIds.map(duId => {
     return transcriptData.p1_2_output?.diachronic_units.find(
       du => du.unit_id === duId || du.du_id === duId
@@ -10785,32 +10858,15 @@ export const RduTooltip: React.FC<RduTooltipProps> = ({ rduName, transcriptData 
           </div>
         )}
 
-        {rdu.temporal_phase && (
+        {rdu.phase?.phase_type && (
           <div>
             <span className="text-light-sidenote dark:text-dark-sidenote">Temporal Phase:</span>
             <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-              {rdu.temporal_phase}
+              {rdu.phase.phase_type}
             </span>
           </div>
         )}
 
-        {rdu.temporal_categories && (
-          <div>
-            <span className="text-light-sidenote dark:text-dark-sidenote">Temporal Categories:</span>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {Object.entries(rdu.temporal_categories).map(([category, present]) => (
-                present && (
-                  <span
-                    key={category}
-                    className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                  >
-                    {category}
-                  </span>
-                )
-              ))}
-            </div>
-          </div>
-        )}
 
         <div>
           <span className="text-light-sidenote dark:text-dark-sidenote">DUs Included:</span>
@@ -11803,14 +11859,101 @@ ${input.raw_transcript_text_from_file}
 ================================================
 FILE: src/config/pipeline/part1/constructSpecificDiachronicStructure.ts
 ================================================
-import { StepId, P1_4_Output } from '../../../../types';
+import { StepId, P1_4_Output, P1_5_Output, RefinedDiachronicUnitP1_4, SpecificDiachronicPhase } from '../../../../types';
 import { StepConfig } from '../types';
+
+const MAX_DESCRIPTION_LENGTH = 500;
+
+/**
+ * Programmatically constructs the Specific Diachronic Structure from P1.4 output
+ * This is a deterministic aggregation function that groups RDUs by phase
+ */
+function programmaticallyConstructSds(p1_4_data: P1_4_Output): P1_5_Output {
+  const { refined_diachronic_units, transcript_id, independent_variable_details, dependent_variable_focus } = p1_4_data;
+
+  // 1. Group RDUs by phase
+  const phasesMap = new Map<string, RefinedDiachronicUnitP1_4[]>();
+  refined_diachronic_units.forEach(rdu => {
+    const phaseType = rdu.phase.phase_type;
+    if (!phasesMap.has(phaseType)) {
+      phasesMap.set(phaseType, []);
+    }
+    phasesMap.get(phaseType)!.push(rdu);
+  });
+
+  // 2. Create the final phase objects, ensuring chronological order
+  const sortedPhaseTypes = Array.from(phasesMap.keys()).sort((a, b) => {
+    const seqA = phasesMap.get(a)![0].phase.sequence_id;
+    const seqB = phasesMap.get(b)![0].phase.sequence_id;
+    return seqA - seqB;
+  });
+
+  const phases: SpecificDiachronicPhase[] = sortedPhaseTypes.map(phaseType => {
+    const rdusInPhase = phasesMap.get(phaseType)!;
+    // Programmatically generate a description by combining RDU descriptions
+    const descriptions = rdusInPhase.map(r => r.description).filter(d => d).join('. ');
+    const description = descriptions.length > 0 
+      ? descriptions.substring(0, MAX_DESCRIPTION_LENGTH) // Truncate to avoid excessive length
+      : `This phase consists of ${rdusInPhase.length} refined diachronic unit(s).`;
+    
+    return {
+      phase_name: phaseType,
+      description,
+      units_involved: rdusInPhase.map(rdu => rdu.unit_id),
+    };
+  });
+
+  // 3. Perform validation checks
+  const validationErrors: string[] = [];
+  
+  // Check for single-unit phases like 'Onset' and 'Conclusion'
+  const onsetRDUs = phasesMap.get('Onset');
+  if (onsetRDUs && onsetRDUs.length > 1) {
+    validationErrors.push(`Multiple units (${onsetRDUs.length}) found in 'Onset' phase. It should only contain one.`);
+  }
+
+  const conclusionRDUs = phasesMap.get('Conclusion');
+  if (conclusionRDUs && conclusionRDUs.length > 1) {
+    validationErrors.push(`Multiple units (${conclusionRDUs.length}) found in 'Conclusion' phase. It should only contain one.`);
+  }
+  
+  // Check sequence IDs are consecutive
+  const uniqueSequenceIds = Array.from(new Set(refined_diachronic_units.map(rdu => rdu.phase.sequence_id))).sort((a, b) => a - b);
+  for (let i = 0; i < uniqueSequenceIds.length - 1; i++) {
+    if (uniqueSequenceIds[i + 1] !== uniqueSequenceIds[i] + 1) {
+      validationErrors.push(`Non-consecutive phase sequence IDs: ${uniqueSequenceIds[i]} -> ${uniqueSequenceIds[i + 1]}`);
+    }
+  }
+  
+  // Check logical phase progression (using sorted phase types)
+  if (sortedPhaseTypes.length > 0 && sortedPhaseTypes[0] !== 'Onset') {
+    validationErrors.push("Experience should start with 'Onset' phase");
+  }
+
+  // 4. Programmatically generate the summary
+  const summary = `The experience is structured into ${phases.length} distinct phase(s), comprising a total of ${refined_diachronic_units.length} refined diachronic unit(s).`;
+
+  // 5. Assemble the final P1_5_Output object
+  return {
+    transcript_id,
+    specific_diachronic_structure: {
+      summary,
+      phases,
+      validation_errors: validationErrors,
+      visualization_hint: "Linear progression with clear phase transitions",
+      iv_preliminary_observation: "No immediate IV connection apparent at this programmatic stage."
+    },
+    refined_diachronic_units, // Pass through the RDUs for reference
+    independent_variable_details,
+    dependent_variable_focus,
+  };
+}
 
 export const P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG: StepConfig = {
   id: StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
   title: "P1.5: Construct Specific Diachronic Structure (SDS)",
   part: "PartI_Dia",
-  isJsonOutput: true,
+  isJsonOutput: false, // This is no longer a JSON output from an LLM
   getInput: (currentTranscript, allProcessedData) => {
     if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.5." };
     
@@ -11819,89 +11962,12 @@ export const P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG: StepConfig = {
     
     if (!p1_4_data) return { data: null, error: `Missing P1.4 output for transcript ${currentTranscript.id}` };
     
-    // Validate the RDU sequence
-    const validationErrors: string[] = [];
+    // The entire step's logic is now here - programmatic construction
+    const p1_5_output = programmaticallyConstructSds(p1_4_data);
     
-    // Check for duplicate single-use phases
-    const phaseTypes = p1_4_data.refined_diachronic_units.map(rdu => rdu.phase.phase_type);
-    const onsetCount = phaseTypes.filter(p => p === 'Onset').length;
-    const conclusionCount = phaseTypes.filter(p => p === 'Conclusion').length;
-    
-    if (onsetCount > 1) validationErrors.push("Multiple 'Onset' phases detected");
-    if (conclusionCount > 1) validationErrors.push("Multiple 'Conclusion' phases detected");
-    
-    // Check sequence IDs are consecutive
-    const sequenceIds = p1_4_data.refined_diachronic_units.map(rdu => rdu.phase.sequence_id).sort((a, b) => a - b);
-    for (let i = 0; i < sequenceIds.length - 1; i++) {
-      if (sequenceIds[i + 1] !== sequenceIds[i] + 1) {
-        validationErrors.push(`Non-consecutive sequence IDs: ${sequenceIds[i]} -> ${sequenceIds[i + 1]}`);
-      }
-    }
-    
-    // Check logical phase progression
-    const phaseProgression = p1_4_data.refined_diachronic_units
-      .sort((a, b) => a.phase.sequence_id - b.phase.sequence_id)
-      .map(rdu => rdu.phase.phase_type);
-    
-    if (phaseProgression.length > 0 && phaseProgression[0] !== 'Onset') {
-      validationErrors.push("Experience should start with 'Onset' phase");
-    }
-    
-    return { 
-      data: {
-        ...p1_4_data,
-        validation_errors: validationErrors
-      }
-    };
+    return { data: p1_5_output }; // Return the fully formed output
   },
-  generatePrompt: (input: any) => `You are a micro-phenomenological analyst. Your task is to construct the Specific Diachronic Structure (SDS) for this transcript based on the refined DUs and their phases.
-
-Input:
-JSON output from P1.4 for transcript ID ${input.transcript_id}.
-P1.4 Output: ${JSON.stringify(input, null, 2)}
-${input.validation_errors?.length > 0 ? `\nValidation Warnings: ${input.validation_errors.join('; ')}` : ''}
-
-Instructions:
-1. Define Specific Diachronic Phases:
-   - Group the refined DUs from P1.4 by their phase.phase_type
-   - For each unique phase type, create a phase object with:
-     * phase_name: The phase type (e.g., "Onset", "Development_1")
-     * description: Summary of what happens in this phase, derived from RDU descriptions
-     * units_involved: Array of unit_ids from P1.4 RDUs in this phase
-
-2. Structure Summary: Provide an overall summary of the entire Specific Diachronic Structure.
-
-3. Validation: Include any validation_errors from the input if present.
-
-4. Visualization Hint: Provide a visualization_hint (e.g., "Linear progression with clear phase transitions")
-
-5. IV Preliminary Observation: Based on the independent_variable_details, make a brief observation about any apparent connection to the diachronic structure. If none is obvious, state "No immediate IV connection apparent at this stage."
-
-6. Include the refined_diachronic_units from P1.4 in the output for reference.
-
-7. Preserve IV/DV: Copy the independent_variable_details and dependent_variable_focus verbatim.
-
-Output:
-{
-  "transcript_id": "${input.transcript_id}",
-  "specific_diachronic_structure": {
-    "summary": "Experience unfolded through X distinct moments across Y phases.",
-    "phases": [
-      {
-        "phase_name": "Onset",
-        "description": "Summary of the onset phase.",
-        "units_involved": ["rdu_1"]
-      }
-    ],
-    "validation_errors": ${JSON.stringify(input.validation_errors || [])},
-    "visualization_hint": "Linear progression with clear phase transitions",
-    "iv_preliminary_observation": "Brief note on potential IV connection or N/A."
-  },
-  "refined_diachronic_units": [/* Copy from P1.4 output */],
-  "independent_variable_details": "${input.independent_variable_details}",
-  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
-}
-`
+  // generatePrompt function is now REMOVED - this is a programmatic step
 };
 
 
@@ -12361,6 +12427,7 @@ export const useAutorunManager = () => {
   const processSingleStep = usePipelineStore(state => state.processSingleStep)
   const downloadOutput = usePipelineStore(state => state.downloadOutput)
   const isGlobalStep = usePipelineStore(state => state.isGlobalStep)
+  const autorunResumePosition = usePipelineStore(state => state.autorunResumePosition)
 
   // Settings Store state
   const autoDownloadResults = useSettingsStore(state => state.autoDownloadResults)
@@ -12482,6 +12549,25 @@ export const useAutorunManager = () => {
       setAutorunning(false);
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Idle && rawTranscripts.length > 0) {
       console.log(`🚀 Autorun starting from Idle - checking for resume point`);
+      
+      // First check if we have an explicit autorun resume position from clearing a part
+      if (autorunResumePosition) {
+        console.log(`📍 Found autorun resume position from part clear: ${autorunResumePosition}`);
+        const isResumeGlobal = isGlobalStep(autorunResumePosition) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(autorunResumePosition);
+        const resumeTxId = isResumeGlobal ? undefined : rawTranscripts[activeTranscriptIndex]?.id;
+        
+        processSingleStep({ 
+          stepId: autorunResumePosition, 
+          transcriptIdToProcess: resumeTxId,
+          settings: {
+            apiKey,
+            temperature,
+            seed,
+            userDvFocus
+          }
+        });
+        return; // Exit early after processing the resume position
+      }
       
       // Check if we should resume from a previous point by getting next step details
       // This handles the case where the pipeline was paused and we're resuming
@@ -13708,7 +13794,7 @@ FILE: src/stores/pipelineStore.ts
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { persist, subscribeWithSelector } from 'zustand/middleware'
-import { localForageStorage } from '../utils/storage'
+import { queuedLocalForageStorage, localForageStorage } from '../utils/storage'
 import { performDataMigration } from '../utils/migration'
 import { useUIStore } from './uiStore'
 import { 
@@ -13785,6 +13871,7 @@ interface GenericAnalysisSlice {
   lastError?: string
   lastHilContext?: HilContext
   shouldStopAutorun?: boolean
+  autorunResumePosition?: StepId // Track where autorun should resume from
 }
 
 interface DependencyInjectionSlice {
@@ -13796,6 +13883,7 @@ interface ProcessSlice {
   updateProcessState: (updates: Partial<ProcessState>) => void
   setProcessState: (state: ProcessState) => void
 }
+
 
 interface PromptSlice {
   promptHistory: PromptHistoryEntry[]
@@ -13837,6 +13925,7 @@ interface PipelineActions {
     processedData: Map<string, TranscriptProcessedData>
   ) => void
   invalidateStateFromStep: (stepId: StepId, transcriptId?: string) => void
+  invalidateFromPart: (partName: string) => void
   getInvalidatedStates: (
     startInvalidationFromStepId: StepId,
     currentActiveTxId: string | undefined,
@@ -13855,7 +13944,7 @@ interface PipelineActions {
   generateAppendix: (type: 'markdown' | 'html', outputDirectory: string) => void
   retryWithUserSeed: () => void
   // New actions for SettingsPanel
-  saveStateToFile: (activeTranscriptIndex: number, currentStepInfo: CurrentStepInfo, settings: SettingsData) => void
+  saveStateToFile: () => void
   loadStateFromFile: (event: React.ChangeEvent<HTMLInputElement>) => void
   uploadTranscripts: (event: React.ChangeEvent<HTMLInputElement>) => void
   handleDroppedFiles: (files: File[]) => Promise<void>
@@ -13868,6 +13957,7 @@ interface PipelineActions {
   // State cleanup actions
   clearShouldStopAutorunFlag: () => void
   clearLastHilContext: () => void
+  clearAutorunResumePosition: () => void
 }
 
 
@@ -14041,6 +14131,7 @@ const createProcessSlice = (set: any, get: any): ProcessSlice => ({
   }
 })
 
+
 // Main store
 export const usePipelineStore = create<PipelineStore>()(
   subscribeWithSelector(
@@ -14056,6 +14147,9 @@ export const usePipelineStore = create<PipelineStore>()(
       processSingleStep: async (params) => {
         const { stepId, transcriptIdToProcess, overrideSeed, hilMetaPrompt, settings } = params
         const { rawTranscripts, processedData, genericAnalysisState } = get()
+
+        // Clear autorun resume position when we start processing a step
+        get().clearAutorunResumePosition();
 
         console.groupCollapsed(`🚀 [pipelineStore] processSingleStep: ${stepId}`);
         console.log(`- Transcript ID: ${transcriptIdToProcess || 'N/A (Global Step)'}`);
@@ -14246,9 +14340,19 @@ export const usePipelineStore = create<PipelineStore>()(
         let groundingSources: PromptHistoryEntry['groundingSources']
         let estIn: number | undefined = 0
         let estOut: number | undefined = 0
-        let promptForHistory = hilMetaPrompt || config.generatePrompt(inputData)
+        // NEW LOGIC: Check if this is a programmatic step (no generatePrompt function)
+        const isProgrammaticStep = !config.generatePrompt;
         
-        if (isReportStepForThisCall) {
+        let promptForHistory = isProgrammaticStep 
+          ? "Programmatic step execution. No LLM prompt."
+          : (hilMetaPrompt || config.generatePrompt!(inputData))
+        
+        if (isProgrammaticStep) {
+          console.log(`⚙️ [pipelineStore] Executing programmatic step: ${stepId}`);
+          output = inputData; // The 'input' is the final output for programmatic steps
+          apiError = undefined;
+          console.log('✅ Programmatic step execution successful');
+        } else if (isReportStepForThisCall) {
           console.log('📝 Generating report programmatically...');
           // Generate report programmatically
           try {
@@ -14960,6 +15064,104 @@ export const usePipelineStore = create<PipelineStore>()(
         })
       },
       
+      invalidateFromPart: (partName: string) => {
+        const { processedData, genericAnalysisState, rawTranscripts } = get()
+        
+        // Find the first step of the specified part
+        let firstStepOfPart: StepId | undefined
+        
+        switch (partName) {
+          case 'Part -1':
+          case 'Part -1: Variable ID':
+          case 'Part -1: Variable Identification':
+            firstStepOfPart = STEP_ORDER_PART_NEG1[0]
+            break
+          case 'Part 0':
+          case 'Part 0: Data Prep':
+          case 'Part 0: Data Preparation':
+            firstStepOfPart = STEP_ORDER_PART_0[0]
+            break
+          case 'Part 1':
+          case 'Part I':
+          case 'Part I: Specific Diachronic':
+          case 'Part I: Specific Diachronic Analysis':
+            firstStepOfPart = STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0]
+            break
+          case 'Part 2':
+          case 'Part II':
+          case 'Part II: Specific Synchronic':
+          case 'Part II: Specific Synchronic Analysis':
+            firstStepOfPart = STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0]
+            break
+          case 'Part 3':
+          case 'Part III':
+          case 'Part III: Generic Diachronic':
+          case 'Part III: Generic Diachronic Analysis':
+            firstStepOfPart = STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0]
+            break
+          case 'Part 4':
+          case 'Part IV':
+          case 'Part IV: Generic Synchronic':
+          case 'Part IV: Generic Synchronic Analysis':
+            firstStepOfPart = STEP_ORDER_PART_4_GENERIC_SYNCHRONIC[0]
+            break
+          case 'Part 5':
+          case 'Part V':
+          case 'Part V: Refinement':
+            firstStepOfPart = STEP_ORDER_PART_5_REFINEMENT[0]
+            break
+          case 'Part 6':
+          case 'Part VI':
+          case 'Part VI: Report':
+          case 'Part VI: Report Generation':
+            firstStepOfPart = STEP_ORDER_PART_6_REPORT[0]
+            break
+          case 'Part 7':
+          case 'Part VII':
+          case 'Part VII: Causal Modeling':
+            firstStepOfPart = STEP_ORDER_PART_7_CAUSAL_MODELING[0]
+            break
+        }
+        
+        if (!firstStepOfPart) {
+          console.error(`Invalid part name: ${partName}`)
+          return
+        }
+        
+        // For per-transcript parts, we need to invalidate all transcripts
+        let newProcessedData = new Map(processedData)
+        let newGenericState = { ...genericAnalysisState }
+        
+        // Invalidate for all transcripts
+        for (const transcript of rawTranscripts) {
+          const { invalidatedProcessedData, invalidatedGenericState } = get().getInvalidatedStates(
+            firstStepOfPart,
+            transcript.id,
+            newProcessedData,
+            newGenericState
+          )
+          newProcessedData = invalidatedProcessedData
+          newGenericState = invalidatedGenericState
+        }
+        
+        // Also invalidate without a specific transcript to catch global steps
+        const { invalidatedProcessedData: finalProcessedData, invalidatedGenericState: finalGenericState } = get().getInvalidatedStates(
+          firstStepOfPart,
+          undefined,
+          newProcessedData,
+          newGenericState
+        )
+        
+        set((state) => {
+          state.processedData = finalProcessedData
+          state.genericAnalysisState = finalGenericState
+          // Set the autorun resume position to the first step of the invalidated part
+          state.autorunResumePosition = firstStepOfPart
+        })
+        
+        console.log(`Invalidated all steps from ${partName} (${firstStepOfPart}) onward`)
+      },
+      
       resetPipeline: () => {
         set((state) => {
           // Reset transcript data
@@ -15519,13 +15721,19 @@ export const usePipelineStore = create<PipelineStore>()(
         set((state) => {
           state.lastHilContext = undefined
         })
+      },
+      
+      clearAutorunResumePosition: () => {
+        set((state) => {
+          state.autorunResumePosition = undefined
+        })
       }
     })),
     {
       name: 'upath-autosave-session-v2-localforage',
       storage: {
         getItem: async (name) => {
-          const str = await localForageStorage.getItem(name)
+          const str = await queuedLocalForageStorage.getItem(name)
           if (!str) return null
           
           try {
@@ -15545,11 +15753,6 @@ export const usePipelineStore = create<PipelineStore>()(
               }
             }
             
-            console.log('🔍 [Storage] Returning deserialized data:', {
-              rawTranscriptsLength: result.state?.rawTranscripts?.length || 0,
-              processedDataSize: result.state?.processedData?.size || 0
-            })
-            
             return result
           } catch (e) {
             console.error('Failed to parse stored data:', e)
@@ -15559,12 +15762,6 @@ export const usePipelineStore = create<PipelineStore>()(
         setItem: async (name, value) => {
           // Handle the case where value might be the state directly instead of wrapped
           const stateData = value.state || value;
-          
-          console.log('💾 [Storage] setItem - incoming value:', {
-            rawTranscriptsLength: stateData?.rawTranscripts?.length || 0,
-            processedDataType: stateData?.processedData?.constructor?.name || 'unknown',
-            processedDataSize: stateData?.processedData instanceof Map ? stateData.processedData.size : (stateData?.processedData?.length || 0)
-          })
           
           const dataToStore = {
             ...value,
@@ -15577,14 +15774,9 @@ export const usePipelineStore = create<PipelineStore>()(
             }
           }
           
-          console.log('💾 [Storage] setItem - final data:', {
-            rawTranscriptsLength: dataToStore.state?.rawTranscripts?.length || 0,
-            processedDataLength: dataToStore.state?.processedData?.length || 0
-          })
-          
-          await localForageStorage.setItem(name, JSON.stringify(dataToStore))
+          await queuedLocalForageStorage.setItem(name, JSON.stringify(dataToStore))
         },
-        removeItem: async (name) => await localForageStorage.removeItem(name)
+        removeItem: async (name) => await queuedLocalForageStorage.removeItem(name)
       },
       onRehydrateStorage: () => (state, error) => {
         console.log('🔄 [Rehydration] onRehydrateStorage callback called')
@@ -15798,6 +15990,9 @@ interface SettingsState {
   // Output
   outputDirectory: string
   autoDownloadResults: boolean
+  
+  // Debug
+  debugMode: boolean
 }
 
 interface SettingsActions {
@@ -15807,6 +16002,8 @@ interface SettingsActions {
   checkApiKey: () => void
   setTemperature: (temp: number) => void
   setOutputDirectory: (dir: string) => void
+  setDebugMode: (enabled: boolean) => void
+  clearSettings: () => Promise<void>
 }
 
 type SettingsStore = SettingsState & SettingsActions
@@ -15829,6 +16026,7 @@ export const useSettingsStore = create<SettingsStore>()(
       retrySeedInput: '',
       outputDirectory: 'MicroPheno_Analysis_Outputs',
       autoDownloadResults: false,
+      debugMode: (process.env as any).REACT_APP_DEBUG_MODE === 'true',
       
       // Actions
       updateSettings: (updates) => set(updates),
@@ -15885,6 +16083,35 @@ export const useSettingsStore = create<SettingsStore>()(
       
       setOutputDirectory: (dir: string) => {
         set({ outputDirectory: dir })
+      },
+      
+      setDebugMode: (enabled: boolean) => {
+        set({ debugMode: enabled })
+      },
+      
+      clearSettings: async () => {
+        // Reset to default values
+        const initialDvFocusArray = parseDvFocusString(DEFAULT_DV_FOCUS_INPUT)
+        set({
+          userDvFocus: { dv_focus: initialDvFocusArray },
+          dvFocusInput: DEFAULT_DV_FOCUS_INPUT,
+          dvFocusError: '',
+          temperature: 0.0,
+          seedInput: '42',
+          seed: 42,
+          retrySeedInput: '',
+          outputDirectory: 'MicroPheno_Analysis_Outputs',
+          autoDownloadResults: false,
+          debugMode: false
+        })
+        
+        // Clear persisted storage
+        try {
+          const storage = window.localStorage
+          storage.removeItem('upath-settings')
+        } catch (error) {
+          console.error('Failed to clear settings storage:', error)
+        }
       }
       }
     },
@@ -15898,7 +16125,8 @@ export const useSettingsStore = create<SettingsStore>()(
         seedInput: state.seedInput,
         seed: state.seed,
         outputDirectory: state.outputDirectory,
-        autoDownloadResults: state.autoDownloadResults
+        autoDownloadResults: state.autoDownloadResults,
+        debugMode: state.debugMode
       })
     }
   )
@@ -18385,24 +18613,25 @@ export function tracePhaseToUtterances(
     rdus: []
   };
 
+  // The RDUs are defined in P1.4 output. P1.5 output also contains a copy.
+  const refinedUnits = transcriptData.p1_5_output?.refined_diachronic_units || transcriptData.p1_4_output?.refined_diachronic_units;
+
   // Get RDUs for this phase
-  if (phase.units_involved && transcriptData.p1_3_output?.refined_diachronic_units) {
+  if (phase.units_involved && refinedUnits) {
     for (const rduId of phase.units_involved) {
-      const rdu = transcriptData.p1_3_output.refined_diachronic_units.find(
-        r => r.unit_id === rduId
-      );
+      const rdu = refinedUnits.find(r => r.unit_id === rduId);
       
       if (rdu) {
         const rduTrace: RDUTraceData = {
           rduId: rdu.unit_id,
           rduDescription: rdu.description || '',
-          temporalPhase: rdu.temporal_phase || '',
+          temporalPhase: rdu.phase?.phase_type || '',
           dus: []
         };
 
         // Get DUs for this RDU
-        if (rdu.source_p1_2_du_ids && transcriptData.p1_2_output?.diachronic_units) {
-          for (const duId of rdu.source_p1_2_du_ids) {
+        if (rdu.source_du_ids && transcriptData.p1_2_output?.diachronic_units) {
+          for (const duId of rdu.source_du_ids) {
             const du = transcriptData.p1_2_output.diachronic_units.find(
               d => d.unit_id === duId
             );
@@ -19355,6 +19584,143 @@ export const localForageStorage: StateStorage = {
   },
 }
 
+// QueuedStorageWrapper to fix race condition
+class QueuedStorageWrapper implements StateStorage {
+  private storage: StateStorage
+  private isInitialized = false
+  private hasExistingData = false
+  private writeQueue: Array<{ name: string; value: string }> = []
+  private initializationPromise: Promise<void> | null = null
+
+  constructor(storage: StateStorage) {
+    this.storage = storage
+  }
+
+  async getItem(name: string): Promise<string | null> {
+    console.log('🔍 [QueuedStorage] getItem called for:', name)
+    
+    // First getItem triggers initialization
+    if (!this.isInitialized && !this.initializationPromise) {
+      console.log('🚀 [QueuedStorage] Starting initialization...')
+      this.initializationPromise = this.initialize(name)
+    }
+
+    // Wait for initialization to complete
+    if (this.initializationPromise) {
+      await this.initializationPromise
+    }
+
+    // Now perform the actual getItem
+    const result = await this.storage.getItem(name)
+    return result
+  }
+
+  async setItem(name: string, value: string): Promise<void> {
+    console.log('💾 [QueuedStorage] setItem called for:', name, 'size:', value.length, 'chars')
+    
+    // If not initialized, queue the write
+    if (!this.isInitialized) {
+      console.log('⏳ [QueuedStorage] Not initialized yet, queueing write')
+      this.writeQueue.push({ name, value })
+      return
+    }
+
+    // If initialized but no existing data was found, allow all writes
+    if (!this.hasExistingData) {
+      console.log('✅ [QueuedStorage] No existing data, allowing write')
+      await this.storage.setItem(name, value)
+      return
+    }
+
+    // If existing data was found, check if this is meaningful data
+    try {
+      const parsed = JSON.parse(value)
+      const hasData = parsed.state && (
+        parsed.state.rawTranscripts?.length > 0 ||
+        parsed.state.processedData?.length > 0 ||
+        parsed.state.promptHistory?.length > 0
+      )
+      
+      if (hasData) {
+        console.log('✅ [QueuedStorage] Meaningful data detected, allowing write')
+        await this.storage.setItem(name, value)
+      } else {
+        console.log('🚫 [QueuedStorage] Empty state detected with existing data, blocking write')
+      }
+    } catch (e) {
+      // If we can't parse, allow the write (safety fallback)
+      console.log('⚠️ [QueuedStorage] Could not parse value, allowing write')
+      await this.storage.setItem(name, value)
+    }
+  }
+
+  async removeItem(name: string): Promise<void> {
+    console.log('🗑️ [QueuedStorage] removeItem called for:', name)
+    await this.storage.removeItem(name)
+  }
+
+  private async initialize(name: string): Promise<void> {
+    try {
+      // Check if there's existing data
+      const existingData = await this.storage.getItem(name)
+      this.hasExistingData = !!existingData
+      
+      console.log('✅ [QueuedStorage] Initialization complete:', {
+        hasExistingData: this.hasExistingData,
+        queuedWrites: this.writeQueue.length
+      })
+
+      // Process queued writes
+      await this.processQueue()
+      
+      this.isInitialized = true
+      this.initializationPromise = null
+    } catch (error) {
+      console.error('❌ [QueuedStorage] Initialization failed:', error)
+      this.isInitialized = true
+      this.initializationPromise = null
+      // Process queue anyway to avoid blocking
+      await this.processQueue()
+    }
+  }
+
+  private async processQueue(): Promise<void> {
+    console.log(`📝 [QueuedStorage] Processing ${this.writeQueue.length} queued writes`)
+    
+    for (const { name, value } of this.writeQueue) {
+      if (!this.hasExistingData) {
+        // No existing data, allow the write
+        console.log('✅ [QueuedStorage] Processing queued write (no existing data)')
+        await this.storage.setItem(name, value)
+      } else {
+        // Existing data found, check if queued write has meaningful data
+        try {
+          const parsed = JSON.parse(value)
+          const hasData = parsed.state && (
+            parsed.state.rawTranscripts?.length > 0 ||
+            parsed.state.processedData?.length > 0 ||
+            parsed.state.promptHistory?.length > 0
+          )
+          
+          if (hasData) {
+            console.log('✅ [QueuedStorage] Processing queued write (has meaningful data)')
+            await this.storage.setItem(name, value)
+          } else {
+            console.log('🚫 [QueuedStorage] Discarding queued empty state write')
+          }
+        } catch (e) {
+          console.log('⚠️ [QueuedStorage] Could not parse queued value, discarding')
+        }
+      }
+    }
+    
+    this.writeQueue = []
+  }
+}
+
+// Export the wrapped storage for use in pipelineStore
+export const queuedLocalForageStorage = new QueuedStorageWrapper(localForageStorage)
+
 
 ================================================
 FILE: src/utils/timeHelper.ts
@@ -20183,6 +20549,82 @@ function encryptPrompt(text, key) {
 
 
 ================================================
+FILE: upath-backend/package.json
+================================================
+{
+  "name": "upath-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon --exec tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@fastify/cors": "^11.0.1",
+    "@google/generative-ai": "^0.24.1",
+    "dotenv": "^17.1.0",
+    "fastify": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.11",
+    "@types/supertest": "^6.0.3",
+    "@vitest/ui": "^3.2.4",
+    "jsdom": "^26.1.0",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.1.3",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
+
+
+
+================================================
+FILE: upath-backend/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "removeComments": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noImplicitThis": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "allowUnusedLabels": false,
+    "allowUnreachableCode": false,
+    "exactOptionalPropertyTypes": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+
+
+================================================
 FILE: upath-backend/.env.example
 ================================================
 # Gemini API Configuration
@@ -20487,6 +20929,102 @@ fetch('/api/analyze', {
 .then(response => response.json())
 .then(data => console.log(data));
 `);
+}
+
+
+================================================
+FILE: .claude/settings.local.json
+================================================
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__activate_project",
+      "mcp__serena__initial_instructions",
+      "mcp__serena__check_onboarding_performed",
+      "mcp__serena__onboarding",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__find_symbol",
+      "mcp__serena__list_dir",
+      "mcp__serena__search_for_pattern",
+      "mcp__serena__write_memory",
+      "mcp__serena__replace_regex",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "mcp__serena__read_memory",
+      "mcp__zen__thinkdeep",
+      "mcp__zen__chat",
+      "mcp__zen__analyze",
+      "Bash(npx tsc:*)",
+      "mcp__serena__think_about_task_adherence",
+      "Bash(npm run dev:*)",
+      "mcp__serena__think_about_collected_information",
+      "mcp__serena__insert_after_symbol",
+      "mcp__serena__replace_symbol_body",
+      "mcp__serena__summarize_changes",
+      "Bash(ls:*)",
+      "Bash(git check-ignore:*)",
+      "mcp__serena__get_current_config",
+      "mcp__serena__restart_language_server",
+      "mcp__serena__find_referencing_symbols",
+      "mcp__zen__debug",
+      "Bash(npm run test:run:*)",
+      "Bash(npm run test:*)",
+      "Bash(node:*)",
+      "mcp__zen__planner",
+      "Bash(curl:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__serena__find_file",
+      "Bash(mkdir:*)",
+      "Bash(npm run build:*)",
+      "Bash(jq:*)",
+      "Bash(awk:*)",
+      "Bash(sed:*)",
+      "mcp__serena__think_about_whether_you_are_done",
+      "mcp__serena__insert_before_symbol",
+      "Bash(rg:*)",
+      "Bash(git checkout:*)",
+      "mcp__serena__list_memories",
+      "Bash(npm test:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run:*)",
+      "mcp__serena__switch_modes",
+      "mcp__zen__listmodels",
+      "mcp__zen__codereview",
+      "Bash(timeout 10s npm run dev:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "Bash(npm install:*)",
+      "Bash(pkill:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(rm:*)",
+      "Bash(gemini:*)",
+      "Bash(mv:*)",
+      "Bash(kill:*)",
+      "Bash(true)",
+      "Bash(cat:*)",
+      "mcp__zen__consensus",
+      "Bash(cp:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue close:*)",
+      "Bash(gh issue:*)",
+      "Bash(npm init:*)",
+      "Bash(timeout 5s npm run dev)",
+      "Bash(git worktree:*)",
+      "Bash(git branch:*)",
+      "Bash(NODE_ENV=test npm run test -- P1_3_RefineDiachronicUnitsNode.test.ts)",
+      "mcp__deepwiki__read_wiki_structure",
+      "mcp__deepwiki__read_wiki_contents",
+      "mcp__deepwiki__ask_question",
+      "Bash(npx tsx:*)",
+      "Bash(GEMINI_API_KEY=test-key npm run dev)",
+      "Bash(GEMINI_API_KEY=test-key timeout 6s npm run dev)",
+      "Bash(gitingest --help)"
+    ],
+    "deny": []
+  }
 }
 
 
