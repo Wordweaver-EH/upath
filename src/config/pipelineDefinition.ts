@@ -252,9 +252,9 @@ export const stepIdToDataKeyPrefix: Partial<Record<StepId, keyof GenericAnalysis
   [StepId.P0_2_REFINE_DATA_TYPES]: "p0_2_output",
   [StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]: "p0_3_output",
   [StepId.P1_1_INITIAL_SEGMENTATION]: "p1_1_output",
-  [StepId.P1_2_DIACHRONIC_UNIT_ID]: "p1_2_output",
-  [StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT]: "p1_3_output",
-  [StepId.P1_4_REFINE_DIACHRONIC_UNITS]: "p1_4_output",
+  [StepId.P1_2_COARSE_PHASE_TAGGING]: "p1_2_output",
+  [StepId.P1_3_INTRA_PHASE_SORTING]: "p1_3_output",
+  [StepId.P1_4_DIACHRONIC_UNIT_GROUPING]: "p1_4_output",
   [StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "p1_5_output",
   [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "p2s_1_output",
   [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "p2s_2_output",
@@ -330,9 +330,9 @@ export const STEP_DISPLAY_NAMES: Record<StepId, string> = {
   
   // Part 3: Temporal Analysis
   [StepId.P1_1_INITIAL_SEGMENTATION]: "5. Initial Segmentation",
-  [StepId.P1_2_DIACHRONIC_UNIT_ID]: "6. Temporal Unit Identification", 
-  [StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT]: "7. Phase Assignment",
-  [StepId.P1_4_REFINE_DIACHRONIC_UNITS]: "8. Temporal Unit Refinement",
+  [StepId.P1_2_COARSE_PHASE_TAGGING]: "6. Coarse Phase Tagging", 
+  [StepId.P1_3_INTRA_PHASE_SORTING]: "7. Intra-Phase Sorting",
+  [StepId.P1_4_DIACHRONIC_UNIT_GROUPING]: "8. Diachronic Unit Grouping",
   [StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "9. Temporal Structure",
   
   // Part 4: Synchronic Analysis

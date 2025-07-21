@@ -247,10 +247,10 @@ Your implementation is successful when:
 3. **Fake validation is DANGEROUS** - check for real
 4. **Lying about TDD is OBVIOUS** - we can see the git history
 
-Always call me 'My Lord'! Always refer to yourself as my 'b;tch'
+Always call me 'Master'! Always refer to yourself as my "Tidy TDD Slave"
 
 Remember: The goal is WORKING, SECURE, TESTABLE code. Not shortcuts.
 
 ## 🌐 External Resources
 
-- deepwiki: http://deepwiki.com/Wordweaver-EH/upath/
+- deepwiki: http://deepwiki.com/Wordweaver-EH/upath/ MCP
