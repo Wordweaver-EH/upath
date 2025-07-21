@@ -90,14 +90,19 @@ export interface P1_1_Output {
   dependent_variable_focus: string[];
 }
 
-export interface DiachronicUnitP1_2 {
-  unit_id: string;
-  description: string;
-  source_segment_ids: string[]; // Replaces related_utterances_or_segments_text
+// P1.2 Coarse Phase Tagging types
+export interface PhaseTaggedSegment extends SegmentedUtteranceSegment {
+  coarse_phase: 'Initial State' | 'Core Experience' | 'Final Action' | 'Post-Hoc Reflection';
 }
+
+export interface PhaseTaggedUtterance {
+  original_utterance: SelectedUtterance;
+  segments: PhaseTaggedSegment[];
+}
+
 export interface P1_2_Output {
   transcript_id: string;
-  diachronic_units: DiachronicUnitP1_2[];
+  phase_tagged_utterances: PhaseTaggedUtterance[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
 }
@@ -694,7 +699,7 @@ export enum StepId {
 
   // Part I: Specific Diachronic Analysis
   P1_1_INITIAL_SEGMENTATION = "P1_1_INITIAL_SEGMENTATION",
-  P1_2_DIACHRONIC_UNIT_ID = "P1_2_DIACHRONIC_UNIT_ID",
+  P1_2_COARSE_PHASE_TAGGING = "P1_2_COARSE_PHASE_TAGGING",
   P1_3_TEMPORAL_PHASE_ASSIGNMENT = "P1_3_TEMPORAL_PHASE_ASSIGNMENT",
   P1_4_REFINE_DIACHRONIC_UNITS = "P1_4_REFINE_DIACHRONIC_UNITS",
   P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE = "P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE",
