@@ -10,6 +10,8 @@ import { RefinedDataTable } from './RefinedDataTable';
 import { SelectedUtterancesTable } from './SelectedUtterancesTable';
 import { InitialSegmentationTable } from './InitialSegmentationTable';
 import { DiachronicUnitTable } from './DiachronicUnitTable';
+import { PhaseTaggingTable } from './PhaseTaggingTable';
+import { IntraPhaseSortingTable } from './IntraPhaseSortingTable';
 import { RefinedDiachronicUnitTable } from './RefinedDiachronicUnitTable';
 import { TemporalPhaseAssignmentTable } from './TemporalPhaseAssignmentTable';
 import { EditableTextArea } from './EditableTextArea';
@@ -518,7 +520,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
   }
   
   // Special handling for P1_2 with tabbed display
-  if (stepId === StepId.P1_2_DIACHRONIC_UNIT_ID) {
+  if (stepId === StepId.P1_2_COARSE_PHASE_TAGGING) {
     return (
       <TabbedStepDisplay
         processedData={processedData}
@@ -537,7 +539,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
             }));
         }}
         renderContent={(tabData, theme) => {
-          const handleDiachronicChange = (updatedData: any) => {
+          const handlePhaseTaggingChange = (updatedData: any) => {
             updateProcessedData(tabData.transcriptMapId, {
               p1_2_output: updatedData
             });
@@ -558,24 +560,39 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                 
                 <div>
                   <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                    Total Diachronic Units
+                    Independent Variable
                   </h4>
-                  <p className="text-light-text dark:text-dark-text">
-                    {tabData.diachronicData.diachronic_units.length}
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {tabData.diachronicData.independent_variable_details}
                   </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {tabData.diachronicData.dependent_variable_focus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
               
-              {/* Diachronic units table */}
+              {/* Phase tagging table */}
               <div>
                 <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
-                  Diachronic Units (DUs)
+                  Coarse Phase Tagging
                 </h4>
-                <DiachronicUnitTable 
-                  diachronicData={tabData.diachronicData}
-                  segmentationData={tabData.segmentationData}
+                <PhaseTaggingTable 
+                  phaseTaggingData={tabData.diachronicData}
                   theme={theme}
-                  onDiachronicChange={handleDiachronicChange}
+                  onPhaseTaggingChange={handlePhaseTaggingChange}
                   filename={tabData.filename}
                 />
               </div>
@@ -589,7 +606,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
   }
   
   // Special handling for P1_3 with tabbed display
-  if (stepId === StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT) {
+  if (stepId === StepId.P1_3_INTRA_PHASE_SORTING) {
     return (
       <TabbedStepDisplay
         processedData={processedData}
@@ -608,7 +625,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
             }));
         }}
         renderContent={(tabData, theme) => {
-          const handlePhaseChange = (updatedData: any) => {
+          const handleSortingChange = (updatedData: any) => {
             updateProcessedData(tabData.transcriptMapId, {
               p1_3_output: updatedData
             });
@@ -629,10 +646,10 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                 
                 <div>
                   <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                    Total DUs with Phase Assignment
+                    Total Sorted Segments
                   </h4>
                   <p className="text-light-text dark:text-dark-text">
-                    {tabData.phaseData.phased_diachronic_units.length}
+                    {tabData.phaseData.sorted_segments.length}
                   </p>
                 </div>
                 
@@ -662,15 +679,15 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                 </div>
               </div>
               
-              {/* Temporal phase assignment table */}
+              {/* Intra-phase sorting table */}
               <div>
                 <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
-                  Temporal Phase Assignment
+                  Intra-Phase Chronological Sorting
                 </h4>
-                <TemporalPhaseAssignmentTable 
-                  phaseData={tabData.phaseData}
+                <IntraPhaseSortingTable 
+                  sortingData={tabData.phaseData}
                   theme={theme}
-                  onPhaseChange={handlePhaseChange}
+                  onSortingChange={handleSortingChange}
                   filename={tabData.filename}
                 />
               </div>

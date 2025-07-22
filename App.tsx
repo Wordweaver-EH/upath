@@ -374,9 +374,9 @@ const App: React.FC = () => {
           StepId.P0_2_REFINE_DATA_TYPES,
           StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
           StepId.P1_1_INITIAL_SEGMENTATION,
-          StepId.P1_2_DIACHRONIC_UNIT_ID,
-          StepId.P1_3_TEMPORAL_PHASE_ASSIGNMENT,
-          StepId.P1_4_REFINE_DIACHRONIC_UNITS,
+          StepId.P1_2_COARSE_PHASE_TAGGING,
+          StepId.P1_3_INTRA_PHASE_SORTING,
+          StepId.P1_4_DIACHRONIC_UNIT_GROUPING,
           StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
         ];
         
