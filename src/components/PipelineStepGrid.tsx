@@ -12,6 +12,7 @@ import { InitialSegmentationTable } from './InitialSegmentationTable';
 import { DiachronicUnitTable } from './DiachronicUnitTable';
 import { PhaseTaggingTable } from './PhaseTaggingTable';
 import { IntraPhaseSortingTable } from './IntraPhaseSortingTable';
+import { DiachronicUnitGroupingTable } from './DiachronicUnitGroupingTable';
 import { RefinedDiachronicUnitTable } from './RefinedDiachronicUnitTable';
 import { TemporalPhaseAssignmentTable } from './TemporalPhaseAssignmentTable';
 import { EditableTextArea } from './EditableTextArea';
@@ -701,7 +702,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
   }
   
   // Special handling for P1_4 with tabbed display
-  if (stepId === StepId.P1_4_REFINE_DIACHRONIC_UNITS) {
+  if (stepId === StepId.P1_4_DIACHRONIC_UNIT_GROUPING) {
     console.log('[P1.4 Debug] Rendering P1.4 component, processedData size:', processedData.size);
     return (
       <TabbedStepDisplay
@@ -714,7 +715,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
-                refinedData: transcript.p1_4_output!,
+                groupingData: transcript.p1_4_output!,
                 p1_3_output: transcript.p1_3_output,
                 filename: transcript.filename
               }
@@ -723,14 +724,14 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
         renderContent={(tabData, theme) => {
           try {
             console.log('[P1.4 Debug] tabData:', tabData);
-            console.log('[P1.4 Debug] refinedData structure:', {
-              hasRefinedData: !!tabData.refinedData,
-              hasTranscriptId: !!tabData.refinedData?.transcript_id,
-              hasRefinedDiachronicUnits: !!tabData.refinedData?.refined_diachronic_units,
-              refinedUnitsLength: tabData.refinedData?.refined_diachronic_units?.length || 0
+            console.log('[P1.4 Debug] groupingData structure:', {
+              hasGroupingData: !!tabData.groupingData,
+              hasTranscriptId: !!tabData.groupingData?.transcript_id,
+              hasDiachronicUnits: !!tabData.groupingData?.diachronic_units,
+              diachronicUnitsLength: tabData.groupingData?.diachronic_units?.length || 0
             });
             
-            const handleRefinedChange = (updatedData: any) => {
+            const handleGroupingChange = (updatedData: any) => {
               updateProcessedData(tabData.transcriptMapId, {
                 p1_4_output: updatedData
               });
@@ -745,48 +746,52 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     Transcript ID
                   </h4>
                   <p className="text-light-text dark:text-dark-text">
-                    {tabData.refinedData.transcript_id}
+                    {tabData.groupingData.transcript_id}
                   </p>
                 </div>
                 
                 <div>
                   <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                    Total Refined DUs
+                    Total Diachronic Units
                   </h4>
                   <p className="text-light-text dark:text-dark-text">
-                    {tabData.refinedData.refined_diachronic_units.length}
+                    {tabData.groupingData.diachronic_units.length}
                   </p>
                 </div>
                 
-                {/* Show phase groups if available */}
-                {tabData.refinedData.phase_groups && (
-                  <div>
-                    <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                      Phase Groups
-                    </h4>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {Object.entries(tabData.refinedData.phase_groups).map(([phase, units]) => (
-                        <span
-                          key={phase}
-                          className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-                        >
-                          Phase {phase}: {(units as string[]).length} units
-                        </span>
-                      ))}
-                    </div>
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Independent Variable
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {tabData.groupingData.independent_variable_details}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {tabData.groupingData.dependent_variable_focus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
                   </div>
-                )}
+                </div>
               </div>
               
-              {/* Refined diachronic units table */}
+              {/* Diachronic unit grouping table */}
               <div>
-                <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-2">
-                  Refined Diachronic Units (RDUs)
-                </h4>
-                <RefinedDiachronicUnitTable 
-                  refinedData={tabData.refinedData}
+                <DiachronicUnitGroupingTable 
+                  groupingData={tabData.groupingData}
+                  sortedSegmentsData={tabData.p1_3_output}
                   theme={theme}
-                  onRefinedChange={handleRefinedChange}
+                  onGroupingChange={handleGroupingChange}
                   filename={tabData.filename}
                 />
               </div>
