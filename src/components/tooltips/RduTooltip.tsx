@@ -8,24 +8,24 @@ interface RduTooltipProps {
 }
 
 export const RduTooltip: React.FC<RduTooltipProps> = ({ rduName, transcriptData }) => {
-  // Find the RDU in P1.4 output (where RDUs are defined)
-  const rdu = transcriptData.p1_4_output?.refined_diachronic_units.find(unit => unit.unit_id === rduName);
+  // Find the DU in P1.4 output (where DUs are defined)
+  const du = transcriptData.p1_4_output?.diachronic_units.find(unit => unit.unit_id === rduName);
   
-  if (!rdu) {
+  if (!du) {
     return (
       <div className="p-6">
         <p className="text-sm text-light-sidenote dark:text-dark-sidenote">
-          RDU data not found for {rduName}
+          DU data not found for {rduName}
         </p>
       </div>
     );
   }
 
-  // Get the DUs from P1.2 output using the correct source field
-  const duIds = rdu.source_du_ids || [];
-  const dus = duIds.map(duId => {
-    return transcriptData.p1_2_output?.diachronic_units.find(
-      du => du.unit_id === duId || du.du_id === duId
+  // Get the segments from P1.3 output
+  const segmentIds = du.source_segment_ids || [];
+  const segments = segmentIds.map(segId => {
+    return transcriptData.p1_3_output?.sorted_segments.find(
+      seg => seg.segment_id === segId
     );
   }).filter(Boolean);
 
@@ -36,38 +36,33 @@ export const RduTooltip: React.FC<RduTooltipProps> = ({ rduName, transcriptData 
       </h3>
       
       <div className="space-y-3 text-sm">
-        {rdu.description && (
+        {du.description && (
           <div>
             <span className="text-light-sidenote dark:text-dark-sidenote">Description:</span>
-            <p className="mt-1">{rdu.description}</p>
+            <p className="mt-1">{du.description}</p>
           </div>
         )}
-
-        {rdu.phase?.phase_type && (
-          <div>
-            <span className="text-light-sidenote dark:text-dark-sidenote">Temporal Phase:</span>
-            <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-              {rdu.phase.phase_type}
-            </span>
-          </div>
-        )}
-
 
         <div>
-          <span className="text-light-sidenote dark:text-dark-sidenote">DUs Included:</span>
-          <div className="mt-1 space-y-2">
-            {dus.map(du => (
+          <span className="text-light-sidenote dark:text-dark-sidenote">Segments Included ({segments.length}):</span>
+          <div className="mt-1 space-y-2 max-h-60 overflow-y-auto">
+            {segments.map(segment => (
               <NestedTooltip
-                key={du!.unit_id || du!.du_id}
-                content={<DuTooltipContent du={du!} transcriptData={transcriptData} />}
+                key={segment!.segment_id}
+                content={<SegmentTooltipContent segment={segment!} transcriptData={transcriptData} />}
                 depth={1}
               >
                 <div className="cursor-pointer hover:bg-light-bg-alt dark:hover:bg-dark-bg-alt p-2 rounded transition-colors">
-                  <div className="font-medium text-light-accent dark:text-dark-accent">
-                    {du!.unit_id || du!.du_id}
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-light-accent dark:text-dark-accent">
+                      {segment!.segment_id}
+                    </span>
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                      {segment!.coarse_phase}
+                    </span>
                   </div>
                   <div className="text-xs text-light-sidenote dark:text-dark-sidenote line-clamp-2">
-                    {du!.description || du!.summary || 'No description available'}
+                    {segment!.segment_text}
                   </div>
                 </div>
               </NestedTooltip>
@@ -79,74 +74,56 @@ export const RduTooltip: React.FC<RduTooltipProps> = ({ rduName, transcriptData 
   );
 };
 
-interface DuTooltipContentProps {
-  du: any;
+interface SegmentTooltipContentProps {
+  segment: any;
   transcriptData: TranscriptProcessedData;
 }
 
-const DuTooltipContent: React.FC<DuTooltipContentProps> = ({ du, transcriptData }) => {
-  // Get segments from P1.1 output, then trace to utterances
-  const segmentIds = du.source_segment_ids || du.segment_ids || [];
-  const utteranceMap = new Map<string, any>();
-  
-  if (transcriptData.p1_1_output?.segmented_utterances) {
-    for (const segId of segmentIds) {
-      // Find which utterance contains this segment
-      for (const segUtt of transcriptData.p1_1_output.segmented_utterances) {
-        const segment = segUtt.segments?.find(s => s.segment_id === segId);
-        if (segment && segUtt.original_utterance) {
-          const lineNum = segUtt.original_utterance.original_line_num || segUtt.original_utterance.utterance_number?.toString();
-          if (lineNum && !utteranceMap.has(lineNum)) {
-            utteranceMap.set(lineNum, segUtt.original_utterance);
-          }
-        }
-      }
-    }
-  }
-  
-  const utterances = Array.from(utteranceMap.values());
-
+const SegmentTooltipContent: React.FC<SegmentTooltipContentProps> = ({ segment, transcriptData }) => {
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-md">
       <h3 className="font-semibold text-light-text dark:text-dark-text mb-2">
-        {du.unit_id || du.du_id}
+        {segment.segment_id}
       </h3>
       
       <div className="space-y-3 text-sm">
-        {du.description && (
+        <div>
+          <span className="text-light-sidenote dark:text-dark-sidenote">Full Text:</span>
+          <p className="mt-1">{segment.segment_text}</p>
+        </div>
+
+        <div>
+          <span className="text-light-sidenote dark:text-dark-sidenote">Phase:</span>
+          <span className="ml-2 px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+            {segment.coarse_phase}
+          </span>
+        </div>
+
+        <div>
+          <span className="text-light-sidenote dark:text-dark-sidenote">Chronological Index:</span>
+          <span className="ml-2">{segment.chronological_index}</span>
+        </div>
+
+        {segment.placement_justification && (
           <div>
-            <span className="text-light-sidenote dark:text-dark-sidenote">Description:</span>
-            <p className="mt-1">{du.description}</p>
-          </div>
-        )}
-        
-        {du.summary && (
-          <div>
-            <span className="text-light-sidenote dark:text-dark-sidenote">Summary:</span>
-            <p className="mt-1">{du.summary}</p>
+            <span className="text-light-sidenote dark:text-dark-sidenote">Justification:</span>
+            <p className="mt-1 italic text-xs">{segment.placement_justification}</p>
           </div>
         )}
 
         <div>
-          <span className="text-light-sidenote dark:text-dark-sidenote">Utterances:</span>
-          <div className="mt-1 space-y-2">
-            {utterances.map(utt => (
-              <NestedTooltip
-                key={utt.original_line_num || utt.utterance_number}
-                content={<UtteranceTooltipContent utterance={utt} />}
-                depth={2}
-              >
-                <div className="cursor-pointer hover:bg-light-bg-alt dark:hover:bg-dark-bg-alt p-2 rounded transition-colors">
-                  <div className="font-medium text-light-accent dark:text-dark-accent">
-                    Line {utt.original_line_num || utt.utterance_number}
-                  </div>
-                  <div className="text-xs text-light-sidenote dark:text-dark-sidenote line-clamp-2">
-                    {utt.utterance_text}
-                  </div>
-                </div>
-              </NestedTooltip>
-            ))}
-          </div>
+          <span className="text-light-sidenote dark:text-dark-sidenote">Original Utterance:</span>
+          <NestedTooltip
+            content={<UtteranceTooltipContent utterance={segment.original_utterance} />}
+            depth={2}
+          >
+            <div className="mt-1 p-2 bg-light-bg-alt dark:bg-dark-bg-alt rounded cursor-pointer hover:shadow-md transition-shadow">
+              <div className="text-xs">
+                <span className="font-medium">Line {segment.original_utterance.original_line_num}:</span>
+                <p className="mt-1 italic line-clamp-2">"{segment.original_utterance.utterance_text}"</p>
+              </div>
+            </div>
+          </NestedTooltip>
         </div>
       </div>
     </div>
