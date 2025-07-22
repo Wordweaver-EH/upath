@@ -290,7 +290,17 @@ export const DiachronicStructureComparison: React.FC<DiachronicStructureComparis
       });
     });
 
-    const csv = convertToCSV(csvData);
+    const columns = [
+      { field: 'Transcript', headerName: 'Transcript' },
+      { field: 'P1.2 Phase', headerName: 'P1.2 Phase' },
+      { field: 'DU ID', headerName: 'DU ID' },
+      { field: 'DU Description', headerName: 'DU Description' },
+      { field: 'P1.5 Phase', headerName: 'P1.5 Phase' },
+      { field: 'Segment Count', headerName: 'Segment Count' },
+      { field: 'Phase Purity', headerName: 'Phase Purity' }
+    ];
+
+    const csv = convertToCSV(csvData, columns);
     downloadCSV(csv, `P1.5_diachronic_structure_comparison_${new Date().toISOString().split('T')[0]}.csv`);
   };
 

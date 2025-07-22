@@ -368,7 +368,20 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
       });
     });
     
-    const csv = convertToCSV(csvData);
+    const columns = [
+      { field: 'DU ID', headerName: 'DU ID' },
+      { field: 'DU Description', headerName: 'DU Description' },
+      { field: 'Segment Position', headerName: 'Segment Position' },
+      { field: 'Segment ID', headerName: 'Segment ID' },
+      { field: 'Phase', headerName: 'Phase' },
+      { field: 'Chronological Index', headerName: 'Chronological Index' },
+      { field: 'Segment Text', headerName: 'Segment Text' },
+      { field: 'Placement Justification', headerName: 'Placement Justification' },
+      { field: 'Original Line', headerName: 'Original Line' },
+      { field: 'Original Utterance', headerName: 'Original Utterance' }
+    ];
+    
+    const csv = convertToCSV(csvData, columns);
     const exportFilename = filename ? 
       `${filename.replace(/\.[^/.]+$/, '')}_P1.4_diachronic_unit_grouping.csv` : 
       'P1.4_diachronic_unit_grouping.csv';

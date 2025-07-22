@@ -204,7 +204,16 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
       'Phase': row.coarse_phase
     }));
     
-    const csv = convertToCSV(csvData);
+    const columns = [
+      { field: 'Line Number', headerName: 'Line Number' },
+      { field: 'Original Utterance', headerName: 'Original Utterance' },
+      { field: 'Segment ID', headerName: 'Segment ID' },
+      { field: 'Segment Text', headerName: 'Segment Text' },
+      { field: 'Temporal Cues', headerName: 'Temporal Cues' },
+      { field: 'Phase', headerName: 'Phase' }
+    ];
+    
+    const csv = convertToCSV(csvData, columns);
     const exportFilename = filename ? 
       `${filename.replace(/\.[^/.]+$/, '')}_P1.2_phase_tagging.csv` : 
       'P1.2_phase_tagging.csv';

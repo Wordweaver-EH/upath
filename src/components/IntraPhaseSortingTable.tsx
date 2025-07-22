@@ -298,7 +298,18 @@ export const IntraPhaseSortingTable: React.FC<IntraPhaseSortingTableProps> = ({
       'Original Utterance': segment.original_utterance.utterance_text
     }));
     
-    const csv = convertToCSV(csvData);
+    const columns = [
+      { field: 'Phase', headerName: 'Phase' },
+      { field: 'Chronological Index', headerName: 'Chronological Index' },
+      { field: 'Segment ID', headerName: 'Segment ID' },
+      { field: 'Segment Text', headerName: 'Segment Text' },
+      { field: 'Temporal Cues', headerName: 'Temporal Cues' },
+      { field: 'Placement Justification', headerName: 'Placement Justification' },
+      { field: 'Original Line', headerName: 'Original Line' },
+      { field: 'Original Utterance', headerName: 'Original Utterance' }
+    ];
+    
+    const csv = convertToCSV(csvData, columns);
     const exportFilename = filename ? 
       `${filename.replace(/\.[^/.]+$/, '')}_P1.3_intra_phase_sorting.csv` : 
       'P1.3_intra_phase_sorting.csv';
