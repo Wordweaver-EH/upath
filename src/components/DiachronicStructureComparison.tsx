@@ -324,8 +324,13 @@ export const DiachronicStructureComparison: React.FC<DiachronicStructureComparis
               Phase / Transcript
             </div>
             {processedTranscripts.map(transcript => (
-              <div key={transcript.transcriptId} className="p-2 font-semibold text-sm text-center border-l border-light-border dark:border-dark-border">
-                {transcript.filename}
+              <div key={transcript.transcriptId} className="p-2 border-l border-light-border dark:border-dark-border">
+                <div className="font-semibold text-sm text-center mb-1">
+                  {transcript.filename}
+                </div>
+                <div className="text-xs text-center text-light-sidenote dark:text-dark-sidenote italic">
+                  IV: {transcript.p15Output.independent_variable_details}
+                </div>
               </div>
             ))}
           </div>
