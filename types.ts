@@ -161,11 +161,11 @@ export interface P1_5_Output {
 export interface P2S_1_ThematicGroup {
   group_label: string;
   justification: string;
-  utterances: Array<{ original_line_num: string; utterance_text: string }>; // These are from P0.3 SelectedUtterance
+  segments: SegmentedUtteranceSegment[]; // Changed from utterances to maintain precision
 }
 export interface P2S_1_Output {
   transcript_id: string;
-  analyzed_diachronic_unit: string; // This is the phase_name from P1.5
+  analyzed_du_id: string; // This is the DU ID from P1.4
   synchronic_thematic_groups: P2S_1_ThematicGroup[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
@@ -176,12 +176,12 @@ export interface P2S_2_SynchronicUnit {
   level: number;
   abstraction_op: string;
   intensional_definition: string;
-  utterances?: Array<{ original_line_num: string; utterance_text: string }>; // From P0.3 SelectedUtterance
+  segments?: SegmentedUtteranceSegment[]; // Changed from utterances to maintain precision
   constituent_lower_units?: string[]; // unit_names of other ISUs
 }
 export interface P2S_2_Output {
   transcript_id: string;
-  analyzed_diachronic_unit: string; // phase_name
+  analyzed_du_id: string; // DU ID from P1.4
   specific_synchronic_units_hierarchy: P2S_2_SynchronicUnit[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
@@ -199,7 +199,7 @@ export interface P2S_3_NetworkLink {
 }
 export interface P2S_3_Output {
   transcript_id: string;
-  analyzed_diachronic_unit: string; // phase_name
+  analyzed_du_id: string; // DU ID from P1.4
   specific_synchronic_structure: {
     representation_type: "Semantic Network";
     description: string;
@@ -208,7 +208,7 @@ export interface P2S_3_Output {
   };
   independent_variable_details: string;
   dependent_variable_focus: string[];
-  // mermaid_syntax_specific_synchronic is stored per-phase in TranscriptProcessedData.P2SPhaseData
+  // mermaid_syntax_specific_synchronic is stored per-DU in TranscriptProcessedData.P2SDuData
 }
 
 
@@ -547,7 +547,7 @@ export interface P7_3b_Output {
 export type P6_1_Output = string;
 
 
-export interface P2SPhaseData {
+export interface P2SDuData {
     p2s_1_output?: P2S_1_Output;
     p2s_1_error?: string;
     p2s_2_output?: P2S_2_Output;
@@ -583,10 +583,10 @@ export interface TranscriptProcessedData {
   p1_5_error?: string;
   isFullyProcessedSpecificDiachronic: boolean;
 
-  p2s_outputs_by_phase?: Record<string, P2SPhaseData>; // Key is phase_name
-  phases_for_p2s_processing?: string[]; // phase_names
-  current_phase_for_p2s_processing?: string; // phase_name
-  processed_phases_for_p2s?: string[]; // phase_names
+  p2s_outputs_by_du?: Record<string, P2SDuData>; // Key is du_id
+  dus_for_p2s_processing?: string[]; // du_ids
+  current_du_for_p2s_processing?: string; // du_id
+  processed_dus_for_p2s?: string[]; // du_ids
   isFullyProcessedSpecificSynchronic: boolean;
 }
 
@@ -649,7 +649,7 @@ export interface CurrentStepInfo {
   error?: string;
   groundingSources?: GroundingChunk[];
   currentGduForP4S?: string; // GDU_ID
-  currentPhaseForP2S?: string; // phase_name
+  currentDuForP2S?: string; // du_id
 }
 
 export interface HilContext {

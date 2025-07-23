@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { StepId, StepStatus } from '../../types'
-import { ESSENTIAL_STEPS_FOR_AUTODOWNLOAD, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_CONFIGS } from '../../constants'
+import { ESSENTIAL_STEPS_FOR_AUTODOWNLOAD, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC, STEP_CONFIGS } from '../../constants'
 import { useUIStore } from '../stores'
 import { usePipelineStore } from '../stores'
 import { useSettingsStore } from '../stores'
@@ -35,6 +35,7 @@ export const useAutorunManager = () => {
   const downloadOutput = usePipelineStore(state => state.downloadOutput)
   const isGlobalStep = usePipelineStore(state => state.isGlobalStep)
   const autorunResumePosition = usePipelineStore(state => state.autorunResumePosition)
+  const lastStepInfo = usePipelineStore(state => state.lastStepInfo)
 
   // Settings Store state
   const autoDownloadResults = useSettingsStore(state => state.autoDownloadResults)
@@ -66,8 +67,14 @@ export const useAutorunManager = () => {
     console.log(`- currentStepInfo.status: ${currentStepInfo.status}`);
     console.log(`- currentStepInfo.stepId: ${currentStepInfo.stepId}`);
     console.log(`- activeTranscriptIndex: ${activeTranscriptIndex}`);
+    console.log(`- timestamp: ${new Date().toISOString()}`);
+    console.log(`- lastStepInfo:`, lastStepInfo);
     
-    if (isAutorunning && currentStepInfo.status === StepStatus.Success) {
+    // Check both currentStepInfo and lastStepInfo for success status
+    const stepIsSuccess = currentStepInfo.status === StepStatus.Success || 
+                         (lastStepInfo?.stepId === currentStepInfo.stepId && lastStepInfo?.status === StepStatus.Success);
+    
+    if (isAutorunning && stepIsSuccess) {
       console.log(`✅ Autorun active & step successful - checking next step`);
       
       // Use orchestrator instead of getNextStepDetails
@@ -81,14 +88,18 @@ export const useAutorunManager = () => {
       // Convert orchestrator response to legacy format for compatibility
       const details = nextStep ? {
         nextStepId: nextStep.nextStepId,
-        nextTranscriptIndex: nextStep.nextTranscriptIndex ?? activeTranscriptIndex
+        nextTranscriptIndex: nextStep.nextTranscriptIndex ?? activeTranscriptIndex,
+        nextDuIndex: nextStep.nextDuIndex,
+        shouldPause: nextStep.shouldPause
       } : null;
       
       console.log(`- orchestrator.getNextStep result:`, details);
       
       if (details) {
         console.log(`🎯 Found next step: ${details.nextStepId} (transcript index: ${details.nextTranscriptIndex})`);
-        setActiveTranscript(details.nextTranscriptIndex);
+        if (details.nextTranscriptIndex !== activeTranscriptIndex) {
+          setActiveTranscript(details.nextTranscriptIndex);
+        }
         
         // Update process state
         const newProcessState = orchestrator.updateProcessState(
@@ -98,6 +109,16 @@ export const useAutorunManager = () => {
           { transcriptIndex: activeTranscriptIndex }
         );
         updateProcessState(newProcessState); 
+        
+        // Check if we should pause after Part 2
+        if (details.shouldPause) {
+          console.log(`⏸️ Pausing autorun after Part 2 completion`);
+          // Save resume checkpoint before pausing
+          const pausedProcessState = orchestrator.createResumeCheckpoint(newProcessState, { transcriptIndex: details.nextTranscriptIndex });
+          updateProcessState(pausedProcessState);
+          setAutorunning(false);
+          return;
+        }
         
         if (details.nextStepId === StepId.COMPLETE) {
             console.log(`🏁 Next step is COMPLETE - finalizing`);
@@ -113,12 +134,21 @@ export const useAutorunManager = () => {
         } else {
             const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId);
             const nextTxId = isNextGlobal ? undefined : rawTranscripts[details.nextTranscriptIndex]?.id;
+            console.log('[Autorun P2S Debug]', {
+              nextStepId: details.nextStepId,
+              isP2S: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(details.nextStepId),
+              nextTranscriptIndex: details.nextTranscriptIndex,
+              rawTranscriptsLength: rawTranscripts.length,
+              nextTxId,
+              transcriptAtIndex: rawTranscripts[details.nextTranscriptIndex]
+            });
             console.log(`🚀 Processing next step: ${details.nextStepId}`);
             console.log(`- Is global step: ${isNextGlobal}`);
             console.log(`- Transcript ID: ${nextTxId || 'N/A (global)'}`);
             processSingleStep({ 
               stepId: details.nextStepId, 
               transcriptIdToProcess: nextTxId,
+              duIndex: details.nextDuIndex,
               settings: {
                 apiKey,
                 temperature,
@@ -193,7 +223,9 @@ export const useAutorunManager = () => {
       
       if (resumeDetails) {
         console.log(`📍 Resuming from: ${resumeDetails.nextStepId} (transcript index: ${resumeDetails.nextTranscriptIndex})`);
-        setActiveTranscript(resumeDetails.nextTranscriptIndex);
+        if (resumeDetails.nextTranscriptIndex !== activeTranscriptIndex) {
+          setActiveTranscript(resumeDetails.nextTranscriptIndex);
+        }
         
         const isResumeGlobal = isGlobalStep(resumeDetails.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(resumeDetails.nextStepId);
         const resumeTxId = isResumeGlobal ? undefined : rawTranscripts[resumeDetails.nextTranscriptIndex]?.id;
@@ -254,7 +286,8 @@ export const useAutorunManager = () => {
     isGlobalStep,
     processState,
     updateProcessState,
-    activeTranscriptIndex
+    activeTranscriptIndex,
+    lastStepInfo
   ]);
 
   // Effect to save resume checkpoint when autorun is paused

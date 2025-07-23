@@ -13,7 +13,7 @@ import {
   RawTranscript,
   TranscriptProcessedData,
   GenericAnalysisState,
-  P2SPhaseData,
+  P2SDuData,
   CurrentStepInfo,
   SavedState,
   SettingsData
@@ -22,7 +22,7 @@ import {
 /**
  * Iteration patterns for pipeline execution
  */
-export type IterationType = 'per-transcript' | 'per-phase' | 'per-gdu' | 'global'
+export type IterationType = 'per-transcript' | 'per-du' | 'per-gdu' | 'global'
 
 /**
  * Process state for explicit pipeline execution tracking
@@ -33,7 +33,7 @@ export interface ProcessState {
   currentStepIndex: number
   iterationContext: {
     transcriptIndex?: number
-    phaseIndex?: number
+    duIndex?: number
     gduIndex?: number
   }
   resumeCheckpoint?: {
@@ -41,7 +41,7 @@ export interface ProcessState {
     stepIndex: number
     iterationContext: {
       transcriptIndex?: number
-      phaseIndex?: number
+      duIndex?: number
       gduIndex?: number
     }
   }
@@ -58,9 +58,10 @@ export interface ProcessState {
 export interface NextStepInfo {
   nextStepId: StepId
   nextTranscriptIndex?: number
-  nextPhaseIndex?: number
+  nextDuIndex?: number
   nextGduIndex?: number
   iterationType: IterationType
+  shouldPause?: boolean
 }
 
 /**
@@ -191,7 +192,7 @@ export const PIPELINE_STRUCTURE: PipelinePart[] = [
   {
     name: "Part II: Specific Synchronic Analysis",
     steps: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC,
-    iteration: 'per-phase',
+    iteration: 'per-transcript',  // Process all DUs for each transcript
     canPause: true,
     resumeStrategy: 'from-step'
   },
@@ -246,7 +247,7 @@ export const isGlobalStep = (stepId: StepId): boolean =>
 /**
  * Map step IDs to their data key prefixes in the state
  */
-export const stepIdToDataKeyPrefix: Partial<Record<StepId, keyof GenericAnalysisState | keyof TranscriptProcessedData | keyof P2SPhaseData>> = {
+export const stepIdToDataKeyPrefix: Partial<Record<StepId, keyof GenericAnalysisState | keyof TranscriptProcessedData | keyof P2SDuData>> = {
   [StepId.P_NEG1_1_VARIABLE_IDENTIFICATION]: "p_neg1_1_output",
   [StepId.P0_1_TRANSCRIPTION_ADHERENCE]: "p0_1_output",
   [StepId.P0_2_REFINE_DATA_TYPES]: "p0_2_output",

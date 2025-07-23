@@ -253,7 +253,12 @@ const App: React.FC = () => {
           shouldStopAutorun: state.shouldStopAutorun,
           lastHilContext: state.lastHilContext
         };
-        console.log('🔍 [App.tsx] Pipeline state selector called:', selected);
+        console.log('🔍 [App.tsx] Pipeline state selector called:', {
+          ...selected,
+          hasLastStepInfo: !!state.lastStepInfo,
+          lastStepInfoStepId: state.lastStepInfo?.stepId,
+          lastStepInfoStatus: state.lastStepInfo?.status
+        });
         return selected;
       },
       (pipelineUpdates, prevUpdates) => {

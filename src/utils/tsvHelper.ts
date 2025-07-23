@@ -1,5 +1,5 @@
 
-import { P0_1_Output, P0_2_Output, P0_3_Output, PromptHistoryEntry, RefinedLine, SelectedUtterance, TranscriptProcessedData, P1_1_Output, P1_2_Output, P2S_1_Output, P2S_2_Output, SpecificDiachronicPhase, DiachronicUnitP1_2 } from '../types';
+import { P0_1_Output, P0_2_Output, P0_3_Output, PromptHistoryEntry, RefinedLine, SelectedUtterance, TranscriptProcessedData, P1_1_Output, P1_2_Output, P2S_1_Output, P2S_2_Output, P1_4_Output, DiachronicUnit } from '../types';
 
 function escapeTsvValue(value: any): string {
   if (value === null || value === undefined) {
@@ -153,7 +153,7 @@ export function generateTsvForTranscriptSynchronic(transcriptData: TranscriptPro
     transcript_filename: string;
     original_line_num: string;
     utterance_text: string;
-    p1_4_phase_name: string;
+    p1_4_du_id: string;
     p2s_1_thematic_group_label: string;
     p2s_1_thematic_group_justification: string;
     p2s_2_isu_name: string;
@@ -163,74 +163,121 @@ export function generateTsvForTranscriptSynchronic(transcriptData: TranscriptPro
   }> = [];
 
   const filename = transcriptData.filename;
-  const p2sOutputsByPhase = transcriptData.p2s_outputs_by_phase;
+  const p2sOutputsByDu = transcriptData.p2s_outputs_by_du;
+  const p1_1_output = transcriptData.p1_1_output;
 
-  if (!p2sOutputsByPhase) {
+  if (!p2sOutputsByDu) {
     return "P2S data not available for this transcript.";
   }
 
-  const phaseNameMap: Map<string, string> = new Map();
-  const phasesArray = transcriptData.p1_4_output?.specific_diachronic_structure?.phases;
-  if (Array.isArray(phasesArray)) {
-      phasesArray.forEach((phase: SpecificDiachronicPhase) => {
-           if (phase && typeof phase.phase_name === 'string') {
-               phaseNameMap.set(phase.phase_name, phase.phase_name);
+  if (!p1_1_output) {
+    return "P1.1 data not available for this transcript.";
+  }
+
+  // Create a map from segment_id to original utterance for tracing
+  const segmentToUtteranceMap = new Map<string, { original_line_num: string; utterance_text: string }>();
+  if (Array.isArray(p1_1_output.segmented_utterances)) {
+    p1_1_output.segmented_utterances.forEach(segContainer => {
+      if (segContainer && segContainer.original_utterance && Array.isArray(segContainer.segments)) {
+        const origUtt = segContainer.original_utterance;
+        segContainer.segments.forEach(segment => {
+          if (segment && segment.segment_id) {
+            segmentToUtteranceMap.set(segment.segment_id, {
+              original_line_num: origUtt.original_line_num,
+              utterance_text: origUtt.utterance_text
+            });
+          }
+        });
+      }
+    });
+  }
+
+  const duNameMap: Map<string, string> = new Map();
+  const dusArray = transcriptData.p1_4_output?.diachronic_units;
+  if (Array.isArray(dusArray)) {
+      dusArray.forEach((du: DiachronicUnit) => {
+           if (du && typeof du.unit_id === 'string') {
+               duNameMap.set(du.unit_id, du.unit_id);
            }
       });
   }
   
-  for (const analyzedDiachronicUnitName in p2sOutputsByPhase) {
-    const phaseData = p2sOutputsByPhase[analyzedDiachronicUnitName];
-    const actualPhaseNameForDisplay = phaseNameMap.get(analyzedDiachronicUnitName) || analyzedDiachronicUnitName;
+  for (const analyzedDuId in p2sOutputsByDu) {
+    const duData = p2sOutputsByDu[analyzedDuId];
+    const actualDuIdForDisplay = duNameMap.get(analyzedDuId) || analyzedDuId;
 
-    if (phaseData?.p2s_1_output) {
-      const p2s1Output = phaseData.p2s_1_output;
+    if (duData?.p2s_1_output) {
+      const p2s1Output = duData.p2s_1_output;
       if (Array.isArray(p2s1Output.synchronic_thematic_groups)) {
         p2s1Output.synchronic_thematic_groups.forEach(group => {
-          if (group && Array.isArray(group.utterances)) {
-            group.utterances.forEach(utt => {
-              if (utt) {
-                tsvRows.push({
-                  transcript_id: transcriptId,
-                  transcript_filename: filename,
-                  original_line_num: utt.original_line_num,
-                  utterance_text: utt.utterance_text,
-                  p1_4_phase_name: actualPhaseNameForDisplay,
-                  p2s_1_thematic_group_label: group.group_label,
-                  p2s_1_thematic_group_justification: group.justification,
-                  p2s_2_isu_name: '',
-                  p2s_2_isu_definition: '',
-                  p2s_2_isu_level: '',
-                  p2s_2_isu_abstraction_op: '',
-                });
+          if (group && Array.isArray(group.segments)) {
+            // Track unique utterances for this group to avoid duplicates
+            const uniqueUtterances = new Map<string, { original_line_num: string; utterance_text: string }>();
+            
+            group.segments.forEach(segment => {
+              if (segment && segment.segment_id) {
+                const utteranceInfo = segmentToUtteranceMap.get(segment.segment_id);
+                if (utteranceInfo) {
+                  const key = `${utteranceInfo.original_line_num}|${utteranceInfo.utterance_text}`;
+                  uniqueUtterances.set(key, utteranceInfo);
+                }
               }
+            });
+            
+            // Add a row for each unique utterance in this group
+            uniqueUtterances.forEach(utteranceInfo => {
+              tsvRows.push({
+                transcript_id: transcriptId,
+                transcript_filename: filename,
+                original_line_num: utteranceInfo.original_line_num,
+                utterance_text: utteranceInfo.utterance_text,
+                p1_4_du_id: actualDuIdForDisplay,
+                p2s_1_thematic_group_label: group.group_label,
+                p2s_1_thematic_group_justification: group.justification,
+                p2s_2_isu_name: '',
+                p2s_2_isu_definition: '',
+                p2s_2_isu_level: '',
+                p2s_2_isu_abstraction_op: '',
+              });
             });
           }
         });
       }
     }
 
-    if (phaseData?.p2s_2_output) {
-      const p2s2Output = phaseData.p2s_2_output;
+    if (duData?.p2s_2_output) {
+      const p2s2Output = duData.p2s_2_output;
       if (Array.isArray(p2s2Output.specific_synchronic_units_hierarchy)) {
         p2s2Output.specific_synchronic_units_hierarchy.forEach(isu => {
-          if (isu && isu.utterances && Array.isArray(isu.utterances)) {
-            isu.utterances.forEach(utt => {
-              if (utt) {
-                tsvRows.push({
-                  transcript_id: transcriptId,
-                  transcript_filename: filename,
-                  original_line_num: utt.original_line_num,
-                  utterance_text: utt.utterance_text,
-                  p1_4_phase_name: actualPhaseNameForDisplay,
-                  p2s_1_thematic_group_label: '',
-                  p2s_1_thematic_group_justification: '',
-                  p2s_2_isu_name: isu.unit_name,
-                  p2s_2_isu_definition: isu.intensional_definition,
-                  p2s_2_isu_level: isu.level,
-                  p2s_2_isu_abstraction_op: isu.abstraction_op,
-                });
+          if (isu && isu.segments && Array.isArray(isu.segments)) {
+            // Track unique utterances for this ISU to avoid duplicates
+            const uniqueUtterances = new Map<string, { original_line_num: string; utterance_text: string }>();
+            
+            isu.segments.forEach(segment => {
+              if (segment && segment.segment_id) {
+                const utteranceInfo = segmentToUtteranceMap.get(segment.segment_id);
+                if (utteranceInfo) {
+                  const key = `${utteranceInfo.original_line_num}|${utteranceInfo.utterance_text}`;
+                  uniqueUtterances.set(key, utteranceInfo);
+                }
               }
+            });
+            
+            // Add a row for each unique utterance in this ISU
+            uniqueUtterances.forEach(utteranceInfo => {
+              tsvRows.push({
+                transcript_id: transcriptId,
+                transcript_filename: filename,
+                original_line_num: utteranceInfo.original_line_num,
+                utterance_text: utteranceInfo.utterance_text,
+                p1_4_du_id: actualDuIdForDisplay,
+                p2s_1_thematic_group_label: '',
+                p2s_1_thematic_group_justification: '',
+                p2s_2_isu_name: isu.unit_name,
+                p2s_2_isu_definition: isu.intensional_definition,
+                p2s_2_isu_level: isu.level,
+                p2s_2_isu_abstraction_op: isu.abstraction_op,
+              });
             });
           }
         });
@@ -245,7 +292,7 @@ export function generateTsvForTranscriptSynchronic(transcriptData: TranscriptPro
     'transcript_filename',
     'original_line_num',
     'utterance_text',
-    'p1_4_phase_name',
+    'p1_4_du_id',
     'p2s_1_thematic_group_label',
     'p2s_1_thematic_group_justification',
     'p2s_2_isu_name',

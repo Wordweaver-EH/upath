@@ -12,10 +12,11 @@ import {
   StepId,
   StepStatus,
   SavedState,
-  P2SPhaseData,
+  P2SDuData,
   CurrentStepInfo,
   HilContext,
   P1_5_Output,
+  P1_4_Output,
   P1_2_Output,
   P1_3_Output,
   PhaseTaggedSegment,
@@ -108,6 +109,7 @@ interface PipelineActions {
   processSingleStep: (params: { 
     stepId: StepId,
     transcriptIdToProcess?: string,
+    duIndex?: number,
     overrideSeed?: number,
     hilMetaPrompt?: string,
     settings?: SettingsData
@@ -121,7 +123,7 @@ interface PipelineActions {
     output: any,
     groundingSources: any,
     currentGDU: string | undefined,
-    currentPhase: string | undefined,
+    currentDu: string | undefined,
     isReportStepForThisCall: boolean
   ) => void
   handleReportGeneration: (output: any) => void
@@ -132,7 +134,7 @@ interface PipelineActions {
     inputData: any,
     groundingSources: any,
     currentGDU: string | undefined,
-    currentPhase: string | undefined,
+    currentDu: string | undefined,
     processedData: Map<string, TranscriptProcessedData>
   ) => void
   invalidateStateFromStep: (stepId: StepId, transcriptId?: string) => void
@@ -183,7 +185,7 @@ interface PipelineSelectors {
   isDownloadOutputDisabled: () => boolean
   isDownloadHistoryDisabled: () => boolean
   isAppendixDataAvailable: () => boolean
-  loadStepData: (stepIdToLoad: StepId, transcriptId?: string, phaseName?: string, gduId?: string) => { inputData?: any, outputData?: any, error?: string, groundingSources?: any[] }
+  loadStepData: (stepIdToLoad: StepId, transcriptId?: string, duId?: string, gduId?: string) => { inputData?: any, outputData?: any, error?: string, groundingSources?: any[] }
   getStepStatusForPipelineView: (stepId: StepId, uiState?: { currentStepInfo: CurrentStepInfo; activeTranscriptIndex: number }) => { status: StepStatus; error?: string }
 }
 
@@ -356,7 +358,7 @@ export const usePipelineStore = create<PipelineStore>()(
       
       // Main pipeline orchestrator - integrated from pipelineActions.ts
       processSingleStep: async (params) => {
-        const { stepId, transcriptIdToProcess, overrideSeed, hilMetaPrompt, settings } = params
+        const { stepId, transcriptIdToProcess, duIndex, overrideSeed, hilMetaPrompt, settings } = params
         const { rawTranscripts, processedData, genericAnalysisState } = get()
 
         // Clear autorun resume position when we start processing a step
@@ -414,28 +416,44 @@ export const usePipelineStore = create<PipelineStore>()(
         const currentTranscript = transcriptIdToProcess 
           ? rawTranscripts.find(t => t.id === transcriptIdToProcess) 
           : undefined
-        let currentPhase: string | undefined = undefined
+        let currentDu: string | undefined = undefined
         let currentGDU: string | undefined = undefined
         let tempGenericState = { ...genericAnalysisState }
         
         // Handle P2S phase context
+        console.log('[P2S Debug] Checking P2S context:', {
+          stepId,
+          transcriptIdToProcess,
+          isP2SStep: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)
+        });
         if (transcriptIdToProcess && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)) {
           const tData = processedData.get(transcriptIdToProcess)
+          console.log('[P2S Debug] Transcript data:', {
+            hasData: !!tData,
+            dus_for_p2s_processing: tData?.dus_for_p2s_processing,
+            current_du_for_p2s_processing: tData?.current_du_for_p2s_processing,
+            duIndex
+          });
           if (tData) {
-            currentPhase = tData.current_phase_for_p2s_processing
-            if (!currentPhase && stepId === STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0] && (tData.phases_for_p2s_processing?.length || 0) > 0) {
-              currentPhase = tData.phases_for_p2s_processing?.[0]
+            // If duIndex is provided, use it to set the current DU
+            if (duIndex !== undefined && tData.dus_for_p2s_processing) {
+              currentDu = tData.dus_for_p2s_processing[duIndex]
+            } else {
+              currentDu = tData.current_du_for_p2s_processing
+            }
+            if (!currentDu && stepId === STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0] && (tData.dus_for_p2s_processing?.length || 0) > 0) {
+              currentDu = tData.dus_for_p2s_processing?.[0]
               set((state) => {
                 const d = state.processedData.get(transcriptIdToProcess)
                 if (d) {
                   state.processedData.set(transcriptIdToProcess, {
                     ...d,
-                    current_phase_for_p2s_processing: currentPhase
+                    current_du_for_p2s_processing: currentDu
                   })
                 }
               })
             }
-            if (!currentPhase && (tData.phases_for_p2s_processing?.length || 0) > 0 && !tData.isFullyProcessedSpecificSynchronic) {
+            if (!currentDu && (tData.dus_for_p2s_processing?.length || 0) > 0 && !tData.isFullyProcessedSpecificSynchronic) {
               setTimeout(() => {
                 // Store synchronization - App.tsx will handle UI updates
                 set(state => ({
@@ -497,7 +515,7 @@ export const usePipelineStore = create<PipelineStore>()(
         // Get input data
         console.log('📦 Calling getInput with:', {
           currentTranscript: currentTranscript?.filename || 'None',
-          currentPhase,
+          currentDu,
           currentGDU,
           apiKeyPresent,
           userDvFocus
@@ -510,7 +528,7 @@ export const usePipelineStore = create<PipelineStore>()(
           apiKeyPresent, 
           userDvFocus, 
           rawTranscripts, 
-          currentPhase, 
+          currentDu, 
           currentGDU
         )
         
@@ -588,14 +606,14 @@ export const usePipelineStore = create<PipelineStore>()(
           // Make LLM calls for each phase
           const sortedSegments: SortedSegment[] = [];
           
-          for (const [phaseName, segments] of Object.entries(phaseGroups)) {
+          for (const [duId, segments] of Object.entries(phaseGroups)) {
             if (segments.length === 0) continue;
             
-            console.log(`📞 [P1_3] Processing ${phaseName} phase with ${segments.length} segments`);
+            console.log(`📞 [P1_3] Processing ${duId} phase with ${segments.length} segments`);
             
             // Import the prompt generator function dynamically
             const { generatePhaseSpecificPrompt } = await import('../config/pipeline/part1/P1_3_intraPhaSorting');
-            const phasePrompt = generatePhaseSpecificPrompt(phaseName, segments);
+            const phasePrompt = generatePhaseSpecificPrompt(duId, segments);
             
             const phaseResult = await callGeminiAPI(
               phasePrompt,
@@ -607,7 +625,7 @@ export const usePipelineStore = create<PipelineStore>()(
             );
             
             if (phaseResult.error) {
-              apiError = `Phase ${phaseName} sorting failed: ${phaseResult.error}`;
+              apiError = `Phase ${duId} sorting failed: ${phaseResult.error}`;
               break;
             }
             
@@ -727,7 +745,7 @@ export const usePipelineStore = create<PipelineStore>()(
         // Handle errors
         if (apiError) {
           console.error(`❌ Step Failed: ${stepId}. Error:`, apiError);
-          get().handleStepError(stepId, transcriptIdToProcess, apiError, inputData, output, groundingSources, currentGDU, currentPhase, isReportStepForThisCall)
+          get().handleStepError(stepId, transcriptIdToProcess, apiError, inputData, output, groundingSources, currentGDU, currentDu, isReportStepForThisCall)
           console.groupEnd();
           return
         }
@@ -738,7 +756,7 @@ export const usePipelineStore = create<PipelineStore>()(
           get().handleReportGeneration(output)
         } else {
           console.log(`✅ Step Succeeded: ${stepId}`);
-          get().handleSuccessfulStep(stepId, transcriptIdToProcess, output, inputData, groundingSources, currentGDU, currentPhase, processedData)
+          get().handleSuccessfulStep(stepId, transcriptIdToProcess, output, inputData, groundingSources, currentGDU, currentDu, processedData)
         }
         
         console.groupEnd();
@@ -753,7 +771,7 @@ export const usePipelineStore = create<PipelineStore>()(
         output: any,
         groundingSources: any,
         currentGDU: string | undefined,
-        currentPhase: string | undefined,
+        currentDu: string | undefined,
         isReportStepForThisCall: boolean
       ) => {
         console.log(`🔴 [handleStepError] Setting lastStepInfo to Error for failed step: ${stepId}`);
@@ -787,19 +805,19 @@ export const usePipelineStore = create<PipelineStore>()(
         } else if (key) {
           const eKey = `${key.toString().replace('_output', '_error')}`
           
-          if (transcriptIdToProcess && currentPhase && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)) {
+          if (transcriptIdToProcess && currentDu && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)) {
             set((state: any) => {
               const d = state.processedData.get(transcriptIdToProcess)
               if (d) {
                 const p2sU = {
-                  ...(d.p2s_outputs_by_phase || {}),
-                  [currentPhase!]: {
-                    ...(d.p2s_outputs_by_phase?.[currentPhase!] || {}),
+                  ...(d.p2s_outputs_by_du || {}),
+                  [currentDu!]: {
+                    ...(d.p2s_outputs_by_du?.[currentDu!] || {}),
                     [eKey]: apiError,
-                    [key as keyof P2SPhaseData]: undefined
+                    [key as keyof P2SDuData]: undefined
                   }
                 }
-                state.processedData.set(transcriptIdToProcess, { ...d, p2s_outputs_by_phase: p2sU })
+                state.processedData.set(transcriptIdToProcess, { ...d, p2s_outputs_by_du: p2sU })
               }
             })
           } else if (transcriptIdToProcess) {
@@ -859,7 +877,7 @@ export const usePipelineStore = create<PipelineStore>()(
         inputData: any,
         groundingSources: any,
         currentGDU: string | undefined,
-        currentPhase: string | undefined,
+        currentDu: string | undefined,
         processedData: Map<string, TranscriptProcessedData>
       ) => {
         console.log(`✅ [handleSuccessfulStep] Setting lastStepInfo to Success for: ${stepId}`);
@@ -867,6 +885,7 @@ export const usePipelineStore = create<PipelineStore>()(
         console.log(`- Output type: ${typeof output}`);
         
         // Update pipeline state - App.tsx will handle UI updates
+        console.log(`📊 [handleSuccessfulStep] About to update lastStepInfo in state`);
         set(state => ({
           ...state,
           lastStepInfo: { 
@@ -876,6 +895,8 @@ export const usePipelineStore = create<PipelineStore>()(
             transcriptId: transcriptIdToProcess
           }
         }))
+        
+        console.log(`📊 [handleSuccessfulStep] State update completed`);
         
         const key = stepIdToDataKeyPrefix[stepId]
         
@@ -890,18 +911,23 @@ export const usePipelineStore = create<PipelineStore>()(
                 [`${key.replace('_output','_error')}` as keyof TranscriptProcessedData]: undefined
               } as any
               
+              // Special handling for P1.4 - set up DUs for P2S processing
+              if (stepId === StepId.P1_4_DIACHRONIC_UNIT_GROUPING && output) {
+                console.log('🔍 [P1.4 Debug] Handling P1.4 successful output');
+                const dus = (output as P1_4_Output)?.diachronic_units?.map(u => u.unit_id) || []
+                nD.dus_for_p2s_processing = dus
+                nD.current_du_for_p2s_processing = dus[0] || undefined
+                nD.processed_dus_for_p2s = []
+                nD.p2s_outputs_by_du = {}
+                nD.isFullyProcessedSpecificSynchronic = dus.length === 0
+                console.log('🔍 [P1.4 Debug] Set DUs for P2S processing:', dus);
+              }
+              
               // Special handling for P1.5
               if (stepId === StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && output) {
                 console.log('🔍 [P1.5 Debug] Handling P1.5 successful output');
                 nD.isFullyProcessedSpecificDiachronic = true
-                // No mermaid generation for P1.5 - that's only for synchronic structures
-                const phases = (output as P1_5_Output)?.specific_diachronic_structure?.phases.map(p => p.phase_name) || []
-                nD.phases_for_p2s_processing = phases
-                nD.current_phase_for_p2s_processing = phases[0] || undefined
-                nD.processed_phases_for_p2s = []
-                nD.p2s_outputs_by_phase = {}
-                nD.isFullyProcessedSpecificSynchronic = phases.length === 0
-                console.log('🔍 [P1.5 Debug] Set phases for P2S processing:', phases);
+                // P2S now processes DUs from P1.4, not phases from P1.5
               }
               
               state.processedData.set(transcriptIdToProcess, nD)
@@ -910,46 +936,46 @@ export const usePipelineStore = create<PipelineStore>()(
         }
         
         // Handle P2S phase outputs
-        if (currentPhase && transcriptIdToProcess && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId) && key && typeof key === 'string') {
+        if (currentDu && transcriptIdToProcess && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId) && key && typeof key === 'string') {
           set((state: any) => {
             const tD = state.processedData.get(transcriptIdToProcess)
             if (tD) {
               let mermaid: string | undefined = undefined
               if (stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE && output) {
-                mermaid = transformSynchronicToMermaid((output as P2S_3_Output).specific_synchronic_structure, currentPhase)
+                mermaid = transformSynchronicToMermaid((output as P2S_3_Output).specific_synchronic_structure, currentDu)
               }
               
               const uP2S = {
-                ...(tD.p2s_outputs_by_phase || {}),
-                [currentPhase!]: {
-                  ...(tD.p2s_outputs_by_phase?.[currentPhase!] || {}),
-                  [key as keyof P2SPhaseData]: output,
-                  [`${key.replace('_output','_error')}` as keyof P2SPhaseData]: undefined,
+                ...(tD.p2s_outputs_by_du || {}),
+                [currentDu!]: {
+                  ...(tD.p2s_outputs_by_du?.[currentDu!] || {}),
+                  [key as keyof P2SDuData]: output,
+                  [`${key.replace('_output','_error')}` as keyof P2SDuData]: undefined,
                   ...(mermaid && { p2s_3_mermaid_syntax: mermaid })
                 }
               }
               
-              let newProcPhases = [...(tD.processed_phases_for_p2s || [])]
+              let newProcDus = [...(tD.processed_dus_for_p2s || [])]
               let allDone = tD.isFullyProcessedSpecificSynchronic
-              let nextPhase: string | undefined = currentPhase
+              let nextDu: string | undefined = tD.current_du_for_p2s_processing // Keep current DU by default
               
               if (stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
-                newProcPhases = Array.from(new Set([...newProcPhases, currentPhase!]))
-                const transcriptPhases = tD.phases_for_p2s_processing || []
-                allDone = transcriptPhases.length > 0 ? newProcPhases.length === transcriptPhases.length : true
+                newProcDus = Array.from(new Set([...newProcDus, currentDu!]))
+                const transcriptDus = tD.dus_for_p2s_processing || []
+                allDone = transcriptDus.length > 0 ? newProcDus.length === transcriptDus.length : true
                 if (!allDone) {
-                  nextPhase = transcriptPhases.find(p => !newProcPhases.includes(p))
+                  nextDu = transcriptDus.find(p => !newProcDus.includes(p))
                 } else {
-                  nextPhase = undefined
+                  nextDu = undefined
                 }
               }
               
               state.processedData.set(transcriptIdToProcess, {
                 ...tD,
-                p2s_outputs_by_phase: uP2S,
-                processed_phases_for_p2s: newProcPhases,
+                p2s_outputs_by_du: uP2S,
+                processed_dus_for_p2s: newProcDus,
                 isFullyProcessedSpecificSynchronic: allDone,
-                current_phase_for_p2s_processing: nextPhase
+                current_du_for_p2s_processing: nextDu
               })
             }
           })
@@ -990,18 +1016,18 @@ export const usePipelineStore = create<PipelineStore>()(
               invalidNodes.push({ 
                 nodeId: nodeData.sss_node_id, 
                 transcriptId: nodeData.transcript_id, 
-                phase: nodeData.phase_name, 
+                du: nodeData.du_id, 
                 reason: "transcript not found" 
               })
               return
             }
             
-            const phaseData = txData.p2s_outputs_by_phase?.[nodeData.phase_name]
+            const phaseData = txData.p2s_outputs_by_du?.[nodeData.du_id]
             if (!phaseData?.p2s_3_output?.specific_synchronic_structure) {
               invalidNodes.push({ 
                 nodeId: nodeData.sss_node_id, 
                 transcriptId: nodeData.transcript_id, 
-                phase: nodeData.phase_name, 
+                du: nodeData.du_id, 
                 reason: "phase data not found" 
               })
               return
@@ -1014,7 +1040,7 @@ export const usePipelineStore = create<PipelineStore>()(
               invalidNodes.push({ 
                 nodeId: nodeData.sss_node_id, 
                 transcriptId: nodeData.transcript_id, 
-                phase: nodeData.phase_name, 
+                du: nodeData.du_id, 
                 reason: "SSS node not found in P2S_3 data" 
               })
               return
@@ -1038,7 +1064,7 @@ export const usePipelineStore = create<PipelineStore>()(
               }
               groupsMap.get(nodeData.group_id)!.push({
                 transcript_id: nodeData.transcript_id,
-                phase_name: nodeData.phase_name,
+                du_id: nodeData.du_id,
                 sss_node_id: nodeData.sss_node_id,
                 sss_node_label: nodeData.sss_node_label,
                 group_rationale: nodeData.group_rationale
@@ -1062,7 +1088,7 @@ export const usePipelineStore = create<PipelineStore>()(
                 group_rationale: groupRationale,
                 contributing_sss_nodes: nodes.map(n => ({
                   transcript_id: n.transcript_id,
-                  phase_name: n.phase_name,
+                  du_id: n.du_id,
                   sss_node_id: n.sss_node_id,
                   sss_node_label: n.sss_node_label
                 }))
@@ -1076,7 +1102,7 @@ export const usePipelineStore = create<PipelineStore>()(
                 group_rationale: groupRationale,
                 contributing_sss_nodes: nodes.map(n => ({
                   transcript_id: n.transcript_id,
-                  phase_name: n.phase_name,
+                  du_id: n.du_id,
                   sss_node_id: n.sss_node_id,
                   sss_node_label: n.sss_node_label
                 }))
@@ -1228,15 +1254,15 @@ export const usePipelineStore = create<PipelineStore>()(
               const tData = newProcessedData.get(currentActiveTxId)
               if (tData) {
                 let updatedTData = { ...tData, [keyPrefix]: undefined, [errorKey]: undefined }
-                if (stepToInvalidate === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
+                if (stepToInvalidate === StepId.P1_4_DIACHRONIC_UNIT_GROUPING) {
                   updatedTData = { 
                     ...updatedTData, 
                     isFullyProcessedSpecificDiachronic: false, 
                     p1_4_mermaid_syntax: undefined, 
-                    phases_for_p2s_processing: [], 
-                    current_phase_for_p2s_processing: undefined, 
-                    processed_phases_for_p2s: [], 
-                    p2s_outputs_by_phase: {}, 
+                    dus_for_p2s_processing: [], 
+                    current_du_for_p2s_processing: undefined, 
+                    processed_dus_for_p2s: [], 
+                    p2s_outputs_by_du: {}, 
                     isFullyProcessedSpecificSynchronic: false 
                   }
                 }
@@ -1245,43 +1271,53 @@ export const usePipelineStore = create<PipelineStore>()(
             } else if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepToInvalidate)) {
               const tData = newProcessedData.get(currentActiveTxId)
               if (tData) {
-                // Invalidation for P2S steps is scoped to the currently active phase.
-                const currentPhase = tData.current_phase_for_p2s_processing
+                // When invalidating any P2S step, we need to clear data for ALL DUs
+                // from the invalidated step onward, not just the current DU
                 
-                if (currentPhase && tData.p2s_outputs_by_phase?.[currentPhase]) {
-                  const keyPrefixToClear = stepIdToDataKeyPrefix[stepToInvalidate] as keyof P2SPhaseData
-                  if (keyPrefixToClear) {
-                    // Create a mutable copy of the data for the specific phase we are invalidating
-                    const phaseDataToUpdate = { ...tData.p2s_outputs_by_phase[currentPhase] }
+                const keyPrefixToClear = stepIdToDataKeyPrefix[stepToInvalidate] as keyof P2SDuData
+                const stepIndex = STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.indexOf(stepToInvalidate)
+                
+                if (keyPrefixToClear && stepIndex !== -1) {
+                  // Create a new p2s_outputs_by_du object with cleared data
+                  const updatedP2SOutputs = { ...tData.p2s_outputs_by_du }
+                  
+                  // For each DU, clear data from the invalidated step onward
+                  Object.keys(updatedP2SOutputs).forEach(duId => {
+                    const duData = { ...updatedP2SOutputs[duId] }
                     
-                    // Delete the output and error for this specific step
-                    delete phaseDataToUpdate[keyPrefixToClear]
-                    const errorKeyToClear = `${String(keyPrefixToClear).replace('_output', '_error')}` as keyof P2SPhaseData
-                    delete phaseDataToUpdate[errorKeyToClear]
-                    
-                    // Special handling for P2S.3 which also generates mermaid syntax
-                    if (stepToInvalidate === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
-                      delete phaseDataToUpdate.p2s_3_mermaid_syntax
+                    // Clear all steps from the invalidated step onward
+                    for (let i = stepIndex; i < STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.length; i++) {
+                      const stepToClear = STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[i]
+                      const keyToClear = stepIdToDataKeyPrefix[stepToClear] as keyof P2SDuData
+                      if (keyToClear) {
+                        delete duData[keyToClear]
+                        const errorKeyToClear = `${String(keyToClear).replace('_output', '_error')}` as keyof P2SDuData
+                        delete duData[errorKeyToClear]
+                        
+                        // Special handling for P2S.3 mermaid syntax
+                        if (stepToClear === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
+                          delete duData.p2s_3_mermaid_syntax
+                        }
+                      }
                     }
                     
-                    // Construct the new state for p2s_outputs_by_phase
-                    const updatedP2SOutputs = {
-                      ...tData.p2s_outputs_by_phase,
-                      [currentPhase]: phaseDataToUpdate,
-                    }
-                    
-                    // Since we are invalidating a step, this phase is no longer fully processed.
-                    // We must remove it from the list of completed phases.
-                    const newProcessedPhases = tData.processed_phases_for_p2s?.filter(p => p !== currentPhase) || []
-                    
-                    // Update the transcript data in the map
-                    newProcessedData.set(currentActiveTxId, {
-                      ...tData,
-                      p2s_outputs_by_phase: updatedP2SOutputs,
-                      isFullyProcessedSpecificSynchronic: false, // The transcript is no longer fully synchronic processed
-                      processed_phases_for_p2s: newProcessedPhases,
-                    })
-                  }
+                    updatedP2SOutputs[duId] = duData
+                  })
+                  
+                  // No DUs are fully processed anymore since we're invalidating
+                  const newProcessedDus: string[] = []
+                  
+                  // If invalidating from P2S.1, we should also reset the current DU to start fresh
+                  const resetCurrentDu = stepToInvalidate === StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC
+                  
+                  // Update the transcript data
+                  newProcessedData.set(currentActiveTxId, {
+                    ...tData,
+                    p2s_outputs_by_du: updatedP2SOutputs,
+                    isFullyProcessedSpecificSynchronic: false,
+                    processed_dus_for_p2s: newProcessedDus,
+                    ...(resetCurrentDu ? { current_du_for_p2s_processing: undefined } : {})
+                  })
                 }
               }
             }
@@ -1782,7 +1818,7 @@ export const usePipelineStore = create<PipelineStore>()(
           return `${getStepDisplayName(StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE)} Done`
         }
         if (data.isFullyProcessedSpecificDiachronic) {
-          return `${getStepDisplayName(StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE)} Done`
+          return `${getStepDisplayName(StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE)} Done`
         }
         if (data.p0_3_output || data.p0_3_error) {
           return `${getStepDisplayName(StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES)} Done`
@@ -1815,7 +1851,7 @@ export const usePipelineStore = create<PipelineStore>()(
         return isGlobalStep(stepId)
       },
 
-      loadStepData: (stepIdToLoad: StepId, transcriptId?: string, phaseName?: string, gduId?: string): { inputData?: any, outputData?: any, error?: string, groundingSources?: any[] } => {
+      loadStepData: (stepIdToLoad: StepId, transcriptId?: string, duId?: string, gduId?: string): { inputData?: any, outputData?: any, error?: string, groundingSources?: any[] } => {
         const { processedData, genericAnalysisState, promptHistory } = get()
         const keyPrefix = stepIdToDataKeyPrefix[stepIdToLoad]
         let output: any
@@ -1832,10 +1868,10 @@ export const usePipelineStore = create<PipelineStore>()(
         const currentGroundingSources = historyEntry?.groundingSources
         
         // Get output data based on step type
-        if (transcriptId && phaseName && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepIdToLoad) && keyPrefix) {
+        if (transcriptId && duId && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepIdToLoad) && keyPrefix) {
           const tData = processedData.get(transcriptId)
-          output = tData?.p2s_outputs_by_phase?.[phaseName]?.[keyPrefix as keyof P2SPhaseData]
-          error = tData?.p2s_outputs_by_phase?.[phaseName]?.[`${keyPrefix.toString().replace('_output', '_error')}` as keyof P2SPhaseData] as string | undefined
+          output = tData?.p2s_outputs_by_du?.[duId]?.[keyPrefix as keyof P2SDuData]
+          error = tData?.p2s_outputs_by_du?.[duId]?.[`${keyPrefix.toString().replace('_output', '_error')}` as keyof P2SDuData] as string | undefined
         } else if (transcriptId && keyPrefix && (STEP_ORDER_PART_NEG1.includes(stepIdToLoad) || STEP_ORDER_PART_0.includes(stepIdToLoad) || STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.includes(stepIdToLoad))) {
           const tData = processedData.get(transcriptId)
           output = tData?.[keyPrefix as keyof TranscriptProcessedData]
@@ -1914,7 +1950,7 @@ export const usePipelineStore = create<PipelineStore>()(
             if (tData) {
               if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)) {
                 if (tData.isFullyProcessedSpecificSynchronic) status = StepStatus.Success
-                else if ((tData.processed_phases_for_p2s?.length || 0) > 0) status = StepStatus.Loading
+                else if ((tData.processed_dus_for_p2s?.length || 0) > 0) status = StepStatus.Loading
                 if (currentStepInfo.stepId === stepId && currentStepInfo.transcriptId === currentTId && currentStepInfo.error) {
                   error = currentStepInfo.error
                 }
@@ -1955,7 +1991,7 @@ export const usePipelineStore = create<PipelineStore>()(
         }
         
         let txIdNav: string | undefined = undefined
-        let phaseNav: string | undefined = undefined
+        let duNav: string | undefined = undefined
         let gduNav: string | undefined = undefined
         
         const stepConfig = STEP_CONFIGS[clickedStepId]
@@ -1968,9 +2004,9 @@ export const usePipelineStore = create<PipelineStore>()(
         } else if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(clickedStepId)) {
           txIdNav = rawTranscripts[activeTranscriptIndex]?.id
           const tData = txIdNav ? processedData.get(txIdNav) : undefined
-          phaseNav = tData?.current_phase_for_p2s_processing || tData?.phases_for_p2s_processing?.[0]
-          if (!phaseNav && (tData?.processed_phases_for_p2s?.length || 0) > 0) {
-            phaseNav = tData?.processed_phases_for_p2s?.[tData.processed_phases_for_p2s.length - 1]
+          duNav = tData?.current_du_for_p2s_processing || tData?.dus_for_p2s_processing?.[0]
+          if (!duNav && (tData?.processed_dus_for_p2s?.length || 0) > 0) {
+            duNav = tData?.processed_dus_for_p2s?.[tData.processed_dus_for_p2s.length - 1]
           }
         } else if (STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(clickedStepId)) {
           const { genericAnalysisState } = get()
@@ -1978,14 +2014,14 @@ export const usePipelineStore = create<PipelineStore>()(
           gduNav = genericAnalysisState.current_gdu_for_p4s_processing || gduIds[0] || undefined
         }
         
-        const data = get().loadStepData(clickedStepId, txIdNav, phaseNav, gduNav)
+        const data = get().loadStepData(clickedStepId, txIdNav, duNav, gduNav)
         
         // Use injected UI callback instead of direct call
         if (uiCallbacks) {
           uiCallbacks.setCurrentStepInfo({
             stepId: clickedStepId,
             transcriptId: txIdNav,
-            phaseId: phaseNav,
+            duId: duNav,
             gduId: gduNav,
             status: data.error ? StepStatus.Error : (data.outputData ? StepStatus.Success : StepStatus.Idle),
             error: data.error,
@@ -2207,16 +2243,16 @@ export const selectMermaidChartForStep = (stepInfo: CurrentStepInfo): string | u
   const state = usePipelineStore.getState()
   const { processedData, genericAnalysisState } = state
   const tId = stepInfo.transcriptId
-  const phase = stepInfo.currentPhaseForP2S
+  const du = stepInfo.currentDuForP2S
   const gdu = stepInfo.currentGduForP4S
   
   switch (stepInfo.stepId) {
     // P1.4 no longer uses mermaid - it uses table display with comparison
-    // case StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE:
+    // case StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE:
     //   return tId ? processedData.get(tId)?.p1_4_mermaid_syntax : undefined
       
     case StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE:
-      return tId && phase ? processedData.get(tId)?.p2s_outputs_by_phase?.[phase]?.p2s_3_mermaid_syntax : undefined
+      return tId && du ? processedData.get(tId)?.p2s_outputs_by_du?.[du]?.p2s_3_mermaid_syntax : undefined
       
     case StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE:
       return genericAnalysisState.p3_3_mermaid_syntax

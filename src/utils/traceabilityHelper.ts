@@ -26,7 +26,7 @@ export interface ContributingP0_3UtteranceTrace {
     p1_3_refined_du_id?: string;
     p1_3_refined_du_description?: string;
     p1_3_temporal_phase?: string; 
-    p1_4_phase_name?: string; 
+    p1_4_du_id?: string; 
     synchronic_p2s1_groups?: AnnotatedLineSynchronicGroup[];
     synchronic_p2s2_isus?: AnnotatedLineSynchronicIsu[];
 }
@@ -69,13 +69,28 @@ export function prepareAnnotationDataForTranscript(transcriptData: TranscriptPro
                         trace.p1_3_refined_du_id = p1_3_rdu.unit_id; trace.p1_3_refined_du_description = p1_3_rdu.description; trace.p1_3_temporal_phase = p1_3_rdu.temporal_phase;
                         if (p1_3_rdu.temporal_phase) lineUniqueTemporalPhases.add(p1_3_rdu.temporal_phase);
                         if (!currentAnnotatedLine.dominantTemporalPhase && p1_3_rdu.temporal_phase) currentAnnotatedLine.dominantTemporalPhase = p1_3_rdu.temporal_phase;
-                        const p1_4_phase = transcriptData.p1_4_output?.specific_diachronic_structure.phases.find(phase => phase.units_involved.includes(p1_3_rdu.unit_id));
-                        if (p1_4_phase) {
-                            trace.p1_4_phase_name = p1_4_phase.phase_name;
-                            const p2sPhaseData = transcriptData.p2s_outputs_by_phase?.[p1_4_phase.phase_name];
-                            if (p2sPhaseData) {
-                                p2sPhaseData.p2s_1_output?.synchronic_thematic_groups.forEach(g => { if (g.utterances.some(u => u.original_line_num === p0_3_utt.original_line_num && u.utterance_text === p0_3_utt.utterance_text)) trace.synchronic_p2s1_groups?.push({ group_label: g.group_label, justification: g.justification }); });
-                                p2sPhaseData.p2s_2_output?.specific_synchronic_units_hierarchy.forEach(isu => { if (isu.utterances?.some(u => u.original_line_num === p0_3_utt.original_line_num && u.utterance_text === p0_3_utt.utterance_text)) trace.synchronic_p2s2_isus?.push({ unit_name: isu.unit_name, intensional_definition: isu.intensional_definition }); });
+                        // Find which P1.4 DU contains segments from this refined DU
+                        const p1_4_du = transcriptData.p1_4_output?.diachronic_units.find(du => {
+                            // Check if this DU's segments overlap with the refined DU's segments
+                            return du.source_segment_ids.some(segId => 
+                                p1_3_rdu.source_segment_ids?.includes(segId)
+                            );
+                        });
+                        if (p1_4_du) {
+                            trace.p1_4_du_id = p1_4_du.unit_id;
+                            const p2sDuData = transcriptData.p2s_outputs_by_du?.[p1_4_du.unit_id];
+                            if (p2sDuData) {
+                                // Check if any of the segments from this utterance are in P2S groups
+                                p2sDuData.p2s_1_output?.synchronic_thematic_groups.forEach(g => { 
+                                    if (g.segments.some(seg => trace.p1_1_segment_ids.includes(seg.segment_id))) {
+                                        trace.synchronic_p2s1_groups?.push({ group_label: g.group_label, justification: g.justification }); 
+                                    }
+                                });
+                                p2sDuData.p2s_2_output?.specific_synchronic_units_hierarchy.forEach(isu => { 
+                                    if (isu.segments?.some(seg => trace.p1_1_segment_ids.includes(seg.segment_id))) {
+                                        trace.synchronic_p2s2_isus?.push({ unit_name: isu.unit_name, intensional_definition: isu.intensional_definition }); 
+                                    }
+                                });
                             }
                         }
                     }

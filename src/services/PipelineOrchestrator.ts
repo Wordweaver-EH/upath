@@ -175,6 +175,22 @@ export class PipelineOrchestrator {
     // Check if step has output or error
     const hasOutput = this.stepHasOutput(currentStepInfo.stepId, dataState, activeTranscriptIndex)
     
+    console.log('[Orchestrator] isIterationComplete check:', {
+      stepId: currentStepInfo.stepId,
+      status: currentStepInfo.status,
+      hasOutput,
+      statusIsSuccess: currentStepInfo.status === StepStatus.Success,
+      statusIsError: currentStepInfo.status === StepStatus.Error
+    });
+    
+    // For P2S steps, only P2S_3 completing means the iteration is done
+    if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(currentStepInfo.stepId)) {
+      // Only the last P2S step (P2S_3) completing means we're done with this DU
+      const isLastP2SStep = currentStepInfo.stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE
+      return isLastP2SStep && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error)
+    }
+    
+    // For non-P2S steps, use regular logic
     return currentStepInfo.status === StepStatus.Success || 
            currentStepInfo.status === StepStatus.Error || 
            hasOutput
@@ -193,6 +209,11 @@ export class PipelineOrchestrator {
     activeTranscriptIndex: number
   ): boolean {
     const key = stepIdToDataKeyPrefix[stepId]
+    console.log('[Orchestrator] stepHasOutput check:', {
+      stepId,
+      key,
+      hasKey: !!key
+    });
     if (!key) return false
 
     if (isGlobalStep(stepId)) {
@@ -203,27 +224,58 @@ export class PipelineOrchestrator {
     } else {
       // Check transcript-specific state
       const transcriptId = dataState.rawTranscripts[activeTranscriptIndex]?.id
+      console.log('[Orchestrator] stepHasOutput transcript check:', {
+        activeTranscriptIndex,
+        transcriptId,
+        hasTranscript: !!transcriptId
+      });
       if (!transcriptId) return false
       
       const tData = dataState.processedData.get(transcriptId)
+      console.log('[Orchestrator] stepHasOutput data check:', {
+        hasData: !!tData,
+        dataKeys: tData ? Object.keys(tData) : []
+      });
       if (!tData) return false
 
       if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)) {
-        // Check phase-specific output
-        const currentPhase = tData.current_phase_for_p2s_processing
-        if (!currentPhase) return false
+        // Check the current DU being processed
+        const currentDu = tData.current_du_for_p2s_processing
+        const p2sOutputs = tData.p2s_outputs_by_du
         
-        const phaseData = tData.p2s_outputs_by_phase?.[currentPhase]
-        if (!phaseData) return false
+        // If no current DU or no outputs structure, no output exists
+        if (!currentDu || !p2sOutputs) return false
         
-        const outputKey = key as keyof typeof phaseData
-        const errorKey = `${key.toString().replace('_output', '_error')}` as keyof typeof phaseData
-        return !!(phaseData[outputKey] || phaseData[errorKey])
+        // Check if the current DU has output for this step
+        const duData = p2sOutputs[currentDu]
+        if (!duData) return false
+        
+        const outputKey = key as keyof typeof duData
+        const errorKey = `${key.toString().replace('_output', '_error')}` as keyof typeof duData
+        const hasOutput = !!(duData[outputKey] || duData[errorKey])
+        
+        console.log('[Orchestrator] stepHasOutput P2S result:', {
+          stepId,
+          currentDu,
+          hasOutputData: !!duData[outputKey],
+          hasErrorData: !!duData[errorKey],
+          finalResult: hasOutput
+        });
+        
+        return hasOutput
       } else {
         // Regular transcript output
         const outputKey = key as keyof TranscriptProcessedData
         const errorKey = `${key.toString().replace('_output', '_error')}` as keyof TranscriptProcessedData
-        return !!(tData[outputKey] || tData[errorKey])
+        const hasOutput = !!(tData[outputKey] || tData[errorKey])
+        console.log('[Orchestrator] stepHasOutput result:', {
+          outputKey,
+          errorKey,
+          hasOutputData: !!tData[outputKey],
+          hasErrorData: !!tData[errorKey],
+          finalResult: hasOutput
+        });
+        return hasOutput
       }
     }
   }
@@ -242,6 +294,36 @@ export class PipelineOrchestrator {
   ): NextStepInfo | null {
     const { partIndex, stepIndex, part } = currentPosition
 
+    // Special handling for P2S - check if we need to repeat for next DU
+    console.log('[Orchestrator P2S Debug] Checking P2S iteration:', {
+      currentStep: currentPosition.part.steps[stepIndex],
+      stepIndex,
+      partSteps: currentPosition.part.steps,
+      activeTranscriptIndex
+    });
+    if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(currentPosition.part.steps[stepIndex])) {
+      const { rawTranscripts, processedData } = dataState
+      const transcriptId = rawTranscripts[activeTranscriptIndex]?.id
+      if (transcriptId) {
+        const tData = processedData.get(transcriptId)
+        if (tData) {
+          const dus = tData.dus_for_p2s_processing || []
+          const currentDuIndex = dus.indexOf(tData.current_du_for_p2s_processing || '')
+          
+          // If we're at the last step of P2S and there are more DUs to process
+          if (stepIndex === part.steps.length - 1 && currentDuIndex < dus.length - 1) {
+            // Go back to first P2S step for next DU
+            return {
+              nextStepId: part.steps[0],
+              nextTranscriptIndex: activeTranscriptIndex,
+              nextDuIndex: currentDuIndex + 1,
+              iterationType: 'per-du'
+            }
+          }
+        }
+      }
+    }
+
     // Check if we need to move to next step in same part
     if (stepIndex < part.steps.length - 1) {
       return {
@@ -257,6 +339,9 @@ export class PipelineOrchestrator {
         return this.getNextTranscriptIteration(partIndex, dataState, activeTranscriptIndex)
       
       case 'per-phase':
+        return this.getNextPhaseIteration(partIndex, dataState, activeTranscriptIndex)
+      
+      case 'per-du':
         return this.getNextPhaseIteration(partIndex, dataState, activeTranscriptIndex)
       
       case 'per-gdu':
@@ -315,20 +400,20 @@ export class PipelineOrchestrator {
     const tData = processedData.get(transcriptId)
     if (!tData) return null
 
-    const phases = tData.phases_for_p2s_processing || []
-    const currentPhaseIndex = phases.indexOf(tData.current_phase_for_p2s_processing || '')
+    const dus = tData.dus_for_p2s_processing || []
+    const currentDuIndex = dus.indexOf(tData.current_du_for_p2s_processing || '')
 
-    // Check if more phases to process for current transcript
-    if (currentPhaseIndex < phases.length - 1) {
+    // Check if more DUs to process for current transcript
+    if (currentDuIndex < dus.length - 1) {
       return {
         nextStepId: currentPart.steps[0],
         nextTranscriptIndex: activeTranscriptIndex,
-        nextPhaseIndex: currentPhaseIndex + 1,
-        iterationType: 'per-phase'
+        nextDuIndex: currentDuIndex + 1,
+        iterationType: 'per-du'
       }
     }
 
-    // All phases processed for current transcript, check next transcript
+    // All DUs processed for current transcript, check next transcript
     if (activeTranscriptIndex < rawTranscripts.length - 1) {
       // Move to Part 1 for next transcript
       const part1Index = this.pipelineStructure.findIndex(p => p.name.includes("Specific Diachronic"))
@@ -341,7 +426,7 @@ export class PipelineOrchestrator {
       }
     }
 
-    // All transcripts and phases processed
+    // All transcripts and DUs processed
     return this.getNextPart(currentPartIndex, dataState)
   }
 
@@ -397,10 +482,23 @@ export class PipelineOrchestrator {
         return this.getNextPart(currentPartIndex + 1, dataState)
       }
 
-      return {
+      console.log('[Orchestrator Debug] Moving to next part:', {
+        currentPartName: this.pipelineStructure[currentPartIndex].name,
+        nextPartName: nextPart.name,
         nextStepId: nextPart.steps[0],
         nextTranscriptIndex: 0,
         iterationType: nextPart.iteration
+      });
+      
+      // Check if we're transitioning from Part 2 to Part 3
+      const isLeavingPart2 = this.pipelineStructure[currentPartIndex].name.includes("Part II: Specific Synchronic Analysis")
+      const isEnteringPart3 = nextPart.name.includes("Part III: Generic Diachronic Analysis")
+      
+      return {
+        nextStepId: nextPart.steps[0],
+        nextTranscriptIndex: 0,
+        iterationType: nextPart.iteration,
+        shouldPause: isLeavingPart2 && isEnteringPart3
       }
     }
 
