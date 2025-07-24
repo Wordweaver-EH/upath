@@ -29,9 +29,11 @@ export const P2S_1_GROUP_UTTERANCES_BY_TOPIC_CONFIG: StepConfig = {
     
     // Collect the specific segments that belong to this DU
     for (const segContainer of p1_1_data.segmented_utterances) {
-      for (const segment of segContainer.segments) {
-        if (segment_ids_in_du.has(segment.segment_id)) {
-          segments_for_du.push(segment);
+      if (segContainer.segments && Array.isArray(segContainer.segments)) {
+        for (const segment of segContainer.segments) {
+          if (segment_ids_in_du.has(segment.segment_id)) {
+            segments_for_du.push(segment);
+          }
         }
       }
     }

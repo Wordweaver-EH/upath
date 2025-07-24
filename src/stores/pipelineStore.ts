@@ -438,6 +438,16 @@ export const usePipelineStore = create<PipelineStore>()(
             // If duIndex is provided, use it to set the current DU
             if (duIndex !== undefined && tData.dus_for_p2s_processing) {
               currentDu = tData.dus_for_p2s_processing[duIndex]
+              // Update the current_du_for_p2s_processing in state when duIndex is provided
+              set((state) => {
+                const d = state.processedData.get(transcriptIdToProcess)
+                if (d) {
+                  state.processedData.set(transcriptIdToProcess, {
+                    ...d,
+                    current_du_for_p2s_processing: currentDu
+                  })
+                }
+              })
             } else {
               currentDu = tData.current_du_for_p2s_processing
             }
@@ -957,17 +967,10 @@ export const usePipelineStore = create<PipelineStore>()(
               
               let newProcDus = [...(tD.processed_dus_for_p2s || [])]
               let allDone = tD.isFullyProcessedSpecificSynchronic
-              let nextDu: string | undefined = tD.current_du_for_p2s_processing // Keep current DU by default
-              
               if (stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
                 newProcDus = Array.from(new Set([...newProcDus, currentDu!]))
                 const transcriptDus = tD.dus_for_p2s_processing || []
                 allDone = transcriptDus.length > 0 ? newProcDus.length === transcriptDus.length : true
-                if (!allDone) {
-                  nextDu = transcriptDus.find(p => !newProcDus.includes(p))
-                } else {
-                  nextDu = undefined
-                }
               }
               
               state.processedData.set(transcriptIdToProcess, {
@@ -975,7 +978,7 @@ export const usePipelineStore = create<PipelineStore>()(
                 p2s_outputs_by_du: uP2S,
                 processed_dus_for_p2s: newProcDus,
                 isFullyProcessedSpecificSynchronic: allDone,
-                current_du_for_p2s_processing: nextDu
+                current_du_for_p2s_processing: currentDu
               })
             }
           })

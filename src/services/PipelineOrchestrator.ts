@@ -183,14 +183,7 @@ export class PipelineOrchestrator {
       statusIsError: currentStepInfo.status === StepStatus.Error
     });
     
-    // For P2S steps, only P2S_3 completing means the iteration is done
-    if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(currentStepInfo.stepId)) {
-      // Only the last P2S step (P2S_3) completing means we're done with this DU
-      const isLastP2SStep = currentStepInfo.stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE
-      return isLastP2SStep && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error)
-    }
-    
-    // For non-P2S steps, use regular logic
+    // A step iteration is complete when it has succeeded, errored, or already has output
     return currentStepInfo.status === StepStatus.Success || 
            currentStepInfo.status === StepStatus.Error || 
            hasOutput
@@ -413,16 +406,12 @@ export class PipelineOrchestrator {
       }
     }
 
-    // All DUs processed for current transcript, check next transcript
+    // All DUs processed for current transcript, continue with Part 2 for next transcript
     if (activeTranscriptIndex < rawTranscripts.length - 1) {
-      // Move to Part 1 for next transcript
-      const part1Index = this.pipelineStructure.findIndex(p => p.name.includes("Specific Diachronic"))
-      if (part1Index !== -1) {
-        return {
-          nextStepId: this.pipelineStructure[part1Index].steps[0],
-          nextTranscriptIndex: activeTranscriptIndex + 1,
-          iterationType: 'per-transcript'
-        }
+      return {
+        nextStepId: currentPart.steps[0],  // Start P2S_1 for next transcript
+        nextTranscriptIndex: activeTranscriptIndex + 1,
+        iterationType: 'per-transcript'
       }
     }
 

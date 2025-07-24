@@ -7,10 +7,12 @@ Part 2 performs **Specific Synchronic Analysis** on individual Diachronic Units 
 ## Architecture
 
 ### Processing Model
-- **Transcript Iteration**: Part 2 uses `per-transcript` iteration - completes ALL DUs for one transcript before moving to the next
+- **Part Iteration**: Part 2 is configured with `iteration: 'per-transcript'` in the pipeline structure
+- **Transcript Processing**: ALL transcripts complete Part 1 before ANY transcript begins Part 2
 - **DU Processing**: Within each transcript, DUs from P1.4 are processed sequentially through all three P2S steps
 - **Sequential Execution**: Both transcripts and DUs are processed sequentially (not in parallel)
 - **Per-DU Storage**: Outputs are stored in `p2s_outputs_by_du[duId]` structure for each transcript
+- **Iteration Types**: The orchestrator returns `iterationType: 'per-du'` when moving between DUs, and `iterationType: 'per-transcript'` when moving between steps or transcripts
 
 ### Data Flow
 ```
@@ -28,9 +30,10 @@ Transcript 2:
 
 ### Transcript Progression Logic
 - Each transcript is fully processed before moving to the next
-- The orchestrator's `getNextTranscriptIteration()` handles advancement
+- The orchestrator's `getNextPhaseIteration()` handles DU advancement within Part 2
 - After completing all DUs in a transcript, the system checks for more transcripts
-- Only when ALL transcripts are complete does Part 2 finish
+- When moving to the next transcript, Part 2 continues from P2S.1 for the new transcript's DUs
+- Only when ALL transcripts are complete does Part 2 finish and move to Part 3
 
 ## Steps
 
@@ -189,8 +192,11 @@ processedData.get(transcriptId).p2s_outputs_by_du = {
 **Solution**: Ensure `p2s_outputs_by_du[duId].p2s_1_output` exists
 
 ### Issue: Infinite loops during autorun
-**Cause**: State updates triggering repeated processing
-**Solution**: Check transcript index changes, ensure proper DU tracking
+**Cause**: State updates triggering repeated processing or missing `current_du_for_p2s_processing` update
+**Solution**: 
+- Ensure `current_du_for_p2s_processing` is preserved when updating state in `handleSuccessfulStep`
+- Check that `indexOf(undefined)` doesn't return -1 causing loop back to du_1
+- Verify proper state updates in `pipelineStore.ts`
 
 ### Issue: DUs not processing in order
 **Cause**: Async state updates or orchestrator logic

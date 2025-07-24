@@ -6,6 +6,9 @@ Directory structure:
     ├── index.tsx
     ├── jest.config.js
     ├── LICENSE
+    ├── metadata.json
+    ├── package.json
+    ├── tsconfig.json
     ├── types.ts
     ├── vite.config.ts
     ├── .env.example
@@ -90,6 +93,9 @@ Directory structure:
     │   │   ├── pipelineStore.ts
     │   │   ├── settingsStore.ts
     │   │   └── uiStore.ts
+    │   ├── styles/
+    │   │   ├── ag-grid-custom-theme.css
+    │   │   └── tooltip.css
     │   └── utils/
     │       ├── csvExport.ts
     │       ├── htmlHelper.ts
@@ -106,6 +112,8 @@ Directory structure:
     │       └── visualizationHelper.ts
     ├── upath-backend/
     │   ├── frontend-encrypt-example.js
+    │   ├── package.json
+    │   ├── tsconfig.json
     │   ├── .env.example
     │   └── src/
     │       ├── index.ts
@@ -114,6 +122,8 @@ Directory structure:
     │       │   └── analyze.ts
     │       └── utils/
     │           └── encrypt.ts
+    ├── .claude/
+    │   └── settings.local.json
     └── .serena/
         ├── project.yml
         └── cache/
@@ -3369,6 +3379,100 @@ For licensing inquiries, contact: wordweaver.eh@gmail.com
 
 
 ================================================
+FILE: metadata.json
+================================================
+{
+  "name": "Copy of wkCopy of Copy of uPATH : Micro-Phenomenological Analytic Threader v6.2",
+  "description": "A React application to perform fullanalysis on micro-phenomenological interview transcripts using a prompt chain system with Gemini API.\n\nValenzuela-Moguillansky, Camila, and Alejandra Vásquez-Rosati. \"An analysis procedure for the micro-phenomenological interview.\" Constructivist Foundations 14.2 (2019): 123-145.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
+
+
+================================================
+FILE: package.json
+================================================
+{
+  "name": "upath",
+  "private": true,
+  "version": "0.11.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@fastify/deepmerge": "^3.1.0",
+    "@google/genai": "^1.3.0",
+    "@headlessui/react": "^2.2.4",
+    "@types/crypto-js": "^4.2.2",
+    "ag-grid-community": "^34.0.2",
+    "ag-grid-react": "^34.0.2",
+    "crypto-js": "^4.2.0",
+    "immer": "^10.1.1",
+    "localforage": "^1.10.0",
+    "marked": "^13.0.2",
+    "mermaid": "^11.6.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zustand": "^5.0.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitest/ui": "^3.2.4",
+    "jsdom": "^26.1.0",
+    "typescript": "~5.7.2",
+    "vite": "^6.2.0",
+    "vitest": "^3.2.4"
+  }
+}
+
+
+
+================================================
+FILE: tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "allowJs": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*" :  ["./*"]
+    }
+  }
+}
+
+
+
+================================================
 FILE: types.ts
 ================================================
 // General Types
@@ -3534,7 +3638,7 @@ export interface P1_5_Output {
 export interface P2S_1_ThematicGroup {
   group_label: string;
   justification: string;
-  utterances: Array<{ original_line_num: string; utterance_text: string }>; // These are from P0.3 SelectedUtterance
+  segments: SegmentedUtteranceSegment[]; // Changed from utterances to maintain precision
 }
 export interface P2S_1_Output {
   transcript_id: string;
@@ -3549,7 +3653,7 @@ export interface P2S_2_SynchronicUnit {
   level: number;
   abstraction_op: string;
   intensional_definition: string;
-  utterances?: Array<{ original_line_num: string; utterance_text: string }>; // From P0.3 SelectedUtterance
+  segments?: SegmentedUtteranceSegment[]; // Changed from utterances to maintain precision
   constituent_lower_units?: string[]; // unit_names of other ISUs
 }
 export interface P2S_2_Output {
@@ -12426,6 +12530,7 @@ export interface NextStepInfo {
   nextDuIndex?: number
   nextGduIndex?: number
   iterationType: IterationType
+  shouldPause?: boolean
 }
 
 /**
@@ -13389,12 +13494,12 @@ export { P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE_CONFIG } from './P2S_3_defin
 ================================================
 FILE: src/config/pipeline/part2/P2S_1_groupUtterancesByTopic.ts
 ================================================
-import { StepId, SelectedUtterance } from '../../../../types';
+import { StepId, SegmentedUtteranceSegment } from '../../../../types';
 import { StepConfig } from '../types';
 
 export const P2S_1_GROUP_UTTERANCES_BY_TOPIC_CONFIG: StepConfig = {
   id: StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC,
-  title: "P2S.1: Group Utterances by Topic within a Diachronic Unit",
+  title: "P2S.1: Group Segments by Topic within a Diachronic Unit",
   part: "PartII_Sync",
   isJsonOutput: true,
   getInput: (currentTranscript, allProcessedData, _genericState, _apiKeyPresent, _userDvFocus, _allRawTranscripts, currentDuId) => {
@@ -13414,50 +13519,49 @@ export const P2S_1_GROUP_UTTERANCES_BY_TOPIC_CONFIG: StepConfig = {
     
     const segment_ids_in_du = new Set<string>(duObject.source_segment_ids);
 
-    const utterances_for_du: SelectedUtterance[] = [];
+    const segments_for_du: SegmentedUtteranceSegment[] = [];
     const p1_1_data = allProcessedData?.get(currentTranscript.id)?.p1_1_output;
     if (!p1_1_data) return { data: null, error: `Missing P1.1 output for transcript ${currentTranscript.id}` };
     
-    segment_ids_in_du.forEach(segId => {
-      const segContainer = p1_1_data.segmented_utterances.find(sc => sc.segments.some(s => s.segment_id === segId));
-      if (segContainer && !utterances_for_du.some(u => u.original_line_num === segContainer.original_utterance.original_line_num && u.utterance_text === segContainer.original_utterance.utterance_text)) {
-        // Double-check that the utterance is included (though it should be by now)
-        if (!('included' in segContainer.original_utterance) || segContainer.original_utterance.included) {
-          utterances_for_du.push(segContainer.original_utterance);
+    // Collect the specific segments that belong to this DU
+    for (const segContainer of p1_1_data.segmented_utterances) {
+      for (const segment of segContainer.segments) {
+        if (segment_ids_in_du.has(segment.segment_id)) {
+          segments_for_du.push(segment);
         }
       }
-    });
+    }
 
-    if (utterances_for_du.length === 0) return { data: null, error: `No utterances could be mapped to DU '${currentDuId}' for P2S.1.` };
+    if (segments_for_du.length === 0) return { data: null, error: `No segments could be mapped to DU '${currentDuId}' for P2S.1.` };
 
     return {
       data: {
         transcript_id: currentTranscript.id,
         analyzed_du_id: currentDuId,
-        utterances_for_du_analysis: utterances_for_du,
+        segments_for_du_analysis: segments_for_du,
         independent_variable_details: p1_4_data.independent_variable_details,
         dependent_variable_focus: p1_4_data.dependent_variable_focus,
       },
     };
   },
-  generatePrompt: (input: { transcript_id: string; analyzed_du_id: string; utterances_for_du_analysis: SelectedUtterance[]; independent_variable_details: string; dependent_variable_focus: string[]; }) => `You are a micro-phenomenological analyst. Task: Group procedural utterances by topic for a GIVEN DIACHRONIC UNIT from a specific transcript.
+  generatePrompt: (input: { transcript_id: string; analyzed_du_id: string; segments_for_du_analysis: SegmentedUtteranceSegment[]; independent_variable_details: string; dependent_variable_focus: string[]; }) => `You are a micro-phenomenological analyst. Task: Group the provided SEGMENTS by topic for a GIVEN DIACHRONIC UNIT.
 Input:
 - Transcript ID: ${input.transcript_id}
 - Diachronic Unit Being Analyzed: "${input.analyzed_du_id}"
 - IV Details: "${input.independent_variable_details}"
 - DV Focus: ${JSON.stringify(input.dependent_variable_focus)}
-- Utterances that occur within this DU:
-${JSON.stringify(input.utterances_for_du_analysis, null, 2)}
+- Segments that occur within this DU:
+${JSON.stringify(input.segments_for_du_analysis, null, 2)}
 
 Instructions:
-1.  Your Task: Group the provided utterances by topic. Focus on experiential themes that are specific to the DV focus (${JSON.stringify(input.dependent_variable_focus)}).
-2.  Topic Identification: Identify the main topic of each utterance. Topics should be:
+1.  Your Task: Group the provided *segments* by topic. Focus on experiential themes that are specific to the DV focus (${JSON.stringify(input.dependent_variable_focus)}).
+2.  Topic Identification: Identify the main topic of each segment. Topics should be:
     *   Relevant to the dependent variable focus
     *   Specific (not generic like "feelings")
-    *   Based on the content of the utterances
-3.  Grouping: Create groups of utterances that share a similar topic. Be careful not to over-fragment; look for meaningful commonalities.
-4.  No Temporal Ordering: This step focuses on thematic grouping, not temporal sequencing. Do not concern yourself with the chronological order of utterances within groups.
-5.  Preserve the Diachronic Unit Context: Remember, these utterances all come from the DU "${input.analyzed_du_id}". Your groupings should make sense within this DU's context.
+    *   Based on the content of the segments
+3.  Grouping: Create groups of segments that share a similar topic. Be careful not to over-fragment; look for meaningful commonalities.
+4.  No Temporal Ordering: This step focuses on thematic grouping, not temporal sequencing.
+5.  Preserve the Diachronic Unit Context: Remember, these segments all come from the DU "${input.analyzed_du_id}". Your groupings should make sense within this DU's context.
 
 Output:
 A JSON object with ONLY the following structure (NO extra text or explanations):
@@ -13467,13 +13571,14 @@ A JSON object with ONLY the following structure (NO extra text or explanations):
   "synchronic_thematic_groups": [
     {
       "group_label": "Descriptive Name for Topic Group 1",
-      "justification": "Brief description of what unites these utterances",
-      "utterances": [
+      "justification": "Brief description of what unites these segments",
+      "segments": [
         {
-          "original_line_num": "string",
-          "utterance_text": "text from input"
+          "segment_id": "string",
+          "segment_text": "text from input",
+          "temporal_cues": ["..."]
         }
-        // ... more utterances in this group
+        // ... more segments in this group
       ]
     }
     // ... more groups
@@ -13493,35 +13598,53 @@ import { StepConfig } from '../types';
 
 export const P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS_CONFIG: StepConfig = {
   id: StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS,
-  title: "P2S.2: Identify Specific Synchronic Units (ISUs) within a Diachronic Unit",
+  title: "P2S.2: Identify Specific Synchronic Units (ISUs) from Segments",
   part: "PartII_Sync",
   isJsonOutput: true,
   getInput: (currentTranscript, allProcessedData, _genericState, _apiKeyPresent, _userDvFocus, _allRawTranscripts, currentDuId) => {
-    if (!currentTranscript?.id || !currentDuId) return { data: null, error: "Missing current transcript ID or DU ID for P2S.2." };
+    if (!currentTranscript?.id || !currentDuId) {
+      console.error('[P2S_2 Debug] Missing required data:', {
+        currentTranscriptId: currentTranscript?.id,
+        currentDuId: currentDuId
+      });
+      return { data: null, error: "Missing current transcript ID or DU ID for P2S.2." };
+    }
+    
     const p2s_1_data_for_du = allProcessedData?.get(currentTranscript.id)?.p2s_outputs_by_du?.[currentDuId]?.p2s_1_output;
 
-    if (!p2s_1_data_for_du) return { data: null, error: `Missing P2S.1 output for DU '${currentDuId}' for transcript ${currentTranscript.id}` };
+    if (!p2s_1_data_for_du) {
+      return { data: null, error: `Missing P2S.1 output for DU '${currentDuId}' for transcript ${currentTranscript.id}` };
+    }
+    
+    // Validate P2S.1 output structure
+    if (!p2s_1_data_for_du.synchronic_thematic_groups || !Array.isArray(p2s_1_data_for_du.synchronic_thematic_groups)) {
+      return { data: null, error: `Invalid P2S.1 output structure: missing or invalid synchronic_thematic_groups for DU '${currentDuId}'` };
+    }
+    
+    if (p2s_1_data_for_du.synchronic_thematic_groups.length === 0) {
+      console.warn(`[P2S_2 Debug] Empty synchronic_thematic_groups for DU '${currentDuId}' - this may indicate no segments were found for this DU`);
+    }
     
     return {
       data: p2s_1_data_for_du
     };
   },
-  generatePrompt: (input: P2S_1_Output) => `You are a micro-phenomenological analyst. Your task is to identify Specific Synchronic Units (ISUs) based on the thematic groups from P2S.1 for a GIVEN DIACHRONIC UNIT.
+  generatePrompt: (input: P2S_1_Output) => `You are a micro-phenomenological analyst. Your task is to identify Specific Synchronic Units (ISUs) based on the thematic groups of SEGMENTS from P2S.1 for a GIVEN DIACHRONIC UNIT.
 Input:
 - Transcript ID: ${input.transcript_id}
 - Diachronic Unit Being Analyzed: "${input.analyzed_du_id}"
 - IV Details: "${input.independent_variable_details}"
 - DV Focus: ${JSON.stringify(input.dependent_variable_focus)}
-- Synchronic thematic groups from P2S.1:
+- Synchronic thematic groups of segments from P2S.1:
 ${JSON.stringify(input.synchronic_thematic_groups, null, 2)}
 
 Instructions:
-1.  Review Thematic Groups: Each group from P2S.1 represents utterances sharing a topic within the DU "${input.analyzed_du_id}".
-2.  Define ISUs: For each thematic group, define one or more ISUs. An ISU is a conceptual unit capturing a synchronic experiential element. It's more abstract than the raw utterances.
+1.  Review Thematic Groups: Each group from P2S.1 represents segments sharing a topic within the DU "${input.analyzed_du_id}".
+2.  Define ISUs: For each thematic group, define one or more ISUs. An ISU is a conceptual unit capturing a synchronic experiential element. It's an abstraction of the raw segments.
 3.  Create Hierarchy: Organize ISUs into levels (1 for top-level, 2 for sub-units, etc.).
 4.  Abstraction Operations: For each ISU, specify the abstraction operation used (e.g., "generalization", "aggregation", "instantiation").
 5.  Intensional Definition: Provide a conceptual definition of the ISU—what experiential quality or state it represents.
-6.  Unique Naming: Each ISU must have a unique \`unit_name\` that's descriptive and meaningful.
+6.  Grounding: Ground each ISU in the specific segments it is derived from.
 
 Output:
 A JSON object adhering EXACTLY to the following structure (NO extra text):
@@ -13534,13 +13657,14 @@ A JSON object adhering EXACTLY to the following structure (NO extra text):
       "level": 1,
       "abstraction_op": "generalization",
       "intensional_definition": "Conceptual description of this ISU",
-      "utterances": [
+      "segments": [
         {
-          "original_line_num": "string",
-          "utterance_text": "text"
+          "segment_id": "string",
+          "segment_text": "text",
+          "temporal_cues": ["..."]
         }
       ],
-      "constituent_lower_units": [] // Empty array if no sub-units, or array of unit_names
+      "constituent_lower_units": []
     }
     // ... more ISUs
   ],
@@ -13563,12 +13687,41 @@ export const P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE_CONFIG: StepConfig = {
   part: "PartII_Sync",
   isJsonOutput: true,
   getInput: (currentTranscript, allProcessedData, _genericState, _apiKeyPresent, _userDvFocus, _allRawTranscripts, currentDuId?: string) => {
-    if (!currentTranscript || !allProcessedData) return { data: null, error: "Missing current transcript or processed data for P2S.3" };
+    if (!currentTranscript?.id) {
+      console.error('[P2S_3 Debug] Missing transcript ID');
+      return { data: null, error: "Missing current transcript ID for P2S.3" };
+    }
+    
+    if (!currentDuId) {
+      console.error('[P2S_3 Debug] Missing DU ID');
+      return { data: null, error: "Missing current DU ID for P2S.3" };
+    }
+    
+    if (!allProcessedData) {
+      return { data: null, error: "Missing processed data for P2S.3" };
+    }
+    
     const transcriptData = allProcessedData.get(currentTranscript.id);
-    if (!transcriptData) return { data: null, error: `No processed data found for transcript ${currentTranscript.id}` };
-    const p2s_du_data = transcriptData.p2s_outputs_by_du?.[currentDuId || ''];
-    if (!p2s_du_data?.p2s_2_output) return { data: null, error: `P2S.2 output not found for DU "${currentDuId}" in P2S.3` };
-    return { data: p2s_du_data.p2s_2_output }; // P2S.2 output contains ISUs with unit_names
+    if (!transcriptData) {
+      return { data: null, error: `No processed data found for transcript ${currentTranscript.id}` };
+    }
+    
+    const p2s_du_data = transcriptData.p2s_outputs_by_du?.[currentDuId];
+    if (!p2s_du_data?.p2s_2_output) {
+      return { data: null, error: `P2S.2 output not found for DU "${currentDuId}" in P2S.3` };
+    }
+    
+    // Validate P2S.2 output structure
+    const p2s_2_output = p2s_du_data.p2s_2_output;
+    if (!p2s_2_output.specific_synchronic_units_hierarchy || !Array.isArray(p2s_2_output.specific_synchronic_units_hierarchy)) {
+      return { data: null, error: `Invalid P2S.2 output structure: missing or invalid specific_synchronic_units_hierarchy for DU '${currentDuId}'` };
+    }
+    
+    if (p2s_2_output.specific_synchronic_units_hierarchy.length === 0) {
+      console.warn(`[P2S_3 Debug] Empty specific_synchronic_units_hierarchy for DU '${currentDuId}'`);
+    }
+    
+    return { data: p2s_2_output };
   },
   generatePrompt: (input: P2S_2_Output) => `You are a micro-phenomenological analyst. Task: Final step of Specific Synchronic Analysis - Define the Specific Synchronic Structure (SSS) as a semantic network.
 Input:
@@ -13781,14 +13934,17 @@ export const useAutorunManager = () => {
       const details = nextStep ? {
         nextStepId: nextStep.nextStepId,
         nextTranscriptIndex: nextStep.nextTranscriptIndex ?? activeTranscriptIndex,
-        nextDuIndex: nextStep.nextDuIndex
+        nextDuIndex: nextStep.nextDuIndex,
+        shouldPause: nextStep.shouldPause
       } : null;
       
       console.log(`- orchestrator.getNextStep result:`, details);
       
       if (details) {
         console.log(`🎯 Found next step: ${details.nextStepId} (transcript index: ${details.nextTranscriptIndex})`);
-        setActiveTranscript(details.nextTranscriptIndex);
+        if (details.nextTranscriptIndex !== activeTranscriptIndex) {
+          setActiveTranscript(details.nextTranscriptIndex);
+        }
         
         // Update process state
         const newProcessState = orchestrator.updateProcessState(
@@ -13798,6 +13954,16 @@ export const useAutorunManager = () => {
           { transcriptIndex: activeTranscriptIndex }
         );
         updateProcessState(newProcessState); 
+        
+        // Check if we should pause after Part 2
+        if (details.shouldPause) {
+          console.log(`⏸️ Pausing autorun after Part 2 completion`);
+          // Save resume checkpoint before pausing
+          const pausedProcessState = orchestrator.createResumeCheckpoint(newProcessState, { transcriptIndex: details.nextTranscriptIndex });
+          updateProcessState(pausedProcessState);
+          setAutorunning(false);
+          return;
+        }
         
         if (details.nextStepId === StepId.COMPLETE) {
             console.log(`🏁 Next step is COMPLETE - finalizing`);
@@ -13902,7 +14068,9 @@ export const useAutorunManager = () => {
       
       if (resumeDetails) {
         console.log(`📍 Resuming from: ${resumeDetails.nextStepId} (transcript index: ${resumeDetails.nextTranscriptIndex})`);
-        setActiveTranscript(resumeDetails.nextTranscriptIndex);
+        if (resumeDetails.nextTranscriptIndex !== activeTranscriptIndex) {
+          setActiveTranscript(resumeDetails.nextTranscriptIndex);
+        }
         
         const isResumeGlobal = isGlobalStep(resumeDetails.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(resumeDetails.nextStepId);
         const resumeTxId = isResumeGlobal ? undefined : rawTranscripts[resumeDetails.nextTranscriptIndex]?.id;
@@ -14288,6 +14456,14 @@ export class PipelineOrchestrator {
       statusIsError: currentStepInfo.status === StepStatus.Error
     });
     
+    // For P2S steps, only P2S_3 completing means the iteration is done
+    if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(currentStepInfo.stepId)) {
+      // Only the last P2S step (P2S_3) completing means we're done with this DU
+      const isLastP2SStep = currentStepInfo.stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE
+      return isLastP2SStep && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error)
+    }
+    
+    // For non-P2S steps, use regular logic
     return currentStepInfo.status === StepStatus.Success || 
            currentStepInfo.status === StepStatus.Error || 
            hasOutput
@@ -14336,16 +14512,30 @@ export class PipelineOrchestrator {
       if (!tData) return false
 
       if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)) {
-        // Check DU-specific output
+        // Check the current DU being processed
         const currentDu = tData.current_du_for_p2s_processing
-        if (!currentDu) return false
+        const p2sOutputs = tData.p2s_outputs_by_du
         
-        const duData = tData.p2s_outputs_by_du?.[currentDu]
+        // If no current DU or no outputs structure, no output exists
+        if (!currentDu || !p2sOutputs) return false
+        
+        // Check if the current DU has output for this step
+        const duData = p2sOutputs[currentDu]
         if (!duData) return false
         
         const outputKey = key as keyof typeof duData
         const errorKey = `${key.toString().replace('_output', '_error')}` as keyof typeof duData
-        return !!(duData[outputKey] || duData[errorKey])
+        const hasOutput = !!(duData[outputKey] || duData[errorKey])
+        
+        console.log('[Orchestrator] stepHasOutput P2S result:', {
+          stepId,
+          currentDu,
+          hasOutputData: !!duData[outputKey],
+          hasErrorData: !!duData[errorKey],
+          finalResult: hasOutput
+        });
+        
+        return hasOutput
       } else {
         // Regular transcript output
         const outputKey = key as keyof TranscriptProcessedData
@@ -14572,10 +14762,16 @@ export class PipelineOrchestrator {
         nextTranscriptIndex: 0,
         iterationType: nextPart.iteration
       });
+      
+      // Check if we're transitioning from Part 2 to Part 3
+      const isLeavingPart2 = this.pipelineStructure[currentPartIndex].name.includes("Part II: Specific Synchronic Analysis")
+      const isEnteringPart3 = nextPart.name.includes("Part III: Generic Diachronic Analysis")
+      
       return {
         nextStepId: nextPart.steps[0],
         nextTranscriptIndex: 0,
-        iterationType: nextPart.iteration
+        iterationType: nextPart.iteration,
+        shouldPause: isLeavingPart2 && isEnteringPart3
       }
     }
 
@@ -16154,7 +16350,7 @@ export const usePipelineStore = create<PipelineStore>()(
             if (tD) {
               let mermaid: string | undefined = undefined
               if (stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE && output) {
-                mermaid = transformSynchronicToMermaid((output as P2S_3_Output).specific_synchronic_structure, currentPhase)
+                mermaid = transformSynchronicToMermaid((output as P2S_3_Output).specific_synchronic_structure, currentDu)
               }
               
               const uP2S = {
@@ -16169,7 +16365,7 @@ export const usePipelineStore = create<PipelineStore>()(
               
               let newProcDus = [...(tD.processed_dus_for_p2s || [])]
               let allDone = tD.isFullyProcessedSpecificSynchronic
-              let nextDu: string | undefined = currentPhase
+              let nextDu: string | undefined = tD.current_du_for_p2s_processing // Keep current DU by default
               
               if (stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
                 newProcDus = Array.from(new Set([...newProcDus, currentDu!]))
@@ -16483,43 +16679,53 @@ export const usePipelineStore = create<PipelineStore>()(
             } else if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepToInvalidate)) {
               const tData = newProcessedData.get(currentActiveTxId)
               if (tData) {
-                // Invalidation for P2S steps is scoped to the currently active phase.
-                const currentDu = tData.current_du_for_p2s_processing
+                // When invalidating any P2S step, we need to clear data for ALL DUs
+                // from the invalidated step onward, not just the current DU
                 
-                if (currentDu && tData.p2s_outputs_by_du?.[currentDu]) {
-                  const keyPrefixToClear = stepIdToDataKeyPrefix[stepToInvalidate] as keyof P2SDuData
-                  if (keyPrefixToClear) {
-                    // Create a mutable copy of the data for the specific phase we are invalidating
-                    const duDataToUpdate = { ...tData.p2s_outputs_by_du[currentDu] }
+                const keyPrefixToClear = stepIdToDataKeyPrefix[stepToInvalidate] as keyof P2SDuData
+                const stepIndex = STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.indexOf(stepToInvalidate)
+                
+                if (keyPrefixToClear && stepIndex !== -1) {
+                  // Create a new p2s_outputs_by_du object with cleared data
+                  const updatedP2SOutputs = { ...tData.p2s_outputs_by_du }
+                  
+                  // For each DU, clear data from the invalidated step onward
+                  Object.keys(updatedP2SOutputs).forEach(duId => {
+                    const duData = { ...updatedP2SOutputs[duId] }
                     
-                    // Delete the output and error for this specific step
-                    delete duDataToUpdate[keyPrefixToClear]
-                    const errorKeyToClear = `${String(keyPrefixToClear).replace('_output', '_error')}` as keyof P2SDuData
-                    delete duDataToUpdate[errorKeyToClear]
-                    
-                    // Special handling for P2S.3 which also generates mermaid syntax
-                    if (stepToInvalidate === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
-                      delete duDataToUpdate.p2s_3_mermaid_syntax
+                    // Clear all steps from the invalidated step onward
+                    for (let i = stepIndex; i < STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.length; i++) {
+                      const stepToClear = STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[i]
+                      const keyToClear = stepIdToDataKeyPrefix[stepToClear] as keyof P2SDuData
+                      if (keyToClear) {
+                        delete duData[keyToClear]
+                        const errorKeyToClear = `${String(keyToClear).replace('_output', '_error')}` as keyof P2SDuData
+                        delete duData[errorKeyToClear]
+                        
+                        // Special handling for P2S.3 mermaid syntax
+                        if (stepToClear === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
+                          delete duData.p2s_3_mermaid_syntax
+                        }
+                      }
                     }
                     
-                    // Construct the new state for p2s_outputs_by_du
-                    const updatedP2SOutputs = {
-                      ...tData.p2s_outputs_by_du,
-                      [currentDu]: duDataToUpdate,
-                    }
-                    
-                    // Since we are invalidating a step, this phase is no longer fully processed.
-                    // We must remove it from the list of completed phases.
-                    const newProcessedDus = tData.processed_dus_for_p2s?.filter(p => p !== currentPhase) || []
-                    
-                    // Update the transcript data in the map
-                    newProcessedData.set(currentActiveTxId, {
-                      ...tData,
-                      p2s_outputs_by_du: updatedP2SOutputs,
-                      isFullyProcessedSpecificSynchronic: false, // The transcript is no longer fully synchronic processed
-                      processed_dus_for_p2s: newProcessedDus,
-                    })
-                  }
+                    updatedP2SOutputs[duId] = duData
+                  })
+                  
+                  // No DUs are fully processed anymore since we're invalidating
+                  const newProcessedDus: string[] = []
+                  
+                  // If invalidating from P2S.1, we should also reset the current DU to start fresh
+                  const resetCurrentDu = stepToInvalidate === StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC
+                  
+                  // Update the transcript data
+                  newProcessedData.set(currentActiveTxId, {
+                    ...tData,
+                    p2s_outputs_by_du: updatedP2SOutputs,
+                    isFullyProcessedSpecificSynchronic: false,
+                    processed_dus_for_p2s: newProcessedDus,
+                    ...(resetCurrentDu ? { current_du_for_p2s_processing: undefined } : {})
+                  })
                 }
               }
             }
@@ -18069,6 +18275,259 @@ Please provide a corrected response addressing the user's feedback.`
 )
 
 
+
+
+================================================
+FILE: src/styles/ag-grid-custom-theme.css
+================================================
+/* Custom AG-Grid Theme for µ-PATH */
+
+/* Light theme */
+.ag-theme-alpine {
+  --ag-background-color: #faf8f1;
+  --ag-foreground-color: #111111;
+  --ag-header-background-color: #f3f1ea;
+  --ag-header-foreground-color: #111111;
+  --ag-odd-row-background-color: #faf8f1;
+  --ag-row-hover-color: #e9e6de;
+  --ag-border-color: #dcd9d0;
+  --ag-secondary-border-color: #dcd9d0;
+  --ag-header-cell-hover-background-color: #e9e6de;
+  --ag-selected-row-background-color: rgba(160, 0, 0, 0.1);
+  --ag-range-selection-border-color: #a00000;
+  --ag-header-column-separator-color: #dcd9d0;
+  --ag-header-column-resize-handle-color: #a00000;
+  --ag-input-border-color: #dcd9d0;
+  --ag-input-focus-border-color: #a00000;
+  --ag-disabled-foreground-color: #999999;
+  --ag-chip-background-color: #f3f1ea;
+  --ag-chip-border-color: #dcd9d0;
+}
+
+/* Dark theme */
+.ag-theme-alpine-dark {
+  --ag-background-color: #1a1a1a;
+  --ag-foreground-color: #e6e6e6;
+  --ag-header-background-color: #252525;
+  --ag-header-foreground-color: #e6e6e6;
+  --ag-odd-row-background-color: #1a1a1a;
+  --ag-row-hover-color: #333333;
+  --ag-border-color: #444444;
+  --ag-secondary-border-color: #444444;
+  --ag-header-cell-hover-background-color: #333333;
+  --ag-selected-row-background-color: rgba(255, 107, 107, 0.1);
+  --ag-range-selection-border-color: #ff6b6b;
+  --ag-header-column-separator-color: #444444;
+  --ag-header-column-resize-handle-color: #ff6b6b;
+  --ag-input-border-color: #444444;
+  --ag-input-focus-border-color: #ff6b6b;
+  --ag-disabled-foreground-color: #666666;
+  --ag-chip-background-color: #252525;
+  --ag-chip-border-color: #444444;
+}
+
+/* Additional customizations */
+.ag-theme-alpine,
+.ag-theme-alpine-dark {
+  font-family: 'EB Garamond', 'et-book', Palatino, 'Palatino Linotype', 'Palatino LT STD', Georgia, serif;
+}
+
+.ag-theme-alpine .ag-header-cell,
+.ag-theme-alpine-dark .ag-header-cell {
+  font-weight: 600;
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ag-theme-alpine .ag-cell,
+.ag-theme-alpine-dark .ag-cell {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+/* Remove cell focus outline */
+.ag-theme-alpine .ag-cell-focus,
+.ag-theme-alpine-dark .ag-cell-focus {
+  border: none !important;
+  outline: none !important;
+}
+
+/* Custom scrollbar */
+.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar,
+.ag-theme-alpine-dark .ag-body-viewport::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-track {
+  background: #f3f1ea;
+}
+
+.ag-theme-alpine-dark .ag-body-viewport::-webkit-scrollbar-track {
+  background: #252525;
+}
+
+.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb {
+  background: #dcd9d0;
+  border-radius: 4px;
+}
+
+.ag-theme-alpine-dark .ag-body-viewport::-webkit-scrollbar-thumb {
+  background: #444444;
+  border-radius: 4px;
+}
+
+.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb:hover {
+  background: #a00000;
+}
+
+.ag-theme-alpine-dark .ag-body-viewport::-webkit-scrollbar-thumb:hover {
+  background: #ff6b6b;
+}
+
+/* Phase color classes - matching annotated transcript theme */
+.phase-beginning { 
+  background-color: rgba(173, 216, 230, 0.3); /* lightblue */
+  color: #111111;
+}
+.dark .phase-beginning { 
+  background-color: rgba(70, 130, 180, 0.25); /* steelblue */
+  color: #e6e6e6;
+}
+
+.phase-core { 
+  background-color: rgba(127, 255, 212, 0.3); /* aquamarine */
+  color: #111111;
+}
+.dark .phase-core { 
+  background-color: rgba(32, 178, 170, 0.25); /* lightseagreen */
+  color: #e6e6e6;
+}
+
+.phase-ending { 
+  background-color: rgba(221, 160, 221, 0.25); /* plum */
+  color: #111111;
+}
+.dark .phase-ending { 
+  background-color: rgba(147, 112, 219, 0.2); /* mediumslateblue */
+  color: #e6e6e6;
+}
+
+.phase-transition { 
+  background-color: rgba(255, 215, 0, 0.25); /* gold */
+  color: #111111;
+}
+.dark .phase-transition { 
+  background-color: rgba(218, 165, 32, 0.2); /* goldenrod */
+  color: #e6e6e6;
+}
+
+
+================================================
+FILE: src/styles/tooltip.css
+================================================
+/* Nested Tooltip Styles */
+.nested-tooltip {
+  @apply bg-light-bg dark:bg-dark-bg;
+  @apply rounded-lg shadow-lg;
+  @apply text-light-text dark:text-dark-text;
+  background-color: #faf8f1 !important; /* Light mode background */
+  border: 2px solid #c4c1b8 !important; /* Darker than light-border for more contrast */
+  opacity: 1 !important;
+  pointer-events: auto;
+  animation: tooltipFadeIn 0.2s ease-out;
+}
+
+.dark .nested-tooltip {
+  background-color: #1a1a1a !important; /* Dark mode background */
+  border: 2px solid #666666 !important; /* Lighter than dark-border for more contrast */
+}
+
+.nested-tooltip-content {
+  @apply relative;
+  max-width: 90vw; /* Use viewport width instead of fixed rem */
+  width: 80vw; /* Default to 80% of viewport */
+  max-height: 80vh;
+  overflow: auto;
+}
+
+/* Depth-based styling */
+.nested-tooltip.depth-0 {
+  @apply shadow-xl;
+}
+
+.nested-tooltip.depth-1 {
+  @apply shadow-lg;
+  margin-left: 1rem;
+}
+
+.nested-tooltip.depth-2 {
+  @apply shadow-md;
+  margin-left: 2rem;
+}
+
+/* Animation */
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Scrollbar styling for tooltips */
+.nested-tooltip-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.nested-tooltip-content::-webkit-scrollbar-track {
+  @apply bg-light-bg-alt dark:bg-dark-bg-alt;
+  border-radius: 3px;
+}
+
+.nested-tooltip-content::-webkit-scrollbar-thumb {
+  @apply bg-light-border dark:bg-dark-border;
+  border-radius: 3px;
+}
+
+.nested-tooltip-content::-webkit-scrollbar-thumb:hover {
+  @apply bg-light-accent dark:bg-dark-accent;
+}
+
+/* Utility classes for tooltip content */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Phase-specific coloring in tooltips */
+.phase-tooltip-content .rdu-item:hover {
+  transform: translateX(2px);
+  transition: transform 0.2s ease;
+}
+
+.rdu-tooltip-content .du-item:hover {
+  transform: translateX(2px);
+  transition: transform 0.2s ease;
+}
+
+/* Visual connection between nested tooltips */
+.nested-tooltip.depth-1::before,
+.nested-tooltip.depth-2::before {
+  content: '';
+  position: absolute;
+  left: -10px;
+  top: 20px;
+  width: 10px;
+  height: 2px;
+  @apply bg-light-border dark:bg-dark-border;
+}
 
 
 ================================================
@@ -21078,22 +21537,28 @@ export function prepareAnnotationDataForTranscript(transcriptData: TranscriptPro
                         trace.p1_3_refined_du_id = p1_3_rdu.unit_id; trace.p1_3_refined_du_description = p1_3_rdu.description; trace.p1_3_temporal_phase = p1_3_rdu.temporal_phase;
                         if (p1_3_rdu.temporal_phase) lineUniqueTemporalPhases.add(p1_3_rdu.temporal_phase);
                         if (!currentAnnotatedLine.dominantTemporalPhase && p1_3_rdu.temporal_phase) currentAnnotatedLine.dominantTemporalPhase = p1_3_rdu.temporal_phase;
-                        // In the new structure, we need to find which DU contains this refined DU
+                        // Find which P1.4 DU contains segments from this refined DU
                         const p1_4_du = transcriptData.p1_4_output?.diachronic_units.find(du => {
-                            // Check if this DU contains any segments from this refined DU
-                            return du.utterance_ids.some(uttId => {
-                                const segmentIds = transcriptData.p1_1_output?.segmented_utterances
-                                    .find(su => su.original_utterance.original_line_num === uttId)?.segments
-                                    ?.map(s => s.segment_id) || [];
-                                return segmentIds.some(segId => p1_3_rdu.source_segment_ids?.includes(segId));
-                            });
+                            // Check if this DU's segments overlap with the refined DU's segments
+                            return du.source_segment_ids.some(segId => 
+                                p1_3_rdu.source_segment_ids?.includes(segId)
+                            );
                         });
                         if (p1_4_du) {
                             trace.p1_4_du_id = p1_4_du.unit_id;
                             const p2sDuData = transcriptData.p2s_outputs_by_du?.[p1_4_du.unit_id];
                             if (p2sDuData) {
-                                p2sDuData.p2s_1_output?.synchronic_thematic_groups.forEach(g => { if (g.utterances.some(u => u.original_line_num === p0_3_utt.original_line_num && u.utterance_text === p0_3_utt.utterance_text)) trace.synchronic_p2s1_groups?.push({ group_label: g.group_label, justification: g.justification }); });
-                                p2sDuData.p2s_2_output?.specific_synchronic_units_hierarchy.forEach(isu => { if (isu.utterances?.some(u => u.original_line_num === p0_3_utt.original_line_num && u.utterance_text === p0_3_utt.utterance_text)) trace.synchronic_p2s2_isus?.push({ unit_name: isu.unit_name, intensional_definition: isu.intensional_definition }); });
+                                // Check if any of the segments from this utterance are in P2S groups
+                                p2sDuData.p2s_1_output?.synchronic_thematic_groups.forEach(g => { 
+                                    if (g.segments.some(seg => trace.p1_1_segment_ids.includes(seg.segment_id))) {
+                                        trace.synchronic_p2s1_groups?.push({ group_label: g.group_label, justification: g.justification }); 
+                                    }
+                                });
+                                p2sDuData.p2s_2_output?.specific_synchronic_units_hierarchy.forEach(isu => { 
+                                    if (isu.segments?.some(seg => trace.p1_1_segment_ids.includes(seg.segment_id))) {
+                                        trace.synchronic_p2s2_isus?.push({ unit_name: isu.unit_name, intensional_definition: isu.intensional_definition }); 
+                                    }
+                                });
                             }
                         }
                     }
@@ -21380,9 +21845,32 @@ export function generateTsvForTranscriptSynchronic(transcriptData: TranscriptPro
 
   const filename = transcriptData.filename;
   const p2sOutputsByDu = transcriptData.p2s_outputs_by_du;
+  const p1_1_output = transcriptData.p1_1_output;
 
   if (!p2sOutputsByDu) {
     return "P2S data not available for this transcript.";
+  }
+
+  if (!p1_1_output) {
+    return "P1.1 data not available for this transcript.";
+  }
+
+  // Create a map from segment_id to original utterance for tracing
+  const segmentToUtteranceMap = new Map<string, { original_line_num: string; utterance_text: string }>();
+  if (Array.isArray(p1_1_output.segmented_utterances)) {
+    p1_1_output.segmented_utterances.forEach(segContainer => {
+      if (segContainer && segContainer.original_utterance && Array.isArray(segContainer.segments)) {
+        const origUtt = segContainer.original_utterance;
+        segContainer.segments.forEach(segment => {
+          if (segment && segment.segment_id) {
+            segmentToUtteranceMap.set(segment.segment_id, {
+              original_line_num: origUtt.original_line_num,
+              utterance_text: origUtt.utterance_text
+            });
+          }
+        });
+      }
+    });
   }
 
   const duNameMap: Map<string, string> = new Map();
@@ -21403,23 +21891,35 @@ export function generateTsvForTranscriptSynchronic(transcriptData: TranscriptPro
       const p2s1Output = duData.p2s_1_output;
       if (Array.isArray(p2s1Output.synchronic_thematic_groups)) {
         p2s1Output.synchronic_thematic_groups.forEach(group => {
-          if (group && Array.isArray(group.utterances)) {
-            group.utterances.forEach(utt => {
-              if (utt) {
-                tsvRows.push({
-                  transcript_id: transcriptId,
-                  transcript_filename: filename,
-                  original_line_num: utt.original_line_num,
-                  utterance_text: utt.utterance_text,
-                  p1_4_du_id: actualDuIdForDisplay,
-                  p2s_1_thematic_group_label: group.group_label,
-                  p2s_1_thematic_group_justification: group.justification,
-                  p2s_2_isu_name: '',
-                  p2s_2_isu_definition: '',
-                  p2s_2_isu_level: '',
-                  p2s_2_isu_abstraction_op: '',
-                });
+          if (group && Array.isArray(group.segments)) {
+            // Track unique utterances for this group to avoid duplicates
+            const uniqueUtterances = new Map<string, { original_line_num: string; utterance_text: string }>();
+            
+            group.segments.forEach(segment => {
+              if (segment && segment.segment_id) {
+                const utteranceInfo = segmentToUtteranceMap.get(segment.segment_id);
+                if (utteranceInfo) {
+                  const key = `${utteranceInfo.original_line_num}|${utteranceInfo.utterance_text}`;
+                  uniqueUtterances.set(key, utteranceInfo);
+                }
               }
+            });
+            
+            // Add a row for each unique utterance in this group
+            uniqueUtterances.forEach(utteranceInfo => {
+              tsvRows.push({
+                transcript_id: transcriptId,
+                transcript_filename: filename,
+                original_line_num: utteranceInfo.original_line_num,
+                utterance_text: utteranceInfo.utterance_text,
+                p1_4_du_id: actualDuIdForDisplay,
+                p2s_1_thematic_group_label: group.group_label,
+                p2s_1_thematic_group_justification: group.justification,
+                p2s_2_isu_name: '',
+                p2s_2_isu_definition: '',
+                p2s_2_isu_level: '',
+                p2s_2_isu_abstraction_op: '',
+              });
             });
           }
         });
@@ -21430,23 +21930,35 @@ export function generateTsvForTranscriptSynchronic(transcriptData: TranscriptPro
       const p2s2Output = duData.p2s_2_output;
       if (Array.isArray(p2s2Output.specific_synchronic_units_hierarchy)) {
         p2s2Output.specific_synchronic_units_hierarchy.forEach(isu => {
-          if (isu && isu.utterances && Array.isArray(isu.utterances)) {
-            isu.utterances.forEach(utt => {
-              if (utt) {
-                tsvRows.push({
-                  transcript_id: transcriptId,
-                  transcript_filename: filename,
-                  original_line_num: utt.original_line_num,
-                  utterance_text: utt.utterance_text,
-                  p1_4_du_id: actualDuIdForDisplay,
-                  p2s_1_thematic_group_label: '',
-                  p2s_1_thematic_group_justification: '',
-                  p2s_2_isu_name: isu.unit_name,
-                  p2s_2_isu_definition: isu.intensional_definition,
-                  p2s_2_isu_level: isu.level,
-                  p2s_2_isu_abstraction_op: isu.abstraction_op,
-                });
+          if (isu && isu.segments && Array.isArray(isu.segments)) {
+            // Track unique utterances for this ISU to avoid duplicates
+            const uniqueUtterances = new Map<string, { original_line_num: string; utterance_text: string }>();
+            
+            isu.segments.forEach(segment => {
+              if (segment && segment.segment_id) {
+                const utteranceInfo = segmentToUtteranceMap.get(segment.segment_id);
+                if (utteranceInfo) {
+                  const key = `${utteranceInfo.original_line_num}|${utteranceInfo.utterance_text}`;
+                  uniqueUtterances.set(key, utteranceInfo);
+                }
               }
+            });
+            
+            // Add a row for each unique utterance in this ISU
+            uniqueUtterances.forEach(utteranceInfo => {
+              tsvRows.push({
+                transcript_id: transcriptId,
+                transcript_filename: filename,
+                original_line_num: utteranceInfo.original_line_num,
+                utterance_text: utteranceInfo.utterance_text,
+                p1_4_du_id: actualDuIdForDisplay,
+                p2s_1_thematic_group_label: '',
+                p2s_1_thematic_group_justification: '',
+                p2s_2_isu_name: isu.unit_name,
+                p2s_2_isu_definition: isu.intensional_definition,
+                p2s_2_isu_level: isu.level,
+                p2s_2_isu_abstraction_op: isu.abstraction_op,
+              });
             });
           }
         });
@@ -21827,6 +22339,82 @@ function encryptPrompt(text, key) {
 
 
 ================================================
+FILE: upath-backend/package.json
+================================================
+{
+  "name": "upath-backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon --exec tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@fastify/cors": "^11.0.1",
+    "@google/generative-ai": "^0.24.1",
+    "dotenv": "^17.1.0",
+    "fastify": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.11",
+    "@types/supertest": "^6.0.3",
+    "@vitest/ui": "^3.2.4",
+    "jsdom": "^26.1.0",
+    "nodemon": "^3.1.10",
+    "supertest": "^7.1.3",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
+
+
+
+================================================
+FILE: upath-backend/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": ["ES2020"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "removeComments": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "noImplicitThis": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "allowUnusedLabels": false,
+    "allowUnreachableCode": false,
+    "exactOptionalPropertyTypes": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
+
+
+================================================
 FILE: upath-backend/.env.example
 ================================================
 # Gemini API Configuration
@@ -22131,6 +22719,102 @@ fetch('/api/analyze', {
 .then(response => response.json())
 .then(data => console.log(data));
 `);
+}
+
+
+================================================
+FILE: .claude/settings.local.json
+================================================
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__activate_project",
+      "mcp__serena__initial_instructions",
+      "mcp__serena__check_onboarding_performed",
+      "mcp__serena__onboarding",
+      "mcp__serena__get_symbols_overview",
+      "mcp__serena__find_symbol",
+      "mcp__serena__list_dir",
+      "mcp__serena__search_for_pattern",
+      "mcp__serena__write_memory",
+      "mcp__serena__replace_regex",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "mcp__serena__read_memory",
+      "mcp__zen__thinkdeep",
+      "mcp__zen__chat",
+      "mcp__zen__analyze",
+      "Bash(npx tsc:*)",
+      "mcp__serena__think_about_task_adherence",
+      "Bash(npm run dev:*)",
+      "mcp__serena__think_about_collected_information",
+      "mcp__serena__insert_after_symbol",
+      "mcp__serena__replace_symbol_body",
+      "mcp__serena__summarize_changes",
+      "Bash(ls:*)",
+      "Bash(git check-ignore:*)",
+      "mcp__serena__get_current_config",
+      "mcp__serena__restart_language_server",
+      "mcp__serena__find_referencing_symbols",
+      "mcp__zen__debug",
+      "Bash(npm run test:run:*)",
+      "Bash(npm run test:*)",
+      "Bash(node:*)",
+      "mcp__zen__planner",
+      "Bash(curl:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__serena__find_file",
+      "Bash(mkdir:*)",
+      "Bash(npm run build:*)",
+      "Bash(jq:*)",
+      "Bash(awk:*)",
+      "Bash(sed:*)",
+      "mcp__serena__think_about_whether_you_are_done",
+      "mcp__serena__insert_before_symbol",
+      "Bash(rg:*)",
+      "Bash(git checkout:*)",
+      "mcp__serena__list_memories",
+      "Bash(npm test:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run:*)",
+      "mcp__serena__switch_modes",
+      "mcp__zen__listmodels",
+      "mcp__zen__codereview",
+      "Bash(timeout 10s npm run dev:*)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "Bash(npm install:*)",
+      "Bash(pkill:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(rm:*)",
+      "Bash(gemini:*)",
+      "Bash(mv:*)",
+      "Bash(kill:*)",
+      "Bash(true)",
+      "Bash(cat:*)",
+      "mcp__zen__consensus",
+      "Bash(cp:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue close:*)",
+      "Bash(gh issue:*)",
+      "Bash(npm init:*)",
+      "Bash(timeout 5s npm run dev)",
+      "Bash(git worktree:*)",
+      "Bash(git branch:*)",
+      "Bash(NODE_ENV=test npm run test -- P1_3_RefineDiachronicUnitsNode.test.ts)",
+      "mcp__deepwiki__read_wiki_structure",
+      "mcp__deepwiki__read_wiki_contents",
+      "mcp__deepwiki__ask_question",
+      "Bash(npx tsx:*)",
+      "Bash(GEMINI_API_KEY=test-key npm run dev)",
+      "Bash(GEMINI_API_KEY=test-key timeout 6s npm run dev)",
+      "Bash(gitingest --help)"
+    ],
+    "deny": []
+  }
 }
 
 
