@@ -13,24 +13,20 @@ export const P0_3_SELECT_PROCEDURAL_UTTERANCES_CONFIG: StepConfig = {
     if (!p0_2_data || !p_neg1_1_data) return { data: null, error: `Missing P0.2 or P-1.1 output for transcript ${currentTranscript.id}` };
     return { data: { ...p0_2_data, p_neg1_1_output: p_neg1_1_data } };
   },
-  generatePrompt: (input: P0_2_Output & { p_neg1_1_output: P_neg1_1_Output }) => `You are a micro-phenomenological analyst. Your task is to evaluate ALL utterances from the refined data transcript and determine which are crucial for understanding the diachronic (temporal) structure of the *experience itself*.
+  generatePrompt: (input: P0_2_Output & { p_neg1_1_output: P_neg1_1_Output }) => `You are a micro-phenomenological analyst. Your task is to evaluate ALL utterances from the refined data transcript and determine which are crucial for understanding the diachronic (temporal) structure of the *experience itself*. The sequence and content of the described experience is of importance rather than the order it was reported in in the interview. 
 Input:
 The JSON output from P0.2 (refined data transcript) and P-1.1 (IV/DV info) for transcript ID ${input.transcript_id}.
 P0.2 Output: ${JSON.stringify(input, null, 2)}
 
 Instructions:
-1.  Temporal Structure: Focus on utterances that help reveal the temporal unfolding of the lived experience.
-2.  Procedural Priority: Procedural utterances (interviewer questions, meta-comments) SHOULD be included if they:
-    *   Elicit temporal information about the experience
-    *   Help situate when/how the experience unfolded
-    *   Provide crucial context for understanding the temporal flow
-3.  Evaluation Criteria for EACH utterance: Ask yourself: "Does this utterance contribute to understanding the temporal/diachronic structure of the experience?" Consider:
-    *   Direct temporal markers or sequencing
-    *   Action sequences
-    *   Process descriptions  
-    *   Transition points
-    *   Questions that elicit temporal detail
-    *   Context that frames temporal understanding
+1.  Temporal Structure: Focus only on utterances that reveal the temporal unfolding of the lived experience.
+2.  Procedural Priority: Interviewer questions and meta-comments should be **excluded**, UNLESS they provide irreplaceable context for understanding the timing of a participant's description. A question like "And what happened next?" is almost always excluded if the participant's answer contains a temporal marker like "Next, I...".
+3.  Evaluation Criteria for EACH utterance: Ask yourself: "Is this a **direct, concrete description** of the singular experience, or is it a generalization, theory, or conversational filler?"
+    *   **INCLUDE** only direct descriptions of actions, sensations, or cognitions within the specific event.
+    *   **EXCLUDE** participant's theories about *why* something happened.
+    *   **EXCLUDE** participant's generalizations about what they *usually* do or feel.
+    *   **EXCLUDE** judgments about the experience (e.g., "that was weird").
+    *   An utterance must contribute to the temporal map and phenomenological content of the experience to be included.
 4.  IMPORTANT: Output minified JSON with no unnecessary whitespace. Be extremely concise.
 5.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from P-1.1 MUST be copied verbatim into the output.
 

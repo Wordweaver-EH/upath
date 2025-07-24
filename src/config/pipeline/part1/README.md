@@ -1,5 +1,202 @@
 # Part 1: Specific Diachronic Analysis
 
+## Exact Prompt Chain
+
+### P1.1 Prompt
+```
+You are a micro-phenomenological analyst. Your task is to segment the selected procedural utterances based on temporal cues, focusing on the described experience's unfolding.
+Input:
+JSON output from P0.3 for transcript ID ${input.transcript_id} (showing only INCLUDED utterances).
+P0.3 Output: ${JSON.stringify(filteredInput, null, 2)}
+
+Instructions:
+1. Focus on "Action Units": Read each selected procedural utterance. Identify "minimal action units" or "elementary acts" within them. An utterance might contain one or multiple such segments.
+
+2. Temporal Cues: Look for explicit or implicit temporal markers that delineate these segments.
+   
+   EXPLICIT temporal markers include:
+   - Time words: "then", "after", "before", "suddenly", "meanwhile", "finally"
+   - Beginning markers: "at the start", "initially", "first"
+   - Sequence markers: "next", "subsequently", "afterwards"
+   
+   IMPLICIT temporal markers include:
+   - Sequence of distinct verbs: "I noticed... I felt... I realized..."
+   - Progression indicators: "The sensation grew stronger", "It gradually faded", "It was building"
+   - Transition markers: "My attention shifted", "The quality changed", "It transformed into"
+   - Causal language (causation implies temporal sequence):
+     * "Because of this, I..." (cause precedes effect)
+     * "This led to..." (one thing follows another)
+     * "As a result..." (consequence follows cause)
+     * "Which made me..." (causal chain shows temporal flow)
+     * "So I..." (therefore, subsequently)
+3.  Segment Creation:
+    *   For each original utterance, create an array of segments.
+    *   Each segment should have a unique segment_id (e.g., "utt_ORIGINAL_LINE_NUM_seg_INDEX", like "utt_5.1_seg_0", "utt_5.1_seg_1"). Ensure ORIGINAL_LINE_NUM is safe for an ID (replace '.' with '_').
+    *   segment_text should be the text of that minimal action unit.
+    *   temporal_cues should be an array of strings listing any temporal words/phrases identified *within or at the beginning of* that specific segment that justify its distinctness or position.
+4.  Preserve IV/DV: The independent_variable_details and dependent_variable_focus from the input P0.3 MUST be copied verbatim into the output.
+
+Output:
+A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
+{
+  "transcript_id": "${input.transcript_id}",
+  "segmented_utterances": [
+    {
+      "original_utterance": { // Copied from P0.3 input
+        "original_line_num": "string",
+        "utterance_text": "text of the original utterance...",
+        "selection_justification": "Brief justification for selection."
+      },
+      "segments": [
+        {
+          "segment_id": "utt_59_seg_0",
+          "segment_text": "Just yeah, just I had a at the start. I had, like a brief images of... glue.",
+          "temporal_cues": ["at the start"]
+        }
+      ]
+    }
+    // ... more segmented utterances
+  ],
+  "independent_variable_details": "${filteredInput.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(filteredInput.dependent_variable_focus)}
+}
+```
+
+### P1.2 Prompt
+```
+You are a micro-phenomenological data analyst. Your task is to classify interview segments into broad temporal phases by considering the context of the original utterance they came from.
+
+CRITICAL: Read the ENTIRE original utterance text for context before classifying each segment. The utterance context often contains temporal markers that are crucial for correct classification.
+
+Input:
+A list of utterances, each containing one or more segments.
+
+Instructions:
+For each segment in the list, perform the following:
+1. First, read the original_utterance.text to understand the full context
+2. Then read the segment_text itself
+3. Pay special attention to temporal_cues already identified in the segment
+4. Assign a coarse_phase tag to the segment from the following FIXED list: Initial State, Core Experience, Final Action, Post-Hoc Reflection
+
+Classification Guide (with additional cues):
+• Initial State: The participant is describing their mindset, setup, or events right at the beginning. 
+  Cues: "at the start", "when we started", "first", "initially", "before", "to begin with"
+  
+• Core Experience: The participant is describing the main, sustained sensations, thoughts, or feelings that occurred after the onset and before any final action. 
+  Cues: "during", "still", "whenever", "kept", "while", "throughout", "as I was", "continued to"
+  
+• Final Action: The participant is describing a distinct action taken to conclude or test the experience, and any sensations or thoughts that happened concurrently with that action. 
+  Cues: "at the end", "when I was trying to pull them apart", "finally", "then I", "to finish", "last thing"
+  
+• Post-Hoc Reflection: The participant is looking back on the experience from the present moment of the interview, comparing it to other times, or analyzing it. 
+  Cues: "after hearing", "on the second one", "looking back", "now that I think", "compared to", "in retrospect", "I realize"
+
+IMPORTANT: 
+- Each segment MUST be assigned exactly ONE phase
+- Consider both the segment content AND its position within the original utterance
+- When in doubt, the original utterance context takes precedence
+
+Input: ${JSON.stringify(input)}
+
+Output:
+A JSON object containing the original utterances and segments, with a coarse_phase tag added to each segment:
+{
+  "transcript_id": "${input.transcript_id}",
+  "phase_tagged_utterances": [
+    {
+      "original_utterance": {
+        "line_number": "5.1",
+        "speaker": "P",
+        "text": "...",
+        "utterance_type": "Procedural",
+        "included": true
+      },
+      "segments": [
+        {
+          "segment_id": "utt_5_1_seg_0",
+          "segment_text": "...",
+          "temporal_cues": ["..."],
+          "coarse_phase": "Initial State"
+        }
+      ]
+    }
+  ],
+  "independent_variable_details": "${input.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
+}
+```
+
+### P1.3 Prompt (Phase-Specific)
+```
+You are a micro-phenomenological data analyst. You will be given a list of interview segments that all belong to the ${phaseName} phase. Your task is to re-order these segments into their correct chronological sequence.
+
+Input:
+A list of segmented utterances belonging to the ${phaseName} phase.
+Phase segments: ${JSON.stringify(segments, null, 2)}
+
+Instructions:
+1. Analyze the segments to understand the fine-grained sequence of events *within this phase*.
+2. Assign a chronological_index to each segment. The sequence should start from 1 for this specific list.
+3. Simultaneous events should share the same index.
+4. Provide a placement_justification for each segment explaining why it belongs in that position.
+
+Output:
+A JSON object containing a single, re-ordered list of the provided segments with added chronological_index and placement_justification fields:
+{
+  "sorted_segments": [
+    {
+      "segment_id": "utt_5_1_seg_0",
+      "segment_text": "...",
+      "temporal_cues": ["..."],
+      "coarse_phase": "${phaseName}",
+      "chronological_index": 1,
+      "placement_justification": "This segment describes the initial moment..."
+    }
+  ]
+}
+```
+
+### P1.4 Prompt
+```
+You are a micro-phenomenological analyst. You will be given a chronologically ordered list of segments from an interview. Your task is to group consecutive segments into Diachronic Units (DUs). A DU represents a coherent, meaningful phase or 'moment' within the participant's stream of experience. It is a single 'beat' or 'scene' in their experiential narrative. All segments within one DU should be thematically unified or explicitly or implicitly reported as simultaneous. The transition between DUs marks a shift in the nature of the experience. This shift may be explicit with temporal and causal cues or be an implicit shift that indicates a new momentary experience arising due to an experiential shift, e.g. shift in focus, sensation, intention, cognition. The DU and segments are in chronological order of phenomenology, i.e. they are sorted according to how they happened in the original experience as opposed to the order they were reported in in the interview.
+
+Input:
+The fully sorted list of all segments from step P1.3 for transcript ID ${input.transcript_id}.
+Sorted segments: ${JSON.stringify(input.sorted_segments, null, 2)}
+
+Instructions:
+1. Read the segments in the order provided. They have already been sorted chronologically.
+2. Group consecutive segments that describe the same continuous moment, action, or thought process.
+3. Create a new DU whenever there is a clear break or transition to a new moment.
+4. No DU should have segments from only the interviewer.
+4. Provide a concise description for each DU that captures the essence of that moment.
+5. Each DU should have a unique unit_id (e.g., "du_1", "du_2", etc.).
+6. List the source_segment_ids that constitute each DU.
+
+Output:
+A JSON object containing a list of Diachronic Units:
+{
+  "transcript_id": "${input.transcript_id}",
+  "diachronic_units": [
+    {
+      "unit_id": "du_1",
+      "description": "Initial awareness and orientation to the experience",
+      "source_segment_ids": ["utt_5_1_seg_0", "utt_6_1_seg_0"]
+    },
+    {
+      "unit_id": "du_2", 
+      "description": "Sustained attention and deepening of the sensory experience",
+      "source_segment_ids": ["utt_6_1_seg_1", "utt_8_1_seg_0", "utt_8_1_seg_1"]
+    }
+  ],
+  "independent_variable_details": "${input.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
+}
+```
+
+### P1.5: Programmatic Step (No Prompt)
+**Note**: P1.5 is a programmatic step that does not use an LLM prompt. It programmatically constructs the Specific Diachronic Structure from the P1.4 output by organizing DUs into natural phases based on their chronological sequence.
+
 ## Overview
 
 Part 1 performs **Specific Diachronic Analysis** on individual transcripts. While "synchronic" refers to simultaneous elements at a given moment, "diachronic" focuses on temporal progression - how experience unfolds over time. Part 1 analyzes each transcript to identify temporal phases, segment the experience into units, and construct a diachronic structure showing how the experience evolved.
@@ -137,16 +334,19 @@ Part 0 (Data Prep) → Part 1:
 
 ### P1.4: Diachronic Unit Grouping
 
-**Purpose**: Groups related segments into larger temporal units (DUs) that represent coherent experiential episodes.
+**Purpose**: Groups consecutive segments into Diachronic Units (DUs) - coherent 'moments' or 'beats' in the experiential narrative. Each DU represents a unified phase where segments are thematically related or experientially simultaneous.
 
-**Input**: P1.3 output (sorted segments)
+**Input**: P1.3 output (chronologically sorted segments)
 
 **Processing**:
-1. Identifies thematically coherent segment clusters
-2. Creates Diachronic Units (DUs) representing experiential episodes
-3. Names units descriptively (e.g., "Initial_Anxiety_Recognition")
-4. Maps source segments to each DU
-5. These DUs become the processing units for Part 2
+1. Groups consecutive segments that share thematic unity or simultaneity
+2. Creates new DU at each experiential shift:
+   - Explicit shifts: temporal/causal cues
+   - Implicit shifts: changes in focus, sensation, intention, or cognition
+3. Ensures no DU contains only interviewer segments
+4. Orders DUs by phenomenological chronology (not interview order)
+5. Provides concise descriptions capturing each moment's essence
+6. These DUs become the processing units for Part 2
 
 **Output** (`P1_4_Output`):
 ```typescript
