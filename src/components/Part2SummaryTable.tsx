@@ -86,9 +86,32 @@ const UtteranceCellRenderer: React.FC<ICellRendererParams> = ({ data }) => {
 
 export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, theme }) => {
   const gridRef = useRef<AgGridReact>(null);
+  const [hoveredDuId, setHoveredDuId] = React.useState<string | null>(null);
+  const [mousePosition, setMousePosition] = React.useState({ x: 0, y: 0 });
   
   // Generate table rows for ag-grid
   const tableRows = useMemo(() => generateAgGridRows(data), [data]);
+
+  // Get all utterances for a specific DU
+  const getDuUtterances = useCallback((duId: string) => {
+    const du = data.duRecords.find(record => record.id === duId);
+    if (!du) return [];
+    
+    const utterances: Array<{ speaker: string; text: string; segmentId: string }> = [];
+    
+    // Collect all utterances from all ISUs in this DU
+    Array.from(du.isuThemes.values()).forEach(isu => {
+      isu.utterances.forEach(utt => {
+        utterances.push({
+          speaker: utt.speaker,
+          text: utt.text,
+          segmentId: utt.segmentId
+        });
+      });
+    });
+    
+    return utterances;
+  }, [data]);
 
   // Column definitions
   const columnDefs: ColDef[] = useMemo(() => [
@@ -225,7 +248,20 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
                 <p className="text-sm text-light-sidenote dark:text-dark-sidenote italic mt-1">{du.description}</p>
               </div>
               <div className="flex">
-                <div className="flex-1">
+                <div 
+                  className="flex-1 relative cursor-help"
+                  title="Hover to see utterances"
+                  onMouseEnter={(e) => {
+                    setHoveredDuId(du.id);
+                    setMousePosition({ x: e.clientX, y: e.clientY });
+                  }}
+                  onMouseLeave={() => setHoveredDuId(null)}
+                  onMouseMove={(e) => {
+                    if (hoveredDuId === du.id) {
+                      setMousePosition({ x: e.clientX, y: e.clientY });
+                    }
+                  }}
+                >
                   <MermaidDiagram chart={du.networkDiagram.mermaidSyntax} />
                 </div>
                 <div className="ml-4 text-sm text-light-sidenote dark:text-dark-sidenote">
@@ -247,6 +283,46 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
           ))}
         </div>
       </div>
+
+      {/* Utterances Popup Modal */}
+      {hoveredDuId && (
+        <div
+          className="fixed z-50 pointer-events-none"
+          style={{
+            left: `${Math.min(mousePosition.x + 10, window.innerWidth - 520)}px`,
+            top: `${Math.min(mousePosition.y + 10, window.innerHeight - 400)}px`,
+            maxWidth: '500px'
+          }}
+        >
+          <div className="bg-white dark:bg-gray-900 border-2 border-light-border dark:border-dark-border rounded-lg shadow-xl p-4 max-h-96 overflow-y-auto">
+            <h5 className="font-semibold text-sm mb-2 text-light-text dark:text-dark-text">
+              Utterances for {data.duRecords.find(du => du.id === hoveredDuId)?.name}
+            </h5>
+            <div className="space-y-2">
+              {getDuUtterances(hoveredDuId).map((utterance, idx) => (
+                <div key={idx} className="border-b border-light-border dark:border-dark-border pb-2 last:border-b-0">
+                  <div className="flex items-start gap-2">
+                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                      utterance.speaker === 'P' 
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                        : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                    }`}>
+                      {utterance.speaker}
+                    </span>
+                    <div className="flex-1">
+                      <p className="text-sm text-light-text dark:text-dark-text">{utterance.text}</p>
+                      <p className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">ID: {utterance.segmentId}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {getDuUtterances(hoveredDuId).length === 0 && (
+                <p className="text-sm text-light-sidenote dark:text-dark-sidenote italic">No utterances found for this DU</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Custom styles for visual grouping and column borders */}
       <style jsx>{`
