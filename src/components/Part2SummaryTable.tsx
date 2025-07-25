@@ -247,39 +247,93 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
               <div className="mb-3">
                 <NestedTooltip
                   content={
-                    <div className="du-tooltip-content p-6">
-                      <div className="font-bold text-light-accent dark:text-dark-accent mb-2">
-                        {du.name}
-                      </div>
-                      <div className="text-sm text-light-text dark:text-dark-text mb-3">
-                        {du.description}
-                      </div>
-                      <div className="border-t border-light-border dark:border-dark-border pt-2">
-                        <div className="font-semibold text-sm mb-2">ISU Themes ({du.isuThemes.size}):</div>
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
-                          {Array.from(du.isuThemes.values()).map((isu) => (
-                            <div key={isu.id} className="isu-item">
-                              <NestedTooltip
-                                depth={1}
-                                content={<ISUTooltip isu={isu} duName={du.name} duDescription={du.description} />}
-                              >
-                                <div className="p-2 bg-light-bg-alt dark:bg-dark-bg-alt rounded cursor-pointer hover:bg-light-border dark:hover:bg-dark-border transition-colors">
-                                  <div className="font-semibold text-sm">
-                                    {isu.unitName}
-                                  </div>
-                                  <div className="text-xs text-light-sidenote dark:text-dark-sidenote">
-                                    Level {isu.level} • {isu.utterances.length} utterances
-                                  </div>
-                                  <div className="text-xs text-light-accent dark:text-dark-accent mt-1">
-                                    {isu.abstractionOp}
-                                  </div>
+                    du.isuThemes.size === 1 ? (
+                      // Single ISU - show utterances directly
+                      <div className="du-tooltip-content p-6">
+                        <div className="font-bold text-light-accent dark:text-dark-accent mb-2">
+                          {du.name}
+                        </div>
+                        <div className="text-sm text-light-text dark:text-dark-text mb-3">
+                          {du.description}
+                        </div>
+                        {(() => {
+                          const isu = Array.from(du.isuThemes.values())[0];
+                          return (
+                            <>
+                              <div className="border-t border-light-border dark:border-dark-border pt-2 mb-3">
+                                <div className="text-sm font-semibold mb-1">ISU: {isu.unitName}</div>
+                                <div className="text-xs text-light-sidenote dark:text-dark-sidenote space-y-1">
+                                  <div>Level {isu.level} • {isu.abstractionOp}</div>
+                                  <div>{isu.intensionalDefinition}</div>
                                 </div>
-                              </NestedTooltip>
-                            </div>
-                          ))}
+                              </div>
+                              <div className="border-t border-light-border dark:border-dark-border pt-2">
+                                <div className="font-semibold text-sm mb-2">Utterances ({isu.utterances.length}):</div>
+                                <div className="space-y-2 max-h-64 overflow-y-auto">
+                                  {isu.utterances.map((utterance, idx) => (
+                                    <div key={utterance.id} className="p-2 bg-light-bg-alt dark:bg-dark-bg-alt rounded">
+                                      <div className="flex items-start gap-2">
+                                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                                          utterance.speaker === 'P' 
+                                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                                            : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                        }`}>
+                                          {utterance.speaker}
+                                        </span>
+                                        <div className="flex-1">
+                                          <div className="text-sm text-light-text dark:text-dark-text">
+                                            {utterance.text}
+                                          </div>
+                                          <div className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">
+                                            ID: {utterance.segmentId}
+                                            {utterance.timestamp && <span> • {utterance.timestamp}</span>}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    ) : (
+                      // Multiple ISUs - show with nested tooltips
+                      <div className="du-tooltip-content p-6">
+                        <div className="font-bold text-light-accent dark:text-dark-accent mb-2">
+                          {du.name}
+                        </div>
+                        <div className="text-sm text-light-text dark:text-dark-text mb-3">
+                          {du.description}
+                        </div>
+                        <div className="border-t border-light-border dark:border-dark-border pt-2">
+                          <div className="font-semibold text-sm mb-2">ISU Themes ({du.isuThemes.size}):</div>
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {Array.from(du.isuThemes.values()).map((isu) => (
+                              <div key={isu.id} className="isu-item">
+                                <NestedTooltip
+                                  depth={1}
+                                  content={<ISUTooltip isu={isu} duName={du.name} duDescription={du.description} />}
+                                >
+                                  <div className="p-2 bg-light-bg-alt dark:bg-dark-bg-alt rounded cursor-pointer hover:bg-light-border dark:hover:bg-dark-border transition-colors">
+                                    <div className="font-semibold text-sm">
+                                      {isu.unitName}
+                                    </div>
+                                    <div className="text-xs text-light-sidenote dark:text-dark-sidenote">
+                                      Level {isu.level} • {isu.utterances.length} utterances
+                                    </div>
+                                    <div className="text-xs text-light-accent dark:text-dark-accent mt-1">
+                                      {isu.abstractionOp}
+                                    </div>
+                                  </div>
+                                </NestedTooltip>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )
                   }
                 >
                   <h4 className="text-base font-semibold text-light-text dark:text-dark-text cursor-pointer hover:text-light-primary dark:hover:text-dark-primary hover:underline transition-colors inline-block" title="Hover to view ISUs and utterances">

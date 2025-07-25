@@ -37,31 +37,25 @@ export const ISUTooltip: React.FC<ISUTooltipProps> = ({ isu, duName, duDescripti
         <div className="font-semibold text-sm mb-2">Utterances ({isu.utterances.length}):</div>
         <div className="space-y-2 max-h-64 overflow-y-auto">
           {isu.utterances.map((utterance, idx) => (
-            <div key={utterance.id} className="utterance-item">
-              <NestedTooltip
-                depth={1}
-                content={<UtteranceTooltipContent utterance={utterance} index={idx + 1} />}
-              >
-                <div className="p-2 bg-light-bg-alt dark:bg-dark-bg-alt rounded cursor-pointer hover:bg-light-border dark:hover:bg-dark-border transition-colors">
-                  <div className="flex items-start gap-2">
-                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
-                      utterance.speaker === 'P' 
-                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
-                        : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                    }`}>
-                      {utterance.speaker}
-                    </span>
-                    <div className="flex-1">
-                      <div className="text-sm text-light-text dark:text-dark-text line-clamp-2">
-                        {utterance.text}
-                      </div>
-                      <div className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">
-                        ID: {utterance.segmentId}
-                      </div>
-                    </div>
+            <div key={utterance.id} className="p-2 bg-light-bg-alt dark:bg-dark-bg-alt rounded">
+              <div className="flex items-start gap-2">
+                <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                  utterance.speaker === 'P' 
+                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                    : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                }`}>
+                  {utterance.speaker}
+                </span>
+                <div className="flex-1">
+                  <div className="text-sm text-light-text dark:text-dark-text">
+                    {utterance.text}
+                  </div>
+                  <div className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">
+                    ID: {utterance.segmentId}
+                    {utterance.timestamp && <span> • {utterance.timestamp}</span>}
                   </div>
                 </div>
-              </NestedTooltip>
+              </div>
             </div>
           ))}
         </div>
@@ -70,47 +64,3 @@ export const ISUTooltip: React.FC<ISUTooltipProps> = ({ isu, duName, duDescripti
   );
 };
 
-interface UtteranceTooltipContentProps {
-  utterance: P2S4Utterance;
-  index: number;
-}
-
-const UtteranceTooltipContent: React.FC<UtteranceTooltipContentProps> = ({ utterance, index }) => {
-  return (
-    <div className="utterance-tooltip-content p-6">
-      <div className="font-bold text-light-accent dark:text-dark-accent mb-2">
-        Utterance {index}
-      </div>
-      
-      <div className="mb-3">
-        <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold mb-2 ${
-          utterance.speaker === 'P' 
-            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
-            : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-        }`}>
-          {utterance.speaker === 'P' ? 'Participant' : 'Interviewer'}
-        </span>
-      </div>
-
-      <div className="text-sm text-light-text dark:text-dark-text mb-3">
-        {utterance.text}
-      </div>
-
-      <div className="border-t border-light-border dark:border-dark-border pt-2 space-y-1 text-xs text-light-sidenote dark:text-dark-sidenote">
-        <div>
-          <span className="font-semibold">Segment ID:</span> {utterance.segmentId}
-        </div>
-        {utterance.timestamp && (
-          <div>
-            <span className="font-semibold">Timestamp:</span> {utterance.timestamp}
-          </div>
-        )}
-        {utterance.temporalCues && utterance.temporalCues.length > 0 && (
-          <div>
-            <span className="font-semibold">Temporal Cues:</span> {utterance.temporalCues.join(', ')}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
