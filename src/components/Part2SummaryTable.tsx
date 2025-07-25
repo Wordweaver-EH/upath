@@ -5,9 +5,9 @@ import { AllCommunityModule } from 'ag-grid-community';
 import { P2S4SummaryData, P2S4TableRow } from '../types/p2s4Types';
 import { generateTableRows, generateAgGridRows } from '../utils/p2s4DataTransformer';
 import MermaidDiagram from '../../components/MermaidDiagram';
-import { convertToCSV, downloadCSV } from '../utils/csvExport';
 import { NestedTooltip } from '../components/NestedTooltip';
 import { ISUTooltip } from '../components/tooltips/ISUTooltip';
+import { generateP2S4Html, downloadP2S4Html } from '../utils/p2s4HtmlExport';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -94,6 +94,12 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
   const tableRows = useMemo(() => generateAgGridRows(data), [data]);
 
 
+  // Export handler
+  const handleExportHTML = useCallback(() => {
+    const htmlContent = generateP2S4Html(data, effectiveTheme);
+    downloadP2S4Html(htmlContent, data.transcriptId);
+  }, [data, effectiveTheme]);
+
   // Column definitions
   const columnDefs: ColDef[] = useMemo(() => [
     {
@@ -132,31 +138,6 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
     }
   ], []);
 
-  // Export handlers
-  const handleExportCSV = useCallback(() => {
-    if (!gridRef.current) return;
-    
-    const csvData = tableRows.map(row => ({
-      'DU Name': row.duName || '',
-      'DU Description': row.duDescription || '',
-      'DU Segments': row.duSegmentCount || '',
-      'ISU Name': row.isuName || '',
-      'ISU Level': row.isuLevel || '',
-      'ISU Abstraction': row.isuAbstractionOp || '',
-      'ISU Definition': row.isuDefinition || '',
-      'Speaker': row.utteranceSpeaker || '',
-      'Utterance': row.utteranceText || '',
-      'Segment ID': row.utteranceSegmentId || '',
-      'Timestamp': row.utteranceTimestamp || ''
-    }));
-    
-    const csv = convertToCSV(csvData);
-    downloadCSV(csv, `p2s4_summary_${data.transcriptId}_${new Date().toISOString().split('T')[0]}.csv`);
-  }, [tableRows, data.transcriptId]);
-
-  const handleExportPDF = useCallback(() => {
-    window.print();
-  }, []);
 
   // Detect theme from DOM if not provided
   const effectiveTheme = theme || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
@@ -182,21 +163,6 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
         </div>
       </div>
 
-      {/* Export Buttons */}
-      <div className="mb-4 flex justify-end gap-2">
-        <button
-          onClick={handleExportCSV}
-          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
-        >
-          Export to CSV
-        </button>
-        <button
-          onClick={handleExportPDF}
-          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
-        >
-          Export to PDF
-        </button>
-      </div>
 
       {/* AG Grid Table */}
       <div 
@@ -216,6 +182,20 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
             params.api.sizeColumnsToFit();
           }}
         />
+      </div>
+
+      {/* Export Button */}
+      <div className="my-4 flex justify-end">
+        <button
+          onClick={handleExportHTML}
+          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors flex items-center gap-2"
+          title="Export summary as HTML document"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Export to HTML
+        </button>
       </div>
 
       {/* Network Diagrams Section */}
