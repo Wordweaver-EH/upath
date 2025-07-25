@@ -88,7 +88,7 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
   const gridRef = useRef<AgGridReact>(null);
   const [selectedDuId, setSelectedDuId] = React.useState<string | null>(null);
   const [popupPosition, setPopupPosition] = React.useState({ x: 0, y: 0 });
-  const [refreshKey, setRefreshKey] = React.useState(0);
+  const [refreshKeys, setRefreshKeys] = React.useState<Record<string, number>>({});
   
   // Generate table rows for ag-grid
   const tableRows = useMemo(() => generateAgGridRows(data), [data]);
@@ -243,7 +243,13 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-light-text dark:text-dark-text">Network Diagrams</h3>
           <button
-            onClick={() => setRefreshKey(prev => prev + 1)}
+            onClick={() => {
+              const newKeys: Record<string, number> = {};
+              data.duRecords.forEach(du => {
+                newKeys[du.id] = (refreshKeys[du.id] || 0) + 1;
+              });
+              setRefreshKeys(newKeys);
+            }}
             className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
             title="Refresh all diagrams"
           >
@@ -268,12 +274,12 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
                 <p className="text-sm text-light-sidenote dark:text-dark-sidenote italic mt-1">{du.description}</p>
               </div>
               <div className="flex">
-                <div className="flex-1 relative" key={`${du.id}-diagram-wrapper-${refreshKey}`}>
+                <div className="flex-1 relative">
                   <div className="w-full">
                     <MermaidDiagram 
-                      key={`${du.id}-${refreshKey}`} 
+                      key={`${du.id}-${refreshKeys[du.id] || 0}`} 
                       chart={du.networkDiagram.mermaidSyntax}
-                      uniqueId={`${du.id}-${refreshKey}`}
+                      uniqueId={`${du.id}-${refreshKeys[du.id] || 0}`}
                     />
                   </div>
                 </div>
@@ -292,7 +298,12 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
                       Copy Code
                     </button>
                     <button
-                      onClick={() => setRefreshKey(prev => prev + 1)}
+                      onClick={() => {
+                        setRefreshKeys(prev => ({
+                          ...prev,
+                          [du.id]: (prev[du.id] || 0) + 1
+                        }));
+                      }}
                       className="px-2 py-1 text-xs bg-light-bg dark:bg-dark-bg hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
                       title="Refresh diagram"
                     >
