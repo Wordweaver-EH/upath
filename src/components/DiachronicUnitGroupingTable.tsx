@@ -289,8 +289,30 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
         unit.unit_id === unitId 
           ? { ...unit, source_segment_ids: unit.source_segment_ids.filter(id => id !== segmentId) }
           : unit
-      )
+      ),
+      // Add removed segment to excluded list
+      excluded_segment_ids: [...(groupingData.excluded_segment_ids || []), segmentId]
     };
+    
+    onGroupingChange(updatedData);
+  }, [groupingData, onGroupingChange]);
+
+  const handleSegmentRestore = useCallback((segmentId: string, targetUnitId?: string) => {
+    if (!onGroupingChange) return;
+    
+    const updatedData = { ...groupingData };
+    
+    // Remove from excluded list
+    updatedData.excluded_segment_ids = (updatedData.excluded_segment_ids || []).filter(id => id !== segmentId);
+    
+    // If target unit specified, add to that unit
+    if (targetUnitId) {
+      updatedData.diachronic_units = updatedData.diachronic_units.map(unit => 
+        unit.unit_id === targetUnitId 
+          ? { ...unit, source_segment_ids: [...unit.source_segment_ids, segmentId] }
+          : unit
+      );
+    }
     
     onGroupingChange(updatedData);
   }, [groupingData, onGroupingChange]);
@@ -348,6 +370,26 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
     onGroupingChange(updatedData);
   }, [groupingData, onGroupingChange]);
 
+  // Calculate excluded segments
+  const excludedSegments = useMemo(() => {
+    if (!sortedSegmentsData) return [];
+    
+    const assignedSegmentIds = new Set(groupingData.diachronic_units.flatMap(u => u.source_segment_ids));
+    const excludedIds = groupingData.excluded_segment_ids || [];
+    
+    // Get all unassigned segments
+    const allUnassignedIds = sortedSegmentsData.sorted_segments
+      .filter(seg => !assignedSegmentIds.has(seg.segment_id))
+      .map(seg => seg.segment_id);
+    
+    // Combine with explicitly excluded segments
+    const allExcludedIds = new Set([...excludedIds, ...allUnassignedIds]);
+    
+    return sortedSegmentsData.sorted_segments
+      .filter(seg => allExcludedIds.has(seg.segment_id))
+      .sort((a, b) => a.chronological_index - b.chronological_index);
+  }, [sortedSegmentsData, groupingData]);
+
   const exportToCsv = useCallback(() => {
     const csvData: any[] = [];
     
@@ -365,6 +407,22 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
           'Original Line': segment.original_utterance.original_line_num,
           'Original Utterance': segment.original_utterance.utterance_text
         });
+      });
+    });
+    
+    // Add excluded segments
+    excludedSegments.forEach((segment, index) => {
+      csvData.push({
+        'DU ID': 'EXCLUDED',
+        'DU Description': 'Not assigned to any DU',
+        'Segment Position': index + 1,
+        'Segment ID': segment.segment_id,
+        'Phase': segment.coarse_phase,
+        'Chronological Index': segment.chronological_index,
+        'Segment Text': segment.segment_text,
+        'Placement Justification': segment.placement_justification,
+        'Original Line': segment.original_utterance.original_line_num,
+        'Original Utterance': segment.original_utterance.utterance_text
       });
     });
     
@@ -386,20 +444,10 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
       `${filename.replace(/\.[^/.]+$/, '')}_P1.4_diachronic_unit_grouping.csv` : 
       'P1.4_diachronic_unit_grouping.csv';
     downloadCSV(csv, exportFilename);
-  }, [unitsWithSegments, filename]);
+  }, [unitsWithSegments, excludedSegments, filename]);
 
-  // Validation checks
   const validationIssues = useMemo(() => {
     const issues: string[] = [];
-    
-    // Check for unassigned segments
-    const assignedSegmentIds = new Set(groupingData.diachronic_units.flatMap(u => u.source_segment_ids));
-    const allSegmentIds = new Set(sortedSegmentsData?.sorted_segments.map(s => s.segment_id) || []);
-    const unassignedIds = Array.from(allSegmentIds).filter(id => !assignedSegmentIds.has(id));
-    
-    if (unassignedIds.length > 0) {
-      issues.push(`${unassignedIds.length} segments are not assigned to any DU`);
-    }
     
     // Check for duplicate assignments
     const segmentCounts = new Map<string, number>();
@@ -425,6 +473,9 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
           <div className="text-sm text-light-sidenote dark:text-dark-sidenote space-y-1">
             <div>Total DUs: {groupingData.diachronic_units.length}</div>
             <div>Total segments: {segmentLookup.size}</div>
+            {excludedSegments.length > 0 && (
+              <div className="text-yellow-600 dark:text-yellow-400">⚠️ {excludedSegments.length} segments are not assigned to any DU</div>
+            )}
             {validationIssues.map((issue, idx) => (
               <div key={idx} className="text-red-600 dark:text-red-400">⚠️ {issue}</div>
             ))}
@@ -456,6 +507,81 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
             onDelete={() => handleDeleteUnit(unit.unit_id)}
           />
         ))}
+        
+        {/* Excluded Segments Section */}
+        {excludedSegments.length > 0 && (
+          <div className={`mb-4 rounded-lg border-2 border-gray-400 dark:border-gray-600 ${theme === 'dark' ? 'bg-dark-bg-alt' : 'bg-light-bg-alt'} overflow-hidden`}>
+            <div 
+              className={`p-4 cursor-pointer bg-gray-100 dark:bg-gray-800 bg-opacity-50`}
+              onClick={() => toggleUnit('excluded')}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {expandedUnits.has('excluded') ? ChevronDownIcon : ChevronRightIcon}
+                  </span>
+                  <span className="font-mono text-sm font-bold text-gray-600 dark:text-gray-400">Excluded Segments</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Segments not assigned to any DU</span>
+                </div>
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                  {excludedSegments.length} segments
+                </span>
+              </div>
+            </div>
+            
+            {expandedUnits.has('excluded') && (
+              <div className="p-4 space-y-3">
+                {excludedSegments.map((segment) => {
+                  const segmentColors = PHASE_COLORS[segment.coarse_phase as keyof typeof PHASE_COLORS];
+                  return (
+                    <div 
+                      key={segment.segment_id}
+                      className={`p-3 rounded-lg border ${segmentColors.border} ${segmentColors.bg} ${segmentColors.bg.includes('100') ? 'bg-opacity-30' : 'bg-opacity-10'}`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs">{segment.segment_id}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${segmentColors.bg} ${segmentColors.text}`}>
+                            {segment.coarse_phase}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            Index: {segment.chronological_index}
+                          </span>
+                        </div>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleSegmentRestore(segment.segment_id, e.target.value);
+                            }
+                          }}
+                          className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+                          defaultValue=""
+                        >
+                          <option value="">Add to DU...</option>
+                          {groupingData.diachronic_units.map(unit => (
+                            <option key={unit.unit_id} value={unit.unit_id}>
+                              {unit.unit_id}: {unit.description.substring(0, 30)}...
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <p className="text-sm mb-2">{segment.segment_text}</p>
+                      {segment.placement_justification && (
+                        <p className="text-xs italic text-gray-600 dark:text-gray-400 mb-2">
+                          Justification: {segment.placement_justification}
+                        </p>
+                      )}
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        <span>From line {segment.original_utterance.original_line_num}: </span>
+                        <span className="italic">{segment.original_utterance.utterance_text.substring(0, 100)}...</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Instructions */}
@@ -463,7 +589,8 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
         <div>💡 Click on DU headers to expand/collapse</div>
         <div>✏️ Click on descriptions to edit them inline</div>
         <div>✂️ Use the split button to divide a DU into two parts</div>
-        <div>❌ Remove segments from DUs using the X button</div>
+        <div>❌ Remove segments from DUs using the X button (moves to Excluded)</div>
+        <div>➕ Use dropdown in Excluded Segments to assign to a DU</div>
       </div>
     </div>
   );

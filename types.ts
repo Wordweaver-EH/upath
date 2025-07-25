@@ -131,6 +131,7 @@ export interface DiachronicUnit {
 export interface P1_4_Output {
   transcript_id: string;
   diachronic_units: DiachronicUnit[];
+  excluded_segment_ids?: string[]; // Segments not assigned to any DU
   independent_variable_details: string;
   dependent_variable_focus: string[];
 }
