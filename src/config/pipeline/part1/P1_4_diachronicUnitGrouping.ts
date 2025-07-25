@@ -23,9 +23,9 @@ Instructions:
 2. Group consecutive segments that describe the same continuous moment, action, or thought process.
 3. Create a new DU whenever there is a clear break or transition to a new moment.
 4. No DU should have segments from only the interviewer.
-4. Provide a concise \`description\` for each DU that captures the essence of that moment.
-5. Each DU should have a unique \`unit_id\` (e.g., "du_1", "du_2", etc.).
-6. List the \`source_segment_ids\` that constitute each DU.
+5. Provide a concise \`description\` for each DU that captures the essence of that moment.
+6. Each DU should have a unique \`unit_id\` (e.g., "du_1", "du_2", etc.).
+7. List the \`source_segment_ids\` that constitute each DU.
 
 Output:
 A JSON object containing a list of Diachronic Units:
