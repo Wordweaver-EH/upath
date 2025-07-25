@@ -82,7 +82,7 @@ For each segment, assign a 'coarse_phase' tag from this FIXED list: [Initial Sta
 
 *   **Final Action:** Describes the concluding phase and any specific action of the experience. This includes any thoughts, feelings, or emotional reactions that happened *concurrently with or immediately resulted from* that final action.
 
-*   **Post-Hoc Reflection:** The participant has stepped outside the timeline of the experience and is speaking from the present moment of the interview. They are no longer narrating the event, but are **analyzing, summarizing, or explaining it as a whole.** This includes:
+*   **Post-Hoc Reflection:** The participant has stepped outside the timeline of the experience and is speaking from the present moment of the interview. They are no longer narrating the event, but are **analyzing, summarizing, or explaining it as a whole.** These are utterances that cannot be used to reconstruct the timeline. This includes:
     *   Comparing it to a *different* experience.
     *   Giving a summary judgment of the *entire* event.
     *   Any utterance that does not fit any concrete temporal bucket [initial, core, final].
@@ -91,8 +91,8 @@ For each segment, assign a 'coarse_phase' tag from this FIXED list: [Initial Sta
 
 To distinguish the phases, ask: **"Is the participant *narrating* a moment from the timeline, or are they *analyzing* the experience from the outside?"**
 
--   **Narration belongs** in `Initial State`, `Core Experience`, or `Final Action`. A description of a feeling (e.g., "it was surprising because...") is part of the narration.
--   **Analysis belongs** in `Post-Hoc Reflection`.
+-   **Narration belongs** in `Initial State`, `Core Experience`, or `Final Action`. A description of a feeling (e.g., "it was surprising because...") or even in the moment analysis that happened during the experience is part of the narration.
+-   **Analysis belongs** in `Post-Hoc Reflection` if it doesn't refer to sense-making that happened during the experience and is happening after it.
 
 Note: Prior filtering may have removed most post-hoc reflections. This tag is for any remaining commentary that does not fit the experiential timeline.
 
@@ -275,11 +275,12 @@ Part 0 (Data Prep) → Part 1:
    - `Initial State`: Beginning of the event (narrated from within)
    - `Core Experience`: Main part of experience, including concurrent thoughts/feelings
    - `Final Action`: Concluding phase with any concurrent reactions
-   - `Post-Hoc Reflection`: Speaking from interview chair - analyzing, summarizing, or doesn't fit temporal buckets
+   - `Post-Hoc Reflection`: Analyzing from interview chair, cannot reconstruct timeline
 4. Key distinctions:
-   - Describing feeling surprise during the action = narration (Final Action)
-   - Explaining why it was surprising = analysis (Post-Hoc Reflection)
-   - Catch-all function: utterances that don't fit temporal buckets = Post-Hoc Reflection
+   - In-the-moment analysis during experience = narration (part of that phase)
+   - Post-experience analysis from interview = Post-Hoc Reflection
+   - Sense-making during experience vs after experience
+   - Catch-all: utterances that don't fit temporal buckets = Post-Hoc Reflection
 
 **Output** (`P1_2_Output`):
 ```typescript
@@ -441,8 +442,9 @@ Part 0 (Data Prep) → Part 1:
 - **Examples of the Distinction**:
   - "It was surprising because..." (during the experience) = narration
   - "Looking back, it was surprising..." = analysis
-  - Feeling descriptions during action = narration, part of that phase
-  - Summary judgments about the whole event = analysis
+  - In-moment sense-making = narration (part of experience)
+  - Post-hoc sense-making = analysis (from interview chair)
+  - Utterances that cannot reconstruct timeline = Post-Hoc Reflection
 - **Post-Hoc as Catch-All**:
   - Primary use: analysis, summaries, comparisons
   - Secondary use: any utterance that doesn't fit temporal buckets

@@ -30,7 +30,7 @@ For each segment, assign a 'coarse_phase' tag from this FIXED list: [Initial Sta
 
 *   **Final Action:** Describes the concluding phase and any specific action of the experience. This includes any thoughts, feelings, or emotional reactions that happened *concurrently with or immediately resulted from* that final action.
 
-*   **Post-Hoc Reflection:** The participant has stepped outside the timeline of the experience and is speaking from the present moment of the interview. They are no longer narrating the event, but are **analyzing, summarizing, or explaining it as a whole.** This includes:
+*   **Post-Hoc Reflection:** The participant has stepped outside the timeline of the experience and is speaking from the present moment of the interview. They are no longer narrating the event, but are **analyzing, summarizing, or explaining it as a whole.** These are utterances that cannot be used to reconstruct the timeline. This includes:
     *   Comparing it to a *different* experience.
     *   Giving a summary judgment of the *entire* event.
     *   Any utterance that does not fit any concrete temporal bucket [initial, core, final].
@@ -39,8 +39,8 @@ For each segment, assign a 'coarse_phase' tag from this FIXED list: [Initial Sta
 
 To distinguish the phases, ask: **"Is the participant *narrating* a moment from the timeline, or are they *analyzing* the experience from the outside?"**
 
--   **Narration belongs** in \`Initial State\`, \`Core Experience\`, or \`Final Action\`. A description of a feeling (e.g., "it was surprising because...") is part of the narration.
--   **Analysis belongs** in \`Post-Hoc Reflection\`.
+-   **Narration belongs** in \`Initial State\`, \`Core Experience\`, or \`Final Action\`. A description of a feeling (e.g., "it was surprising because...") or even in the moment analysis that happened during the experience is part of the narration.
+-   **Analysis belongs** in \`Post-Hoc Reflection\`if it doesn't refer to sense-making that happened during the experience and is happening after it.
 
 Note: Prior filtering may have removed most post-hoc reflections. This tag is for any remaining commentary that does not fit the experiential timeline.
 
