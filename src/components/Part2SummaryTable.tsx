@@ -88,6 +88,7 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
   const gridRef = useRef<AgGridReact>(null);
   const [hoveredDuId, setHoveredDuId] = React.useState<string | null>(null);
   const [mousePosition, setMousePosition] = React.useState({ x: 0, y: 0 });
+  const [refreshKey, setRefreshKey] = React.useState(0);
   
   // Generate table rows for ag-grid
   const tableRows = useMemo(() => generateAgGridRows(data), [data]);
@@ -239,7 +240,16 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
 
       {/* Network Diagrams Section */}
       <div className="mt-8">
-        <h3 className="text-lg font-semibold mb-4 text-light-text dark:text-dark-text">Network Diagrams</h3>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-light-text dark:text-dark-text">Network Diagrams</h3>
+          <button
+            onClick={() => setRefreshKey(prev => prev + 1)}
+            className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+            title="Refresh all diagrams"
+          >
+            ↻ Refresh All
+          </button>
+        </div>
         <div className="space-y-6">
           {data.duRecords.map((du, index) => (
             <div key={du.id} className="border border-light-border dark:border-dark-border rounded-lg p-4 bg-light-bg-alt dark:bg-dark-bg-alt">
@@ -262,21 +272,30 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
                     }
                   }}
                 >
-                  <MermaidDiagram chart={du.networkDiagram.mermaidSyntax} />
+                  <MermaidDiagram key={`${du.id}-${refreshKey}`} chart={du.networkDiagram.mermaidSyntax} />
                 </div>
                 <div className="ml-4 text-sm text-light-sidenote dark:text-dark-sidenote">
                   <div>Nodes: {du.networkDiagram.nodeCount}</div>
                   <div>Links: {du.networkDiagram.linkCount}</div>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(du.networkDiagram.mermaidSyntax).then(() => {
-                        console.log('Mermaid code copied to clipboard');
-                      });
-                    }}
-                    className="mt-2 px-2 py-1 text-xs bg-light-bg dark:bg-dark-bg hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
-                  >
-                    Copy Code
-                  </button>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(du.networkDiagram.mermaidSyntax).then(() => {
+                          console.log('Mermaid code copied to clipboard');
+                        });
+                      }}
+                      className="px-2 py-1 text-xs bg-light-bg dark:bg-dark-bg hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+                    >
+                      Copy Code
+                    </button>
+                    <button
+                      onClick={() => setRefreshKey(prev => prev + 1)}
+                      className="px-2 py-1 text-xs bg-light-bg dark:bg-dark-bg hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+                      title="Refresh diagram"
+                    >
+                      ↻ Refresh
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
