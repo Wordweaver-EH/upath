@@ -24,6 +24,7 @@ import { DiachronicStructureComparison } from './DiachronicStructureComparison';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
 import { NestedTooltip } from './NestedTooltip';
 import { RduTooltip } from './tooltips/RduTooltip';
+import { SynchronicThematicGroupingTable } from './SynchronicThematicGroupingTable';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -817,6 +818,96 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
   if (stepId === StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
     console.log('[P1.5 Debug] Rendering P1.5 comparison component, processedData size:', processedData.size);
     return <DiachronicStructureComparison processedData={processedData} theme={theme} />;
+  }
+  
+  // Special handling for P2S_1 with tabbed display per DU
+  if (stepId === StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC) {
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          const tabs: any[] = [];
+          
+          // For each transcript that has P2S outputs
+          Array.from(data.entries()).forEach(([transcriptId, transcript]) => {
+            if (transcript.p2s_outputs_by_du) {
+              // For each DU that has P2S.1 output
+              Object.entries(transcript.p2s_outputs_by_du).forEach(([duId, duData]) => {
+                if (duData.p2s_1_output) {
+                  tabs.push({
+                    id: `${transcriptId}_${duId}`,
+                    label: `${transcript.filename} - ${duId}`,
+                    data: {
+                      transcriptMapId: transcriptId,
+                      duId: duId,
+                      groupingData: duData.p2s_1_output,
+                      filename: transcript.filename
+                    }
+                  });
+                }
+              });
+            }
+          });
+          
+          return tabs;
+        }}
+        renderContent={(tabData, theme) => {
+          const handleGroupingChange = (updatedData: any) => {
+            const transcriptData = processedData.get(tabData.transcriptMapId);
+            if (transcriptData && transcriptData.p2s_outputs_by_du) {
+              const updatedP2sOutputs = {
+                ...transcriptData.p2s_outputs_by_du,
+                [tabData.duId]: {
+                  ...transcriptData.p2s_outputs_by_du[tabData.duId],
+                  p2s_1_output: updatedData
+                }
+              };
+              
+              updateProcessedData(tabData.transcriptMapId, {
+                p2s_outputs_by_du: updatedP2sOutputs
+              });
+            }
+          };
+          
+          return (
+            <div className="space-y-4">
+              {/* Metadata section */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.groupingData.transcript_id}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Analyzed Diachronic Unit
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.groupingData.analyzed_du_id}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Synchronic thematic grouping table */}
+              <div>
+                <SynchronicThematicGroupingTable 
+                  groupingData={tabData.groupingData}
+                  theme={theme}
+                  onGroupingChange={handleGroupingChange}
+                  filename={tabData.filename}
+                />
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No DUs with P2S.1 output available"
+      />
+    );
   }
   
   // Config check - using the values from the hook above
