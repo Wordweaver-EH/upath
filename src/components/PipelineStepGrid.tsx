@@ -25,6 +25,7 @@ import { convertToCSV, downloadCSV } from '../utils/csvExport';
 import { NestedTooltip } from './NestedTooltip';
 import { RduTooltip } from './tooltips/RduTooltip';
 import { SynchronicThematicGroupingTable } from './SynchronicThematicGroupingTable';
+import { SpecificSynchronicUnitsTable } from './SpecificSynchronicUnitsTable';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -820,7 +821,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
     return <DiachronicStructureComparison processedData={processedData} theme={theme} />;
   }
   
-  // Special handling for P2S_1 with tabbed display per DU
+  // Special handling for P2S_1 with tabbed display per transcript (all DUs on same page)
   if (stepId === StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC) {
     
     return (
@@ -832,34 +833,40 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
           // For each transcript that has P2S outputs
           Array.from(data.entries()).forEach(([transcriptId, transcript]) => {
             if (transcript.p2s_outputs_by_du) {
-              // For each DU that has P2S.1 output
+              // Check if any DU has P2S.1 output
+              const duOutputs: { [duId: string]: any } = {};
               Object.entries(transcript.p2s_outputs_by_du).forEach(([duId, duData]) => {
                 if (duData.p2s_1_output) {
-                  tabs.push({
-                    id: `${transcriptId}_${duId}`,
-                    label: `${transcript.filename} - ${duId}`,
-                    data: {
-                      transcriptMapId: transcriptId,
-                      duId: duId,
-                      groupingData: duData.p2s_1_output,
-                      filename: transcript.filename
-                    }
-                  });
+                  duOutputs[duId] = duData.p2s_1_output;
                 }
               });
+              
+              // If this transcript has any P2S.1 outputs, create a tab for it
+              if (Object.keys(duOutputs).length > 0) {
+                tabs.push({
+                  id: transcriptId,
+                  label: transcript.filename,
+                  data: {
+                    transcriptMapId: transcriptId,
+                    duOutputs: duOutputs,
+                    filename: transcript.filename,
+                    transcriptId: transcript.p0_1_output?.transcript_id || transcriptId
+                  }
+                });
+              }
             }
           });
           
           return tabs;
         }}
         renderContent={(tabData, theme) => {
-          const handleGroupingChange = (updatedData: any) => {
+          const handleGroupingChange = (duId: string, updatedData: any) => {
             const transcriptData = processedData.get(tabData.transcriptMapId);
             if (transcriptData && transcriptData.p2s_outputs_by_du) {
               const updatedP2sOutputs = {
                 ...transcriptData.p2s_outputs_by_du,
-                [tabData.duId]: {
-                  ...transcriptData.p2s_outputs_by_du[tabData.duId],
+                [duId]: {
+                  ...transcriptData.p2s_outputs_by_du[duId],
                   p2s_1_output: updatedData
                 }
               };
@@ -870,43 +877,247 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
             }
           };
           
+          // Sort DU IDs for consistent display
+          const sortedDuIds = Object.keys(tabData.duOutputs).sort();
+          
+          // Get the first DU's data to extract transcript-level info
+          const firstDuData = tabData.duOutputs[sortedDuIds[0]];
+          
           return (
-            <div className="space-y-4">
-              {/* Metadata section */}
+            <div className="space-y-6">
+              {/* Transcript-level metadata */}
               <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
                 <div>
                   <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
                     Transcript ID
                   </h4>
                   <p className="text-light-text dark:text-dark-text">
-                    {tabData.groupingData.transcript_id}
+                    {tabData.transcriptId}
                   </p>
                 </div>
                 
                 <div>
                   <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
-                    Analyzed Diachronic Unit
+                    Total Diachronic Units with P2S.1 Output
                   </h4>
                   <p className="text-light-text dark:text-dark-text">
-                    {tabData.groupingData.analyzed_du_id}
+                    {sortedDuIds.length}
                   </p>
+                </div>
+                
+                {/* Variable Information - shown once at transcript level */}
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Independent Variable
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {firstDuData.independent_variable_details}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {firstDuData.dependent_variable_focus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
               
-              {/* Synchronic thematic grouping table */}
-              <div>
-                <SynchronicThematicGroupingTable 
-                  groupingData={tabData.groupingData}
-                  theme={theme}
-                  onGroupingChange={handleGroupingChange}
-                  filename={tabData.filename}
-                />
+              {/* Display all DUs for this transcript */}
+              {sortedDuIds.map((duId, index) => (
+                <div key={duId} className="border-t-2 border-light-border dark:border-dark-border pt-6">
+                  {/* DU Header */}
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-light-accent dark:text-dark-accent">
+                      Diachronic Unit: {duId}
+                    </h3>
+                  </div>
+                  
+                  {/* Synchronic thematic grouping table for this DU */}
+                  <SynchronicThematicGroupingTable 
+                    groupingData={tabData.duOutputs[duId]}
+                    theme={theme}
+                    onGroupingChange={(updatedData) => handleGroupingChange(duId, updatedData)}
+                    filename={tabData.filename}
+                    hideVariableInfo={true}
+                    hideInstructions={true} // Instructions shown at bottom of transcript
+                    compactSummary={true} // Use compact summary with just stats and download button
+                  />
+                </div>
+              ))}
+              
+              {/* Instructions - shown once at the bottom */}
+              <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic space-y-1 border-t-2 border-light-border dark:border-dark-border pt-4">
+                <div>💡 Click on group headers to expand/collapse</div>
+                <div>✏️ Click on group labels or justifications to edit them</div>
+                <div>❌ Remove segments from groups using the X button</div>
+                <div>🗑️ Delete entire groups using the trash button (when more than one group exists)</div>
               </div>
             </div>
           );
         }}
         theme={theme}
         emptyMessage="No DUs with P2S.1 output available. Click 'Run Step' to generate thematic groupings."
+      />
+    );
+  }
+  
+  // Special handling for P2S_2 with tabbed display per transcript (all DUs on same page)
+  if (stepId === StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS) {
+    
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          const tabs: any[] = [];
+          
+          // For each transcript that has P2S outputs
+          Array.from(data.entries()).forEach(([transcriptId, transcript]) => {
+            if (transcript.p2s_outputs_by_du) {
+              // Check if any DU has P2S.2 output
+              const duOutputs: { [duId: string]: any } = {};
+              Object.entries(transcript.p2s_outputs_by_du).forEach(([duId, duData]) => {
+                if (duData.p2s_2_output) {
+                  duOutputs[duId] = duData.p2s_2_output;
+                }
+              });
+              
+              // If this transcript has any P2S.2 outputs, create a tab for it
+              if (Object.keys(duOutputs).length > 0) {
+                tabs.push({
+                  id: transcriptId,
+                  label: transcript.filename,
+                  data: {
+                    transcriptMapId: transcriptId,
+                    duOutputs: duOutputs,
+                    filename: transcript.filename,
+                    transcriptId: transcript.p0_1_output?.transcript_id || transcriptId
+                  }
+                });
+              }
+            }
+          });
+          
+          return tabs;
+        }}
+        renderContent={(tabData, theme) => {
+          const handleUnitsChange = (duId: string, updatedData: any) => {
+            const transcriptData = processedData.get(tabData.transcriptMapId);
+            if (transcriptData && transcriptData.p2s_outputs_by_du) {
+              const updatedP2sOutputs = {
+                ...transcriptData.p2s_outputs_by_du,
+                [duId]: {
+                  ...transcriptData.p2s_outputs_by_du[duId],
+                  p2s_2_output: updatedData
+                }
+              };
+              
+              updateProcessedData(tabData.transcriptMapId, {
+                p2s_outputs_by_du: updatedP2sOutputs
+              });
+            }
+          };
+          
+          // Sort DU IDs for consistent display
+          const sortedDuIds = Object.keys(tabData.duOutputs).sort();
+          
+          // Get the first DU's data to extract transcript-level info
+          const firstDuData = tabData.duOutputs[sortedDuIds[0]];
+          
+          return (
+            <div className="space-y-6">
+              {/* Transcript-level metadata */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.transcriptId}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Total Diachronic Units with P2S.2 Output
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {sortedDuIds.length}
+                  </p>
+                </div>
+                
+                {/* Variable Information - shown once at transcript level */}
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Independent Variable
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {firstDuData.independent_variable_details}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {firstDuData.dependent_variable_focus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Display all DUs for this transcript */}
+              {sortedDuIds.map((duId, index) => (
+                <div key={duId} className="border-t-2 border-light-border dark:border-dark-border pt-6">
+                  {/* DU Header */}
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-light-accent dark:text-dark-accent">
+                      Diachronic Unit: {duId}
+                    </h3>
+                  </div>
+                  
+                  {/* Specific synchronic units table for this DU */}
+                  <SpecificSynchronicUnitsTable 
+                    unitsData={tabData.duOutputs[duId]}
+                    theme={theme}
+                    onUnitsChange={(updatedData) => handleUnitsChange(duId, updatedData)}
+                    filename={tabData.filename}
+                    hideVariableInfo={true}
+                    hideInstructions={true} // Instructions shown at bottom of transcript
+                    compactSummary={true} // Use compact summary
+                  />
+                </div>
+              ))}
+              
+              {/* Instructions - shown once at the bottom */}
+              <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic space-y-1 border-t-2 border-light-border dark:border-dark-border pt-4">
+                <div>💡 Click on ISU headers to expand/collapse</div>
+                <div>✏️ Click on unit names, definitions, or abstraction operations to edit them</div>
+                <div>🎯 Units are indented based on their hierarchy level</div>
+                <div>❌ Remove segments from ISUs using the X button</div>
+                <div>🗑️ Delete entire ISUs using the trash button (when more than one exists)</div>
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No DUs with P2S.2 output available. Click 'Run Step' to identify specific synchronic units."
       />
     );
   }

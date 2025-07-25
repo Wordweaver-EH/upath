@@ -387,7 +387,8 @@ const App: React.FC = () => {
           StepId.P1_3_INTRA_PHASE_SORTING,
           StepId.P1_4_DIACHRONIC_UNIT_GROUPING,
           StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
-          StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC
+          StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC,
+          StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS
         ];
         
         if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {

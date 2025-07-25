@@ -8,6 +8,10 @@ interface SynchronicThematicGroupingTableProps {
   theme: 'light' | 'dark';
   onGroupingChange?: (updatedData: P2S_1_Output) => void;
   filename?: string;
+  hideVariableInfo?: boolean;
+  hideInstructions?: boolean;
+  hideSummaryActions?: boolean;
+  compactSummary?: boolean;
 }
 
 // Phase colors mapping (consistent with other components)
@@ -243,7 +247,11 @@ export const SynchronicThematicGroupingTable: React.FC<SynchronicThematicGroupin
   groupingData,
   theme,
   onGroupingChange,
-  filename
+  filename,
+  hideVariableInfo = false,
+  hideInstructions = false,
+  hideSummaryActions = false,
+  compactSummary = false
 }) => {
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
   
@@ -363,43 +371,63 @@ export const SynchronicThematicGroupingTable: React.FC<SynchronicThematicGroupin
   return (
     <div className="space-y-4">
       {/* Summary and Actions */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h3 className="text-lg font-semibold mb-2">Synchronic Thematic Grouping for DU: {groupingData.analyzed_du_id}</h3>
-          <div className="text-sm text-light-sidenote dark:text-dark-sidenote space-y-1">
-            <div>Total Thematic Groups: {groupingData.synchronic_thematic_groups.length}</div>
-            <div>Total Segments: {totalSegments}</div>
-            <div>Transcript: {groupingData.transcript_id}</div>
+      {!hideSummaryActions && (
+        compactSummary ? (
+          // Compact version - just stats and download button
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
+              {groupingData.synchronic_thematic_groups.length} groups • {totalSegments} segments
+            </div>
+            <button
+              onClick={exportToCsv}
+              className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+            >
+              Download CSV
+            </button>
           </div>
-        </div>
-        <button
-          onClick={exportToCsv}
-          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
-        >
-          Download CSV
-        </button>
-      </div>
+        ) : (
+          // Full version
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Synchronic Thematic Grouping for DU: {groupingData.analyzed_du_id}</h3>
+              <div className="text-sm text-light-sidenote dark:text-dark-sidenote space-y-1">
+                <div>Total Thematic Groups: {groupingData.synchronic_thematic_groups.length}</div>
+                <div>Total Segments: {totalSegments}</div>
+                <div>Transcript: {groupingData.transcript_id}</div>
+              </div>
+            </div>
+            <button
+              onClick={exportToCsv}
+              className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+            >
+              Download CSV
+            </button>
+          </div>
+        )
+      )}
 
       {/* Variable Information */}
-      <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-2">
-        <div>
-          <span className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">Independent Variable: </span>
-          <span className="text-sm">{groupingData.independent_variable_details}</span>
-        </div>
-        <div>
-          <span className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">Dependent Variable Focus: </span>
-          <div className="inline-flex flex-wrap gap-1 ml-2">
-            {groupingData.dependent_variable_focus.map((dv, index) => (
-              <span
-                key={index}
-                className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-              >
-                {dv}
-              </span>
-            ))}
+      {!hideVariableInfo && (
+        <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-2">
+          <div>
+            <span className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">Independent Variable: </span>
+            <span className="text-sm">{groupingData.independent_variable_details}</span>
+          </div>
+          <div>
+            <span className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">Dependent Variable Focus: </span>
+            <div className="inline-flex flex-wrap gap-1 ml-2">
+              {groupingData.dependent_variable_focus.map((dv, index) => (
+                <span
+                  key={index}
+                  className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                >
+                  {dv}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Thematic Group Cards */}
       <div className="space-y-2">
@@ -421,12 +449,14 @@ export const SynchronicThematicGroupingTable: React.FC<SynchronicThematicGroupin
       </div>
 
       {/* Instructions */}
-      <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic space-y-1">
-        <div>💡 Click on group headers to expand/collapse</div>
-        <div>✏️ Click on group labels or justifications to edit them</div>
-        <div>❌ Remove segments from groups using the X button</div>
-        <div>🗑️ Delete entire groups using the trash button (when more than one group exists)</div>
-      </div>
+      {!hideInstructions && (
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic space-y-1">
+          <div>💡 Click on group headers to expand/collapse</div>
+          <div>✏️ Click on group labels or justifications to edit them</div>
+          <div>❌ Remove segments from groups using the X button</div>
+          <div>🗑️ Delete entire groups using the trash button (when more than one group exists)</div>
+        </div>
+      )}
     </div>
   );
 };
