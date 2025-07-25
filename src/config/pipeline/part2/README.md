@@ -1,5 +1,148 @@
 # Part 2: Specific Synchronic Analysis (P2S)
 
+## Exact Prompt Chain
+
+### P2S.1 Prompt
+```
+You are a micro-phenomenological analyst. Task: Group the provided SEGMENTS by topic for a GIVEN DIACHRONIC UNIT.
+Input:
+- Transcript ID: ${input.transcript_id}
+- Diachronic Unit Being Analyzed: "${input.analyzed_du_id}"
+- IV Details: "${input.independent_variable_details}"
+- DV Focus: ${JSON.stringify(input.dependent_variable_focus)}
+- Segments that occur within this DU:
+${JSON.stringify(input.segments_for_du_analysis, null, 2)}
+
+Instructions:
+1.  Your Task: Group the provided *segments* by topic. Focus on experiential themes that are specific to the DV focus (${JSON.stringify(input.dependent_variable_focus)}).
+2.  Topic Identification: Identify the main topic of each segment. Topics should be:
+    *   Relevant to the dependent variable focus
+    *   Specific (not generic like "feelings")
+    *   Based on the content of the segments
+3.  Grouping: Create groups of segments that share a similar topic. Be careful not to over-fragment; look for meaningful commonalities.
+4.  No Temporal Ordering: This step focuses on thematic grouping, not temporal sequencing.
+5.  Preserve the Diachronic Unit Context: Remember, these segments all come from the DU "${input.analyzed_du_id}". Your groupings should make sense within this DU's context.
+
+Output:
+A JSON object with ONLY the following structure (NO extra text or explanations):
+{
+  "transcript_id": "${input.transcript_id}",
+  "analyzed_du_id": "${input.analyzed_du_id}",
+  "synchronic_thematic_groups": [
+    {
+      "group_label": "Descriptive Name for Topic Group 1",
+      "justification": "Brief description of what unites these segments",
+      "segments": [
+        {
+          "segment_id": "string",
+          "segment_text": "text from input",
+          "temporal_cues": ["..."]
+        }
+        // ... more segments in this group
+      ]
+    }
+    // ... more groups
+  ],
+  "independent_variable_details": "${input.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
+}
+```
+
+### P2S.2 Prompt
+```
+You are a micro-phenomenological analyst. Your task is to identify Specific Synchronic Units (ISUs) based on the thematic groups of SEGMENTS from P2S.1 for a GIVEN DIACHRONIC UNIT.
+Input:
+- Transcript ID: ${input.transcript_id}
+- Diachronic Unit Being Analyzed: "${input.analyzed_du_id}"
+- IV Details: "${input.independent_variable_details}"
+- DV Focus: ${JSON.stringify(input.dependent_variable_focus)}
+- Synchronic thematic groups of segments from P2S.1:
+${JSON.stringify(input.synchronic_thematic_groups, null, 2)}
+
+Instructions:
+1.  Review Thematic Groups: Each group from P2S.1 represents segments sharing a topic within the DU "${input.analyzed_du_id}".
+2.  Define ISUs: For each thematic group, define one or more ISUs. An ISU is a conceptual unit capturing a synchronic experiential element. It's an abstraction of the raw segments.
+3.  Create Hierarchy: Organize ISUs into levels (1 for top-level, 2 for sub-units, etc.).
+4.  Abstraction Operations: For each ISU, specify the abstraction operation used (e.g., "generalization", "aggregation", "instantiation").
+5.  Intensional Definition: Provide a conceptual definition of the ISU—what experiential quality or state it represents.
+6.  Grounding: Ground each ISU in the specific segments it is derived from.
+
+Output:
+A JSON object adhering EXACTLY to the following structure (NO extra text):
+{
+  "transcript_id": "${input.transcript_id}",
+  "analyzed_du_id": "${input.analyzed_du_id}",
+  "specific_synchronic_units_hierarchy": [
+    {
+      "unit_name": "UniqueDescriptiveName1",
+      "level": 1,
+      "abstraction_op": "generalization",
+      "intensional_definition": "Conceptual description of this ISU",
+      "segments": [
+        {
+          "segment_id": "string",
+          "segment_text": "text",
+          "temporal_cues": ["..."]
+        }
+      ],
+      "constituent_lower_units": []
+    }
+    // ... more ISUs
+  ],
+  "independent_variable_details": "${input.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
+}
+```
+
+### P2S.3 Prompt
+```
+You are a micro-phenomenological analyst. Task: Final step of Specific Synchronic Analysis - Define the Specific Synchronic Structure (SSS) as a semantic network.
+Input:
+JSON output from P2S.2 (ISU hierarchy, where each ISU has a unique `unit_name`) for transcript ID ${input.transcript_id} and diachronic unit "${input.analyzed_du_id}".
+${JSON.stringify(input, null, 2)}
+
+Instructions:
+1.  Model ISUs as Network: Transform the `specific_synchronic_units_hierarchy` from P2S.2 into a semantic network. ISUs become nodes. Relationships (hierarchical, associative) become links.
+2.  Define Nodes: Each node in `network_nodes` corresponds to an ISU from P2S.2.
+    *   `id`: A unique ID for this SSS network node (e.g., "sss_node_VisualQualityVivid"). Can be based on the ISU's `unit_name`.
+    *   `label`: A descriptive label for the node, typically the ISU's `unit_name` or `intensional_definition`.
+    *   `source_isu_id`: The `unit_name` of the ISU from P2S.2 that this network node represents. This is crucial for traceability.
+3.  Define Links: Identify relationships between ISUs. Types include:
+    *   Hierarchical (parent-child from P2S.2)
+    *   Associative (e.g., "influences", "precedes", "co-occurs with")
+    *   Causal (if one ISU leads to another)
+4.  Overall Structure Description: Summarize the SSS for this DU.
+
+Output:
+A JSON object adhering EXACTLY to the following structure:
+{
+  "transcript_id": "${input.transcript_id}",
+  "analyzed_du_id": "${input.analyzed_du_id}",
+  "specific_synchronic_structure": {
+    "representation_type": "Semantic Network",
+    "description": "Summary of the SSS for DU '${input.analyzed_du_id}'",
+    "network_nodes": [
+      {
+        "id": "sss_node_UniqueID1",
+        "label": "Descriptive Label",
+        "source_isu_id": "ISU unit_name from P2S.2"
+      }
+      // ... more nodes
+    ],
+    "network_links": [
+      {
+        "from": "sss_node_ID1",
+        "to": "sss_node_ID2",
+        "type": "hierarchical|associative|causal|etc"
+      }
+      // ... more links
+    ]
+  },
+  "independent_variable_details": "${input.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
+}
+```
+
 ## Overview
 
 Part 2 performs **Specific Synchronic Analysis** on individual Diachronic Units (DUs) identified in Part 1. While Part 1 analyzed temporal progression (diachronic), Part 2 focuses on the simultaneous experiential elements within each DU (synchronic). This analysis is performed iteratively for each DU from Part 1.
@@ -37,9 +180,9 @@ Transcript 2:
 
 ## Steps
 
-### P2S.1: Group Utterances by Topic
+### P2S.1: Group Segments by Topic within a Diachronic Unit
 
-**Purpose**: Groups segments within a DU by thematic similarity relevant to the dependent variable focus.
+**Purpose**: Groups segments within a DU by thematic similarity, focusing on experiential themes specific to the dependent variable focus.
 
 **Input**:
 - Current DU ID (from P1.4)
@@ -48,8 +191,10 @@ Transcript 2:
 
 **Processing**:
 1. Filters all segments to only those belonging to the current DU
-2. Groups segments by experiential themes
-3. Creates thematic groups with justifications
+2. Identifies main topic of each segment (relevant to DV, specific, content-based)
+3. Groups segments sharing similar topics
+4. Avoids over-fragmentation by finding meaningful commonalities
+5. No temporal ordering - purely thematic grouping
 
 **Output** (`P2S_1_Output`):
 ```typescript
@@ -59,8 +204,8 @@ Transcript 2:
   synchronic_thematic_groups: [
     {
       group_label: string,          // Descriptive name for topic
-      justification: string,        // Why these segments belong together
-      segments: SegmentedUtteranceSegment[]
+      justification: string,        // What unites these segments
+      segments: SegmentedUtteranceSegment[]  // Array of segments with id, text, temporal_cues
     }
   ],
   independent_variable_details: string,
@@ -68,18 +213,19 @@ Transcript 2:
 }
 ```
 
-### P2S.2: Identify Specific Synchronic Units (ISUs)
+### P2S.2: Identify Specific Synchronic Units (ISUs) from Segments
 
-**Purpose**: Abstracts thematic groups into conceptual units (ISUs) representing synchronic experiential elements.
+**Purpose**: Abstracts thematic groups into conceptual units (ISUs) representing synchronic experiential elements within the DU.
 
 **Input**: P2S.1 output for the current DU
 
 **Processing**:
 1. Reviews each thematic group from P2S.1
-2. Defines ISUs as conceptual abstractions
-3. Creates hierarchy (levels 1, 2, etc.)
-4. Specifies abstraction operations (generalization, aggregation, instantiation)
-5. Provides intensional definitions
+2. Defines one or more ISUs per group (conceptual abstractions of raw segments)
+3. Organizes ISUs into hierarchy (level 1 for top-level, 2 for sub-units, etc.)
+4. Specifies abstraction operation used (e.g., "generalization", "aggregation", "instantiation")
+5. Provides intensional definition (what experiential quality/state it represents)
+6. Grounds each ISU in specific segments it derives from
 
 **Output** (`P2S_2_Output`):
 ```typescript
@@ -88,12 +234,12 @@ Transcript 2:
   analyzed_du_id: string,
   specific_synchronic_units_hierarchy: [
     {
-      unit_name: string,              // Unique identifier
+      unit_name: string,              // Unique descriptive name
       level: number,                  // Hierarchy level (1=top)
-      abstraction_op: string,         // How it was abstracted
-      intensional_definition: string, // Conceptual meaning
-      segments?: SegmentedUtteranceSegment[],
-      constituent_lower_units?: string[] // References to sub-units
+      abstraction_op: string,         // Operation used (generalization, etc.)
+      intensional_definition: string, // Conceptual description of ISU
+      segments: SegmentedUtteranceSegment[], // Grounding segments
+      constituent_lower_units: string[] // References to sub-units (if any)
     }
   ],
   independent_variable_details: string,
@@ -101,17 +247,23 @@ Transcript 2:
 }
 ```
 
-### P2S.3: Define Specific Synchronic Structure (SSS)
+### P2S.3: Define Specific Synchronic Structure (SSS) within a Diachronic Unit
 
-**Purpose**: Transforms ISU hierarchy into a semantic network showing relationships between synchronic elements.
+**Purpose**: Final step of synchronic analysis - transforms ISU hierarchy into a semantic network showing relationships between synchronic elements within the DU.
 
 **Input**: P2S.2 output for the current DU
 
 **Processing**:
-1. Converts ISUs to network nodes
-2. Identifies relationships (hierarchical, associative, causal)
-3. Creates semantic network structure
-4. Generates Mermaid diagram visualization
+1. Models ISUs as network - ISUs become nodes, relationships become links
+2. Defines nodes:
+   - `id`: Unique SSS node ID (e.g., "sss_node_VisualQualityVivid")
+   - `label`: Descriptive label (typically ISU's unit_name or intensional_definition)
+   - `source_isu_id`: The unit_name from P2S.2 (crucial for traceability)
+3. Defines links between ISUs:
+   - Hierarchical: parent-child relationships from P2S.2
+   - Associative: "influences", "precedes", "co-occurs with"
+   - Causal: if one ISU leads to another
+4. Provides overall structure description summarizing the SSS for this DU
 
 **Output** (`P2S_3_Output`):
 ```typescript
@@ -120,19 +272,19 @@ Transcript 2:
   analyzed_du_id: string,
   specific_synchronic_structure: {
     representation_type: "Semantic Network",
-    description: string,
+    description: string,      // Summary of SSS for this DU
     network_nodes: [
       {
-        id: string,           // SSS node ID
-        label: string,        // Display label
-        source_isu_id: string // Links back to P2S.2 unit_name
+        id: string,           // SSS node ID (e.g., "sss_node_UniqueID1")
+        label: string,        // Descriptive label
+        source_isu_id: string // ISU unit_name from P2S.2
       }
     ],
     network_links: [
       {
         from: string,         // Node ID
         to: string,           // Node ID
-        type: string          // Relationship type
+        type: string          // "hierarchical|associative|causal|etc"
       }
     ]
   },
@@ -169,9 +321,12 @@ Transcript 2:
 ```typescript
 processedData.get(transcriptId).p2s_outputs_by_du = {
   "du_1": {
-    p2s_1_output: P2S_1_Output,
-    p2s_2_output: P2S_2_Output,
-    p2s_3_output: P2S_3_Output,
+    p2s_1_output?: P2S_1_Output,
+    p2s_1_error?: string,
+    p2s_2_output?: P2S_2_Output,
+    p2s_2_error?: string,
+    p2s_3_output?: P2S_3_Output,
+    p2s_3_error?: string,
     p2s_3_mermaid_syntax?: string
   },
   "du_2": { ... },
@@ -214,17 +369,22 @@ processedData.get(transcriptId).p2s_outputs_by_du = {
 - Creates generic patterns from specific synchronic structures
 - SSS nodes become input for generic analysis
 
-## Questions for Clarification
+## Special Processing Notes
 
-1. **Parallel Processing**: The current implementation processes transcripts and DUs sequentially. Would parallel processing of transcripts or DUs provide performance benefits worth the added complexity?
+### P2S.1 Segment Filtering
+- Uses P1.4's `source_segment_ids` to filter P1.1 segments
+- Only segments belonging to the current DU are analyzed
+- Segments maintain their original IDs for traceability
 
-2. **Abstraction Operations**: Are there specific abstraction operations preferred (generalization, aggregation, instantiation), or should the AI determine freely?
+### P2S.2 Abstraction Operations
+- Common operations: generalization, aggregation, instantiation
+- ISUs are conceptual abstractions, not raw data
+- Each ISU must be grounded in specific segments
 
-3. **Network Relationships**: Should there be a controlled vocabulary for link types in P2S.3, or allow free-form relationship descriptions?
-
-4. **Visualization**: Are there specific requirements for the Mermaid diagram generation beyond the current implementation?
-
-5. **Error Handling**: How should partial DU processing be handled if one DU fails but others succeed?
+### P2S.3 Network Construction
+- Node IDs should be unique and descriptive
+- `source_isu_id` links back to P2S.2's `unit_name` field
+- Link types are free-form but should be meaningful
 
 ## Development Notes
 

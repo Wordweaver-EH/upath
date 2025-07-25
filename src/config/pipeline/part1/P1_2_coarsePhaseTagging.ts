@@ -12,37 +12,39 @@ export const P1_2_COARSE_PHASE_TAGGING_CONFIG: StepConfig = {
     if (!p1_1_data) return { data: null, error: `Missing P1.1 output for transcript ${currentTranscript.id}` };
     return { data: p1_1_data };
   },
-  generatePrompt: (input: P1_1_Output) => `You are a micro-phenomenological data analyst. Your task is to classify interview segments into broad temporal phases by considering the context of the original utterance they came from.
+  generatePrompt: (input: P1_1_Output) => `You are a micro-phenomenological data analyst classifying interview segments into four distinct temporal phases. Your task is to determine if the speaker is describing an event **from within** the chronological timeline of the actual experience [Initial State, Core Experience, Final Action] or **is analyzing the experience as a whole** from the interview chair [Post-Hoc Reflection].
 
-CRITICAL: Read the ENTIRE original utterance text for context before classifying each segment. The utterance context often contains temporal markers that are crucial for correct classification.
+CRITICAL: Before classifying a segment, read the full original_utterance.text to understand its complete context.
 
 Input:
 A list of utterances, each containing one or more segments.
 
 Instructions:
-For each segment in the list, perform the following:
-1. First, read the original_utterance.text to understand the full context
-2. Then read the segment_text itself
-3. Pay special attention to temporal_cues already identified in the segment
-4. Assign a coarse_phase tag to the segment from the following FIXED list: Initial State, Core Experience, Final Action, Post-Hoc Reflection
+For each segment, assign a 'coarse_phase' tag from this FIXED list: [Initial State, Core Experience, Final Action, Post-Hoc Reflection].
 
-Classification Guide (with additional cues):
-• Initial State: The participant is describing their mindset, setup, or events right at the beginning. 
-  Cues: "at the start", "when we started", "first", "initially", "before", "to begin with"
-  
-• Core Experience: The participant is describing the main, sustained sensations, thoughts, or feelings that occurred after the onset and before any final action. 
-  Cues: "during", "still", "whenever", "kept", "while", "throughout", "as I was", "continued to"
-  
-• Final Action: The participant is describing a distinct action taken to conclude or test the experience, and any sensations or thoughts that happened concurrently with that action. 
-  Cues: "at the end", "when I was trying to pull them apart", "finally", "then I", "to finish", "last thing"
-  
-• Post-Hoc Reflection: The participant is looking back on the experience from the present moment of the interview, comparing it to other times, or analyzing it. 
-  Cues: "after hearing", "on the second one", "looking back", "now that I think", "compared to", "in retrospect", "I realize"
+## Classification Guide
 
-IMPORTANT: 
-- Each segment MUST be assigned exactly ONE phase
-- Consider both the segment content AND its position within the original utterance
-- When in doubt, the original utterance context takes precedence
+*   **Initial State:** Describes the participant's state or actions at the very beginning of the event.
+
+*   **Core Experience:** Describes the main, ongoing part of the experience. This includes any thoughts, feelings, or emotional reactions that happened *during* this central phase.
+
+*   **Final Action:** Describes the concluding phase and any specific action of the experience. This includes any thoughts, feelings, or emotional reactions that happened *concurrently with or immediately resulted from* that final action.
+
+*   **Post-Hoc Reflection:** The participant has stepped outside the timeline of the experience and is speaking from the present moment of the interview. They are no longer narrating the event, but are **analyzing, summarizing, or explaining it as a whole.** This includes:
+    *   Comparing it to a *different* experience.
+    *   Giving a summary judgment of the *entire* event.
+    *   Any utterance that does not fit any concrete temporal bucket [initial, core, final].
+
+## The Deciding Question
+
+To distinguish the phases, ask: **"Is the participant *narrating* a moment from the timeline, or are they *analyzing* the experience from the outside?"**
+
+-   **Narration belongs** in \`Initial State\`, \`Core Experience\`, or \`Final Action\`. A description of a feeling (e.g., "it was surprising because...") is part of the narration.
+-   **Analysis belongs** in \`Post-Hoc Reflection\`.
+
+Note: Prior filtering may have removed most post-hoc reflections. This tag is for any remaining commentary that does not fit the experiential timeline.
+
+IMPORTANT: Each segment MUST be assigned exactly ONE phase.
 
 Input: ${JSON.stringify(input)}
 

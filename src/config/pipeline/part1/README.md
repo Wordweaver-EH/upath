@@ -64,37 +64,39 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
 
 ### P1.2 Prompt
 ```
-You are a micro-phenomenological data analyst. Your task is to classify interview segments into broad temporal phases by considering the context of the original utterance they came from.
+You are a micro-phenomenological data analyst classifying interview segments into four distinct temporal phases. Your task is to determine if the speaker is describing an event **from within** the chronological timeline of the actual experience [Initial State, Core Experience, Final Action] or **is analyzing the experience as a whole** from the interview chair [Post-Hoc Reflection].
 
-CRITICAL: Read the ENTIRE original utterance text for context before classifying each segment. The utterance context often contains temporal markers that are crucial for correct classification.
+CRITICAL: Before classifying a segment, read the full original_utterance.text to understand its complete context.
 
 Input:
 A list of utterances, each containing one or more segments.
 
 Instructions:
-For each segment in the list, perform the following:
-1. First, read the original_utterance.text to understand the full context
-2. Then read the segment_text itself
-3. Pay special attention to temporal_cues already identified in the segment
-4. Assign a coarse_phase tag to the segment from the following FIXED list: Initial State, Core Experience, Final Action, Post-Hoc Reflection
+For each segment, assign a 'coarse_phase' tag from this FIXED list: [Initial State, Core Experience, Final Action, Post-Hoc Reflection].
 
-Classification Guide (with additional cues):
-• Initial State: The participant is describing their mindset, setup, or events right at the beginning. 
-  Cues: "at the start", "when we started", "first", "initially", "before", "to begin with"
-  
-• Core Experience: The participant is describing the main, sustained sensations, thoughts, or feelings that occurred after the onset and before any final action. 
-  Cues: "during", "still", "whenever", "kept", "while", "throughout", "as I was", "continued to"
-  
-• Final Action: The participant is describing a distinct action taken to conclude or test the experience, and any sensations or thoughts that happened concurrently with that action. 
-  Cues: "at the end", "when I was trying to pull them apart", "finally", "then I", "to finish", "last thing"
-  
-• Post-Hoc Reflection: The participant is looking back on the experience from the present moment of the interview, comparing it to other times, or analyzing it. 
-  Cues: "after hearing", "on the second one", "looking back", "now that I think", "compared to", "in retrospect", "I realize"
+## Classification Guide
 
-IMPORTANT: 
-- Each segment MUST be assigned exactly ONE phase
-- Consider both the segment content AND its position within the original utterance
-- When in doubt, the original utterance context takes precedence
+*   **Initial State:** Describes the participant's state or actions at the very beginning of the event.
+
+*   **Core Experience:** Describes the main, ongoing part of the experience. This includes any thoughts, feelings, or emotional reactions that happened *during* this central phase.
+
+*   **Final Action:** Describes the concluding phase and any specific action of the experience. This includes any thoughts, feelings, or emotional reactions that happened *concurrently with or immediately resulted from* that final action.
+
+*   **Post-Hoc Reflection:** The participant has stepped outside the timeline of the experience and is speaking from the present moment of the interview. They are no longer narrating the event, but are **analyzing, summarizing, or explaining it as a whole.** This includes:
+    *   Comparing it to a *different* experience.
+    *   Giving a summary judgment of the *entire* event.
+    *   Any utterance that does not fit any concrete temporal bucket [initial, core, final].
+
+## The Deciding Question
+
+To distinguish the phases, ask: **"Is the participant *narrating* a moment from the timeline, or are they *analyzing* the experience from the outside?"**
+
+-   **Narration belongs** in `Initial State`, `Core Experience`, or `Final Action`. A description of a feeling (e.g., "it was surprising because...") is part of the narration.
+-   **Analysis belongs** in `Post-Hoc Reflection`.
+
+Note: Prior filtering may have removed most post-hoc reflections. This tag is for any remaining commentary that does not fit the experiential timeline.
+
+IMPORTANT: Each segment MUST be assigned exactly ONE phase.
 
 Input: ${JSON.stringify(input)}
 
@@ -262,19 +264,22 @@ Part 0 (Data Prep) → Part 1:
 
 ### P1.2: Coarse Phase Tagging
 
-**Purpose**: Tags each segment with its phase type in the temporal unfolding of experience.
+**Purpose**: Classifies each segment based on whether the speaker is **narrating from within** the experience timeline or **analyzing from outside** in the interview chair. This crucial distinction separates lived experience from retrospective analysis.
 
 **Input**: P1.1 output (segmented utterances)
 
 **Processing**:
-1. Analyzes each segment for phase indicators
-2. Assigns phase tags based on experiential progression
-3. Common phases include:
-   - `Initial_Engagement`: First contact with the experience
-   - `Exploration`: Active investigation or deepening
-   - `Transition`: Changes or shifts in experience
-   - `Resolution`: Completion or integration
-   - `Reflection`: Looking back or making sense
+1. Analyzes each segment to determine perspective (within vs outside experience)
+2. Uses "The Deciding Question": Is the participant *narrating* a moment or *analyzing* the experience?
+3. Assigns one of four fixed phases:
+   - `Initial State`: Beginning of the event (narrated from within)
+   - `Core Experience`: Main part of experience, including concurrent thoughts/feelings
+   - `Final Action`: Concluding phase with any concurrent reactions
+   - `Post-Hoc Reflection`: Speaking from interview chair - analyzing, summarizing, or doesn't fit temporal buckets
+4. Key distinctions:
+   - Describing feeling surprise during the action = narration (Final Action)
+   - Explaining why it was surprising = analysis (Post-Hoc Reflection)
+   - Catch-all function: utterances that don't fit temporal buckets = Post-Hoc Reflection
 
 **Output** (`P1_2_Output`):
 ```typescript
@@ -282,13 +287,13 @@ Part 0 (Data Prep) → Part 1:
   transcript_id: string,
   phase_tagged_utterances: [
     {
-      original_utterance: SelectedUtterance,
+      original_utterance: OriginalUtterance,
       segments: [
         {
           segment_id: string,
           segment_text: string,
-          phase_tag: string,         // e.g., "Exploration"
-          tag_justification: string  // Why this phase was assigned
+          temporal_cues: string[],
+          coarse_phase: string      // One of the four fixed phases
         }
       ]
     }
@@ -423,10 +428,25 @@ Part 0 (Data Prep) → Part 1:
   - `unit_id`: Simple reference ("du_1", "du_2")
   - `name`: Descriptive label ("Initial_Anxiety_Recognition")
 
-### Phase Types
-- Not prescriptive - emerge from the data
-- Common patterns: engagement → exploration → transition → resolution
-- May vary based on the type of experience being analyzed
+### Coarse Phase Types (P1.2)
+- **Fixed phases** (not emergent):
+  - `Initial State`: Beginning of the experience
+  - `Core Experience`: Main unfolding of the experience
+  - `Final Action`: Concluding phase
+  - `Post-Hoc Reflection`: Analysis from the interview chair OR catch-all
+- **The Narration/Analysis Distinction**:
+  - Narration (within timeline): Initial State, Core Experience, Final Action
+  - Analysis (outside timeline): Post-Hoc Reflection
+  - Key question: "Is the participant *narrating* or *analyzing*?"
+- **Examples of the Distinction**:
+  - "It was surprising because..." (during the experience) = narration
+  - "Looking back, it was surprising..." = analysis
+  - Feeling descriptions during action = narration, part of that phase
+  - Summary judgments about the whole event = analysis
+- **Post-Hoc as Catch-All**:
+  - Primary use: analysis, summaries, comparisons
+  - Secondary use: any utterance that doesn't fit temporal buckets
+  - Note: Prior filtering removes most post-hoc reflections already
 
 ## State Management
 
