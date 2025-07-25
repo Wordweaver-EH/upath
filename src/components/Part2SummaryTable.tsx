@@ -151,14 +151,26 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
 
   return (
     <div className="w-full">
-      {/* Summary Stats */}
-      <div className="mb-4 p-4 bg-light-bg-alt dark:bg-dark-bg-alt rounded-lg">
-        <h3 className="text-lg font-semibold mb-2 text-light-text dark:text-dark-text">Summary Statistics</h3>
-        <div className="flex gap-6 text-sm text-light-text dark:text-dark-text">
-          <span>Total DUs: <strong>{data.totalDUs}</strong></span>
-          <span>Total ISUs: <strong>{data.totalISUs}</strong></span>
-          <span>Total Utterances: <strong>{data.totalUtterances}</strong></span>
+      {/* Summary Stats and Export Button */}
+      <div className="mb-4 flex justify-between items-start gap-4">
+        <div className="flex-1 p-4 bg-light-bg-alt dark:bg-dark-bg-alt rounded-lg">
+          <h3 className="text-lg font-semibold mb-2 text-light-text dark:text-dark-text">Summary Statistics</h3>
+          <div className="flex gap-6 text-sm text-light-text dark:text-dark-text">
+            <span>Total DUs: <strong>{data.totalDUs}</strong></span>
+            <span>Total ISUs: <strong>{data.totalISUs}</strong></span>
+            <span>Total Utterances: <strong>{data.totalUtterances}</strong></span>
+          </div>
         </div>
+        <button
+          onClick={handleExportHTML}
+          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors flex items-center gap-2"
+          title="Export summary as HTML document"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Export to HTML
+        </button>
       </div>
 
 
@@ -180,20 +192,6 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
             params.api.sizeColumnsToFit();
           }}
         />
-      </div>
-
-      {/* Export Button */}
-      <div className="my-4 flex justify-end">
-        <button
-          onClick={handleExportHTML}
-          className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors flex items-center gap-2"
-          title="Export summary as HTML document"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-          Export to HTML
-        </button>
       </div>
 
       {/* Network Diagrams Section */}
