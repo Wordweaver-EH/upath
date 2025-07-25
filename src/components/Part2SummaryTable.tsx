@@ -87,6 +87,7 @@ const UtteranceCellRenderer: React.FC<ICellRendererParams> = ({ data }) => {
 export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, theme }) => {
   const gridRef = useRef<AgGridReact>(null);
   const [selectedDuId, setSelectedDuId] = React.useState<string | null>(null);
+  const [popupPosition, setPopupPosition] = React.useState({ x: 0, y: 0 });
   const [refreshKey, setRefreshKey] = React.useState(0);
   
   // Generate table rows for ag-grid
@@ -255,7 +256,11 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
               <div className="mb-3">
                 <h4 
                   className="text-base font-semibold text-light-text dark:text-dark-text cursor-pointer hover:text-light-primary dark:hover:text-dark-primary hover:underline transition-colors inline-block"
-                  onClick={() => setSelectedDuId(du.id)}
+                  onClick={(e) => {
+                    setSelectedDuId(du.id);
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setPopupPosition({ x: rect.left, y: rect.bottom + 5 });
+                  }}
                   title="Click to view utterances"
                 >
                   {du.name}
@@ -295,58 +300,60 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
         </div>
       </div>
 
-      {/* Utterances Modal */}
+      {/* Utterances Popup */}
       {selectedDuId && (
         <>
-          {/* Backdrop */}
+          {/* Invisible backdrop to detect clicks outside */}
           <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            className="fixed inset-0 z-40"
             onClick={() => setSelectedDuId(null)}
           />
           
-          {/* Modal */}
-          <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[80vh]">
-            <div className="bg-white dark:bg-gray-900 border-2 border-light-border dark:border-dark-border rounded-lg shadow-xl">
-              {/* Header */}
-              <div className="flex justify-between items-center p-4 border-b border-light-border dark:border-dark-border">
-                <h5 className="font-semibold text-lg text-light-text dark:text-dark-text">
+          {/* Popup */}
+          <div
+            className="fixed z-50"
+            style={{
+              left: `${Math.min(popupPosition.x, window.innerWidth - 520)}px`,
+              top: `${Math.min(popupPosition.y, window.innerHeight - 400)}px`,
+              maxWidth: '500px'
+            }}
+          >
+            <div className="bg-white dark:bg-gray-900 border-2 border-light-border dark:border-dark-border rounded-lg shadow-xl p-4 max-h-96 overflow-y-auto">
+              <div className="flex justify-between items-start mb-2">
+                <h5 className="font-semibold text-sm text-light-text dark:text-dark-text">
                   Utterances for {data.duRecords.find(du => du.id === selectedDuId)?.name}
                 </h5>
                 <button
                   onClick={() => setSelectedDuId(null)}
-                  className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text transition-colors"
+                  className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text transition-colors ml-2"
                   title="Close"
                 >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
-              
-              {/* Content */}
-              <div className="p-4 overflow-y-auto max-h-[60vh]">
-                <div className="space-y-3">
-                  {getDuUtterances(selectedDuId).map((utterance, idx) => (
-                    <div key={idx} className="border-b border-light-border dark:border-dark-border pb-3 last:border-b-0">
-                      <div className="flex items-start gap-2">
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
-                          utterance.speaker === 'P' 
-                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
-                            : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                        }`}>
-                          {utterance.speaker}
-                        </span>
-                        <div className="flex-1">
-                          <p className="text-sm text-light-text dark:text-dark-text">{utterance.text}</p>
-                          <p className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">ID: {utterance.segmentId}</p>
-                        </div>
+              <div className="space-y-2">
+                {getDuUtterances(selectedDuId).map((utterance, idx) => (
+                  <div key={idx} className="border-b border-light-border dark:border-dark-border pb-2 last:border-b-0">
+                    <div className="flex items-start gap-2">
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                        utterance.speaker === 'P' 
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                          : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      }`}>
+                        {utterance.speaker}
+                      </span>
+                      <div className="flex-1">
+                        <p className="text-sm text-light-text dark:text-dark-text">{utterance.text}</p>
+                        <p className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">ID: {utterance.segmentId}</p>
                       </div>
                     </div>
-                  ))}
-                  {getDuUtterances(selectedDuId).length === 0 && (
-                    <p className="text-sm text-light-sidenote dark:text-dark-sidenote italic">No utterances found for this DU</p>
-                  )}
-                </div>
+                  </div>
+                ))}
+                {getDuUtterances(selectedDuId).length === 0 && (
+                  <p className="text-sm text-light-sidenote dark:text-dark-sidenote italic">No utterances found for this DU</p>
+                )}
               </div>
             </div>
           </div>
