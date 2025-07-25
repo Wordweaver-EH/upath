@@ -252,7 +252,7 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
         </div>
         <div className="space-y-6">
           {data.duRecords.map((du, index) => (
-            <div key={du.id} className="border border-light-border dark:border-dark-border rounded-lg p-4 bg-light-bg-alt dark:bg-dark-bg-alt">
+            <div key={`${du.id}-container`} className="border border-light-border dark:border-dark-border rounded-lg p-4 bg-light-bg-alt dark:bg-dark-bg-alt">
               <div className="mb-3">
                 <h4 
                   className="text-base font-semibold text-light-text dark:text-dark-text cursor-pointer hover:text-light-primary dark:hover:text-dark-primary hover:underline transition-colors inline-block"
@@ -268,8 +268,14 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
                 <p className="text-sm text-light-sidenote dark:text-dark-sidenote italic mt-1">{du.description}</p>
               </div>
               <div className="flex">
-                <div className="flex-1 relative">
-                  <MermaidDiagram key={`${du.id}-${refreshKey}`} chart={du.networkDiagram.mermaidSyntax} />
+                <div className="flex-1 relative" key={`${du.id}-diagram-wrapper-${refreshKey}`}>
+                  <div className="w-full">
+                    <MermaidDiagram 
+                      key={`${du.id}-${refreshKey}`} 
+                      chart={du.networkDiagram.mermaidSyntax}
+                      uniqueId={`${du.id}-${refreshKey}`}
+                    />
+                  </div>
                 </div>
                 <div className="ml-4 text-sm text-light-sidenote dark:text-dark-sidenote">
                   <div>Nodes: {du.networkDiagram.nodeCount}</div>
