@@ -43,6 +43,9 @@ Directory structure:
     │   │   ├── RefinedDiachronicUnitTable.tsx
     │   │   ├── SelectedUtterancesTable.tsx
     │   │   ├── SessionRestoreNotification.tsx
+    │   │   ├── SpecificSynchronicStructureNetwork.tsx
+    │   │   ├── SpecificSynchronicUnitsTable.tsx
+    │   │   ├── SynchronicThematicGroupingTable.tsx
     │   │   ├── TabbedStepDisplay.tsx
     │   │   ├── TagsEditor.tsx
     │   │   ├── TemporalPhaseAssignmentTable.tsx
@@ -506,6 +509,10 @@ const App: React.FC = () => {
       case 'report':
         return <ReportRenderer markdown={stepDisplay.markdown} theme={theme} />;
       
+      case 'data':
+        // For P2S steps that have data in any DU but not in currentStepInfo.outputData
+        return <PipelineStepGrid processedData={processedData} stepId={currentStepInfo.stepId} theme={theme} />;
+        
       case 'output':
         // Special handling for steps with grid display
         const gridSteps = [
@@ -517,7 +524,10 @@ const App: React.FC = () => {
           StepId.P1_2_COARSE_PHASE_TAGGING,
           StepId.P1_3_INTRA_PHASE_SORTING,
           StepId.P1_4_DIACHRONIC_UNIT_GROUPING,
-          StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
+          StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
+          StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC,
+          StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS,
+          StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE
         ];
         
         if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {
@@ -3608,6 +3618,7 @@ export interface DiachronicUnit {
 export interface P1_4_Output {
   transcript_id: string;
   diachronic_units: DiachronicUnit[];
+  excluded_segment_ids?: string[]; // Segments not assigned to any DU
   independent_variable_details: string;
   dependent_variable_focus: string[];
 }
@@ -7402,8 +7413,30 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
         unit.unit_id === unitId 
           ? { ...unit, source_segment_ids: unit.source_segment_ids.filter(id => id !== segmentId) }
           : unit
-      )
+      ),
+      // Add removed segment to excluded list
+      excluded_segment_ids: [...(groupingData.excluded_segment_ids || []), segmentId]
     };
+    
+    onGroupingChange(updatedData);
+  }, [groupingData, onGroupingChange]);
+
+  const handleSegmentRestore = useCallback((segmentId: string, targetUnitId?: string) => {
+    if (!onGroupingChange) return;
+    
+    const updatedData = { ...groupingData };
+    
+    // Remove from excluded list
+    updatedData.excluded_segment_ids = (updatedData.excluded_segment_ids || []).filter(id => id !== segmentId);
+    
+    // If target unit specified, add to that unit
+    if (targetUnitId) {
+      updatedData.diachronic_units = updatedData.diachronic_units.map(unit => 
+        unit.unit_id === targetUnitId 
+          ? { ...unit, source_segment_ids: [...unit.source_segment_ids, segmentId] }
+          : unit
+      );
+    }
     
     onGroupingChange(updatedData);
   }, [groupingData, onGroupingChange]);
@@ -7461,6 +7494,26 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
     onGroupingChange(updatedData);
   }, [groupingData, onGroupingChange]);
 
+  // Calculate excluded segments
+  const excludedSegments = useMemo(() => {
+    if (!sortedSegmentsData) return [];
+    
+    const assignedSegmentIds = new Set(groupingData.diachronic_units.flatMap(u => u.source_segment_ids));
+    const excludedIds = groupingData.excluded_segment_ids || [];
+    
+    // Get all unassigned segments
+    const allUnassignedIds = sortedSegmentsData.sorted_segments
+      .filter(seg => !assignedSegmentIds.has(seg.segment_id))
+      .map(seg => seg.segment_id);
+    
+    // Combine with explicitly excluded segments
+    const allExcludedIds = new Set([...excludedIds, ...allUnassignedIds]);
+    
+    return sortedSegmentsData.sorted_segments
+      .filter(seg => allExcludedIds.has(seg.segment_id))
+      .sort((a, b) => a.chronological_index - b.chronological_index);
+  }, [sortedSegmentsData, groupingData]);
+
   const exportToCsv = useCallback(() => {
     const csvData: any[] = [];
     
@@ -7478,6 +7531,22 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
           'Original Line': segment.original_utterance.original_line_num,
           'Original Utterance': segment.original_utterance.utterance_text
         });
+      });
+    });
+    
+    // Add excluded segments
+    excludedSegments.forEach((segment, index) => {
+      csvData.push({
+        'DU ID': 'EXCLUDED',
+        'DU Description': 'Not assigned to any DU',
+        'Segment Position': index + 1,
+        'Segment ID': segment.segment_id,
+        'Phase': segment.coarse_phase,
+        'Chronological Index': segment.chronological_index,
+        'Segment Text': segment.segment_text,
+        'Placement Justification': segment.placement_justification,
+        'Original Line': segment.original_utterance.original_line_num,
+        'Original Utterance': segment.original_utterance.utterance_text
       });
     });
     
@@ -7499,20 +7568,10 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
       `${filename.replace(/\.[^/.]+$/, '')}_P1.4_diachronic_unit_grouping.csv` : 
       'P1.4_diachronic_unit_grouping.csv';
     downloadCSV(csv, exportFilename);
-  }, [unitsWithSegments, filename]);
+  }, [unitsWithSegments, excludedSegments, filename]);
 
-  // Validation checks
   const validationIssues = useMemo(() => {
     const issues: string[] = [];
-    
-    // Check for unassigned segments
-    const assignedSegmentIds = new Set(groupingData.diachronic_units.flatMap(u => u.source_segment_ids));
-    const allSegmentIds = new Set(sortedSegmentsData?.sorted_segments.map(s => s.segment_id) || []);
-    const unassignedIds = Array.from(allSegmentIds).filter(id => !assignedSegmentIds.has(id));
-    
-    if (unassignedIds.length > 0) {
-      issues.push(`${unassignedIds.length} segments are not assigned to any DU`);
-    }
     
     // Check for duplicate assignments
     const segmentCounts = new Map<string, number>();
@@ -7538,6 +7597,9 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
           <div className="text-sm text-light-sidenote dark:text-dark-sidenote space-y-1">
             <div>Total DUs: {groupingData.diachronic_units.length}</div>
             <div>Total segments: {segmentLookup.size}</div>
+            {excludedSegments.length > 0 && (
+              <div className="text-yellow-600 dark:text-yellow-400">⚠️ {excludedSegments.length} segments are not assigned to any DU</div>
+            )}
             {validationIssues.map((issue, idx) => (
               <div key={idx} className="text-red-600 dark:text-red-400">⚠️ {issue}</div>
             ))}
@@ -7569,6 +7631,81 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
             onDelete={() => handleDeleteUnit(unit.unit_id)}
           />
         ))}
+        
+        {/* Excluded Segments Section */}
+        {excludedSegments.length > 0 && (
+          <div className={`mb-4 rounded-lg border-2 border-gray-400 dark:border-gray-600 ${theme === 'dark' ? 'bg-dark-bg-alt' : 'bg-light-bg-alt'} overflow-hidden`}>
+            <div 
+              className={`p-4 cursor-pointer bg-gray-100 dark:bg-gray-800 bg-opacity-50`}
+              onClick={() => toggleUnit('excluded')}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {expandedUnits.has('excluded') ? ChevronDownIcon : ChevronRightIcon}
+                  </span>
+                  <span className="font-mono text-sm font-bold text-gray-600 dark:text-gray-400">Excluded Segments</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Segments not assigned to any DU</span>
+                </div>
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                  {excludedSegments.length} segments
+                </span>
+              </div>
+            </div>
+            
+            {expandedUnits.has('excluded') && (
+              <div className="p-4 space-y-3">
+                {excludedSegments.map((segment) => {
+                  const segmentColors = PHASE_COLORS[segment.coarse_phase as keyof typeof PHASE_COLORS];
+                  return (
+                    <div 
+                      key={segment.segment_id}
+                      className={`p-3 rounded-lg border ${segmentColors.border} ${segmentColors.bg} ${segmentColors.bg.includes('100') ? 'bg-opacity-30' : 'bg-opacity-10'}`}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs">{segment.segment_id}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${segmentColors.bg} ${segmentColors.text}`}>
+                            {segment.coarse_phase}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            Index: {segment.chronological_index}
+                          </span>
+                        </div>
+                        <select
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              handleSegmentRestore(segment.segment_id, e.target.value);
+                            }
+                          }}
+                          className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+                          defaultValue=""
+                        >
+                          <option value="">Add to DU...</option>
+                          {groupingData.diachronic_units.map(unit => (
+                            <option key={unit.unit_id} value={unit.unit_id}>
+                              {unit.unit_id}: {unit.description.substring(0, 30)}...
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <p className="text-sm mb-2">{segment.segment_text}</p>
+                      {segment.placement_justification && (
+                        <p className="text-xs italic text-gray-600 dark:text-gray-400 mb-2">
+                          Justification: {segment.placement_justification}
+                        </p>
+                      )}
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        <span>From line {segment.original_utterance.original_line_num}: </span>
+                        <span className="italic">{segment.original_utterance.utterance_text.substring(0, 100)}...</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Instructions */}
@@ -7576,7 +7713,8 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
         <div>💡 Click on DU headers to expand/collapse</div>
         <div>✏️ Click on descriptions to edit them inline</div>
         <div>✂️ Use the split button to divide a DU into two parts</div>
-        <div>❌ Remove segments from DUs using the X button</div>
+        <div>❌ Remove segments from DUs using the X button (moves to Excluded)</div>
+        <div>➕ Use dropdown in Excluded Segments to assign to a DU</div>
       </div>
     </div>
   );
@@ -9399,6 +9537,9 @@ import { DiachronicStructureComparison } from './DiachronicStructureComparison';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
 import { NestedTooltip } from './NestedTooltip';
 import { RduTooltip } from './tooltips/RduTooltip';
+import { SynchronicThematicGroupingTable } from './SynchronicThematicGroupingTable';
+import { SpecificSynchronicUnitsTable } from './SpecificSynchronicUnitsTable';
+import { SpecificSynchronicStructureNetwork } from './SpecificSynchronicStructureNetwork';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -10192,6 +10333,458 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
   if (stepId === StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
     console.log('[P1.5 Debug] Rendering P1.5 comparison component, processedData size:', processedData.size);
     return <DiachronicStructureComparison processedData={processedData} theme={theme} />;
+  }
+  
+  // Special handling for P2S_1 with tabbed display per transcript (all DUs on same page)
+  if (stepId === StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC) {
+    
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          const tabs: any[] = [];
+          
+          // For each transcript that has P2S outputs
+          Array.from(data.entries()).forEach(([transcriptId, transcript]) => {
+            if (transcript.p2s_outputs_by_du) {
+              // Check if any DU has P2S.1 output
+              const duOutputs: { [duId: string]: any } = {};
+              Object.entries(transcript.p2s_outputs_by_du).forEach(([duId, duData]) => {
+                if (duData.p2s_1_output) {
+                  duOutputs[duId] = duData.p2s_1_output;
+                }
+              });
+              
+              // If this transcript has any P2S.1 outputs, create a tab for it
+              if (Object.keys(duOutputs).length > 0) {
+                tabs.push({
+                  id: transcriptId,
+                  label: transcript.filename,
+                  data: {
+                    transcriptMapId: transcriptId,
+                    duOutputs: duOutputs,
+                    filename: transcript.filename,
+                    transcriptId: transcript.p0_1_output?.transcript_id || transcriptId
+                  }
+                });
+              }
+            }
+          });
+          
+          return tabs;
+        }}
+        renderContent={(tabData, theme) => {
+          const handleGroupingChange = (duId: string, updatedData: any) => {
+            const transcriptData = processedData.get(tabData.transcriptMapId);
+            if (transcriptData && transcriptData.p2s_outputs_by_du) {
+              const updatedP2sOutputs = {
+                ...transcriptData.p2s_outputs_by_du,
+                [duId]: {
+                  ...transcriptData.p2s_outputs_by_du[duId],
+                  p2s_1_output: updatedData
+                }
+              };
+              
+              updateProcessedData(tabData.transcriptMapId, {
+                p2s_outputs_by_du: updatedP2sOutputs
+              });
+            }
+          };
+          
+          // Sort DU IDs for consistent display
+          const sortedDuIds = Object.keys(tabData.duOutputs).sort();
+          
+          // Get the first DU's data to extract transcript-level info
+          const firstDuData = tabData.duOutputs[sortedDuIds[0]];
+          
+          return (
+            <div className="space-y-6">
+              {/* Transcript-level metadata */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.transcriptId}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Total Diachronic Units with P2S.1 Output
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {sortedDuIds.length}
+                  </p>
+                </div>
+                
+                {/* Variable Information - shown once at transcript level */}
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Independent Variable
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {firstDuData.independent_variable_details}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {firstDuData.dependent_variable_focus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Display all DUs for this transcript */}
+              {sortedDuIds.map((duId, index) => (
+                <div key={duId} className="border-t-2 border-light-border dark:border-dark-border pt-6">
+                  {/* DU Header */}
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-light-accent dark:text-dark-accent">
+                      Diachronic Unit: {duId}
+                    </h3>
+                  </div>
+                  
+                  {/* Synchronic thematic grouping table for this DU */}
+                  <SynchronicThematicGroupingTable 
+                    groupingData={tabData.duOutputs[duId]}
+                    theme={theme}
+                    onGroupingChange={(updatedData) => handleGroupingChange(duId, updatedData)}
+                    filename={tabData.filename}
+                    hideVariableInfo={true}
+                    hideInstructions={true} // Instructions shown at bottom of transcript
+                    compactSummary={true} // Use compact summary with just stats and download button
+                  />
+                </div>
+              ))}
+              
+              {/* Instructions - shown once at the bottom */}
+              <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic space-y-1 border-t-2 border-light-border dark:border-dark-border pt-4">
+                <div>💡 Click on group headers to expand/collapse</div>
+                <div>✏️ Click on group labels or justifications to edit them</div>
+                <div>❌ Remove segments from groups using the X button</div>
+                <div>🗑️ Delete entire groups using the trash button (when more than one group exists)</div>
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No DUs with P2S.1 output available. Click 'Run Step' to generate thematic groupings."
+      />
+    );
+  }
+  
+  // Special handling for P2S_2 with tabbed display per transcript (all DUs on same page)
+  if (stepId === StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS) {
+    
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          const tabs: any[] = [];
+          
+          // For each transcript that has P2S outputs
+          Array.from(data.entries()).forEach(([transcriptId, transcript]) => {
+            if (transcript.p2s_outputs_by_du) {
+              // Check if any DU has P2S.2 output
+              const duOutputs: { [duId: string]: any } = {};
+              Object.entries(transcript.p2s_outputs_by_du).forEach(([duId, duData]) => {
+                if (duData.p2s_2_output) {
+                  duOutputs[duId] = duData.p2s_2_output;
+                }
+              });
+              
+              // If this transcript has any P2S.2 outputs, create a tab for it
+              if (Object.keys(duOutputs).length > 0) {
+                tabs.push({
+                  id: transcriptId,
+                  label: transcript.filename,
+                  data: {
+                    transcriptMapId: transcriptId,
+                    duOutputs: duOutputs,
+                    filename: transcript.filename,
+                    transcriptId: transcript.p0_1_output?.transcript_id || transcriptId
+                  }
+                });
+              }
+            }
+          });
+          
+          return tabs;
+        }}
+        renderContent={(tabData, theme) => {
+          const handleUnitsChange = (duId: string, updatedData: any) => {
+            const transcriptData = processedData.get(tabData.transcriptMapId);
+            if (transcriptData && transcriptData.p2s_outputs_by_du) {
+              const updatedP2sOutputs = {
+                ...transcriptData.p2s_outputs_by_du,
+                [duId]: {
+                  ...transcriptData.p2s_outputs_by_du[duId],
+                  p2s_2_output: updatedData
+                }
+              };
+              
+              updateProcessedData(tabData.transcriptMapId, {
+                p2s_outputs_by_du: updatedP2sOutputs
+              });
+            }
+          };
+          
+          // Sort DU IDs for consistent display
+          const sortedDuIds = Object.keys(tabData.duOutputs).sort();
+          
+          // Get the first DU's data to extract transcript-level info
+          const firstDuData = tabData.duOutputs[sortedDuIds[0]];
+          
+          return (
+            <div className="space-y-6">
+              {/* Transcript-level metadata */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.transcriptId}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Total Diachronic Units with P2S.2 Output
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {sortedDuIds.length}
+                  </p>
+                </div>
+                
+                {/* Variable Information - shown once at transcript level */}
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Independent Variable
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {firstDuData.independent_variable_details}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {firstDuData.dependent_variable_focus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Display all DUs for this transcript */}
+              {sortedDuIds.map((duId, index) => (
+                <div key={duId} className="border-t-2 border-light-border dark:border-dark-border pt-6">
+                  {/* DU Header */}
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-light-accent dark:text-dark-accent">
+                      Diachronic Unit: {duId}
+                    </h3>
+                  </div>
+                  
+                  {/* Specific synchronic units table for this DU */}
+                  <SpecificSynchronicUnitsTable 
+                    unitsData={tabData.duOutputs[duId]}
+                    theme={theme}
+                    onUnitsChange={(updatedData) => handleUnitsChange(duId, updatedData)}
+                    filename={tabData.filename}
+                    hideVariableInfo={true}
+                    hideInstructions={true} // Instructions shown at bottom of transcript
+                    compactSummary={true} // Use compact summary
+                  />
+                </div>
+              ))}
+              
+              {/* Instructions - shown once at the bottom */}
+              <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic space-y-1 border-t-2 border-light-border dark:border-dark-border pt-4">
+                <div>💡 Click on ISU headers to expand/collapse</div>
+                <div>✏️ Click on unit names, definitions, or abstraction operations to edit them</div>
+                <div>🎯 Units are indented based on their hierarchy level</div>
+                <div>❌ Remove segments from ISUs using the X button</div>
+                <div>🗑️ Delete entire ISUs using the trash button (when more than one exists)</div>
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No DUs with P2S.2 output available. Click 'Run Step' to identify specific synchronic units."
+      />
+    );
+  }
+  
+  // Special handling for P2S_3 with tabbed display per transcript (all DUs on same page)
+  if (stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
+    
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          const tabs: any[] = [];
+          
+          // For each transcript that has P2S outputs
+          Array.from(data.entries()).forEach(([transcriptId, transcript]) => {
+            if (transcript.p2s_outputs_by_du) {
+              // Check if any DU has P2S.3 output
+              const duOutputs: { [duId: string]: any } = {};
+              Object.entries(transcript.p2s_outputs_by_du).forEach(([duId, duData]) => {
+                if (duData.p2s_3_output) {
+                  duOutputs[duId] = duData.p2s_3_output;
+                }
+              });
+              
+              // If this transcript has any P2S.3 outputs, create a tab for it
+              if (Object.keys(duOutputs).length > 0) {
+                tabs.push({
+                  id: transcriptId,
+                  label: transcript.filename,
+                  data: {
+                    transcriptMapId: transcriptId,
+                    duOutputs: duOutputs,
+                    filename: transcript.filename,
+                    transcriptId: transcript.p0_1_output?.transcript_id || transcriptId
+                  }
+                });
+              }
+            }
+          });
+          
+          return tabs;
+        }}
+        renderContent={(tabData, theme) => {
+          const handleNetworkChange = (duId: string, updatedData: any) => {
+            const transcriptData = processedData.get(tabData.transcriptMapId);
+            if (transcriptData && transcriptData.p2s_outputs_by_du) {
+              const updatedP2sOutputs = {
+                ...transcriptData.p2s_outputs_by_du,
+                [duId]: {
+                  ...transcriptData.p2s_outputs_by_du[duId],
+                  p2s_3_output: updatedData
+                }
+              };
+              
+              updateProcessedData(tabData.transcriptMapId, {
+                p2s_outputs_by_du: updatedP2sOutputs
+              });
+            }
+          };
+          
+          // Sort DU IDs for consistent display
+          const sortedDuIds = Object.keys(tabData.duOutputs).sort();
+          
+          // Get the first DU's data to extract transcript-level info
+          const firstDuData = tabData.duOutputs[sortedDuIds[0]];
+          
+          return (
+            <div className="space-y-6">
+              {/* Transcript-level metadata */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.transcriptId}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Total Diachronic Units with P2S.3 Output
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {sortedDuIds.length}
+                  </p>
+                </div>
+                
+                {/* Variable Information - shown once at transcript level */}
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Independent Variable
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {firstDuData.independent_variable_details}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {firstDuData.dependent_variable_focus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Display all DUs for this transcript */}
+              {sortedDuIds.map((duId, index) => (
+                <div key={duId} className="border-t-2 border-light-border dark:border-dark-border pt-6">
+                  {/* DU Header */}
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-light-accent dark:text-dark-accent">
+                      Diachronic Unit: {duId}
+                    </h3>
+                  </div>
+                  
+                  {/* Specific synchronic structure network for this DU */}
+                  <SpecificSynchronicStructureNetwork 
+                    networkData={tabData.duOutputs[duId]}
+                    theme={theme}
+                    onNetworkChange={(updatedData) => handleNetworkChange(duId, updatedData)}
+                    filename={tabData.filename}
+                    hideVariableInfo={true}
+                    hideInstructions={true} // Instructions shown at bottom of transcript
+                    compactSummary={true} // Use compact summary
+                  />
+                </div>
+              ))}
+              
+              {/* Instructions - shown once at the bottom */}
+              <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic space-y-1 border-t-2 border-light-border dark:border-dark-border pt-4">
+                <div>📊 View the network as a Mermaid diagram or explore nodes and links</div>
+                <div>✏️ Click on description to edit it</div>
+                <div>🔗 Click on links in the link list to edit or delete them</div>
+                <div>📝 Add, edit, or delete nodes and links to modify the network structure</div>
+                <div>💾 Download the network structure as CSV for external analysis</div>
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No DUs with P2S.3 output available. Click 'Run Step' to define specific synchronic structures."
+      />
+    );
   }
   
   // Config check - using the values from the hook above
@@ -11272,6 +11865,1871 @@ export const SessionRestoreNotification: React.FC = () => {
     </div>
   )
 }
+
+
+================================================
+FILE: src/components/SpecificSynchronicStructureNetwork.tsx
+================================================
+import React, { useState, useMemo, useCallback } from 'react';
+import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { P2S_3_Output, P2S_3_NetworkNode, P2S_3_NetworkLink } from '../../types';
+import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
+import MermaidDiagram from '../../components/MermaidDiagram';
+import { transformSynchronicToMermaid } from '../utils/visualizationHelper';
+
+interface SpecificSynchronicStructureNetworkProps {
+  networkData: P2S_3_Output;
+  theme: 'light' | 'dark';
+  onNetworkChange?: (updatedData: P2S_3_Output) => void;
+  filename?: string;
+  hideVariableInfo?: boolean;
+  hideInstructions?: boolean;
+  compactSummary?: boolean;
+}
+
+// Link type colors
+const LINK_TYPE_COLORS = {
+  hierarchical: { color: '#4a5568', label: 'Hierarchical' },
+  associative: { color: '#3182ce', label: 'Associative' },
+  causal: { color: '#e53e3e', label: 'Causal' },
+  temporal: { color: '#38a169', label: 'Temporal' },
+  default: { color: '#718096', label: 'Other' }
+};
+
+// Node editing modal
+const NodeEditModal: React.FC<{
+  node: P2S_3_NetworkNode | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (node: P2S_3_NetworkNode) => void;
+  theme: 'light' | 'dark';
+}> = ({ node, isOpen, onClose, onSave, theme }) => {
+  const [editedNode, setEditedNode] = useState<P2S_3_NetworkNode | null>(node);
+
+  React.useEffect(() => {
+    setEditedNode(node);
+  }, [node]);
+
+  if (!isOpen || !editedNode) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div 
+        className={`${theme === 'dark' ? 'bg-dark-bg text-dark-text' : 'bg-light-bg text-light-text'} rounded-lg p-6 max-w-md w-full`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-semibold mb-4">Edit Node</h3>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">Node ID</label>
+            <input
+              type="text"
+              value={editedNode.id}
+              onChange={(e) => setEditedNode({ ...editedNode, id: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">Label</label>
+            <input
+              type="text"
+              value={editedNode.label}
+              onChange={(e) => setEditedNode({ ...editedNode, label: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">Source ISU ID</label>
+            <input
+              type="text"
+              value={editedNode.source_isu_id}
+              onChange={(e) => setEditedNode({ ...editedNode, source_isu_id: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+            />
+          </div>
+        </div>
+        
+        <div className="flex justify-end gap-2 mt-6">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              onSave(editedNode);
+              onClose();
+            }}
+            className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Link editing modal
+const LinkEditModal: React.FC<{
+  link: P2S_3_NetworkLink | null;
+  nodes: P2S_3_NetworkNode[];
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (link: P2S_3_NetworkLink) => void;
+  onDelete: () => void;
+  theme: 'light' | 'dark';
+}> = ({ link, nodes, isOpen, onClose, onSave, onDelete, theme }) => {
+  const [editedLink, setEditedLink] = useState<P2S_3_NetworkLink | null>(link);
+
+  React.useEffect(() => {
+    setEditedLink(link);
+  }, [link]);
+
+  if (!isOpen || !editedLink) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div 
+        className={`${theme === 'dark' ? 'bg-dark-bg text-dark-text' : 'bg-light-bg text-light-text'} rounded-lg p-6 max-w-md w-full`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-lg font-semibold mb-4">Edit Link</h3>
+        
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-1">From Node</label>
+            <select
+              value={editedLink.from}
+              onChange={(e) => setEditedLink({ ...editedLink, from: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+            >
+              {nodes.map(node => (
+                <option key={node.id} value={node.id}>{node.label} ({node.id})</option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">To Node</label>
+            <select
+              value={editedLink.to}
+              onChange={(e) => setEditedLink({ ...editedLink, to: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+            >
+              {nodes.map(node => (
+                <option key={node.id} value={node.id}>{node.label} ({node.id})</option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-1">Link Type</label>
+            <select
+              value={editedLink.type}
+              onChange={(e) => setEditedLink({ ...editedLink, type: e.target.value })}
+              className="w-full px-3 py-2 border rounded-md bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+            >
+              <option value="hierarchical">Hierarchical</option>
+              <option value="associative">Associative</option>
+              <option value="causal">Causal</option>
+              <option value="temporal">Temporal</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+        
+        <div className="flex justify-between mt-6">
+          <button
+            onClick={() => {
+              onDelete();
+              onClose();
+            }}
+            className="px-4 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Delete Link
+          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                onSave(editedLink);
+                onClose();
+              }}
+              className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const SpecificSynchronicStructureNetwork: React.FC<SpecificSynchronicStructureNetworkProps> = ({
+  networkData,
+  theme,
+  onNetworkChange,
+  filename,
+  hideVariableInfo = false,
+  hideInstructions = false,
+  compactSummary = false
+}) => {
+  const [showDiagram, setShowDiagram] = useState(true);
+  const [showNodeList, setShowNodeList] = useState(false);
+  const [showLinkList, setShowLinkList] = useState(false);
+  const [editingNode, setEditingNode] = useState<P2S_3_NetworkNode | null>(null);
+  const [editingLink, setEditingLink] = useState<P2S_3_NetworkLink | null>(null);
+  const [isNodeModalOpen, setIsNodeModalOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [tempDescription, setTempDescription] = useState(networkData.specific_synchronic_structure.description);
+
+  // Generate Mermaid diagram
+  const mermaidChart = useMemo(() => {
+    return transformSynchronicToMermaid(
+      networkData.specific_synchronic_structure,
+      `DU: ${networkData.analyzed_du_id}`
+    );
+  }, [networkData]);
+
+  const handleDescriptionSave = useCallback(() => {
+    if (!onNetworkChange) return;
+    
+    const updatedData = {
+      ...networkData,
+      specific_synchronic_structure: {
+        ...networkData.specific_synchronic_structure,
+        description: tempDescription
+      }
+    };
+    
+    onNetworkChange(updatedData);
+    setIsEditingDescription(false);
+  }, [networkData, tempDescription, onNetworkChange]);
+
+  const handleDescriptionCancel = useCallback(() => {
+    setTempDescription(networkData.specific_synchronic_structure.description);
+    setIsEditingDescription(false);
+  }, [networkData]);
+
+  const handleNodeSave = useCallback((updatedNode: P2S_3_NetworkNode) => {
+    if (!onNetworkChange) return;
+    
+    const oldNodeId = editingNode?.id;
+    const nodes = networkData.specific_synchronic_structure.network_nodes;
+    const links = networkData.specific_synchronic_structure.network_links;
+    
+    // Update node
+    const updatedNodes = nodes.map(node => 
+      node.id === oldNodeId ? updatedNode : node
+    );
+    
+    // Update links if node ID changed
+    const updatedLinks = oldNodeId !== updatedNode.id ? 
+      links.map(link => ({
+        ...link,
+        from: link.from === oldNodeId ? updatedNode.id : link.from,
+        to: link.to === oldNodeId ? updatedNode.id : link.to
+      })) : links;
+    
+    const updatedData = {
+      ...networkData,
+      specific_synchronic_structure: {
+        ...networkData.specific_synchronic_structure,
+        network_nodes: updatedNodes,
+        network_links: updatedLinks
+      }
+    };
+    
+    onNetworkChange(updatedData);
+  }, [networkData, onNetworkChange, editingNode]);
+
+  const handleLinkSave = useCallback((updatedLink: P2S_3_NetworkLink) => {
+    if (!onNetworkChange) return;
+    
+    const links = networkData.specific_synchronic_structure.network_links;
+    const linkIndex = links.findIndex(l => 
+      l.from === editingLink?.from && l.to === editingLink?.to
+    );
+    
+    const updatedLinks = [...links];
+    if (linkIndex >= 0) {
+      updatedLinks[linkIndex] = updatedLink;
+    }
+    
+    const updatedData = {
+      ...networkData,
+      specific_synchronic_structure: {
+        ...networkData.specific_synchronic_structure,
+        network_links: updatedLinks
+      }
+    };
+    
+    onNetworkChange(updatedData);
+  }, [networkData, onNetworkChange, editingLink]);
+
+  const handleLinkDelete = useCallback(() => {
+    if (!onNetworkChange || !editingLink) return;
+    
+    const updatedLinks = networkData.specific_synchronic_structure.network_links.filter(
+      link => !(link.from === editingLink.from && link.to === editingLink.to)
+    );
+    
+    const updatedData = {
+      ...networkData,
+      specific_synchronic_structure: {
+        ...networkData.specific_synchronic_structure,
+        network_links: updatedLinks
+      }
+    };
+    
+    onNetworkChange(updatedData);
+  }, [networkData, onNetworkChange, editingLink]);
+
+  const handleAddNode = useCallback(() => {
+    if (!onNetworkChange) return;
+    
+    const newNode: P2S_3_NetworkNode = {
+      id: `sss_node_${Date.now()}`,
+      label: 'New Node',
+      source_isu_id: ''
+    };
+    
+    const updatedData = {
+      ...networkData,
+      specific_synchronic_structure: {
+        ...networkData.specific_synchronic_structure,
+        network_nodes: [...networkData.specific_synchronic_structure.network_nodes, newNode]
+      }
+    };
+    
+    onNetworkChange(updatedData);
+  }, [networkData, onNetworkChange]);
+
+  const handleAddLink = useCallback(() => {
+    if (!onNetworkChange) return;
+    
+    const nodes = networkData.specific_synchronic_structure.network_nodes;
+    if (nodes.length < 2) {
+      alert('Need at least 2 nodes to create a link');
+      return;
+    }
+    
+    const newLink: P2S_3_NetworkLink = {
+      from: nodes[0].id,
+      to: nodes[1].id,
+      type: 'associative'
+    };
+    
+    const updatedData = {
+      ...networkData,
+      specific_synchronic_structure: {
+        ...networkData.specific_synchronic_structure,
+        network_links: [...networkData.specific_synchronic_structure.network_links, newLink]
+      }
+    };
+    
+    onNetworkChange(updatedData);
+  }, [networkData, onNetworkChange]);
+
+  const handleDeleteNode = useCallback((nodeId: string) => {
+    if (!onNetworkChange) return;
+    
+    // Remove node and all its links
+    const updatedNodes = networkData.specific_synchronic_structure.network_nodes.filter(
+      node => node.id !== nodeId
+    );
+    const updatedLinks = networkData.specific_synchronic_structure.network_links.filter(
+      link => link.from !== nodeId && link.to !== nodeId
+    );
+    
+    const updatedData = {
+      ...networkData,
+      specific_synchronic_structure: {
+        ...networkData.specific_synchronic_structure,
+        network_nodes: updatedNodes,
+        network_links: updatedLinks
+      }
+    };
+    
+    onNetworkChange(updatedData);
+  }, [networkData, onNetworkChange]);
+
+  const exportToCsv = useCallback(() => {
+    const csvData: any[] = [];
+    
+    // Add nodes
+    networkData.specific_synchronic_structure.network_nodes.forEach((node) => {
+      csvData.push({
+        'DU ID': networkData.analyzed_du_id,
+        'Type': 'Node',
+        'ID': node.id,
+        'Label': node.label,
+        'Source ISU': node.source_isu_id,
+        'From': '',
+        'To': '',
+        'Link Type': ''
+      });
+    });
+    
+    // Add links
+    networkData.specific_synchronic_structure.network_links.forEach((link) => {
+      csvData.push({
+        'DU ID': networkData.analyzed_du_id,
+        'Type': 'Link',
+        'ID': '',
+        'Label': '',
+        'Source ISU': '',
+        'From': link.from,
+        'To': link.to,
+        'Link Type': link.type
+      });
+    });
+    
+    const columns = [
+      { field: 'DU ID', headerName: 'DU ID' },
+      { field: 'Type', headerName: 'Type' },
+      { field: 'ID', headerName: 'ID' },
+      { field: 'Label', headerName: 'Label' },
+      { field: 'Source ISU', headerName: 'Source ISU' },
+      { field: 'From', headerName: 'From' },
+      { field: 'To', headerName: 'To' },
+      { field: 'Link Type', headerName: 'Link Type' }
+    ];
+    
+    const csv = convertToCSV(csvData, columns);
+    const exportFilename = filename ? 
+      `${filename.replace(/\.[^/.]+$/, '')}_P2S.3_${networkData.analyzed_du_id}_synchronic_structure.csv` : 
+      `P2S.3_${networkData.analyzed_du_id}_synchronic_structure.csv`;
+    downloadCSV(csv, exportFilename);
+  }, [networkData, filename]);
+
+  // Calculate statistics
+  const stats = useMemo(() => {
+    const nodes = networkData.specific_synchronic_structure.network_nodes;
+    const links = networkData.specific_synchronic_structure.network_links;
+    const linkTypes = links.reduce((acc, link) => {
+      acc[link.type] = (acc[link.type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    return { nodeCount: nodes.length, linkCount: links.length, linkTypes };
+  }, [networkData]);
+
+  return (
+    <div className="space-y-4">
+      {/* Summary and Actions */}
+      {!compactSummary ? (
+        <div className="flex justify-between items-start">
+          <div>
+            <h3 className="text-lg font-semibold mb-2">Specific Synchronic Structure for DU: {networkData.analyzed_du_id}</h3>
+            <div className="text-sm text-light-sidenote dark:text-dark-sidenote space-y-1">
+              <div>Network Nodes: {stats.nodeCount}</div>
+              <div>Network Links: {stats.linkCount}</div>
+              <div>Link Types: {Object.entries(stats.linkTypes).map(([type, count]) => 
+                `${type}: ${count}`).join(', ') || 'None'}</div>
+            </div>
+          </div>
+          <button
+            onClick={exportToCsv}
+            className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+          >
+            Download CSV
+          </button>
+        </div>
+      ) : (
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
+            {stats.nodeCount} nodes • {stats.linkCount} links
+          </div>
+          <button
+            onClick={exportToCsv}
+            className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+          >
+            Download CSV
+          </button>
+        </div>
+      )}
+
+      {/* Variable Information */}
+      {!hideVariableInfo && (
+        <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-2">
+          <div>
+            <span className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">Independent Variable: </span>
+            <span className="text-sm">{networkData.independent_variable_details}</span>
+          </div>
+          <div>
+            <span className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">Dependent Variable Focus: </span>
+            <div className="inline-flex flex-wrap gap-1 ml-2">
+              {networkData.dependent_variable_focus.map((dv, index) => (
+                <span
+                  key={index}
+                  className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                >
+                  {dv}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Description */}
+      <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg">
+        <div className="flex items-start justify-between mb-1">
+          <h4 className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">Structure Description</h4>
+          {!isEditingDescription && (
+            <button
+              onClick={() => setIsEditingDescription(true)}
+              className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              edit
+            </button>
+          )}
+        </div>
+        {isEditingDescription ? (
+          <div className="space-y-2">
+            <textarea
+              value={tempDescription}
+              onChange={(e) => setTempDescription(e.target.value)}
+              className="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 resize-none"
+              rows={3}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleDescriptionSave}
+                className="text-sm px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+              >
+                Save
+              </button>
+              <button
+                onClick={handleDescriptionCancel}
+                className="text-sm px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600 dark:text-gray-400">{networkData.specific_synchronic_structure.description}</p>
+        )}
+      </div>
+
+      {/* View Controls */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setShowDiagram(!showDiagram)}
+          className={`px-3 py-1 text-sm rounded transition-colors ${
+            showDiagram 
+              ? 'bg-light-accent text-white dark:bg-dark-accent' 
+              : 'bg-light-bg-alt dark:bg-dark-bg-alt text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border'
+          }`}
+        >
+          {showDiagram ? 'Hide' : 'Show'} Network Diagram
+        </button>
+        <button
+          onClick={() => setShowNodeList(!showNodeList)}
+          className={`px-3 py-1 text-sm rounded transition-colors ${
+            showNodeList 
+              ? 'bg-light-accent text-white dark:bg-dark-accent' 
+              : 'bg-light-bg-alt dark:bg-dark-bg-alt text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border'
+          }`}
+        >
+          {showNodeList ? 'Hide' : 'Show'} Node List
+        </button>
+        <button
+          onClick={() => setShowLinkList(!showLinkList)}
+          className={`px-3 py-1 text-sm rounded transition-colors ${
+            showLinkList 
+              ? 'bg-light-accent text-white dark:bg-dark-accent' 
+              : 'bg-light-bg-alt dark:bg-dark-bg-alt text-light-text dark:text-dark-text hover:bg-light-border dark:hover:bg-dark-border'
+          }`}
+        >
+          {showLinkList ? 'Hide' : 'Show'} Link List
+        </button>
+      </div>
+
+      {/* Network Diagram */}
+      {showDiagram && (
+        <div className="border-2 border-light-border dark:border-dark-border rounded-lg p-4">
+          <h4 className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote mb-2">
+            Network Visualization
+          </h4>
+          <MermaidDiagram 
+            chart={mermaidChart} 
+            theme={theme}
+            uniqueId={`p2s3-${networkData.analyzed_du_id}`}
+          />
+        </div>
+      )}
+
+      {/* Node List */}
+      {showNodeList && (
+        <div className="border-2 border-light-border dark:border-dark-border rounded-lg p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h4 className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">
+              Network Nodes ({stats.nodeCount})
+            </h4>
+            <button
+              onClick={handleAddNode}
+              className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Add Node
+            </button>
+          </div>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {networkData.specific_synchronic_structure.network_nodes.map((node) => (
+              <div 
+                key={node.id}
+                className="flex items-center justify-between p-2 bg-light-bg-alt dark:bg-dark-bg-alt rounded"
+              >
+                <div className="flex-1">
+                  <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{node.id}</div>
+                  <div className="text-sm font-medium">{node.label}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">ISU: {node.source_isu_id}</div>
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => {
+                      setEditingNode(node);
+                      setIsNodeModalOpen(true);
+                    }}
+                    className="p-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                    title="Edit node"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteNode(node.id)}
+                    className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                    title="Delete node"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+            {networkData.specific_synchronic_structure.network_nodes.length === 0 && (
+              <div className="text-center py-4 text-gray-500 dark:text-gray-400 italic">
+                No nodes in the network
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Link List */}
+      {showLinkList && (
+        <div className="border-2 border-light-border dark:border-dark-border rounded-lg p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h4 className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">
+              Network Links ({stats.linkCount})
+            </h4>
+            <button
+              onClick={handleAddLink}
+              className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+            >
+              Add Link
+            </button>
+          </div>
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {networkData.specific_synchronic_structure.network_links.map((link, index) => {
+              const fromNode = networkData.specific_synchronic_structure.network_nodes.find(n => n.id === link.from);
+              const toNode = networkData.specific_synchronic_structure.network_nodes.find(n => n.id === link.to);
+              const typeInfo = LINK_TYPE_COLORS[link.type as keyof typeof LINK_TYPE_COLORS] || LINK_TYPE_COLORS.default;
+              
+              return (
+                <div 
+                  key={index}
+                  className="flex items-center justify-between p-2 bg-light-bg-alt dark:bg-dark-bg-alt rounded cursor-pointer hover:bg-light-border dark:hover:bg-dark-border"
+                  onClick={() => {
+                    setEditingLink(link);
+                    setIsLinkModalOpen(true);
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm">
+                      <span className="font-medium">{fromNode?.label || link.from}</span>
+                      <span className="mx-2 text-gray-500">→</span>
+                      <span className="font-medium">{toNode?.label || link.to}</span>
+                    </div>
+                    <span 
+                      className="text-xs px-2 py-0.5 rounded-full"
+                      style={{ 
+                        backgroundColor: `${typeInfo.color}20`,
+                        color: typeInfo.color
+                      }}
+                    >
+                      {typeInfo.label}
+                    </span>
+                  </div>
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              );
+            })}
+            {networkData.specific_synchronic_structure.network_links.length === 0 && (
+              <div className="text-center py-4 text-gray-500 dark:text-gray-400 italic">
+                No links in the network
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Instructions */}
+      {!hideInstructions && (
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic space-y-1">
+          <div>📊 View the network as a Mermaid diagram or explore nodes and links</div>
+          <div>✏️ Click on description to edit it</div>
+          <div>🔗 Click on links in the link list to edit or delete them</div>
+          <div>📝 Add, edit, or delete nodes and links to modify the network structure</div>
+          <div>💾 Download the network structure as CSV for external analysis</div>
+        </div>
+      )}
+
+      {/* Modals */}
+      <NodeEditModal
+        node={editingNode}
+        isOpen={isNodeModalOpen}
+        onClose={() => {
+          setIsNodeModalOpen(false);
+          setEditingNode(null);
+        }}
+        onSave={handleNodeSave}
+        theme={theme}
+      />
+      
+      <LinkEditModal
+        link={editingLink}
+        nodes={networkData.specific_synchronic_structure.network_nodes}
+        isOpen={isLinkModalOpen}
+        onClose={() => {
+          setIsLinkModalOpen(false);
+          setEditingLink(null);
+        }}
+        onSave={handleLinkSave}
+        onDelete={handleLinkDelete}
+        theme={theme}
+      />
+    </div>
+  );
+};
+
+
+================================================
+FILE: src/components/SpecificSynchronicUnitsTable.tsx
+================================================
+import React, { useState, useMemo, useCallback } from 'react';
+import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { P2S_2_Output, P2S_2_SynchronicUnit } from '../../types';
+import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
+
+interface SpecificSynchronicUnitsTableProps {
+  unitsData: P2S_2_Output;
+  theme: 'light' | 'dark';
+  onUnitsChange?: (updatedData: P2S_2_Output) => void;
+  filename?: string;
+  hideVariableInfo?: boolean;
+  hideInstructions?: boolean;
+  compactSummary?: boolean;
+}
+
+// Color scheme for hierarchy levels
+const LEVEL_COLORS = {
+  1: { bg: 'bg-indigo-100 dark:bg-indigo-900', text: 'text-indigo-800 dark:text-indigo-200', border: 'border-indigo-400 dark:border-indigo-600' },
+  2: { bg: 'bg-purple-100 dark:bg-purple-900', text: 'text-purple-800 dark:text-purple-200', border: 'border-purple-400 dark:border-purple-600' },
+  3: { bg: 'bg-pink-100 dark:bg-pink-900', text: 'text-pink-800 dark:text-pink-200', border: 'border-pink-400 dark:border-pink-600' },
+  4: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-800 dark:text-gray-200', border: 'border-gray-400 dark:border-gray-600' },
+};
+
+// ISU Card Component
+const ISUCard: React.FC<{
+  unit: P2S_2_SynchronicUnit;
+  index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onNameChange: (name: string) => void;
+  onDefinitionChange: (definition: string) => void;
+  onAbstractionOpChange: (op: string) => void;
+  onSegmentRemove: (segmentId: string) => void;
+  theme: 'light' | 'dark';
+  canDelete: boolean;
+  onDelete: () => void;
+  allUnits: P2S_2_SynchronicUnit[];
+}> = ({ 
+  unit, 
+  index,
+  isExpanded, 
+  onToggle, 
+  onNameChange,
+  onDefinitionChange,
+  onAbstractionOpChange,
+  onSegmentRemove,
+  theme,
+  canDelete,
+  onDelete,
+  allUnits
+}) => {
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState(unit.unit_name);
+  const [isEditingDefinition, setIsEditingDefinition] = useState(false);
+  const [tempDefinition, setTempDefinition] = useState(unit.intensional_definition);
+  const [isEditingOp, setIsEditingOp] = useState(false);
+  const [tempOp, setTempOp] = useState(unit.abstraction_op);
+
+  const levelColors = LEVEL_COLORS[unit.level as keyof typeof LEVEL_COLORS] || LEVEL_COLORS[1];
+
+  const handleNameSave = () => {
+    onNameChange(tempName);
+    setIsEditingName(false);
+  };
+
+  const handleNameCancel = () => {
+    setTempName(unit.unit_name);
+    setIsEditingName(false);
+  };
+
+  const handleDefinitionSave = () => {
+    onDefinitionChange(tempDefinition);
+    setIsEditingDefinition(false);
+  };
+
+  const handleDefinitionCancel = () => {
+    setTempDefinition(unit.intensional_definition);
+    setIsEditingDefinition(false);
+  };
+
+  const handleOpSave = () => {
+    onAbstractionOpChange(tempOp);
+    setIsEditingOp(false);
+  };
+
+  const handleOpCancel = () => {
+    setTempOp(unit.abstraction_op);
+    setIsEditingOp(false);
+  };
+
+  // Get constituent units' names
+  const constituentUnits = unit.constituent_lower_units?.map(unitName => 
+    allUnits.find(u => u.unit_name === unitName)
+  ).filter(Boolean) || [];
+
+  return (
+    <div 
+      className={`mb-4 rounded-lg border-2 ${levelColors.border} ${theme === 'dark' ? 'bg-dark-bg-alt' : 'bg-light-bg-alt'} overflow-hidden`}
+      style={{ marginLeft: `${(unit.level - 1) * 20}px` }}
+    >
+      {/* Header */}
+      <div 
+        className={`p-4 cursor-pointer ${levelColors.bg} bg-opacity-50 dark:bg-opacity-20`}
+        onClick={onToggle}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-gray-500 dark:text-gray-400">
+              {isExpanded ? ChevronDownIcon : ChevronRightIcon}
+            </span>
+            <span className={`text-xs px-2 py-0.5 rounded-full ${levelColors.bg} ${levelColors.text} font-medium`}>
+              Level {unit.level}
+            </span>
+            {isEditingName ? (
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="text"
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleNameSave();
+                    if (e.key === 'Escape') handleNameCancel();
+                  }}
+                  className="px-2 py-1 text-sm border rounded bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                  autoFocus
+                />
+                <button
+                  onClick={handleNameSave}
+                  className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+                >
+                  ✓
+                </button>
+                <button
+                  onClick={handleNameCancel}
+                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                >
+                  ✗
+                </button>
+              </div>
+            ) : (
+              <div 
+                className="flex items-center gap-2 group"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditingName(true);
+                }}
+              >
+                <span className="text-sm font-semibold">{unit.unit_name}</span>
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-gray-500 dark:text-gray-400">
+                  (click to edit)
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {unit.segments && unit.segments.length > 0 && (
+              <span className={`px-2 py-1 rounded-full text-xs font-medium ${levelColors.bg} ${levelColors.text}`}>
+                {unit.segments.length} segments
+              </span>
+            )}
+            {constituentUnits.length > 0 && (
+              <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                {constituentUnits.length} sub-units
+              </span>
+            )}
+            {canDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                title="Delete this ISU"
+                className="p-1 hover:bg-red-200 dark:hover:bg-red-900 rounded transition-colors text-red-600 dark:text-red-400"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded Content */}
+      {isExpanded && (
+        <div className="p-4 space-y-3">
+          {/* Abstraction Operation */}
+          <div className="mb-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+            <div className="flex items-start justify-between mb-1">
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Abstraction Operation</h4>
+              {!isEditingOp && (
+                <button
+                  onClick={() => setIsEditingOp(true)}
+                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  edit
+                </button>
+              )}
+            </div>
+            {isEditingOp ? (
+              <div className="space-y-2">
+                <select
+                  value={tempOp}
+                  onChange={(e) => setTempOp(e.target.value)}
+                  className="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600"
+                >
+                  <option value="generalization">Generalization</option>
+                  <option value="aggregation">Aggregation</option>
+                  <option value="instantiation">Instantiation</option>
+                  <option value="abstraction">Abstraction</option>
+                  <option value="composition">Composition</option>
+                  <option value="categorization">Categorization</option>
+                </select>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleOpSave}
+                    className="text-sm px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={handleOpCancel}
+                    className="text-sm px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600 dark:text-gray-400 capitalize">{unit.abstraction_op}</p>
+            )}
+          </div>
+
+          {/* Intensional Definition */}
+          <div className="mb-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+            <div className="flex items-start justify-between mb-1">
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Intensional Definition</h4>
+              {!isEditingDefinition && (
+                <button
+                  onClick={() => setIsEditingDefinition(true)}
+                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  edit
+                </button>
+              )}
+            </div>
+            {isEditingDefinition ? (
+              <div className="space-y-2">
+                <textarea
+                  value={tempDefinition}
+                  onChange={(e) => setTempDefinition(e.target.value)}
+                  className="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 resize-none"
+                  rows={3}
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDefinitionSave}
+                    className="text-sm px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={handleDefinitionCancel}
+                    className="text-sm px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600 dark:text-gray-400">{unit.intensional_definition}</p>
+            )}
+          </div>
+
+          {/* Constituent Units */}
+          {constituentUnits.length > 0 && (
+            <div className="mb-3">
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Constituent Lower Units</h4>
+              <div className="space-y-1">
+                {constituentUnits.map((subUnit, idx) => (
+                  <div key={idx} className="text-sm bg-gray-50 dark:bg-gray-800 p-2 rounded">
+                    <span className="font-medium">{subUnit?.unit_name}</span>
+                    <span className="text-gray-500 dark:text-gray-400"> (Level {subUnit?.level})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Segments */}
+          {unit.segments && unit.segments.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Grounded in Segments</h4>
+              {unit.segments.map((segment) => (
+                <div 
+                  key={segment.segment_id}
+                  className="p-3 mb-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs">{segment.segment_id}</span>
+                      {segment.temporal_cues && segment.temporal_cues.length > 0 && (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          Temporal: {segment.temporal_cues.join(', ')}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => onSegmentRemove(segment.segment_id)}
+                      className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+                      title="Remove from this ISU"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <p className="text-sm">{segment.segment_text}</p>
+                  {segment.original_utterance && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                      <span>From line {segment.original_utterance.original_line_num}: </span>
+                      <span className="italic">{segment.original_utterance.utterance_text.substring(0, 100)}...</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          
+          {(!unit.segments || unit.segments.length === 0) && constituentUnits.length === 0 && (
+            <div className="text-center py-4 text-gray-500 dark:text-gray-400 italic">
+              No segments or constituent units in this ISU
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const SpecificSynchronicUnitsTable: React.FC<SpecificSynchronicUnitsTableProps> = ({
+  unitsData,
+  theme,
+  onUnitsChange,
+  filename,
+  hideVariableInfo = false,
+  hideInstructions = false,
+  compactSummary = false
+}) => {
+  const [expandedUnits, setExpandedUnits] = useState<Set<number>>(new Set());
+  
+  const toggleUnit = useCallback((index: number) => {
+    setExpandedUnits(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleNameChange = useCallback((index: number, newName: string) => {
+    if (!onUnitsChange) return;
+    
+    const oldName = unitsData.specific_synchronic_units_hierarchy[index].unit_name;
+    
+    // Update the unit name and any references to it
+    const updatedData = {
+      ...unitsData,
+      specific_synchronic_units_hierarchy: unitsData.specific_synchronic_units_hierarchy.map((unit, i) => {
+        if (i === index) {
+          return { ...unit, unit_name: newName };
+        } else {
+          // Update references in constituent_lower_units
+          if (unit.constituent_lower_units && unit.constituent_lower_units.includes(oldName)) {
+            return {
+              ...unit,
+              constituent_lower_units: unit.constituent_lower_units.map(name => 
+                name === oldName ? newName : name
+              )
+            };
+          }
+        }
+        return unit;
+      })
+    };
+    
+    onUnitsChange(updatedData);
+  }, [unitsData, onUnitsChange]);
+
+  const handleDefinitionChange = useCallback((index: number, newDefinition: string) => {
+    if (!onUnitsChange) return;
+    
+    const updatedData = {
+      ...unitsData,
+      specific_synchronic_units_hierarchy: unitsData.specific_synchronic_units_hierarchy.map((unit, i) => 
+        i === index 
+          ? { ...unit, intensional_definition: newDefinition }
+          : unit
+      )
+    };
+    
+    onUnitsChange(updatedData);
+  }, [unitsData, onUnitsChange]);
+
+  const handleAbstractionOpChange = useCallback((index: number, newOp: string) => {
+    if (!onUnitsChange) return;
+    
+    const updatedData = {
+      ...unitsData,
+      specific_synchronic_units_hierarchy: unitsData.specific_synchronic_units_hierarchy.map((unit, i) => 
+        i === index 
+          ? { ...unit, abstraction_op: newOp }
+          : unit
+      )
+    };
+    
+    onUnitsChange(updatedData);
+  }, [unitsData, onUnitsChange]);
+
+  const handleSegmentRemove = useCallback((unitIndex: number, segmentId: string) => {
+    if (!onUnitsChange) return;
+    
+    const updatedData = {
+      ...unitsData,
+      specific_synchronic_units_hierarchy: unitsData.specific_synchronic_units_hierarchy.map((unit, i) => 
+        i === unitIndex && unit.segments
+          ? { ...unit, segments: unit.segments.filter(seg => seg.segment_id !== segmentId) }
+          : unit
+      )
+    };
+    
+    onUnitsChange(updatedData);
+  }, [unitsData, onUnitsChange]);
+
+  const handleDeleteUnit = useCallback((index: number) => {
+    if (!onUnitsChange) return;
+    
+    const unitToDelete = unitsData.specific_synchronic_units_hierarchy[index];
+    
+    // Remove the unit and update references
+    const updatedData = {
+      ...unitsData,
+      specific_synchronic_units_hierarchy: unitsData.specific_synchronic_units_hierarchy
+        .filter((_, i) => i !== index)
+        .map(unit => {
+          // Remove references to deleted unit
+          if (unit.constituent_lower_units && unit.constituent_lower_units.includes(unitToDelete.unit_name)) {
+            return {
+              ...unit,
+              constituent_lower_units: unit.constituent_lower_units.filter(name => 
+                name !== unitToDelete.unit_name
+              )
+            };
+          }
+          return unit;
+        })
+    };
+    
+    onUnitsChange(updatedData);
+  }, [unitsData, onUnitsChange]);
+
+  const exportToCsv = useCallback(() => {
+    const csvData: any[] = [];
+    
+    unitsData.specific_synchronic_units_hierarchy.forEach((unit, unitIndex) => {
+      // Add unit-level row
+      csvData.push({
+        'DU ID': unitsData.analyzed_du_id,
+        'Unit Number': unitIndex + 1,
+        'Unit Name': unit.unit_name,
+        'Level': unit.level,
+        'Abstraction Operation': unit.abstraction_op,
+        'Intensional Definition': unit.intensional_definition,
+        'Constituent Units': unit.constituent_lower_units?.join('; ') || '',
+        'Segment ID': '',
+        'Segment Text': '',
+        'Temporal Cues': ''
+      });
+      
+      // Add segment rows
+      unit.segments?.forEach((segment) => {
+        csvData.push({
+          'DU ID': unitsData.analyzed_du_id,
+          'Unit Number': unitIndex + 1,
+          'Unit Name': unit.unit_name,
+          'Level': unit.level,
+          'Abstraction Operation': '',
+          'Intensional Definition': '',
+          'Constituent Units': '',
+          'Segment ID': segment.segment_id,
+          'Segment Text': segment.segment_text,
+          'Temporal Cues': segment.temporal_cues?.join('; ') || ''
+        });
+      });
+    });
+    
+    const columns = [
+      { field: 'DU ID', headerName: 'DU ID' },
+      { field: 'Unit Number', headerName: 'Unit Number' },
+      { field: 'Unit Name', headerName: 'Unit Name' },
+      { field: 'Level', headerName: 'Level' },
+      { field: 'Abstraction Operation', headerName: 'Abstraction Operation' },
+      { field: 'Intensional Definition', headerName: 'Intensional Definition' },
+      { field: 'Constituent Units', headerName: 'Constituent Units' },
+      { field: 'Segment ID', headerName: 'Segment ID' },
+      { field: 'Segment Text', headerName: 'Segment Text' },
+      { field: 'Temporal Cues', headerName: 'Temporal Cues' }
+    ];
+    
+    const csv = convertToCSV(csvData, columns);
+    const exportFilename = filename ? 
+      `${filename.replace(/\.[^/.]+$/, '')}_P2S.2_${unitsData.analyzed_du_id}_synchronic_units.csv` : 
+      `P2S.2_${unitsData.analyzed_du_id}_synchronic_units.csv`;
+    downloadCSV(csv, exportFilename);
+  }, [unitsData, filename]);
+
+  // Calculate statistics
+  const stats = useMemo(() => {
+    const hierarchy = unitsData.specific_synchronic_units_hierarchy;
+    const totalSegments = hierarchy.reduce((sum, unit) => sum + (unit.segments?.length || 0), 0);
+    const maxLevel = Math.max(...hierarchy.map(u => u.level), 0);
+    const levelCounts = hierarchy.reduce((acc, unit) => {
+      acc[unit.level] = (acc[unit.level] || 0) + 1;
+      return acc;
+    }, {} as Record<number, number>);
+    
+    return { totalUnits: hierarchy.length, totalSegments, maxLevel, levelCounts };
+  }, [unitsData]);
+
+  return (
+    <div className="space-y-4">
+      {/* Summary and Actions */}
+      {!compactSummary ? (
+        <div className="flex justify-between items-start">
+          <div>
+            <h3 className="text-lg font-semibold mb-2">Specific Synchronic Units for DU: {unitsData.analyzed_du_id}</h3>
+            <div className="text-sm text-light-sidenote dark:text-dark-sidenote space-y-1">
+              <div>Total ISUs: {stats.totalUnits}</div>
+              <div>Total Segments: {stats.totalSegments}</div>
+              <div>Max Hierarchy Level: {stats.maxLevel}</div>
+              <div>Level Distribution: {Object.entries(stats.levelCounts).map(([level, count]) => 
+                `L${level}: ${count}`).join(', ')}</div>
+            </div>
+          </div>
+          <button
+            onClick={exportToCsv}
+            className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+          >
+            Download CSV
+          </button>
+        </div>
+      ) : (
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
+            {stats.totalUnits} ISUs • {stats.totalSegments} segments • Max level {stats.maxLevel}
+          </div>
+          <button
+            onClick={exportToCsv}
+            className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+          >
+            Download CSV
+          </button>
+        </div>
+      )}
+
+      {/* Variable Information */}
+      {!hideVariableInfo && (
+        <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-2">
+          <div>
+            <span className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">Independent Variable: </span>
+            <span className="text-sm">{unitsData.independent_variable_details}</span>
+          </div>
+          <div>
+            <span className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">Dependent Variable Focus: </span>
+            <div className="inline-flex flex-wrap gap-1 ml-2">
+              {unitsData.dependent_variable_focus.map((dv, index) => (
+                <span
+                  key={index}
+                  className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                >
+                  {dv}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ISU Cards */}
+      <div className="space-y-2">
+        {unitsData.specific_synchronic_units_hierarchy.map((unit, index) => (
+          <ISUCard
+            key={index}
+            unit={unit}
+            index={index}
+            isExpanded={expandedUnits.has(index)}
+            onToggle={() => toggleUnit(index)}
+            onNameChange={(name) => handleNameChange(index, name)}
+            onDefinitionChange={(definition) => handleDefinitionChange(index, definition)}
+            onAbstractionOpChange={(op) => handleAbstractionOpChange(index, op)}
+            onSegmentRemove={(segId) => handleSegmentRemove(index, segId)}
+            theme={theme}
+            canDelete={unitsData.specific_synchronic_units_hierarchy.length > 1}
+            onDelete={() => handleDeleteUnit(index)}
+            allUnits={unitsData.specific_synchronic_units_hierarchy}
+          />
+        ))}
+      </div>
+
+      {/* Instructions */}
+      {!hideInstructions && (
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic space-y-1">
+          <div>💡 Click on ISU headers to expand/collapse</div>
+          <div>✏️ Click on unit names, definitions, or abstraction operations to edit them</div>
+          <div>🎯 Units are indented based on their hierarchy level</div>
+          <div>❌ Remove segments from ISUs using the X button</div>
+          <div>🗑️ Delete entire ISUs using the trash button (when more than one exists)</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+================================================
+FILE: src/components/SynchronicThematicGroupingTable.tsx
+================================================
+import React, { useState, useMemo, useCallback } from 'react';
+import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { P2S_1_Output, P2S_1_ThematicGroup, SegmentedUtteranceSegment } from '../../types';
+import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
+
+interface SynchronicThematicGroupingTableProps {
+  groupingData: P2S_1_Output;
+  theme: 'light' | 'dark';
+  onGroupingChange?: (updatedData: P2S_1_Output) => void;
+  filename?: string;
+  hideVariableInfo?: boolean;
+  hideInstructions?: boolean;
+  hideSummaryActions?: boolean;
+  compactSummary?: boolean;
+}
+
+// Phase colors mapping (consistent with other components)
+const PHASE_COLORS = {
+  'Initial State': { bg: 'bg-blue-100 dark:bg-blue-900', text: 'text-blue-800 dark:text-blue-200', border: 'border-blue-300 dark:border-blue-700' },
+  'Core Experience': { bg: 'bg-green-100 dark:bg-green-900', text: 'text-green-800 dark:text-green-200', border: 'border-green-300 dark:border-green-700' },
+  'Final Action': { bg: 'bg-orange-100 dark:bg-orange-900', text: 'text-orange-800 dark:text-orange-200', border: 'border-orange-300 dark:border-orange-700' },
+  'Post-Hoc Reflection': { bg: 'bg-purple-100 dark:bg-purple-900', text: 'text-purple-800 dark:text-purple-200', border: 'border-purple-300 dark:border-purple-700' }
+};
+
+// Thematic Group Card Component
+const ThematicGroupCard: React.FC<{
+  group: P2S_1_ThematicGroup;
+  index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onLabelChange: (label: string) => void;
+  onJustificationChange: (justification: string) => void;
+  onSegmentRemove: (segmentId: string) => void;
+  theme: 'light' | 'dark';
+  canDelete: boolean;
+  onDelete: () => void;
+}> = ({ 
+  group, 
+  index,
+  isExpanded, 
+  onToggle, 
+  onLabelChange,
+  onJustificationChange,
+  onSegmentRemove,
+  theme,
+  canDelete,
+  onDelete
+}) => {
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const [tempLabel, setTempLabel] = useState(group.group_label);
+  const [isEditingJustification, setIsEditingJustification] = useState(false);
+  const [tempJustification, setTempJustification] = useState(group.justification);
+
+  const handleLabelSave = () => {
+    onLabelChange(tempLabel);
+    setIsEditingLabel(false);
+  };
+
+  const handleLabelCancel = () => {
+    setTempLabel(group.group_label);
+    setIsEditingLabel(false);
+  };
+
+  const handleJustificationSave = () => {
+    onJustificationChange(tempJustification);
+    setIsEditingJustification(false);
+  };
+
+  const handleJustificationCancel = () => {
+    setTempJustification(group.justification);
+    setIsEditingJustification(false);
+  };
+
+  return (
+    <div className={`mb-4 rounded-lg border-2 border-indigo-400 dark:border-indigo-600 ${theme === 'dark' ? 'bg-dark-bg-alt' : 'bg-light-bg-alt'} overflow-hidden`}>
+      {/* Header */}
+      <div 
+        className={`p-4 cursor-pointer bg-indigo-100 dark:bg-indigo-900 bg-opacity-50 dark:bg-opacity-20`}
+        onClick={onToggle}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-gray-500 dark:text-gray-400">
+              {isExpanded ? ChevronDownIcon : ChevronRightIcon}
+            </span>
+            <span className="font-mono text-sm font-bold">Group {index + 1}</span>
+            {isEditingLabel ? (
+              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="text"
+                  value={tempLabel}
+                  onChange={(e) => setTempLabel(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleLabelSave();
+                    if (e.key === 'Escape') handleLabelCancel();
+                  }}
+                  className="px-2 py-1 text-sm border rounded bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600"
+                  autoFocus
+                />
+                <button
+                  onClick={handleLabelSave}
+                  className="text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+                >
+                  ✓
+                </button>
+                <button
+                  onClick={handleLabelCancel}
+                  className="text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+                >
+                  ✗
+                </button>
+              </div>
+            ) : (
+              <div 
+                className="flex items-center gap-2 group"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditingLabel(true);
+                }}
+              >
+                <span className="text-sm font-semibold">{group.group_label}</span>
+                <span className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-gray-500 dark:text-gray-400">
+                  (click to edit)
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={`px-2 py-1 rounded-full text-xs font-medium bg-indigo-200 dark:bg-indigo-800 text-indigo-800 dark:text-indigo-200`}>
+              {group.segments.length} segments
+            </span>
+            {canDelete && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                title="Delete this group"
+                className="p-1 hover:bg-red-200 dark:hover:bg-red-900 rounded transition-colors text-red-600 dark:text-red-400"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded Content */}
+      {isExpanded && (
+        <div className="p-4 space-y-3">
+          {/* Justification section */}
+          <div className="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-800">
+            <div className="flex items-start justify-between mb-1">
+              <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">Justification</h4>
+              {!isEditingJustification && (
+                <button
+                  onClick={() => setIsEditingJustification(true)}
+                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  edit
+                </button>
+              )}
+            </div>
+            {isEditingJustification ? (
+              <div className="space-y-2">
+                <textarea
+                  value={tempJustification}
+                  onChange={(e) => setTempJustification(e.target.value)}
+                  className="w-full px-2 py-1 text-sm border rounded bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 resize-none"
+                  rows={3}
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleJustificationSave}
+                    className="text-sm px-2 py-1 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Save
+                  </button>
+                  <button
+                    onClick={handleJustificationCancel}
+                    className="text-sm px-2 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-gray-600 dark:text-gray-400">{group.justification}</p>
+            )}
+          </div>
+
+          {/* Segments */}
+          {group.segments.map((segment) => {
+            const phaseTag = (segment as any).coarse_phase || 'Core Experience';
+            const segmentColors = PHASE_COLORS[phaseTag as keyof typeof PHASE_COLORS] || PHASE_COLORS['Core Experience'];
+            
+            return (
+              <div 
+                key={segment.segment_id}
+                className={`p-3 rounded-lg border ${segmentColors.border} ${segmentColors.bg} ${segmentColors.bg.includes('100') ? 'bg-opacity-30' : 'bg-opacity-10'}`}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs">{segment.segment_id}</span>
+                    {(segment as any).temporal_cues && (segment as any).temporal_cues.length > 0 && (
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Temporal: {(segment as any).temporal_cues.join(', ')}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => onSegmentRemove(segment.segment_id)}
+                    className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+                    title="Remove from this group"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <p className="text-sm">{segment.segment_text}</p>
+                {segment.original_utterance && (
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    <span>From line {segment.original_utterance.original_line_num}: </span>
+                    <span className="italic">{segment.original_utterance.utterance_text.substring(0, 100)}...</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          
+          {group.segments.length === 0 && (
+            <div className="text-center py-4 text-gray-500 dark:text-gray-400 italic">
+              No segments in this group
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const SynchronicThematicGroupingTable: React.FC<SynchronicThematicGroupingTableProps> = ({
+  groupingData,
+  theme,
+  onGroupingChange,
+  filename,
+  hideVariableInfo = false,
+  hideInstructions = false,
+  hideSummaryActions = false,
+  compactSummary = false
+}) => {
+  const [expandedGroups, setExpandedGroups] = useState<Set<number>>(new Set());
+  
+  const toggleGroup = useCallback((index: number) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(index)) {
+        newSet.delete(index);
+      } else {
+        newSet.add(index);
+      }
+      return newSet;
+    });
+  }, []);
+
+  const handleLabelChange = useCallback((index: number, newLabel: string) => {
+    if (!onGroupingChange) return;
+    
+    const updatedData = {
+      ...groupingData,
+      synchronic_thematic_groups: groupingData.synchronic_thematic_groups.map((group, i) => 
+        i === index 
+          ? { ...group, group_label: newLabel }
+          : group
+      )
+    };
+    
+    onGroupingChange(updatedData);
+  }, [groupingData, onGroupingChange]);
+
+  const handleJustificationChange = useCallback((index: number, newJustification: string) => {
+    if (!onGroupingChange) return;
+    
+    const updatedData = {
+      ...groupingData,
+      synchronic_thematic_groups: groupingData.synchronic_thematic_groups.map((group, i) => 
+        i === index 
+          ? { ...group, justification: newJustification }
+          : group
+      )
+    };
+    
+    onGroupingChange(updatedData);
+  }, [groupingData, onGroupingChange]);
+
+  const handleSegmentRemove = useCallback((groupIndex: number, segmentId: string) => {
+    if (!onGroupingChange) return;
+    
+    const updatedData = {
+      ...groupingData,
+      synchronic_thematic_groups: groupingData.synchronic_thematic_groups.map((group, i) => 
+        i === groupIndex 
+          ? { ...group, segments: group.segments.filter(seg => seg.segment_id !== segmentId) }
+          : group
+      )
+    };
+    
+    onGroupingChange(updatedData);
+  }, [groupingData, onGroupingChange]);
+
+  const handleDeleteGroup = useCallback((index: number) => {
+    if (!onGroupingChange) return;
+    
+    const updatedData = {
+      ...groupingData,
+      synchronic_thematic_groups: groupingData.synchronic_thematic_groups.filter((_, i) => i !== index)
+    };
+    
+    onGroupingChange(updatedData);
+  }, [groupingData, onGroupingChange]);
+
+  const exportToCsv = useCallback(() => {
+    const csvData: any[] = [];
+    
+    groupingData.synchronic_thematic_groups.forEach((group, groupIndex) => {
+      group.segments.forEach((segment, segIndex) => {
+        csvData.push({
+          'DU ID': groupingData.analyzed_du_id,
+          'Group Number': groupIndex + 1,
+          'Group Label': group.group_label,
+          'Group Justification': group.justification,
+          'Segment Position': segIndex + 1,
+          'Segment ID': segment.segment_id,
+          'Segment Text': segment.segment_text,
+          'Temporal Cues': (segment as any).temporal_cues?.join('; ') || '',
+          'Original Line': segment.original_utterance?.original_line_num || '',
+          'Original Utterance': segment.original_utterance?.utterance_text || ''
+        });
+      });
+    });
+    
+    const columns = [
+      { field: 'DU ID', headerName: 'DU ID' },
+      { field: 'Group Number', headerName: 'Group Number' },
+      { field: 'Group Label', headerName: 'Group Label' },
+      { field: 'Group Justification', headerName: 'Group Justification' },
+      { field: 'Segment Position', headerName: 'Segment Position' },
+      { field: 'Segment ID', headerName: 'Segment ID' },
+      { field: 'Segment Text', headerName: 'Segment Text' },
+      { field: 'Temporal Cues', headerName: 'Temporal Cues' },
+      { field: 'Original Line', headerName: 'Original Line' },
+      { field: 'Original Utterance', headerName: 'Original Utterance' }
+    ];
+    
+    const csv = convertToCSV(csvData, columns);
+    const exportFilename = filename ? 
+      `${filename.replace(/\.[^/.]+$/, '')}_P2S.1_${groupingData.analyzed_du_id}_thematic_groups.csv` : 
+      `P2S.1_${groupingData.analyzed_du_id}_thematic_groups.csv`;
+    downloadCSV(csv, exportFilename);
+  }, [groupingData, filename]);
+
+  // Calculate total segments
+  const totalSegments = useMemo(() => {
+    return groupingData.synchronic_thematic_groups.reduce((sum, group) => sum + group.segments.length, 0);
+  }, [groupingData]);
+
+  return (
+    <div className="space-y-4">
+      {/* Summary and Actions */}
+      {!hideSummaryActions && (
+        compactSummary ? (
+          // Compact version - just stats and download button
+          <div className="flex justify-between items-center">
+            <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
+              {groupingData.synchronic_thematic_groups.length} groups • {totalSegments} segments
+            </div>
+            <button
+              onClick={exportToCsv}
+              className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+            >
+              Download CSV
+            </button>
+          </div>
+        ) : (
+          // Full version
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-lg font-semibold mb-2">Synchronic Thematic Grouping for DU: {groupingData.analyzed_du_id}</h3>
+              <div className="text-sm text-light-sidenote dark:text-dark-sidenote space-y-1">
+                <div>Total Thematic Groups: {groupingData.synchronic_thematic_groups.length}</div>
+                <div>Total Segments: {totalSegments}</div>
+                <div>Transcript: {groupingData.transcript_id}</div>
+              </div>
+            </div>
+            <button
+              onClick={exportToCsv}
+              className="px-3 py-1 text-sm bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+            >
+              Download CSV
+            </button>
+          </div>
+        )
+      )}
+
+      {/* Variable Information */}
+      {!hideVariableInfo && (
+        <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-2">
+          <div>
+            <span className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">Independent Variable: </span>
+            <span className="text-sm">{groupingData.independent_variable_details}</span>
+          </div>
+          <div>
+            <span className="text-sm font-medium text-light-sidenote dark:text-dark-sidenote">Dependent Variable Focus: </span>
+            <div className="inline-flex flex-wrap gap-1 ml-2">
+              {groupingData.dependent_variable_focus.map((dv, index) => (
+                <span
+                  key={index}
+                  className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                >
+                  {dv}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Thematic Group Cards */}
+      <div className="space-y-2">
+        {groupingData.synchronic_thematic_groups.map((group, index) => (
+          <ThematicGroupCard
+            key={index}
+            group={group}
+            index={index}
+            isExpanded={expandedGroups.has(index)}
+            onToggle={() => toggleGroup(index)}
+            onLabelChange={(label) => handleLabelChange(index, label)}
+            onJustificationChange={(justification) => handleJustificationChange(index, justification)}
+            onSegmentRemove={(segId) => handleSegmentRemove(index, segId)}
+            theme={theme}
+            canDelete={groupingData.synchronic_thematic_groups.length > 1}
+            onDelete={() => handleDeleteGroup(index)}
+          />
+        ))}
+      </div>
+
+      {/* Instructions */}
+      {!hideInstructions && (
+        <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic space-y-1">
+          <div>💡 Click on group headers to expand/collapse</div>
+          <div>✏️ Click on group labels or justifications to edit them</div>
+          <div>❌ Remove segments from groups using the X button</div>
+          <div>🗑️ Delete entire groups using the trash button (when more than one group exists)</div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 
 ================================================
@@ -12999,24 +15457,20 @@ export const P0_3_SELECT_PROCEDURAL_UTTERANCES_CONFIG: StepConfig = {
     if (!p0_2_data || !p_neg1_1_data) return { data: null, error: `Missing P0.2 or P-1.1 output for transcript ${currentTranscript.id}` };
     return { data: { ...p0_2_data, p_neg1_1_output: p_neg1_1_data } };
   },
-  generatePrompt: (input: P0_2_Output & { p_neg1_1_output: P_neg1_1_Output }) => `You are a micro-phenomenological analyst. Your task is to evaluate ALL utterances from the refined data transcript and determine which are crucial for understanding the diachronic (temporal) structure of the *experience itself*.
+  generatePrompt: (input: P0_2_Output & { p_neg1_1_output: P_neg1_1_Output }) => `You are a micro-phenomenological analyst. Your task is to evaluate ALL utterances from the refined data transcript and determine which are crucial for understanding the diachronic (temporal) structure of the *experience itself*. The sequence and content of the described experience is of importance rather than the order it was reported in in the interview. 
 Input:
 The JSON output from P0.2 (refined data transcript) and P-1.1 (IV/DV info) for transcript ID ${input.transcript_id}.
 P0.2 Output: ${JSON.stringify(input, null, 2)}
 
 Instructions:
-1.  Temporal Structure: Focus on utterances that help reveal the temporal unfolding of the lived experience.
-2.  Procedural Priority: Procedural utterances (interviewer questions, meta-comments) SHOULD be included if they:
-    *   Elicit temporal information about the experience
-    *   Help situate when/how the experience unfolded
-    *   Provide crucial context for understanding the temporal flow
-3.  Evaluation Criteria for EACH utterance: Ask yourself: "Does this utterance contribute to understanding the temporal/diachronic structure of the experience?" Consider:
-    *   Direct temporal markers or sequencing
-    *   Action sequences
-    *   Process descriptions  
-    *   Transition points
-    *   Questions that elicit temporal detail
-    *   Context that frames temporal understanding
+1.  Temporal Structure: Focus only on utterances that reveal the temporal unfolding of the lived experience.
+2.  Procedural Priority: Interviewer questions and meta-comments should be **excluded**, UNLESS they provide irreplaceable context for understanding the timing of a participant's description. A question like "And what happened next?" is almost always excluded if the participant's answer contains a temporal marker like "Next, I...".
+3.  Evaluation Criteria for EACH utterance: Ask yourself: "Is this a **direct, concrete description** of the singular experience, or is it a generalization, theory, or conversational filler?"
+    *   **INCLUDE** only direct descriptions of actions, sensations, or cognitions within the specific event.
+    *   **EXCLUDE** participant's theories about *why* something happened.
+    *   **EXCLUDE** participant's generalizations about what they *usually* do or feel.
+    *   **EXCLUDE** judgments about the experience (e.g., "that was weird").
+    *   An utterance must contribute to the temporal map and phenomenological content of the experience to be included.
 4.  IMPORTANT: Output minified JSON with no unnecessary whitespace. Be extremely concise.
 5.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from P-1.1 MUST be copied verbatim into the output.
 
@@ -13191,37 +15645,38 @@ export const P1_2_COARSE_PHASE_TAGGING_CONFIG: StepConfig = {
     if (!p1_1_data) return { data: null, error: `Missing P1.1 output for transcript ${currentTranscript.id}` };
     return { data: p1_1_data };
   },
-  generatePrompt: (input: P1_1_Output) => `You are a micro-phenomenological data analyst. Your task is to classify interview segments into broad temporal phases by considering the context of the original utterance they came from.
+  generatePrompt: (input: P1_1_Output) => `You are a micro-phenomenological data analyst classifying interview segments into four distinct temporal phases. Your task is to determine if the speaker is describing an event **from within** the chronological timeline of the actual experience [Initial State, Core Experience, Final Action] or **is analyzing the experience as a whole** from the interview chair [Post-Hoc Reflection].
 
-CRITICAL: Read the ENTIRE original utterance text for context before classifying each segment. The utterance context often contains temporal markers that are crucial for correct classification.
+CRITICAL: Before classifying a segment, read the full original_utterance.text to understand its complete context. For very short, affirmative, or negative segments (e.g., 'Yeah,' 'No,' 'I don't think so'), the coarse_phase should be inherited from the temporal context established by the interviewer's preceding question or the surrounding context.
 
 Input:
 A list of utterances, each containing one or more segments.
 
 Instructions:
-For each segment in the list, perform the following:
-1. First, read the original_utterance.text to understand the full context
-2. Then read the segment_text itself
-3. Pay special attention to temporal_cues already identified in the segment
-4. Assign a coarse_phase tag to the segment from the following FIXED list: Initial State, Core Experience, Final Action, Post-Hoc Reflection
+For each segment, assign a 'coarse_phase' tag from this FIXED list: [Initial State, Core Experience, Final Action, Post-Hoc Reflection].
 
-Classification Guide (with additional cues):
-• Initial State: The participant is describing their mindset, setup, or events right at the beginning. 
-  Cues: "at the start", "when we started", "first", "initially", "before", "to begin with"
-  
-• Core Experience: The participant is describing the main, sustained sensations, thoughts, or feelings that occurred after the onset and before any final action. 
-  Cues: "during", "still", "whenever", "kept", "while", "throughout", "as I was", "continued to"
-  
-• Final Action: The participant is describing a distinct action taken to conclude or test the experience, and any sensations or thoughts that happened concurrently with that action. 
-  Cues: "at the end", "when I was trying to pull them apart", "finally", "then I", "to finish", "last thing"
-  
-• Post-Hoc Reflection: The participant is looking back on the experience from the present moment of the interview, comparing it to other times, or analyzing it. 
-  Cues: "after hearing", "on the second one", "looking back", "now that I think", "compared to", "in retrospect", "I realize"
+## Classification Guide
 
-IMPORTANT: 
-- Each segment MUST be assigned exactly ONE phase
-- Consider both the segment content AND its position within the original utterance
-- When in doubt, the original utterance context takes precedence
+*   **Initial State:** Describes the participant's state or actions at the very beginning of the event.
+
+*   **Core Experience:** Describes the main, ongoing part of the experience. This includes any thoughts, feelings, or emotional reactions that happened *during* this central phase.
+
+*   **Final Action:** Describes the concluding phase and any specific action of the experience. This includes any thoughts, feelings, or emotional reactions that happened *concurrently with or immediately resulted from* that final action.
+
+*   **Post-Hoc Reflection:** The participant has stepped outside the timeline of the experience and is speaking from the present moment of the interview. They are no longer narrating the event, but are **analyzing, summarizing, or explaining it as a whole.** These are utterances that cannot be used to reconstruct the timeline. This is the case ONLY if the utterance does not fit any concrete temporal bucket [initial, core, final]. This maybe because they are:
+    *   Comparing it to a *different* experience.
+    *   Giving a summary judgment of the *entire* event.
+
+## The Deciding Question
+
+To distinguish the phases, ask: **"Is the participant *narrating* a moment from the timeline, or are they *analyzing* the experience from the outside?"**
+
+-   **Narration belongs** in \`Initial State\`, \`Core Experience\`, or \`Final Action\`. A description of a feeling (e.g., "it was surprising because...") or even in the moment analysis that happened during the experience is part of the narration.
+-   **Analysis belongs** in \`Post-Hoc Reflection\`if it doesn't refer to sense-making that happened during the experience and is happening after it.
+
+Note: Prior filtering may have likely removed most post-hoc reflections before you recieve this, you may have no or very few utterances that fit this category. This tag is for any remaining commentary that does not fit the experiential timeline.
+
+IMPORTANT: Each segment MUST be assigned exactly ONE phase.
 
 Input: ${JSON.stringify(input)}
 
@@ -13326,7 +15781,7 @@ export const P1_4_DIACHRONIC_UNIT_GROUPING_CONFIG: StepConfig = {
     if (!p1_3_data) return { data: null, error: `Missing P1.3 output for transcript ${currentTranscript.id}` };
     return { data: p1_3_data };
   },
-  generatePrompt: (input: P1_3_Output) => `You are a micro-phenomenological analyst. You will be given a chronologically ordered list of segments from an interview. Your task is to group consecutive segments into Diachronic Units (DUs).
+  generatePrompt: (input: P1_3_Output) => `You are a micro-phenomenological analyst. You will be given a chronologically ordered list of segments from an interview. Your task is to group consecutive segments into Diachronic Units (DUs). A DU represents a coherent, meaningful phase or 'moment' within the participant's stream of experience. It is a single 'beat' or 'scene' in their experiential narrative. All segments within one DU should be thematically unified or explicitly or implicitly reported as simultaneous. The transition between DUs marks a shift in the nature of the experience. This shift may be explicit with temporal and causal cues or be an implicit shift that indicates a new momentary experience arising due to an experiential shift, e.g. shift in focus, sensation, intention, cognition. The DU and segments are in chronological order of phenomenology, i.e. they are sorted according to how they happened in the original experience as opposed to the order they were reported in in the interview.
 
 Input:
 The fully sorted list of all segments from step P1.3 for transcript ID ${input.transcript_id}.
@@ -13335,10 +15790,11 @@ Sorted segments: ${JSON.stringify(input.sorted_segments, null, 2)}
 Instructions:
 1. Read the segments in the order provided. They have already been sorted chronologically.
 2. Group consecutive segments that describe the same continuous moment, action, or thought process.
-3. Create a new DU whenever there is a clear break or transition to a new moment (e.g., a shift from sensation to action, or from one thought to a subsequent, different thought).
-4. Provide a concise \`description\` for each DU that captures the essence of that moment.
-5. Each DU should have a unique \`unit_id\` (e.g., "du_1", "du_2", etc.).
-6. List the \`source_segment_ids\` that constitute each DU.
+3. Create a new DU whenever there is a clear break or transition to a new moment.
+4. No DU should have segments from only the interviewer.
+5. Provide a concise \`description\` for each DU that captures the essence of that moment.
+6. Each DU should have a unique \`unit_id\` (e.g., "du_1", "du_2", etc.).
+7. List the \`source_segment_ids\` that constitute each DU.
 
 Output:
 A JSON object containing a list of Diachronic Units:
@@ -13525,9 +15981,11 @@ export const P2S_1_GROUP_UTTERANCES_BY_TOPIC_CONFIG: StepConfig = {
     
     // Collect the specific segments that belong to this DU
     for (const segContainer of p1_1_data.segmented_utterances) {
-      for (const segment of segContainer.segments) {
-        if (segment_ids_in_du.has(segment.segment_id)) {
-          segments_for_du.push(segment);
+      if (segContainer.segments && Array.isArray(segContainer.segments)) {
+        for (const segment of segContainer.segments) {
+          if (segment_ids_in_du.has(segment.segment_id)) {
+            segments_for_du.push(segment);
+          }
         }
       }
     }
@@ -13859,6 +16317,9 @@ const orchestrator = new PipelineOrchestrator()
  * Extracted from App.tsx to improve separation of concerns and testability
  */
 export const useAutorunManager = () => {
+  // Ref to track if we're currently processing to prevent duplicate calls
+  const isProcessingRef = useRef(false)
+  
   // UI Store state and actions
   const isAutorunning = useUIStore(state => state.isAutorunning)
   const currentStepInfo = useUIStore(state => state.currentStepInfo)
@@ -13919,8 +16380,16 @@ export const useAutorunManager = () => {
     const stepIsSuccess = currentStepInfo.status === StepStatus.Success || 
                          (lastStepInfo?.stepId === currentStepInfo.stepId && lastStepInfo?.status === StepStatus.Success);
     
+    // Prevent duplicate processing
+    if (isProcessingRef.current) {
+      console.log(`⚠️ Already processing, skipping duplicate call`);
+      console.groupEnd();
+      return;
+    }
+    
     if (isAutorunning && stepIsSuccess) {
       console.log(`✅ Autorun active & step successful - checking next step`);
+      isProcessingRef.current = true;
       
       // Use orchestrator instead of getNextStepDetails
       const nextStep = orchestrator.getNextStep(
@@ -13946,14 +16415,18 @@ export const useAutorunManager = () => {
           setActiveTranscript(details.nextTranscriptIndex);
         }
         
-        // Update process state
+        // Update process state only if it has actually changed
         const newProcessState = orchestrator.updateProcessState(
           processState,
           currentStepInfo.stepId,
           currentStepInfo.status,
           { transcriptIndex: activeTranscriptIndex }
         );
-        updateProcessState(newProcessState); 
+        
+        // Check if the process state actually changed before updating
+        if (JSON.stringify(newProcessState) !== JSON.stringify(processState)) {
+          updateProcessState(newProcessState);
+        } 
         
         // Check if we should pause after Part 2
         if (details.shouldPause) {
@@ -13962,6 +16435,7 @@ export const useAutorunManager = () => {
           const pausedProcessState = orchestrator.createResumeCheckpoint(newProcessState, { transcriptIndex: details.nextTranscriptIndex });
           updateProcessState(pausedProcessState);
           setAutorunning(false);
+          isProcessingRef.current = false;
           return;
         }
         
@@ -13972,6 +16446,7 @@ export const useAutorunManager = () => {
             setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData:report }); 
             console.log(`🛑 Autorun stopped (COMPLETE)`);
             setAutorunning(false);
+            isProcessingRef.current = false;
             if (autoDownloadResults && report!=="Processing complete." && ESSENTIAL_STEPS_FOR_AUTODOWNLOAD.includes(StepId.P6_1_GENERATE_MARKDOWN_REPORT)) {
               console.log(`💾 Auto-downloading final report`);
               downloadOutput(StepId.COMPLETE, "final_analysis_report", report);
@@ -13990,17 +16465,23 @@ export const useAutorunManager = () => {
             console.log(`🚀 Processing next step: ${details.nextStepId}`);
             console.log(`- Is global step: ${isNextGlobal}`);
             console.log(`- Transcript ID: ${nextTxId || 'N/A (global)'}`);
-            processSingleStep({ 
-              stepId: details.nextStepId, 
-              transcriptIdToProcess: nextTxId,
-              duIndex: details.nextDuIndex,
-              settings: {
-                apiKey,
-                temperature,
-                seed,
-                userDvFocus
-              }
-            });
+            
+            // Add a small delay to prevent rapid state updates
+            setTimeout(() => {
+              processSingleStep({ 
+                stepId: details.nextStepId, 
+                transcriptIdToProcess: nextTxId,
+                duIndex: details.nextDuIndex,
+                settings: {
+                  apiKey,
+                  temperature,
+                  seed,
+                  userDvFocus
+                }
+              });
+              // Reset the processing flag after starting the next step
+              isProcessingRef.current = false;
+            }, 100);
         }
       } else if (currentStepInfo.stepId !== StepId.COMPLETE && genericAnalysisState.isReportGenerated) { 
         console.log(`📋 No next step details but report is generated - completing`);
@@ -14009,6 +16490,7 @@ export const useAutorunManager = () => {
         setCurrentStepInfo({ stepId:StepId.COMPLETE, status:StepStatus.Success, outputData:report }); 
         console.log(`🛑 Autorun stopped (report generated)`);
         setAutorunning(false);
+        isProcessingRef.current = false;
       } else if (currentStepInfo.stepId !== StepId.COMPLETE && !details) { 
          console.log(`❌ No next step details and not complete - stopping autorun`);
          console.log(`- isReportGenerated: ${genericAnalysisState.isReportGenerated}`);
@@ -14021,6 +16503,7 @@ export const useAutorunManager = () => {
          const updatedProcessState = orchestrator.createResumeCheckpoint(processState, { transcriptIndex: activeTranscriptIndex });
          updateProcessState(updatedProcessState);
          setAutorunning(false);
+         isProcessingRef.current = false;
       }
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Error) {
       console.log(`💥 Autorun active but step failed - stopping`);
@@ -14030,6 +16513,7 @@ export const useAutorunManager = () => {
       const updatedProcessState = orchestrator.createResumeCheckpoint(processState, { transcriptIndex: activeTranscriptIndex });
       updateProcessState(updatedProcessState);
       setAutorunning(false);
+      isProcessingRef.current = false;
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Idle && rawTranscripts.length > 0) {
       console.log(`🚀 Autorun starting from Idle - checking for resume point`);
       
@@ -14456,14 +16940,7 @@ export class PipelineOrchestrator {
       statusIsError: currentStepInfo.status === StepStatus.Error
     });
     
-    // For P2S steps, only P2S_3 completing means the iteration is done
-    if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(currentStepInfo.stepId)) {
-      // Only the last P2S step (P2S_3) completing means we're done with this DU
-      const isLastP2SStep = currentStepInfo.stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE
-      return isLastP2SStep && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error)
-    }
-    
-    // For non-P2S steps, use regular logic
+    // A step iteration is complete when it has succeeded, errored, or already has output
     return currentStepInfo.status === StepStatus.Success || 
            currentStepInfo.status === StepStatus.Error || 
            hasOutput
@@ -14686,16 +17163,12 @@ export class PipelineOrchestrator {
       }
     }
 
-    // All DUs processed for current transcript, check next transcript
+    // All DUs processed for current transcript, continue with Part 2 for next transcript
     if (activeTranscriptIndex < rawTranscripts.length - 1) {
-      // Move to Part 1 for next transcript
-      const part1Index = this.pipelineStructure.findIndex(p => p.name.includes("Specific Diachronic"))
-      if (part1Index !== -1) {
-        return {
-          nextStepId: this.pipelineStructure[part1Index].steps[0],
-          nextTranscriptIndex: activeTranscriptIndex + 1,
-          iterationType: 'per-transcript'
-        }
+      return {
+        nextStepId: currentPart.steps[0],  // Start P2S_1 for next transcript
+        nextTranscriptIndex: activeTranscriptIndex + 1,
+        iterationType: 'per-transcript'
       }
     }
 
@@ -15428,9 +17901,10 @@ import {
   P1_2_Output,
   P1_3_Output,
   PhaseTaggedSegment,
-  SortedSegment
+  SortedSegment,
+  P2SDuData
 } from '../../types'
-import { ProcessState } from '../config/pipelineDefinition'
+import { ProcessState, STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC } from '../config/pipelineDefinition'
 import { 
   STEP_CONFIGS, 
   ALL_PIPELINE_STEP_IDS_IN_ORDER,
@@ -15846,6 +18320,16 @@ export const usePipelineStore = create<PipelineStore>()(
             // If duIndex is provided, use it to set the current DU
             if (duIndex !== undefined && tData.dus_for_p2s_processing) {
               currentDu = tData.dus_for_p2s_processing[duIndex]
+              // Update the current_du_for_p2s_processing in state when duIndex is provided
+              set((state) => {
+                const d = state.processedData.get(transcriptIdToProcess)
+                if (d) {
+                  state.processedData.set(transcriptIdToProcess, {
+                    ...d,
+                    current_du_for_p2s_processing: currentDu
+                  })
+                }
+              })
             } else {
               currentDu = tData.current_du_for_p2s_processing
             }
@@ -16365,17 +18849,10 @@ export const usePipelineStore = create<PipelineStore>()(
               
               let newProcDus = [...(tD.processed_dus_for_p2s || [])]
               let allDone = tD.isFullyProcessedSpecificSynchronic
-              let nextDu: string | undefined = tD.current_du_for_p2s_processing // Keep current DU by default
-              
               if (stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
                 newProcDus = Array.from(new Set([...newProcDus, currentDu!]))
                 const transcriptDus = tD.dus_for_p2s_processing || []
                 allDone = transcriptDus.length > 0 ? newProcDus.length === transcriptDus.length : true
-                if (!allDone) {
-                  nextDu = transcriptDus.find(p => !newProcDus.includes(p))
-                } else {
-                  nextDu = undefined
-                }
               }
               
               state.processedData.set(transcriptIdToProcess, {
@@ -16383,7 +18860,7 @@ export const usePipelineStore = create<PipelineStore>()(
                 p2s_outputs_by_du: uP2S,
                 processed_dus_for_p2s: newProcDus,
                 isFullyProcessedSpecificSynchronic: allDone,
-                current_du_for_p2s_processing: nextDu
+                current_du_for_p2s_processing: currentDu
               })
             }
           })
@@ -17594,8 +20071,34 @@ export const selectCurrentStepDisplay = (currentStepInfo: CurrentStepInfo, trans
     }
   }
   
-  // No output yet
+  // No output yet - but for P2S steps, check if ANY DU has data
   if (!currentStepInfo.outputData && currentStepInfo.stepId !== StepId.IDLE) {
+    // Special handling for P2S steps - check if any DU has data
+    if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(currentStepInfo.stepId)) {
+      const { processedData, rawTranscripts } = state
+      // Get activeTranscriptIndex from UI store
+      const uiStore = (window as any).__uiStore
+      const activeTranscriptIndex = uiStore ? uiStore.getState().activeTranscriptIndex : 0
+      const currentTranscriptId = rawTranscripts[activeTranscriptIndex]?.id
+      if (currentTranscriptId) {
+        const transcriptData = processedData.get(currentTranscriptId)
+        if (transcriptData?.p2s_outputs_by_du) {
+          // Check if any DU has output for this step
+          const stepKey = stepIdToDataKeyPrefix[currentStepInfo.stepId] as keyof P2SDuData
+          const hasAnyOutput = Object.values(transcriptData.p2s_outputs_by_du).some(
+            duData => duData[stepKey] !== undefined
+          )
+          if (hasAnyOutput) {
+            // Let the component handle displaying the data
+            return {
+              type: 'data' as const,
+              hasData: true
+            }
+          }
+        }
+      }
+    }
+    
     return {
       type: 'empty' as const,
       message: 'No output to display for this step yet.'
