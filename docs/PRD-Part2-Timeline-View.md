@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-The Part 2 Summary Table is a comprehensive nested table component that presents the synchronic analysis results for all Diachronic Units (DUs) in a structured, hierarchical format. It provides researchers with an organized view of the relationships between DUs, ISU themes, utterances, and network structures, enabling efficient navigation and analysis of the synchronic dimensions of experience.
+The Part 2 Summary Table is a comprehensive table component that presents the synchronic analysis results for all Diachronic Units (DUs) in a clear, fully-visible format. Using merged cells for optimal data presentation, it provides researchers with an organized view of the relationships between DUs, ISU themes, utterances, and network structures, enabling efficient analysis of the synchronic dimensions of experience without requiring any interaction to reveal data.
 
 ## Problem Statement
 
@@ -18,39 +18,39 @@ Currently, researchers must navigate between multiple separate outputs (P2S.1, P
 
 ### Primary Goals
 1. **Consolidated View**: Create a single table that integrates all P2S outputs
-2. **Hierarchical Navigation**: Enable expand/collapse functionality for focused analysis
+2. **Complete Visibility**: All data visible without any user interaction required
 3. **Direct Access**: Provide immediate access to utterance content and network diagrams
 4. **Efficient Comparison**: Facilitate pattern recognition across DUs
 
 ### Success Metrics
-- All P2S data accessible from a single view
-- Reduced clicks to access utterance content
+- All P2S data visible from a single view with no interaction required
+- Zero clicks needed to access any data
 - Improved ability to compare themes across DUs
 - Positive user feedback on organization and accessibility
 
 ## User Personas
 
 ### Primary: Micro-phenomenology Researcher
-- **Needs**: Organized view of all synchronic analyses, ability to drill down to specific utterances
-- **Behavior**: Systematic review of themes, frequent expansion of details
+- **Needs**: Organized view of all synchronic analyses with complete visibility
+- **Behavior**: Systematic review of themes, scanning across rows for patterns
 - **Goals**: Validate theme assignments, understand network relationships, prepare findings
 
 ### Secondary: Research Collaborator
-- **Needs**: Summary view of themes and patterns, key network diagrams
-- **Behavior**: High-level review, selective deep dives
-- **Goals**: Understand synchronic patterns without navigating multiple screens
+- **Needs**: Complete view of themes and patterns, all network diagrams visible
+- **Behavior**: High-level review, visual scanning of data
+- **Goals**: Understand synchronic patterns without any navigation or clicks
 
 ## Functional Requirements
 
 ### Core Features
 
-#### 1. Nested Table Structure
-- **Requirement**: Display a 4-column table with hierarchical data organization
+#### 1. Table Structure with Merged Cells
+- **Requirement**: Display a 4-column table with merged cells for optimal data presentation
 - **Acceptance Criteria**:
-  - Column 1: DU identification and metadata
-  - Column 2: ISU themes with expand/collapse
-  - Column 3: Utterances grouped by theme
-  - Column 4: Network diagram for each DU
+  - Column 1: DU identification and metadata (spans all rows for that DU)
+  - Column 2: ISU themes (each theme spans its utterance rows)
+  - Column 3: Utterances (one per row)
+  - Column 4: Network diagram for each DU (spans all rows for that DU)
 
 #### 2. DU Column (First Column)
 - **Features**:
@@ -58,59 +58,63 @@ Currently, researchers must navigate between multiple separate outputs (P2S.1, P
   - Segment count badge
   - Temporal span indicator
   - Phase-based color coding
-  - Expand/collapse toggle
+  - Merged cell spanning all rows for the DU
 - **Acceptance Criteria**:
-  - Click to expand/collapse entire DU row
-  - Visual indicator of expansion state
-  - Preserve expansion state during session
+  - Cell uses rowSpan attribute for proper merging
+  - Visual borders clearly delineate DU boundaries
+  - Phase colors applied as background
 
 #### 3. ISU Themes Column (Second Column)
 - **Features**:
-  - List of all ISU themes for the DU
+  - ISU theme name and metadata
   - Hierarchy level indicator (Level 1, 2, etc.)
-  - Segment count per ISU
+  - Utterance count per ISU
   - Abstraction operation type (e.g., "generalization")
-  - ISU intensional definition (expandable)
+  - ISU intensional definition displayed
   - Visual hierarchy with indentation for sub-units
+  - Merged cell spanning all utterances for that ISU
 - **Acceptance Criteria**:
   - ISUs sorted by hierarchy level then alphabetically
   - Level 1 ISUs shown with bold/larger text
-  - Sub-units indented under parent units
-  - Click ISU to expand/view utterances
+  - Sub-units indented with └─ prefix
+  - Cell uses rowSpan for proper merging
 
 #### 4. Utterances Column (Third Column)
 - **Features**:
-  - Grouped by ISU theme
+  - One utterance per row
   - Speaker identification (P/I icons)
   - Segment IDs and timestamps
-  - Full utterance text
-  - Keyword highlighting
+  - Full utterance text visible
+  - Keyword highlighting when searching
 - **Acceptance Criteria**:
-  - Expandable for long utterances
+  - Each utterance in its own table row
   - Clear visual separation between utterances
   - Maintain readability with proper spacing
+  - Text wrapping for long utterances
 
-#### 4. Network Diagram Column (Fourth Column)
+#### 5. Network Diagram Column (Fourth Column)
 - **Features**:
   - Mermaid network diagram per DU
   - Shows ISU nodes and relationships
   - Node size = centrality
   - Edge thickness = connection strength
   - Click to view full-size
+  - Merged cell spanning all rows for the DU
 - **Acceptance Criteria**:
-  - Responsive diagram sizing
-  - Modal view for detailed inspection
-  - Export capability
+  - Cell uses rowSpan for proper merging
+  - Responsive diagram sizing within cell
+  - Modal view for detailed inspection on click
+  - Export capability from modal
 
 ### Interaction Requirements
 
-#### 1. Expand/Collapse Functionality
-- **Requirement**: Multi-level expansion control
+#### 1. Scrolling and Navigation
+- **Requirement**: Smooth scrolling through complete dataset
 - **Acceptance Criteria**:
-  - DU level: Show/hide all content for a DU
-  - Theme level: Show/hide utterances for a theme
-  - Utterance level: Expand/collapse long text
-  - Expand/collapse all controls
+  - Vertical scrolling through all rows
+  - Horizontal scrolling if table exceeds viewport
+  - Sticky headers remain visible during scroll
+  - Virtual scrolling for performance with large datasets
 
 #### 2. Sorting and Filtering
 - **Requirement**: Table organization controls
@@ -196,9 +200,10 @@ Currently, researchers must navigate between multiple separate outputs (P2S.1, P
   - `NetworkDiagramViewer`
 
 ### State Management
-- Expansion states in component state
 - Filter/sort preferences in local storage
+- Search query in component state
 - Diagram cache for performance
+- No expansion state needed
 
 ### Styling Approach
 - CSS modules for component styles
@@ -208,14 +213,14 @@ Currently, researchers must navigate between multiple separate outputs (P2S.1, P
 ## Implementation Priorities
 
 ### Phase 1: Core Table Structure
-1. Basic 4-column layout
-2. DU and theme display
-3. Simple expand/collapse
+1. Basic 4-column layout with merged cells
+2. Row generation logic for proper spanning
+3. DU and ISU display with hierarchy
 
 ### Phase 2: Utterance Integration
-1. Utterance grouping and display
+1. Utterance display one per row
 2. Speaker identification
-3. Text expansion
+3. Proper alignment with ISU themes
 
 ### Phase 3: Network Diagrams
 1. Mermaid integration
@@ -229,19 +234,19 @@ Currently, researchers must navigate between multiple separate outputs (P2S.1, P
 
 ## Success Criteria
 
-1. All P2S data accessible in a single view
-2. Intuitive navigation through hierarchical data
+1. All P2S data visible in a single view without user interaction
+2. Clear visual hierarchy through merged cells and indentation
 3. Clear presentation of themes and utterances
 4. Effective network visualization
-5. Positive user feedback on usability
+5. Positive user feedback on immediate data visibility
 
 ## Risks and Mitigations
 
 ### Risk 1: Performance with Large Datasets
 - **Mitigation**: Implement virtual scrolling and lazy loading
 
-### Risk 2: Complex Nested Interactions
-- **Mitigation**: Clear visual indicators and consistent behavior
+### Risk 2: Complex Cell Merging Layout
+- **Mitigation**: Careful row calculation and proper HTML table structure
 
 ### Risk 3: Diagram Rendering Issues
 - **Mitigation**: Fallback to simple representations if needed

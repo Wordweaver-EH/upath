@@ -60,12 +60,23 @@ Input:
 ${JSON.stringify(input.synchronic_thematic_groups, null, 2)}
 
 Instructions:
-1.  Review Thematic Groups: Each group from P2S.1 represents segments sharing a topic within the DU "${input.analyzed_du_id}".
-2.  Define ISUs: For each thematic group, define one or more ISUs. An ISU is a conceptual unit capturing a synchronic experiential element. It's an abstraction of the raw segments.
-3.  Create Hierarchy: Organize ISUs into levels (1 for top-level, 2 for sub-units, etc.).
-4.  Abstraction Operations: For each ISU, specify the abstraction operation used (e.g., "generalization", "aggregation", "instantiation").
-5.  Intensional Definition: Provide a conceptual definition of the ISU—what experiential quality or state it represents.
-6.  Grounding: Ground each ISU in the specific segments it is derived from.
+1. For each thematic group from P2S.1, identify experiential elements (not just event descriptions).
+
+2. Create ISUs using these rules:
+   - Level 1 ISU: Created when segments share a general quality that could have variations
+   - Level 2 ISU: Created when segments represent a specific variation of a Level 1 ISU
+   - Maximum 2 levels. Start with Level 1 unless variation requires Level 2.
+
+3. Abstraction operations:
+   - "generalization": Used when creating Level 1 from varied segments
+   - "specification": Used when creating Level 2 as subset of Level 1
+   - "aggregation": Used when combining multiple distinct elements
+
+4. Each ISU must:
+   - Have a unique unit_name
+   - Include all relevant segments from the thematic group
+   - Have an intensional_definition focused on experiential quality
+   - List any Level 2 ISUs in constituent_lower_units (Level 1 only)
 
 Output:
 A JSON object adhering EXACTLY to the following structure (NO extra text):
