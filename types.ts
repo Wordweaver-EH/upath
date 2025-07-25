@@ -212,6 +212,13 @@ export interface P2S_3_Output {
   // mermaid_syntax_specific_synchronic is stored per-DU in TranscriptProcessedData.P2SDuData
 }
 
+// P2S.4 Summary Table - this is a UI-only step, no output data stored
+export interface P2S_4_Output {
+  // This step aggregates P2S.1, P2S.2, and P2S.3 outputs
+  // No new data is generated, only displayed in a summary table
+  // The table data is computed dynamically from existing P2S outputs
+}
+
 
 // Part III: Generic Diachronic Analysis
 export interface P3_1_Output {
@@ -689,6 +696,7 @@ export enum StepId {
   P2S_1_GROUP_UTTERANCES_BY_TOPIC = "P2S_1_GROUP_UTTERANCES_BY_TOPIC",
   P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS = "P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS",
   P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE = "P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE",
+  P2S_4_SUMMARY_TABLE = "P2S_4_SUMMARY_TABLE",
 
   // Part III: Generic Diachronic Analysis
   P3_1_ALIGN_STRUCTURES = "P3_1_ALIGN_STRUCTURES",

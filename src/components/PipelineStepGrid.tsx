@@ -27,6 +27,8 @@ import { RduTooltip } from './tooltips/RduTooltip';
 import { SynchronicThematicGroupingTable } from './SynchronicThematicGroupingTable';
 import { SpecificSynchronicUnitsTable } from './SpecificSynchronicUnitsTable';
 import { SpecificSynchronicStructureNetwork } from './SpecificSynchronicStructureNetwork';
+import { Part2SummaryTable } from './Part2SummaryTable';
+import { transformP2SDataToSummary } from '../utils/p2s4DataTransformer';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -1270,6 +1272,55 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
         }}
         theme={theme}
         emptyMessage="No DUs with P2S.3 output available. Click 'Run Step' to define specific synchronic structures."
+      />
+    );
+  }
+
+  // Special handling for P2S_4 Summary Table
+  if (stepId === StepId.P2S_4_SUMMARY_TABLE) {
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          const tabs: any[] = [];
+          
+          // For each transcript that has P2S outputs
+          Array.from(data.entries()).forEach(([transcriptId, transcript]) => {
+            if (transcript.p2s_outputs_by_du && Object.keys(transcript.p2s_outputs_by_du).length > 0) {
+              // Check if any DU has P2S outputs (P2S.1, P2S.2, or P2S.3)
+              const hasP2SOutputs = Object.values(transcript.p2s_outputs_by_du).some(
+                duData => duData.p2s_1_output || duData.p2s_2_output || duData.p2s_3_output
+              );
+              
+              if (hasP2SOutputs) {
+                tabs.push({
+                  id: transcriptId,
+                  label: transcript.filename,
+                  data: {
+                    transcriptId,
+                    p2sOutputsByDU: transcript.p2s_outputs_by_du,
+                    p1_4_output: transcript.p1_4_output,
+                    filename: transcript.filename
+                  }
+                });
+              }
+            }
+          });
+          
+          return tabs;
+        }}
+        renderContent={(tabData, theme) => {
+          // Transform P2S data into summary format
+          const summaryData = transformP2SDataToSummary(
+            tabData.transcriptId,
+            new Map(Object.entries(tabData.p2sOutputsByDU)),
+            tabData.p1_4_output
+          );
+          
+          return <Part2SummaryTable data={summaryData} theme={theme} />;
+        }}
+        theme={theme}
+        emptyMessage="No synchronic analysis data available. Please run P2S.1, P2S.2, and P2S.3 first."
       />
     );
   }

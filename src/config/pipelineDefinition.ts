@@ -118,7 +118,8 @@ export const STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC = [
 export const STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC = [
   StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC,
   StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS,
-  StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE
+  StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
+  StepId.P2S_4_SUMMARY_TABLE
 ]
 
 export const STEP_ORDER_PART_3_GENERIC_DIACHRONIC = [
@@ -260,6 +261,7 @@ export const stepIdToDataKeyPrefix: Partial<Record<StepId, keyof GenericAnalysis
   [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "p2s_1_output",
   [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "p2s_2_output",
   [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "p2s_3_output",
+  [StepId.P2S_4_SUMMARY_TABLE]: "p2s_4_output", // UI-only, no data stored
   [StepId.P3_1_ALIGN_STRUCTURES]: "p3_1_output",
   [StepId.P3_2_IDENTIFY_GDUS]: "p3_2_output",
   [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "p3_3_output",
@@ -340,30 +342,31 @@ export const STEP_DISPLAY_NAMES: Record<StepId, string> = {
   [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "10. Topic Grouping",
   [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "11. Synchronic Units",
   [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "12. Synchronic Structure",
+  [StepId.P2S_4_SUMMARY_TABLE]: "13. Summary Table",
   
   // Part 5: Cross-Transcript Analysis  
-  [StepId.P3_1_ALIGN_STRUCTURES]: "13. Structure Alignment",
-  [StepId.P3_2_IDENTIFY_GDUS]: "14. Generic Unit Identification",
-  [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "15. Generic Structure",
+  [StepId.P3_1_ALIGN_STRUCTURES]: "14. Structure Alignment",
+  [StepId.P3_2_IDENTIFY_GDUS]: "15. Generic Unit Identification",
+  [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "16. Generic Structure",
   
   // Part 6: Generic Synchronic Analysis
-  [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES]: "16. Node Identification", 
-  [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: "17. Generic Synchronic Groups",
+  [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES]: "17. Node Identification", 
+  [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: "18. Generic Synchronic Groups",
   
   // Part 7: Refinement
-  [StepId.P5_1_IV_COMPARATIVE_ANALYSIS]: "17. Comparative Analysis",
-  [StepId.P5_2_HOLISTIC_REFINEMENT]: "18. Holistic Refinement",
+  [StepId.P5_1_IV_COMPARATIVE_ANALYSIS]: "19. Comparative Analysis",
+  [StepId.P5_2_HOLISTIC_REFINEMENT]: "20. Holistic Refinement",
   
   // Part 8: Causal Analysis
-  [StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION]: "19. Variable Formalization",
-  [StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS]: "20. Causal Links",
-  [StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS]: "21. DAG Assembly",
-  [StepId.P7_3B_VALIDATE_AND_CLEAN_DAG]: "22. DAG Validation",
-  [StepId.P7_4_ANALYZE_PATHS_AND_BIASES]: "23. Path Analysis",
-  [StepId.P7_5_GENERATE_FORMAL_HYPOTHESES]: "24. Hypothesis Generation",
+  [StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION]: "21. Variable Formalization",
+  [StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS]: "22. Causal Links",
+  [StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS]: "23. DAG Assembly",
+  [StepId.P7_3B_VALIDATE_AND_CLEAN_DAG]: "24. DAG Validation",
+  [StepId.P7_4_ANALYZE_PATHS_AND_BIASES]: "25. Path Analysis",
+  [StepId.P7_5_GENERATE_FORMAL_HYPOTHESES]: "26. Hypothesis Generation",
   
   // Part 9: Report
-  [StepId.P6_1_GENERATE_MARKDOWN_REPORT]: "25. Generate Report",
+  [StepId.P6_1_GENERATE_MARKDOWN_REPORT]: "27. Generate Report",
   
   // Meta states  
   [StepId.IDLE]: "Idle",

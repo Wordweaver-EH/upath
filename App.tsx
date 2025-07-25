@@ -389,7 +389,8 @@ const App: React.FC = () => {
           StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
           StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC,
           StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS,
-          StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE
+          StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
+          StepId.P2S_4_SUMMARY_TABLE
         ];
         
         if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {
