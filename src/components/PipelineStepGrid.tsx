@@ -26,6 +26,7 @@ import { NestedTooltip } from './NestedTooltip';
 import { RduTooltip } from './tooltips/RduTooltip';
 import { SynchronicThematicGroupingTable } from './SynchronicThematicGroupingTable';
 import { SpecificSynchronicUnitsTable } from './SpecificSynchronicUnitsTable';
+import { SpecificSynchronicStructureNetwork } from './SpecificSynchronicStructureNetwork';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -1118,6 +1119,157 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
         }}
         theme={theme}
         emptyMessage="No DUs with P2S.2 output available. Click 'Run Step' to identify specific synchronic units."
+      />
+    );
+  }
+  
+  // Special handling for P2S_3 with tabbed display per transcript (all DUs on same page)
+  if (stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
+    
+    return (
+      <TabbedStepDisplay
+        processedData={processedData}
+        extractTabs={(data) => {
+          const tabs: any[] = [];
+          
+          // For each transcript that has P2S outputs
+          Array.from(data.entries()).forEach(([transcriptId, transcript]) => {
+            if (transcript.p2s_outputs_by_du) {
+              // Check if any DU has P2S.3 output
+              const duOutputs: { [duId: string]: any } = {};
+              Object.entries(transcript.p2s_outputs_by_du).forEach(([duId, duData]) => {
+                if (duData.p2s_3_output) {
+                  duOutputs[duId] = duData.p2s_3_output;
+                }
+              });
+              
+              // If this transcript has any P2S.3 outputs, create a tab for it
+              if (Object.keys(duOutputs).length > 0) {
+                tabs.push({
+                  id: transcriptId,
+                  label: transcript.filename,
+                  data: {
+                    transcriptMapId: transcriptId,
+                    duOutputs: duOutputs,
+                    filename: transcript.filename,
+                    transcriptId: transcript.p0_1_output?.transcript_id || transcriptId
+                  }
+                });
+              }
+            }
+          });
+          
+          return tabs;
+        }}
+        renderContent={(tabData, theme) => {
+          const handleNetworkChange = (duId: string, updatedData: any) => {
+            const transcriptData = processedData.get(tabData.transcriptMapId);
+            if (transcriptData && transcriptData.p2s_outputs_by_du) {
+              const updatedP2sOutputs = {
+                ...transcriptData.p2s_outputs_by_du,
+                [duId]: {
+                  ...transcriptData.p2s_outputs_by_du[duId],
+                  p2s_3_output: updatedData
+                }
+              };
+              
+              updateProcessedData(tabData.transcriptMapId, {
+                p2s_outputs_by_du: updatedP2sOutputs
+              });
+            }
+          };
+          
+          // Sort DU IDs for consistent display
+          const sortedDuIds = Object.keys(tabData.duOutputs).sort();
+          
+          // Get the first DU's data to extract transcript-level info
+          const firstDuData = tabData.duOutputs[sortedDuIds[0]];
+          
+          return (
+            <div className="space-y-6">
+              {/* Transcript-level metadata */}
+              <div className="bg-light-bg-alt dark:bg-dark-bg-alt p-4 rounded-lg space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Transcript ID
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {tabData.transcriptId}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Total Diachronic Units with P2S.3 Output
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text">
+                    {sortedDuIds.length}
+                  </p>
+                </div>
+                
+                {/* Variable Information - shown once at transcript level */}
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Independent Variable
+                  </h4>
+                  <p className="text-light-text dark:text-dark-text text-sm">
+                    {firstDuData.independent_variable_details}
+                  </p>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm text-light-sidenote dark:text-dark-sidenote mb-1">
+                    Dependent Variable Focus
+                  </h4>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {firstDuData.dependent_variable_focus.map((dv: string, index: number) => (
+                      <span
+                        key={index}
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                      >
+                        {dv}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              {/* Display all DUs for this transcript */}
+              {sortedDuIds.map((duId, index) => (
+                <div key={duId} className="border-t-2 border-light-border dark:border-dark-border pt-6">
+                  {/* DU Header */}
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-light-accent dark:text-dark-accent">
+                      Diachronic Unit: {duId}
+                    </h3>
+                  </div>
+                  
+                  {/* Specific synchronic structure network for this DU */}
+                  <SpecificSynchronicStructureNetwork 
+                    networkData={tabData.duOutputs[duId]}
+                    theme={theme}
+                    onNetworkChange={(updatedData) => handleNetworkChange(duId, updatedData)}
+                    filename={tabData.filename}
+                    hideVariableInfo={true}
+                    hideInstructions={true} // Instructions shown at bottom of transcript
+                    compactSummary={true} // Use compact summary
+                  />
+                </div>
+              ))}
+              
+              {/* Instructions - shown once at the bottom */}
+              <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic space-y-1 border-t-2 border-light-border dark:border-dark-border pt-4">
+                <div>📊 View the network as a Mermaid diagram or explore nodes and links</div>
+                <div>✏️ Click on description to edit it</div>
+                <div>🔗 Click on links in the link list to edit or delete them</div>
+                <div>📝 Add, edit, or delete nodes and links to modify the network structure</div>
+                <div>💾 Download the network structure as CSV for external analysis</div>
+              </div>
+            </div>
+          );
+        }}
+        theme={theme}
+        emptyMessage="No DUs with P2S.3 output available. Click 'Run Step' to define specific synchronic structures."
       />
     );
   }
