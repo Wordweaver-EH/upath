@@ -25,7 +25,10 @@ function getDUDescription(duId: string, p1_4_output?: P1_4_Output): string | und
 export function transformP2SDataToSummary(
   transcriptId: string,
   p2sOutputsByDU: Map<string, P2SDuData>,
-  p1_4_output?: P1_4_Output
+  p1_4_output?: P1_4_Output,
+  filename?: string,
+  independentVariable?: string,
+  dependentVariables?: string[]
 ): P2S4SummaryData {
   const duRecords: P2S4DURecord[] = [];
   let totalISUs = 0;
@@ -50,6 +53,9 @@ export function transformP2SDataToSummary(
 
   return {
     transcriptId,
+    filename: filename || transcriptId,
+    independentVariable: independentVariable || 'Not specified',
+    dependentVariables: dependentVariables || [],
     duRecords,
     totalDUs: duRecords.length,
     totalISUs,

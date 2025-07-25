@@ -35,6 +35,9 @@ export interface P2S4DURecord {
 
 export interface P2S4SummaryData {
   transcriptId: string;
+  filename: string;
+  independentVariable: string;
+  dependentVariables: string[];
   duRecords: P2S4DURecord[];
   totalDUs: number;
   totalISUs: number;

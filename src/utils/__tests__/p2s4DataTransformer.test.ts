@@ -71,6 +71,9 @@ describe('p2s4DataTransformer', () => {
       
       expect(result).toEqual({
         transcriptId: 'transcript1',
+        filename: 'transcript1',
+        independentVariable: 'Not specified',
+        dependentVariables: [],
         duRecords: [],
         totalDUs: 0,
         totalISUs: 0,

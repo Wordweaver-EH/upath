@@ -99,7 +99,7 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
   // Export handler
   const handleExportHTML = useCallback(() => {
     const htmlContent = generateP2S4Html(data, effectiveTheme);
-    downloadP2S4Html(htmlContent, data.transcriptId);
+    downloadP2S4Html(htmlContent, data.filename);
   }, [data, effectiveTheme]);
 
   // Column definitions

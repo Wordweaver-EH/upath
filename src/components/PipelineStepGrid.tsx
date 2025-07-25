@@ -1310,11 +1310,19 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
           return tabs;
         }}
         renderContent={(tabData, theme) => {
+          // Get transcript data to extract IV/DV info
+          const transcriptData = processedData.get(tabData.transcriptId);
+          const independentVariable = transcriptData?.p_neg1_1_output?.independent_variable_details || 'Not specified';
+          const dependentVariables = transcriptData?.p_neg1_1_output?.dependent_variable_focus || [];
+          
           // Transform P2S data into summary format
           const summaryData = transformP2SDataToSummary(
             tabData.transcriptId,
             new Map(Object.entries(tabData.p2sOutputsByDU)),
-            tabData.p1_4_output
+            tabData.p1_4_output,
+            tabData.filename,
+            independentVariable,
+            dependentVariables
           );
           
           return <Part2SummaryTable data={summaryData} theme={theme} />;

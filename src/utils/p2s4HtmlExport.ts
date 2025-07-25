@@ -86,7 +86,7 @@ export function generateP2S4Html(data: P2S4SummaryData, theme: 'light' | 'dark')
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>P2S.4 Summary - ${escapeHtml(data.transcriptId)}</title>
+  <title>P2S.4 Summary - ${escapeHtml(data.filename)}</title>
   <style>
     /* Reset and base styles */
     * {
@@ -434,7 +434,9 @@ export function generateP2S4Html(data: P2S4SummaryData, theme: 'light' | 'dark')
     <div class="header">
       <h1>P2S.4 Summary Analysis Report</h1>
       <div class="meta-info">
-        <p><strong>Transcript ID:</strong> ${escapeHtml(data.transcriptId)}</p>
+        <p><strong>Filename:</strong> ${escapeHtml(data.filename)}</p>
+        <p><strong>Independent Variable:</strong> ${escapeHtml(data.independentVariable)}</p>
+        <p><strong>Dependent Variable(s):</strong> ${escapeHtml(data.dependentVariables.join(', ') || 'None specified')}</p>
         <p><strong>Export Date:</strong> ${exportDate}</p>
       </div>
       <div class="stats">
@@ -521,14 +523,17 @@ export function generateP2S4Html(data: P2S4SummaryData, theme: 'light' | 'dark')
 }
 
 // Download HTML file
-export function downloadP2S4Html(htmlContent: string, transcriptId: string): void {
+export function downloadP2S4Html(htmlContent: string, filename: string): void {
   const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8;' });
   const link = document.createElement('a');
   const url = URL.createObjectURL(blob);
   const date = new Date().toISOString().split('T')[0];
   
+  // Extract base filename without extension
+  const baseFilename = filename.replace(/\.[^/.]+$/, '');
+  
   link.setAttribute('href', url);
-  link.setAttribute('download', `p2s4_summary_${transcriptId}_${date}.html`);
+  link.setAttribute('download', `p2s4_summary_${baseFilename}_${date}.html`);
   link.style.visibility = 'hidden';
   
   document.body.appendChild(link);

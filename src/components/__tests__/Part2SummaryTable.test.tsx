@@ -13,6 +13,9 @@ jest.mock('../../../components/MermaidDiagram', () => {
 describe('Part2SummaryTable', () => {
   const createMockSummaryData = (): P2S4SummaryData => ({
     transcriptId: 'transcript1',
+    filename: 'test_transcript.txt',
+    independentVariable: 'Test Condition A',
+    dependentVariables: ['DV1', 'DV2'],
     duRecords: [
       {
         id: 'du_1',
@@ -54,6 +57,9 @@ describe('Part2SummaryTable', () => {
   it('should render empty state when no data', () => {
     const emptyData: P2S4SummaryData = {
       transcriptId: 'transcript1',
+      filename: 'test_transcript.txt',
+      independentVariable: 'Test Condition A',
+      dependentVariables: ['DV1', 'DV2'],
       duRecords: [],
       totalDUs: 0,
       totalISUs: 0,
