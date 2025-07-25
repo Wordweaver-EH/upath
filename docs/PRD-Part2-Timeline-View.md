@@ -1,247 +1,255 @@
-# Product Requirements Document: Part 2 Timeline View
+# Product Requirements Document: Part 2 Summary Table (P2S.4)
 
 ## Executive Summary
 
-The Part 2 Timeline View is a new visualization component that provides an integrated temporal and structural view of analyzed interview transcripts. It displays the diachronic progression of experience through Diachronic Units (DUs) while revealing the synchronic structures within each unit, enabling researchers to understand both the flow of experience and the simultaneous elements at each moment.
+The Part 2 Summary Table is a comprehensive nested table component that presents the synchronic analysis results for all Diachronic Units (DUs) in a structured, hierarchical format. It provides researchers with an organized view of the relationships between DUs, ISU themes, utterances, and network structures, enabling efficient navigation and analysis of the synchronic dimensions of experience.
 
 ## Problem Statement
 
-Currently, researchers must navigate between multiple tables and views to understand the relationship between temporal progression (Part 1 outputs) and synchronic analysis (Part 2 outputs). This fragmentation makes it difficult to:
+Currently, researchers must navigate between multiple separate outputs (P2S.1, P2S.2, P2S.3) to understand the synchronic analysis results. This fragmentation makes it difficult to:
 
-1. Visualize the overall experiential flow
-2. Understand relationships between DUs and their internal structures
-3. Trace specific utterances through the analytical pipeline
-4. Identify patterns across the temporal dimension
-5. Present findings in an intuitive, accessible format
+1. See all DUs and their associated themes in one place
+2. Understand which utterances belong to which themes
+3. Visualize the network relationships for each DU
+4. Compare patterns across different DUs
+5. Export consolidated findings for reporting
 
 ## Goals and Objectives
 
 ### Primary Goals
-1. **Unified Visualization**: Create a single view that integrates diachronic and synchronic analyses
-2. **Interactive Exploration**: Enable researchers to navigate temporal flow while accessing structural details
-3. **Pattern Recognition**: Facilitate identification of recurring themes and transitions
-4. **Data Traceability**: Maintain clear connections from utterances to analytical abstractions
+1. **Consolidated View**: Create a single table that integrates all P2S outputs
+2. **Hierarchical Navigation**: Enable expand/collapse functionality for focused analysis
+3. **Direct Access**: Provide immediate access to utterance content and network diagrams
+4. **Efficient Comparison**: Facilitate pattern recognition across DUs
 
 ### Success Metrics
-- Reduced time to navigate between DUs and their analyses
-- Improved ability to identify temporal patterns
-- Enhanced presentation capabilities for research findings
-- Positive user feedback on clarity and usability
+- All P2S data accessible from a single view
+- Reduced clicks to access utterance content
+- Improved ability to compare themes across DUs
+- Positive user feedback on organization and accessibility
 
 ## User Personas
 
 ### Primary: Micro-phenomenology Researcher
-- **Needs**: Detailed view of experiential unfolding, ability to trace analytical decisions
-- **Behavior**: Iterative exploration, frequent comparison between units
-- **Goals**: Understand participant experience, validate analysis, present findings
+- **Needs**: Organized view of all synchronic analyses, ability to drill down to specific utterances
+- **Behavior**: Systematic review of themes, frequent expansion of details
+- **Goals**: Validate theme assignments, understand network relationships, prepare findings
 
 ### Secondary: Research Collaborator
-- **Needs**: High-level overview, key insights, exportable visualizations
-- **Behavior**: Quick review, focus on patterns and conclusions
-- **Goals**: Understand findings without deep technical knowledge
+- **Needs**: Summary view of themes and patterns, key network diagrams
+- **Behavior**: High-level review, selective deep dives
+- **Goals**: Understand synchronic patterns without navigating multiple screens
 
 ## Functional Requirements
 
 ### Core Features
 
-#### 1. Swim Lane Timeline Display
-- **Requirement**: Display 4 parallel horizontal lanes showing different analytical perspectives
+#### 1. Nested Table Structure
+- **Requirement**: Display a 4-column table with hierarchical data organization
 - **Acceptance Criteria**:
-  - Lane 1: DU progression with variable-width blocks
-  - Lane 2: ISU theme flows with intensity variations
-  - Lane 3: Synchronic network mini-diagrams
-  - Lane 4: Individual utterance segments
+  - Column 1: DU identification and metadata
+  - Column 2: ISU themes with expand/collapse
+  - Column 3: Utterances grouped by theme
+  - Column 4: Network diagram for each DU
 
-#### 2. Interactive Navigation
-- **Requirement**: Smooth temporal navigation with zoom and pan
+#### 2. DU Column (First Column)
+- **Features**:
+  - DU ID and descriptive name
+  - Segment count badge
+  - Temporal span indicator
+  - Phase-based color coding
+  - Expand/collapse toggle
 - **Acceptance Criteria**:
-  - Horizontal scroll/drag for time navigation
-  - Zoom controls for temporal detail adjustment
-  - Minimap for overview navigation
-  - Smooth animations between states
+  - Click to expand/collapse entire DU row
+  - Visual indicator of expansion state
+  - Preserve expansion state during session
 
-#### 3. Cross-Lane Interactions
-- **Requirement**: Coordinated highlighting across all lanes
+#### 3. ISU Themes Column (Second Column)
+- **Features**:
+  - List of all ISU themes for the DU
+  - Hierarchy level indicator (Level 1, 2, etc.)
+  - Segment count per ISU
+  - Abstraction operation type (e.g., "generalization")
+  - ISU intensional definition (expandable)
+  - Visual hierarchy with indentation for sub-units
 - **Acceptance Criteria**:
-  - Hover any element highlights related elements in all lanes
-  - Visual connections drawn between related elements
-  - Click to pin connections for comparison
-  - Clear visual feedback for all interactions
+  - ISUs sorted by hierarchy level then alphabetically
+  - Level 1 ISUs shown with bold/larger text
+  - Sub-units indented under parent units
+  - Click ISU to expand/view utterances
 
-#### 4. Detail Panels
-- **Requirement**: On-demand detailed information for any element
+#### 4. Utterances Column (Third Column)
+- **Features**:
+  - Grouped by ISU theme
+  - Speaker identification (P/I icons)
+  - Segment IDs and timestamps
+  - Full utterance text
+  - Keyword highlighting
 - **Acceptance Criteria**:
-  - DU details: description, segment count, themes
-  - ISU details: definition, abstraction operation
-  - Segment details: full utterance text, speaker, temporal cues
-  - Non-blocking overlay or side panel display
+  - Expandable for long utterances
+  - Clear visual separation between utterances
+  - Maintain readability with proper spacing
 
-#### 5. Data Export
-- **Requirement**: Export timeline visualization and underlying data
+#### 4. Network Diagram Column (Fourth Column)
+- **Features**:
+  - Mermaid network diagram per DU
+  - Shows ISU nodes and relationships
+  - Node size = centrality
+  - Edge thickness = connection strength
+  - Click to view full-size
 - **Acceptance Criteria**:
-  - Export timeline as PNG/SVG image
-  - Export data as structured CSV
-  - Configurable export options (zoom level, lanes to include)
-  - High-resolution output for publications
+  - Responsive diagram sizing
+  - Modal view for detailed inspection
+  - Export capability
 
-### Technical Requirements
+### Interaction Requirements
 
-#### Performance
-- Render 100+ segments without lag
-- Smooth 60fps animations
-- Response time <100ms for interactions
-- Progressive rendering for large datasets
+#### 1. Expand/Collapse Functionality
+- **Requirement**: Multi-level expansion control
+- **Acceptance Criteria**:
+  - DU level: Show/hide all content for a DU
+  - Theme level: Show/hide utterances for a theme
+  - Utterance level: Expand/collapse long text
+  - Expand/collapse all controls
 
-#### Browser Support
-- Chrome/Edge (latest 2 versions)
-- Firefox (latest 2 versions)
-- Safari (latest version)
-- Minimum viewport: 1280x720
+#### 2. Sorting and Filtering
+- **Requirement**: Table organization controls
+- **Acceptance Criteria**:
+  - Sort DUs by ID, name, or segment count
+  - Filter ISUs by hierarchy level (show only Level 1, etc.)
+  - Search utterances by keyword
+  - Filter by speaker (P/I)
 
-#### Accessibility
-- Keyboard navigation support
-- Screen reader compatibility for data
-- High contrast mode support
-- Configurable colors for color-blind users
+#### 3. Network Diagram Interaction
+- **Requirement**: Interactive network visualization
+- **Acceptance Criteria**:
+  - Click diagram to open modal
+  - Zoom/pan in modal view
+  - Node hover shows details
+  - Export as PNG/SVG
 
-## Design Specifications
+### Data Integration
 
-### Visual Design
-```
-┌─────────────────────────────────────────────────────────────┐
-│ Toolbar: [Zoom -|+] [Export] [Filter] [Settings]           │
-├─────────────────────────────────────────────────────────────┤
-│ DUs      │━━━━━━━│━━━━━━━━━━━│━━━━━━│━━━━━━━━━━━━━│       │
-│          │  DU1  │    DU2    │ DU3  │     DU4     │       │
-├──────────┼──────────────────────────────────────────────────┤
-│ ISUs     │ ≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈       │
-│          │   ≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈         │
-├──────────┼──────────────────────────────────────────────────┤
-│ Networks │  ◯-◯  │    ◯-◯-◯   │ ◯-◯ │   ◯-◯-◯-◯   │       │
-│          │   ◯   │      ◯      │     │     ◯-◯     │       │
-├──────────┼──────────────────────────────────────────────────┤
-│ Segments │ ▪▪▪▪  │ ▪▪▪▪▪▪▪▪▪  │ ▪▪▪ │ ▪▪▪▪▪▪▪▪▪▪ │       │
-│          │  ▪▪   │   ▪▪▪▪▪     │  ▪  │    ▪▪▪▪     │       │
-├─────────────────────────────────────────────────────────────┤
-│ Minimap: [━━━━━━━━━━━━━━━━━━[viewport]━━━━━━━━━━━━━━━━━━] │
-└─────────────────────────────────────────────────────────────┘
-```
+#### 1. Input Sources
+- P1.4 output: DU definitions and segments
+- P2S.1 output: Thematic groupings
+- P2S.2 output: ISU hierarchies and descriptions
+- P2S.3 output: Network structures
 
-### Color Scheme
-- **DUs**: Blue gradient (unique shade per DU)
-- **ISUs**: Category-based consistent colors
-- **Networks**: Monochrome for clarity
-- **Segments**: Speaker differentiation (P/I)
+#### 2. Data Processing
+- Aggregate ISUs by DU from P2S.2
+- Build ISU hierarchy with parent-child relationships
+- Map segments to ISUs
+- Generate network diagrams from P2S.3
 
-### Interaction States
-- **Default**: Normal display
-- **Hover**: Highlight + connections
-- **Selected**: Bold outline + persistent highlight
-- **Pinned**: Dashed connections
-- **Filtered**: Opacity reduction for non-matching
+### UI/UX Requirements
 
-## Implementation Plan
+#### 1. Visual Design
+- **Requirement**: Clean, professional table design
+- **Acceptance Criteria**:
+  - Consistent with existing app theme
+  - Clear visual hierarchy
+  - Adequate spacing and padding
+  - Responsive to screen size
 
-### Phase 1: Core Timeline (Week 1-2)
-- [ ] Create base component structure
-- [ ] Implement DU lane with basic rendering
-- [ ] Add temporal navigation (scroll/zoom)
-- [ ] Basic hover interactions
+#### 2. Performance
+- **Requirement**: Smooth interaction with large datasets
+- **Acceptance Criteria**:
+  - Lazy loading for utterance content
+  - Efficient expand/collapse
+  - Smooth scrolling
+  - Fast diagram rendering
 
-### Phase 2: Multi-Lane Integration (Week 3-4)
-- [ ] Add ISU flow lane
-- [ ] Add network snapshot lane
-- [ ] Add segment lane with stacking
-- [ ] Implement cross-lane highlighting
+#### 3. Accessibility
+- **Requirement**: WCAG 2.1 AA compliance
+- **Acceptance Criteria**:
+  - Keyboard navigation
+  - Screen reader support
+  - Sufficient color contrast
+  - Focus indicators
 
-### Phase 3: Interactions (Week 5-6)
-- [ ] Detail panels
-- [ ] Connection pinning
-- [ ] Advanced filtering
-- [ ] Export functionality
+### Export Requirements
 
-### Phase 4: Polish (Week 7-8)
-- [ ] Performance optimization
-- [ ] Accessibility features
-- [ ] Documentation
-- [ ] User testing and refinement
+#### 1. Table Export
+- **Requirement**: Export table data in multiple formats
+- **Acceptance Criteria**:
+  - CSV export with hierarchical structure
+  - Excel export with formatting
+  - PDF export with diagrams
+  - Markdown export for reports
 
-## Technical Architecture
+#### 2. Diagram Export
+- **Requirement**: Export network diagrams
+- **Acceptance Criteria**:
+  - PNG export at multiple resolutions
+  - SVG export for editing
+  - Batch export all diagrams
 
-### Component Structure
-```typescript
-Part2SwimLaneTimeline/
-├── index.tsx                 // Main component
-├── lanes/
-│   ├── DULane.tsx
-│   ├── ISULane.tsx
-│   ├── NetworkLane.tsx
-│   └── SegmentLane.tsx
-├── controls/
-│   ├── TimelineControls.tsx
-│   ├── Minimap.tsx
-│   └── ExportDialog.tsx
-├── hooks/
-│   ├── useTimelineNavigation.ts
-│   ├── useDataProcessing.ts
-│   └── useInteractions.ts
-└── utils/
-    ├── rendering.ts
-    ├── dataTransform.ts
-    └── export.ts
-```
+## Technical Specifications
 
-### Data Flow
-1. Receive P1.4 DUs + P2S outputs
-2. Process into timeline-friendly format
-3. Calculate layout positions
-4. Render lanes with virtual scrolling
-5. Handle interactions with efficient updates
+### Component Architecture
+- Main component: `Part2SummaryTable`
+- Sub-components:
+  - `DURowComponent`
+  - `ISUThemeList`
+  - `UtteranceGroup`
+  - `NetworkDiagramViewer`
 
-### Dependencies
-- React 18+
-- D3.js (scales, data processing)
-- Canvas API (performance rendering)
-- React Spring (animations)
-- html2canvas (export functionality)
+### State Management
+- Expansion states in component state
+- Filter/sort preferences in local storage
+- Diagram cache for performance
 
-## Risks and Mitigation
+### Styling Approach
+- CSS modules for component styles
+- Theme variables for consistency
+- Responsive breakpoints
 
-### Risk: Performance with Large Datasets
-**Mitigation**: Virtual scrolling, progressive rendering, data clustering
+## Implementation Priorities
 
-### Risk: Complex Interaction Patterns
-**Mitigation**: User testing, iterative refinement, clear visual feedback
+### Phase 1: Core Table Structure
+1. Basic 4-column layout
+2. DU and theme display
+3. Simple expand/collapse
 
-### Risk: Browser Compatibility
-**Mitigation**: Progressive enhancement, fallback rendering modes
+### Phase 2: Utterance Integration
+1. Utterance grouping and display
+2. Speaker identification
+3. Text expansion
+
+### Phase 3: Network Diagrams
+1. Mermaid integration
+2. Diagram generation
+3. Modal viewer
+
+### Phase 4: Enhancements
+1. Sorting and filtering
+2. Export functionality
+3. Performance optimization
 
 ## Success Criteria
 
-1. **Functionality**: All features implemented and working
-2. **Performance**: Meets performance benchmarks
-3. **Usability**: Positive feedback from user testing
-4. **Integration**: Seamless integration with existing pipeline
-5. **Documentation**: Complete user and developer documentation
+1. All P2S data accessible in a single view
+2. Intuitive navigation through hierarchical data
+3. Clear presentation of themes and utterances
+4. Effective network visualization
+5. Positive user feedback on usability
+
+## Risks and Mitigations
+
+### Risk 1: Performance with Large Datasets
+- **Mitigation**: Implement virtual scrolling and lazy loading
+
+### Risk 2: Complex Nested Interactions
+- **Mitigation**: Clear visual indicators and consistent behavior
+
+### Risk 3: Diagram Rendering Issues
+- **Mitigation**: Fallback to simple representations if needed
 
 ## Future Enhancements
 
-1. **Comparative View**: Side-by-side timeline comparison
-2. **Pattern Detection**: Automated pattern highlighting
-3. **Annotation System**: Add researcher notes to timeline
-4. **Collaborative Features**: Share and discuss timelines
-5. **Advanced Analytics**: Statistical overlays and metrics
-
-## Appendix
-
-### Mockups
-[Include visual mockups here]
-
-### User Stories
-1. As a researcher, I want to see the flow of DUs so I can understand temporal progression
-2. As a researcher, I want to explore synchronic structures within each DU
-3. As a researcher, I want to trace utterances through the analysis pipeline
-4. As a presenter, I want to export clean visualizations for publications
-
-### API Specifications
-[Include detailed API docs for component props and methods]
+1. Cross-DU theme comparison view
+2. Timeline overlay showing temporal relationships
+3. Advanced filtering by multiple criteria
+4. Integration with other analysis steps
+5. Collaborative annotation features
