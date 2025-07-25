@@ -93,38 +93,23 @@ const NetworkDiagramCellRenderer: React.FC<ICellRendererParams> = ({ data }) => 
     });
   };
   
-  // Only render on the first row of each DU
-  if (!data._isFirstDURow) {
-    return <div className="h-full" />; // Empty cell for non-first rows
-  }
-  
   return (
-    <div className="relative p-2">
-      <div 
-        className="absolute top-2 left-2 bg-white dark:bg-gray-900 border-2 border-light-border dark:border-dark-border rounded-lg shadow-lg"
-        style={{ 
-          width: '320px', 
-          height: '400px',
-          zIndex: 10,
-          overflow: 'hidden'
-        }}
-      >
-        <div className="h-full flex flex-col">
-          <div className="flex-1 overflow-auto p-2">
-            <MermaidDiagram chart={data.networkMermaid} />
+    <div className="p-2 h-full">
+      <div className="h-full flex flex-col">
+        <div className="flex-1 overflow-auto" style={{ minHeight: '300px' }}>
+          <MermaidDiagram chart={data.networkMermaid} />
+        </div>
+        <div className="mt-2 pt-2 border-t border-light-border dark:border-dark-border">
+          <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
+            <div>Nodes: {data.networkNodeCount}</div>
+            <div>Links: {data.networkLinkCount}</div>
           </div>
-          <div className="border-t border-light-border dark:border-dark-border p-2 bg-light-bg-alt dark:bg-dark-bg-alt">
-            <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
-              <div>Nodes: {data.networkNodeCount}</div>
-              <div>Links: {data.networkLinkCount}</div>
-            </div>
-            <button
-              onClick={handleCopyMermaidCode}
-              className="mt-2 px-2 py-1 text-xs bg-light-bg dark:bg-dark-bg hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors w-full"
-            >
-              Copy Mermaid Code
-            </button>
-          </div>
+          <button
+            onClick={handleCopyMermaidCode}
+            className="mt-2 px-2 py-1 text-xs bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors w-full"
+          >
+            Copy Mermaid Code
+          </button>
         </div>
       </div>
     </div>
@@ -181,13 +166,8 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
       minWidth: 300,
       resizable: true,
       autoHeight: true,
-      cellClass: (params) => {
-        const classes = [];
-        if (params.data._isLastDURow) classes.push('last-du-row');
-        if (params.data._isFirstDURow) classes.push('diagram-container-cell');
-        return classes.join(' ');
-      },
-      cellStyle: { padding: '8px', position: 'relative' }
+      cellClass: (params) => params.data._isLastDURow ? 'last-du-row' : '',
+      cellStyle: { padding: '8px' }
     }
   ], []);
 
@@ -273,13 +253,12 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
           animateRows={false}
           suppressCellFocus={true}
           theme="legacy"
-          rowHeight={60}
           getRowHeight={(params) => {
-            // Give more height to rows that will be overlapped by diagram
-            if (params.data._isFirstDURow || params.data._duData) {
-              return 60;
+            // Give more height to rows with network diagrams
+            if (params.data.networkMermaid) {
+              return 400; // Tall row for diagram
             }
-            return 60;
+            return 60; // Normal row height
           }}
           onGridReady={(params) => {
             params.api.sizeColumnsToFit();
@@ -289,16 +268,6 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
 
       {/* Custom styles for visual grouping and column borders */}
       <style jsx>{`
-        /* Ensure diagram container cells have proper overflow handling */
-        :global(.diagram-container-cell) {
-          overflow: visible !important;
-          position: relative !important;
-        }
-        
-        /* Add extra padding to cells below diagram */
-        :global(.ag-row:not(:first-child) .ag-cell:last-child) {
-          padding-top: 20px !important;
-        }
         @media print {
           body {
             print-color-adjust: exact;
