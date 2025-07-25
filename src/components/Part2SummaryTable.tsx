@@ -86,8 +86,7 @@ const UtteranceCellRenderer: React.FC<ICellRendererParams> = ({ data }) => {
 
 export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, theme }) => {
   const gridRef = useRef<AgGridReact>(null);
-  const [hoveredDuId, setHoveredDuId] = React.useState<string | null>(null);
-  const [mousePosition, setMousePosition] = React.useState({ x: 0, y: 0 });
+  const [selectedDuId, setSelectedDuId] = React.useState<string | null>(null);
   const [refreshKey, setRefreshKey] = React.useState(0);
   
   // Generate table rows for ag-grid
@@ -254,24 +253,17 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
           {data.duRecords.map((du, index) => (
             <div key={du.id} className="border border-light-border dark:border-dark-border rounded-lg p-4 bg-light-bg-alt dark:bg-dark-bg-alt">
               <div className="mb-3">
-                <h4 className="text-base font-semibold text-light-text dark:text-dark-text">{du.name}</h4>
+                <h4 
+                  className="text-base font-semibold text-light-text dark:text-dark-text cursor-pointer hover:text-light-primary dark:hover:text-dark-primary hover:underline transition-colors inline-block"
+                  onClick={() => setSelectedDuId(du.id)}
+                  title="Click to view utterances"
+                >
+                  {du.name}
+                </h4>
                 <p className="text-sm text-light-sidenote dark:text-dark-sidenote italic mt-1">{du.description}</p>
               </div>
               <div className="flex">
-                <div 
-                  className="flex-1 relative cursor-help"
-                  title="Hover to see utterances"
-                  onMouseEnter={(e) => {
-                    setHoveredDuId(du.id);
-                    setMousePosition({ x: e.clientX, y: e.clientY });
-                  }}
-                  onMouseLeave={() => setHoveredDuId(null)}
-                  onMouseMove={(e) => {
-                    if (hoveredDuId === du.id) {
-                      setMousePosition({ x: e.clientX, y: e.clientY });
-                    }
-                  }}
-                >
+                <div className="flex-1 relative">
                   <MermaidDiagram key={`${du.id}-${refreshKey}`} chart={du.networkDiagram.mermaidSyntax} />
                 </div>
                 <div className="ml-4 text-sm text-light-sidenote dark:text-dark-sidenote">
@@ -303,44 +295,62 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
         </div>
       </div>
 
-      {/* Utterances Popup Modal */}
-      {hoveredDuId && (
-        <div
-          className="fixed z-50 pointer-events-none"
-          style={{
-            left: `${Math.min(mousePosition.x + 10, window.innerWidth - 520)}px`,
-            top: `${Math.min(mousePosition.y + 10, window.innerHeight - 400)}px`,
-            maxWidth: '500px'
-          }}
-        >
-          <div className="bg-white dark:bg-gray-900 border-2 border-light-border dark:border-dark-border rounded-lg shadow-xl p-4 max-h-96 overflow-y-auto">
-            <h5 className="font-semibold text-sm mb-2 text-light-text dark:text-dark-text">
-              Utterances for {data.duRecords.find(du => du.id === hoveredDuId)?.name}
-            </h5>
-            <div className="space-y-2">
-              {getDuUtterances(hoveredDuId).map((utterance, idx) => (
-                <div key={idx} className="border-b border-light-border dark:border-dark-border pb-2 last:border-b-0">
-                  <div className="flex items-start gap-2">
-                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
-                      utterance.speaker === 'P' 
-                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
-                        : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                    }`}>
-                      {utterance.speaker}
-                    </span>
-                    <div className="flex-1">
-                      <p className="text-sm text-light-text dark:text-dark-text">{utterance.text}</p>
-                      <p className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">ID: {utterance.segmentId}</p>
+      {/* Utterances Modal */}
+      {selectedDuId && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setSelectedDuId(null)}
+          />
+          
+          {/* Modal */}
+          <div className="fixed z-50 top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[80vh]">
+            <div className="bg-white dark:bg-gray-900 border-2 border-light-border dark:border-dark-border rounded-lg shadow-xl">
+              {/* Header */}
+              <div className="flex justify-between items-center p-4 border-b border-light-border dark:border-dark-border">
+                <h5 className="font-semibold text-lg text-light-text dark:text-dark-text">
+                  Utterances for {data.duRecords.find(du => du.id === selectedDuId)?.name}
+                </h5>
+                <button
+                  onClick={() => setSelectedDuId(null)}
+                  className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text transition-colors"
+                  title="Close"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Content */}
+              <div className="p-4 overflow-y-auto max-h-[60vh]">
+                <div className="space-y-3">
+                  {getDuUtterances(selectedDuId).map((utterance, idx) => (
+                    <div key={idx} className="border-b border-light-border dark:border-dark-border pb-3 last:border-b-0">
+                      <div className="flex items-start gap-2">
+                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
+                          utterance.speaker === 'P' 
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
+                            : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                        }`}>
+                          {utterance.speaker}
+                        </span>
+                        <div className="flex-1">
+                          <p className="text-sm text-light-text dark:text-dark-text">{utterance.text}</p>
+                          <p className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">ID: {utterance.segmentId}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ))}
+                  {getDuUtterances(selectedDuId).length === 0 && (
+                    <p className="text-sm text-light-sidenote dark:text-dark-sidenote italic">No utterances found for this DU</p>
+                  )}
                 </div>
-              ))}
-              {getDuUtterances(hoveredDuId).length === 0 && (
-                <p className="text-sm text-light-sidenote dark:text-dark-sidenote italic">No utterances found for this DU</p>
-              )}
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Custom styles for visual grouping and column borders */}
