@@ -1687,7 +1687,18 @@ export const usePipelineStore = create<PipelineStore>()(
           const tsvContent = generateTsvForPromptHistory(promptHistory)
           downloadFile(tsvContent, `${filename}.tsv`, 'text/tab-separated-values;charset=utf-8')
         } else {
-          const jsonContent = JSON.stringify(promptHistory, null, 2)
+          // Create simplified version with only prompt and responseParsed
+          const simplifiedHistory = promptHistory.map(entry => ({
+            stepId: entry.stepId,
+            transcriptId: entry.transcriptId,
+            timestamp: entry.timestamp,
+            prompt: entry.prompt,
+            responseParsed: entry.responseParsed,
+            error: entry.error,
+            estimatedInputTokens: entry.estimatedInputTokens,
+            estimatedOutputTokens: entry.estimatedOutputTokens
+          }))
+          const jsonContent = JSON.stringify(simplifiedHistory, null, 2)
           downloadFile(jsonContent, `${filename}.json`, 'application/json')
         }
       },
