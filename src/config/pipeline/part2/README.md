@@ -154,9 +154,13 @@ A JSON object adhering EXACTLY to the following structure:
 }
 ```
 
+### P2S.4: Summary Table (UI-Only Step)
+
+P2S.4 is a display-only step that provides a consolidated view of all Part 2 Synchronic Analysis outputs. It does not involve any LLM processing or data transformation.
+
 ## Overview
 
-Part 2 performs **Specific Synchronic Analysis** on individual Diachronic Units (DUs) identified in Part 1. While Part 1 analyzed temporal progression (diachronic), Part 2 focuses on the simultaneous experiential elements within each DU (synchronic). This analysis is performed iteratively for each DU from Part 1.
+Part 2 performs **Specific Synchronic Analysis** on individual Diachronic Units (DUs) identified in Part 1. While Part 1 analyzed temporal progression (diachronic), Part 2 focuses on the simultaneous experiential elements within each DU (synchronic). This analysis is performed iteratively for each DU from Part 1, concluding with a comprehensive summary table (P2S.4) that consolidates all synchronic findings for each transcript.
 
 ## Architecture
 
@@ -174,12 +178,12 @@ Transcript 1:
   └─ DU 1: P2S.1 → P2S.2 → P2S.3
   └─ DU 2: P2S.1 → P2S.2 → P2S.3
   └─ DU 3: P2S.1 → P2S.2 → P2S.3
-  └─ (all DUs complete) → Move to Transcript 2
+  └─ (all DUs complete) → P2S.4 Summary Table → Move to Transcript 2
 
 Transcript 2:
   └─ DU 1: P2S.1 → P2S.2 → P2S.3
   └─ DU 2: P2S.1 → P2S.2 → P2S.3
-  └─ (all DUs complete) → Move to Part 3
+  └─ (all DUs complete) → P2S.4 Summary Table → Move to Part 3
 ```
 
 ### Transcript Progression Logic
@@ -189,7 +193,7 @@ Transcript 2:
 - When moving to the next transcript, Part 2 continues from P2S.1 for the new transcript's DUs
 - Only when ALL transcripts are complete does Part 2 finish and move to Part 3
 
-## Steps
+## Steps (4 Total)
 
 ### P2S.1: Group Segments by Topic within a Diachronic Unit
 
@@ -304,6 +308,33 @@ Transcript 2:
 }
 ```
 
+### P2S.4: Summary Table - Consolidated View
+
+**Purpose**: Provides a unified, interactive view of all Part 2 Synchronic Analysis outputs for a transcript, enabling researchers to review and understand the complete synchronic structure across all DUs.
+
+**Input**: All P2S.1, P2S.2, and P2S.3 outputs for the transcript
+
+**Processing**: This is a UI-only step that:
+1. Consolidates all DU analysis results into a structured table
+2. Displays DU information with descriptions from P1.4
+3. Shows ISU hierarchies with nested tooltips for exploration
+4. Presents utterances grouped by ISU themes
+5. Renders network diagrams for each DU's synchronic structure
+6. Provides export capabilities for offline analysis
+
+**Output**: Interactive table display with:
+- **DU Column**: Shows DU name, description from P1.4, and segment count
+- **ISU Themes Column**: Hierarchical display of ISUs with abstraction operations and definitions
+- **Utterances Column**: Speaker-tagged utterances organized by ISU
+- **Network Diagrams Section**: Mermaid visualizations of each DU's semantic network
+- **Export Options**: HTML export with IV/DV context for documentation
+
+**Key Features**:
+- Nested tooltip navigation for exploring ISU-utterance relationships
+- Refresh capabilities for Mermaid diagram rendering
+- Summary statistics (total DUs, ISUs, utterances)
+- Context preservation (IV, DV, filename) in exports
+
 ## Key Concepts
 
 ### Diachronic Units (DUs)
@@ -397,9 +428,32 @@ processedData.get(transcriptId).p2s_outputs_by_du = {
 - `source_isu_id` links back to P2S.2's `unit_name` field
 - Link types are free-form but should be meaningful
 
+## P2S.4 Export Features
+
+The Summary Table includes comprehensive export capabilities:
+
+### HTML Export
+- **Filename Format**: `p2s4_summary_{base_filename}_{date}.html`
+- **Content Includes**:
+  - Filename, Independent Variable, and Dependent Variable(s) in header
+  - Summary statistics (total DUs, ISUs, utterances)
+  - Complete DU-ISU-Utterance hierarchy table
+  - Network diagrams with Mermaid rendering
+  - Theme-aware styling (light/dark mode support)
+- **Standalone Document**: Self-contained HTML with embedded CSS and JavaScript
+- **Interactive Elements**: Mermaid diagrams render on load
+
+### Export Context Preservation
+- IV/DV information extracted from P-1.1 output
+- Filename used instead of technical transcript ID
+- Export date included for version tracking
+- All ISU hierarchies and utterance relationships preserved
+
 ## Development Notes
 
 - P2S steps must complete for ALL DUs before moving to Part 3
 - Each DU is independent - failure in one shouldn't block others
 - Mermaid syntax generation happens in P2S.3 for visualization
 - The semantic network in P2S.3 is crucial for Part 3's aggregation
+- P2S.4 is display-only and doesn't modify any data
+- Export functionality preserves full analysis context for documentation
