@@ -6,6 +6,8 @@ import { P2S4SummaryData, P2S4TableRow } from '../types/p2s4Types';
 import { generateTableRows, generateAgGridRows } from '../utils/p2s4DataTransformer';
 import MermaidDiagram from '../../components/MermaidDiagram';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { NestedTooltip } from '../components/NestedTooltip';
+import { ISUTooltip } from '../components/tooltips/ISUTooltip';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -86,33 +88,11 @@ const UtteranceCellRenderer: React.FC<ICellRendererParams> = ({ data }) => {
 
 export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, theme }) => {
   const gridRef = useRef<AgGridReact>(null);
-  const [selectedDuId, setSelectedDuId] = React.useState<string | null>(null);
-  const [popupPosition, setPopupPosition] = React.useState({ x: 0, y: 0 });
   const [refreshKeys, setRefreshKeys] = React.useState<Record<string, number>>({});
   
   // Generate table rows for ag-grid
   const tableRows = useMemo(() => generateAgGridRows(data), [data]);
 
-  // Get all utterances for a specific DU
-  const getDuUtterances = useCallback((duId: string) => {
-    const du = data.duRecords.find(record => record.id === duId);
-    if (!du) return [];
-    
-    const utterances: Array<{ speaker: string; text: string; segmentId: string }> = [];
-    
-    // Collect all utterances from all ISUs in this DU
-    Array.from(du.isuThemes.values()).forEach(isu => {
-      isu.utterances.forEach(utt => {
-        utterances.push({
-          speaker: utt.speaker,
-          text: utt.text,
-          segmentId: utt.segmentId
-        });
-      });
-    });
-    
-    return utterances;
-  }, [data]);
 
   // Column definitions
   const columnDefs: ColDef[] = useMemo(() => [
@@ -240,8 +220,9 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
 
       {/* Network Diagrams Section */}
       <div className="mt-8">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-light-text dark:text-dark-text">Network Diagrams</h3>
+        <div className="mb-2">
+          <div className="flex justify-between items-center mb-1">
+            <h3 className="text-lg font-semibold text-light-text dark:text-dark-text">Network Diagrams</h3>
           <button
             onClick={() => {
               const newKeys: Record<string, number> = {};
@@ -255,22 +236,56 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
           >
             ↻ Refresh All
           </button>
+          </div>
+          <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
+            Hover over DU names to explore ISU themes and utterances with nested tooltips.
+          </div>
         </div>
         <div className="space-y-6">
           {data.duRecords.map((du, index) => (
             <div key={`${du.id}-container`} className="border border-light-border dark:border-dark-border rounded-lg p-4 bg-light-bg-alt dark:bg-dark-bg-alt">
               <div className="mb-3">
-                <h4 
-                  className="text-base font-semibold text-light-text dark:text-dark-text cursor-pointer hover:text-light-primary dark:hover:text-dark-primary hover:underline transition-colors inline-block"
-                  onClick={(e) => {
-                    setSelectedDuId(du.id);
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    setPopupPosition({ x: rect.left, y: rect.bottom + 5 });
-                  }}
-                  title="Click to view utterances"
+                <NestedTooltip
+                  content={
+                    <div className="du-tooltip-content p-6">
+                      <div className="font-bold text-light-accent dark:text-dark-accent mb-2">
+                        {du.name}
+                      </div>
+                      <div className="text-sm text-light-text dark:text-dark-text mb-3">
+                        {du.description}
+                      </div>
+                      <div className="border-t border-light-border dark:border-dark-border pt-2">
+                        <div className="font-semibold text-sm mb-2">ISU Themes ({du.isuThemes.size}):</div>
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {Array.from(du.isuThemes.values()).map((isu) => (
+                            <div key={isu.id} className="isu-item">
+                              <NestedTooltip
+                                depth={1}
+                                content={<ISUTooltip isu={isu} duName={du.name} duDescription={du.description} />}
+                              >
+                                <div className="p-2 bg-light-bg-alt dark:bg-dark-bg-alt rounded cursor-pointer hover:bg-light-border dark:hover:bg-dark-border transition-colors">
+                                  <div className="font-semibold text-sm">
+                                    {isu.unitName}
+                                  </div>
+                                  <div className="text-xs text-light-sidenote dark:text-dark-sidenote">
+                                    Level {isu.level} • {isu.utterances.length} utterances
+                                  </div>
+                                  <div className="text-xs text-light-accent dark:text-dark-accent mt-1">
+                                    {isu.abstractionOp}
+                                  </div>
+                                </div>
+                              </NestedTooltip>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  }
                 >
-                  {du.name}
-                </h4>
+                  <h4 className="text-base font-semibold text-light-text dark:text-dark-text cursor-pointer hover:text-light-primary dark:hover:text-dark-primary hover:underline transition-colors inline-block" title="Hover to view ISUs and utterances">
+                    {du.name}
+                  </h4>
+                </NestedTooltip>
                 <p className="text-sm text-light-sidenote dark:text-dark-sidenote italic mt-1">{du.description}</p>
               </div>
               <div className="flex">
@@ -317,65 +332,50 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
         </div>
       </div>
 
-      {/* Utterances Popup */}
-      {selectedDuId && (
-        <>
-          {/* Invisible backdrop to detect clicks outside */}
-          <div 
-            className="fixed inset-0 z-40"
-            onClick={() => setSelectedDuId(null)}
-          />
-          
-          {/* Popup */}
-          <div
-            className="fixed z-50"
-            style={{
-              left: `${Math.min(popupPosition.x, window.innerWidth - 520)}px`,
-              top: `${Math.min(popupPosition.y, window.innerHeight - 400)}px`,
-              maxWidth: '500px'
-            }}
-          >
-            <div className="bg-white dark:bg-gray-900 border-2 border-light-border dark:border-dark-border rounded-lg shadow-xl p-4 max-h-96 overflow-y-auto">
-              <div className="flex justify-between items-start mb-2">
-                <h5 className="font-semibold text-sm text-light-text dark:text-dark-text">
-                  Utterances for {data.duRecords.find(du => du.id === selectedDuId)?.name}
-                </h5>
-                <button
-                  onClick={() => setSelectedDuId(null)}
-                  className="text-light-sidenote dark:text-dark-sidenote hover:text-light-text dark:hover:text-dark-text transition-colors ml-2"
-                  title="Close"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="space-y-2">
-                {getDuUtterances(selectedDuId).map((utterance, idx) => (
-                  <div key={idx} className="border-b border-light-border dark:border-dark-border pb-2 last:border-b-0">
-                    <div className="flex items-start gap-2">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
-                        utterance.speaker === 'P' 
-                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' 
-                          : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                      }`}>
-                        {utterance.speaker}
-                      </span>
-                      <div className="flex-1">
-                        <p className="text-sm text-light-text dark:text-dark-text">{utterance.text}</p>
-                        <p className="text-xs text-light-sidenote dark:text-dark-sidenote mt-1">ID: {utterance.segmentId}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {getDuUtterances(selectedDuId).length === 0 && (
-                  <p className="text-sm text-light-sidenote dark:text-dark-sidenote italic">No utterances found for this DU</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+
+      {/* Custom styles for nested tooltips */}
+      <style>{`
+        /* Nested tooltip styles */
+        .nested-tooltip {
+          background: var(--tooltip-bg, #ffffff);
+          color: var(--tooltip-text, #1a1a1a);
+          border: 1px solid var(--tooltip-border, #e5e5e5);
+          border-radius: 8px;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+          max-width: 90vw;
+          min-width: 300px;
+          --tooltip-bg: #ffffff;
+          --tooltip-text: #1a1a1a;
+          --tooltip-border: #e5e5e5;
+        }
+        
+        .dark .nested-tooltip {
+          --tooltip-bg: #2a2a2a;
+          --tooltip-text: #e5e5e5;
+          --tooltip-border: #444444;
+        }
+        
+        .nested-tooltip.depth-1 {
+          box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .nested-tooltip.depth-2 {
+          box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+        }
+        
+        .du-tooltip-content,
+        .isu-tooltip-content,
+        .utterance-tooltip-content {
+          max-width: 600px;
+        }
+        
+        .line-clamp-2 {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+      `}</style>
 
       {/* Custom styles for visual grouping and column borders */}
       <style jsx>{`
