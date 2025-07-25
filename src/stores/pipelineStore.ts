@@ -20,9 +20,10 @@ import {
   P1_2_Output,
   P1_3_Output,
   PhaseTaggedSegment,
-  SortedSegment
+  SortedSegment,
+  P2SDuData
 } from '../../types'
-import { ProcessState } from '../config/pipelineDefinition'
+import { ProcessState, STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC } from '../config/pipelineDefinition'
 import { 
   STEP_CONFIGS, 
   ALL_PIPELINE_STEP_IDS_IN_ORDER,
@@ -2189,8 +2190,34 @@ export const selectCurrentStepDisplay = (currentStepInfo: CurrentStepInfo, trans
     }
   }
   
-  // No output yet
+  // No output yet - but for P2S steps, check if ANY DU has data
   if (!currentStepInfo.outputData && currentStepInfo.stepId !== StepId.IDLE) {
+    // Special handling for P2S steps - check if any DU has data
+    if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(currentStepInfo.stepId)) {
+      const { processedData, rawTranscripts } = state
+      // Get activeTranscriptIndex from UI store
+      const uiStore = (window as any).__uiStore
+      const activeTranscriptIndex = uiStore ? uiStore.getState().activeTranscriptIndex : 0
+      const currentTranscriptId = rawTranscripts[activeTranscriptIndex]?.id
+      if (currentTranscriptId) {
+        const transcriptData = processedData.get(currentTranscriptId)
+        if (transcriptData?.p2s_outputs_by_du) {
+          // Check if any DU has output for this step
+          const stepKey = stepIdToDataKeyPrefix[currentStepInfo.stepId] as keyof P2SDuData
+          const hasAnyOutput = Object.values(transcriptData.p2s_outputs_by_du).some(
+            duData => duData[stepKey] !== undefined
+          )
+          if (hasAnyOutput) {
+            // Let the component handle displaying the data
+            return {
+              type: 'data' as const,
+              hasData: true
+            }
+          }
+        }
+      }
+    }
+    
     return {
       type: 'empty' as const,
       message: 'No output to display for this step yet.'

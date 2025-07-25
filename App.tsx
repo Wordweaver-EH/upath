@@ -371,6 +371,10 @@ const App: React.FC = () => {
       case 'report':
         return <ReportRenderer markdown={stepDisplay.markdown} theme={theme} />;
       
+      case 'data':
+        // For P2S steps that have data in any DU but not in currentStepInfo.outputData
+        return <PipelineStepGrid processedData={processedData} stepId={currentStepInfo.stepId} theme={theme} />;
+        
       case 'output':
         // Special handling for steps with grid display
         const gridSteps = [
@@ -382,7 +386,8 @@ const App: React.FC = () => {
           StepId.P1_2_COARSE_PHASE_TAGGING,
           StepId.P1_3_INTRA_PHASE_SORTING,
           StepId.P1_4_DIACHRONIC_UNIT_GROUPING,
-          StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
+          StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
+          StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC
         ];
         
         if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {

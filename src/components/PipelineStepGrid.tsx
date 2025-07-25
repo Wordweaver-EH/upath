@@ -822,6 +822,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
   
   // Special handling for P2S_1 with tabbed display per DU
   if (stepId === StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC) {
+    
     return (
       <TabbedStepDisplay
         processedData={processedData}
@@ -905,7 +906,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
           );
         }}
         theme={theme}
-        emptyMessage="No DUs with P2S.1 output available"
+        emptyMessage="No DUs with P2S.1 output available. Click 'Run Step' to generate thematic groupings."
       />
     );
   }
