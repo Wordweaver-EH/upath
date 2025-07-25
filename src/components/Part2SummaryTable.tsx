@@ -94,22 +94,33 @@ const NetworkDiagramCellRenderer: React.FC<ICellRendererParams> = ({ data }) => 
   };
   
   return (
-    <div className="p-2 h-full">
-      <div className="h-full flex flex-col">
-        <div className="flex-1 overflow-auto" style={{ minHeight: '300px' }}>
-          <MermaidDiagram chart={data.networkMermaid} />
-        </div>
-        <div className="mt-2 pt-2 border-t border-light-border dark:border-dark-border">
-          <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
-            <div>Nodes: {data.networkNodeCount}</div>
-            <div>Links: {data.networkLinkCount}</div>
+    <div className="relative" style={{ height: '60px' }}>
+      <div 
+        className="absolute bg-white dark:bg-gray-900 border-2 border-light-border dark:border-dark-border rounded-lg shadow-lg p-2"
+        style={{ 
+          top: 0,
+          left: 0,
+          width: '340px',
+          height: '400px',
+          zIndex: 10
+        }}
+      >
+        <div className="h-full flex flex-col">
+          <div className="flex-1 overflow-auto">
+            <MermaidDiagram chart={data.networkMermaid} />
           </div>
-          <button
-            onClick={handleCopyMermaidCode}
-            className="mt-2 px-2 py-1 text-xs bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors w-full"
-          >
-            Copy Mermaid Code
-          </button>
+          <div className="mt-2 pt-2 border-t border-light-border dark:border-dark-border">
+            <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
+              <div>Nodes: {data.networkNodeCount}</div>
+              <div>Links: {data.networkLinkCount}</div>
+            </div>
+            <button
+              onClick={handleCopyMermaidCode}
+              className="mt-2 px-2 py-1 text-xs bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors w-full"
+            >
+              Copy Mermaid Code
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -167,7 +178,7 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
       resizable: true,
       autoHeight: true,
       cellClass: (params) => params.data._isLastDURow ? 'last-du-row' : '',
-      cellStyle: { padding: '8px' }
+      cellStyle: { padding: '8px', overflow: 'visible' }
     }
   ], []);
 
@@ -253,13 +264,7 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
           animateRows={false}
           suppressCellFocus={true}
           theme="legacy"
-          getRowHeight={(params) => {
-            // Give more height to rows with network diagrams
-            if (params.data.networkMermaid) {
-              return 400; // Tall row for diagram
-            }
-            return 60; // Normal row height
-          }}
+          rowHeight={60}
           onGridReady={(params) => {
             params.api.sizeColumnsToFit();
           }}
@@ -268,6 +273,14 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
 
       {/* Custom styles for visual grouping and column borders */}
       <style jsx>{`
+        /* Allow overflow for network diagram cells */
+        :global(.ag-cell) {
+          overflow: visible !important;
+        }
+        
+        :global(.ag-row) {
+          overflow: visible !important;
+        }
         @media print {
           body {
             print-color-adjust: exact;
