@@ -90,9 +90,11 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
   const gridRef = useRef<AgGridReact>(null);
   const [refreshKeys, setRefreshKeys] = React.useState<Record<string, number>>({});
   
+  // Detect theme from DOM if not provided
+  const effectiveTheme = theme || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  
   // Generate table rows for ag-grid
   const tableRows = useMemo(() => generateAgGridRows(data), [data]);
-
 
   // Export handler
   const handleExportHTML = useCallback(() => {
@@ -137,10 +139,6 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
       cellStyle: { padding: '8px' }
     }
   ], []);
-
-
-  // Detect theme from DOM if not provided
-  const effectiveTheme = theme || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
 
   // If no data, show empty state
   if (data.duRecords.length === 0) {
