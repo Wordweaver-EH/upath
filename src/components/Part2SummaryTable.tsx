@@ -97,7 +97,7 @@ const NetworkDiagramCellRenderer: React.FC<ICellRendererParams> = ({ data }) => 
     <div className="p-2">
       <div>
         <div className="mb-2" style={{ maxWidth: '300px', maxHeight: '200px', overflow: 'auto' }}>
-          <MermaidDiagram content={data.networkMermaid} />
+          <MermaidDiagram chart={data.networkMermaid} />
         </div>
         <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
           <div>Nodes: {data.networkNodeCount}</div>
