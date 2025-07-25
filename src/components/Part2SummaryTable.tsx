@@ -83,38 +83,6 @@ const UtteranceCellRenderer: React.FC<ICellRendererParams> = ({ data }) => {
   );
 };
 
-// Network Diagram Cell Renderer
-const NetworkDiagramCellRenderer: React.FC<ICellRendererParams> = ({ data }) => {
-  if (!data.networkMermaid) return null;
-  
-  const handleCopyMermaidCode = () => {
-    navigator.clipboard.writeText(data.networkMermaid).then(() => {
-      console.log('Mermaid code copied to clipboard');
-    });
-  };
-  
-  return (
-    <div className="p-2 h-full">
-      <div className="h-full flex flex-col">
-        <div className="flex-1 overflow-auto" style={{ minHeight: '300px' }}>
-          <MermaidDiagram chart={data.networkMermaid} />
-        </div>
-        <div className="mt-2 pt-2 border-t border-light-border dark:border-dark-border">
-          <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
-            <div>Nodes: {data.networkNodeCount}</div>
-            <div>Links: {data.networkLinkCount}</div>
-          </div>
-          <button
-            onClick={handleCopyMermaidCode}
-            className="mt-2 px-2 py-1 text-xs bg-light-bg-alt dark:bg-dark-bg-alt hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors w-full"
-          >
-            Copy Mermaid Code
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, theme }) => {
   const gridRef = useRef<AgGridReact>(null);
@@ -140,7 +108,7 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
       field: 'isuName',
       headerName: 'ISU Themes',
       cellRenderer: ISUCellRenderer,
-      width: 300,
+      width: 350,
       minWidth: 250,
       resizable: true,
       autoHeight: true,
@@ -152,21 +120,10 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
       headerName: 'Utterances',
       cellRenderer: UtteranceCellRenderer,
       flex: 1,
-      minWidth: 300,
+      minWidth: 400,
       resizable: true,
       autoHeight: true,
       wrapText: true,
-      cellStyle: { padding: '8px' }
-    },
-    {
-      field: 'networkMermaid',
-      headerName: 'Network Diagram',
-      cellRenderer: NetworkDiagramCellRenderer,
-      width: 350,
-      minWidth: 300,
-      resizable: true,
-      autoHeight: true,
-      cellClass: (params) => params.data._isLastDURow ? 'last-du-row' : '',
       cellStyle: { padding: '8px' }
     }
   ], []);
@@ -186,9 +143,7 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
       'Speaker': row.utteranceSpeaker || '',
       'Utterance': row.utteranceText || '',
       'Segment ID': row.utteranceSegmentId || '',
-      'Timestamp': row.utteranceTimestamp || '',
-      'Network Nodes': row.networkNodeCount || '',
-      'Network Links': row.networkLinkCount || ''
+      'Timestamp': row.utteranceTimestamp || ''
     }));
     
     const csv = convertToCSV(csvData);
@@ -253,17 +208,44 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
           animateRows={false}
           suppressCellFocus={true}
           theme="legacy"
-          getRowHeight={(params) => {
-            // Give more height to rows with network diagrams
-            if (params.data.networkMermaid) {
-              return 400; // Tall row for diagram
-            }
-            return 60; // Normal row height
-          }}
           onGridReady={(params) => {
             params.api.sizeColumnsToFit();
           }}
         />
+      </div>
+
+      {/* Network Diagrams Section */}
+      <div className="mt-8">
+        <h3 className="text-lg font-semibold mb-4 text-light-text dark:text-dark-text">Network Diagrams</h3>
+        <div className="space-y-6">
+          {data.duRecords.map((du, index) => (
+            <div key={du.id} className="border border-light-border dark:border-dark-border rounded-lg p-4 bg-light-bg-alt dark:bg-dark-bg-alt">
+              <div className="mb-3">
+                <h4 className="text-base font-semibold text-light-text dark:text-dark-text">{du.name}</h4>
+                <p className="text-sm text-light-sidenote dark:text-dark-sidenote italic mt-1">{du.description}</p>
+              </div>
+              <div className="flex">
+                <div className="flex-1">
+                  <MermaidDiagram chart={du.networkDiagram.mermaidSyntax} />
+                </div>
+                <div className="ml-4 text-sm text-light-sidenote dark:text-dark-sidenote">
+                  <div>Nodes: {du.networkDiagram.nodeCount}</div>
+                  <div>Links: {du.networkDiagram.linkCount}</div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(du.networkDiagram.mermaidSyntax).then(() => {
+                        console.log('Mermaid code copied to clipboard');
+                      });
+                    }}
+                    className="mt-2 px-2 py-1 text-xs bg-light-bg dark:bg-dark-bg hover:bg-light-border dark:hover:bg-dark-border text-light-text dark:text-dark-text rounded transition-colors"
+                  >
+                    Copy Code
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Custom styles for visual grouping and column borders */}
