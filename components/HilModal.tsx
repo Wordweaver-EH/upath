@@ -4,7 +4,7 @@ import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
 import { useSettingsStore } from '../src/stores/settingsStore';
 import CollapsibleSection from './CollapsibleSection';
-import { Button, TextArea, Select, Slider } from '../src/components/ui';
+import { Button, TextArea, Select, Input } from '../src/components/ui';
 
 interface HilModalProps {
   onSubmit: (modelParams: { model: string; temperature: number }) => void;
@@ -89,19 +89,27 @@ const HilModal: React.FC<HilModalProps> = ({
               value={selectedModel}
               onChange={(e) => setSelectedModel(e.target.value)}
               options={availableModels}
-              helpText="Select a more powerful model if needed for complex corrections"
+              helperText="Select a more powerful model if needed for complex corrections"
             />
             
-            <Slider
-              label={`Temperature: ${selectedTemperature.toFixed(1)}`}
-              id="hilTemperature"
-              value={selectedTemperature}
-              onChange={(value) => setSelectedTemperature(value)}
-              min={0}
-              max={2}
-              step={0.1}
-              helpText="Lower values are more focused, higher values are more creative"
-            />
+            <div>
+              <label htmlFor="hilTemperature" className="block text-sm font-medium text-light-text dark:text-dark-text mb-1">
+                Temperature
+              </label>
+              <Input
+                type="number"
+                id="hilTemperature"
+                value={selectedTemperature}
+                onChange={(e) => setSelectedTemperature(parseFloat(e.target.value) || 0)}
+                min="0"
+                max="2"
+                step="0.1"
+                placeholder="0.0 - 2.0"
+              />
+              <p className="mt-1 text-sm text-light-sidenote dark:text-dark-sidenote">
+                Lower values are more focused, higher values are more creative
+              </p>
+            </div>
           </div>
         </div>
 
