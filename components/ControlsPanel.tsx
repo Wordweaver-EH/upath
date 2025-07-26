@@ -28,6 +28,11 @@ const ControlsPanel: React.FC = () => {
   // Settings Store
   const apiKeyPresent = useSettingsStore(state => state.apiKeyPresent);
   const dvFocusError = useSettingsStore(state => state.dvFocusError);
+  const apiKey = useSettingsStore(state => state.apiKeyPresent ? 'present' : '');
+  const temperature = useSettingsStore(state => state.temperature);
+  const seed = useSettingsStore(state => state.seed);
+  const userDvFocus = useSettingsStore(state => state.userDvFocus);
+  const model = useSettingsStore(state => state.model);
   const outputDirectory = useSettingsStore(state => state.outputDirectory);
   
   // Pipeline Store
@@ -60,7 +65,16 @@ const ControlsPanel: React.FC = () => {
   // Handler for running current step
   const handleRunStep = () => {
     const currentStepInfo = useUIStore.getState().currentStepInfo;
-    processSingleStep({ stepId: currentStepInfo.stepId });
+    processSingleStep({ 
+      stepId: currentStepInfo.stepId,
+      settings: {
+        apiKey,
+        temperature,
+        seed,
+        userDvFocus,
+        model
+      }
+    });
   };
 
   // Determine if retry UI should be shown

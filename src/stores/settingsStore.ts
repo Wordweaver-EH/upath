@@ -6,6 +6,22 @@ import { isApiKeySet } from '../../services/geminiService'
 // Default DV focus input string
 const DEFAULT_DV_FOCUS_INPUT = 'cognitions, emotions, sensations, imagination, internal_experiences'
 
+// Model type
+export interface ModelOption {
+  value: string
+  label: string
+  description?: string
+  inputTokenLimit?: number
+  outputTokenLimit?: number
+}
+
+// Default thinking models (used as fallback)
+export const DEFAULT_AVAILABLE_MODELS: ModelOption[] = [
+  { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Stable version with thinking capabilities' },
+  { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Advanced reasoning with thinking mode' },
+  { value: 'gemini-2.0-flash-thinking-exp', label: 'Gemini 2.0 Flash Thinking Experimental', description: 'Experimental thinking model' }
+]
+
 // Pure helper function to parse DV focus string into array
 const parseDvFocusString = (input: string): string[] => {
   const trimmed = input.trim()
@@ -25,6 +41,9 @@ interface SettingsState {
   dvFocusError: string
   
   // Generation Settings
+  model: string
+  availableModels: ModelOption[]
+  isLoadingModels: boolean
   temperature: number
   seedInput: string
   seed: number | undefined
@@ -43,6 +62,8 @@ interface SettingsActions {
   validateAndSetDvFocus: (input: string) => void
   validateAndSetSeed: (input: string) => void
   checkApiKey: () => void
+  fetchAvailableModels: () => Promise<void>
+  setModel: (model: string) => void
   setTemperature: (temp: number) => void
   setOutputDirectory: (dir: string) => void
   setDebugMode: (enabled: boolean) => void
@@ -63,13 +84,16 @@ export const useSettingsStore = create<SettingsStore>()(
         userDvFocus: { dv_focus: initialDvFocusArray },
         dvFocusInput: DEFAULT_DV_FOCUS_INPUT,
         dvFocusError: '',
-      temperature: 0.0,
-      seedInput: '42',
-      seed: 42,
-      retrySeedInput: '',
-      outputDirectory: 'MicroPheno_Analysis_Outputs',
-      autoDownloadResults: false,
-      debugMode: (process.env as any).REACT_APP_DEBUG_MODE === 'true',
+        model: 'gemini-2.5-flash',
+        availableModels: DEFAULT_AVAILABLE_MODELS,
+        isLoadingModels: false,
+        temperature: 0.0,
+        seedInput: '42',
+        seed: 42,
+        retrySeedInput: '',
+        outputDirectory: 'MicroPheno_Analysis_Outputs',
+        autoDownloadResults: false,
+        debugMode: (process.env as any).REACT_APP_DEBUG_MODE === 'true',
       
       // Actions
       updateSettings: (updates) => set(updates),
@@ -120,6 +144,51 @@ export const useSettingsStore = create<SettingsStore>()(
         set({ apiKeyPresent: isApiKeySet() })
       },
       
+      fetchAvailableModels: async () => {
+        set({ isLoadingModels: true })
+        
+        try {
+          const BACKEND_URL = process.env.NODE_ENV === 'production' 
+            ? process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001'
+            : 'http://localhost:3001'
+            
+          const response = await fetch(`${BACKEND_URL}/api/models`)
+          
+          if (response.ok) {
+            const data = await response.json()
+            
+            // Update available models and potentially the selected model
+            set({ 
+              availableModels: data.models || DEFAULT_AVAILABLE_MODELS,
+              isLoadingModels: false 
+            })
+            
+            // If current model is not in the list, update to default
+            const currentModel = get().model
+            const modelExists = data.models?.some((m: ModelOption) => m.value === currentModel)
+            if (!modelExists && data.defaultModel) {
+              set({ model: data.defaultModel })
+            }
+          } else {
+            console.warn('Failed to fetch models, using defaults')
+            set({ 
+              availableModels: DEFAULT_AVAILABLE_MODELS,
+              isLoadingModels: false 
+            })
+          }
+        } catch (error) {
+          console.error('Error fetching models:', error)
+          set({ 
+            availableModels: DEFAULT_AVAILABLE_MODELS,
+            isLoadingModels: false 
+          })
+        }
+      },
+      
+      setModel: (model: string) => {
+        set({ model })
+      },
+      
       setTemperature: (temp: number) => {
         set({ temperature: Math.max(0, Math.min(1, temp)) })
       },
@@ -139,6 +208,9 @@ export const useSettingsStore = create<SettingsStore>()(
           userDvFocus: { dv_focus: initialDvFocusArray },
           dvFocusInput: DEFAULT_DV_FOCUS_INPUT,
           dvFocusError: '',
+          model: 'gemini-2.5-flash',
+          availableModels: DEFAULT_AVAILABLE_MODELS,
+          isLoadingModels: false,
           temperature: 0.0,
           seedInput: '42',
           seed: 42,
@@ -164,6 +236,7 @@ export const useSettingsStore = create<SettingsStore>()(
         // Only persist user preferences, not runtime states
         userDvFocus: state.userDvFocus,
         dvFocusInput: state.dvFocusInput,
+        model: state.model,
         temperature: state.temperature,
         seedInput: state.seedInput,
         seed: state.seed,

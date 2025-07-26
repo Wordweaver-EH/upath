@@ -164,7 +164,8 @@ async function performGeminiCall(
     isJsonOutput: boolean,
     useGrounding: boolean,
     temperature: number, 
-    seed?: number,        
+    seed?: number,
+    model: string = GEMINI_MODEL_TEXT,        
     originalPromptForFixer?: string 
 ): Promise<{ 
     responseText: string; 
@@ -186,7 +187,7 @@ async function performGeminiCall(
                 effectivePrompt,
                 true, // Always encrypt prompts for network calls
                 {
-                    model: GEMINI_MODEL_TEXT,
+                    model,
                     isJsonOutput,
                     useGrounding,
                     temperature,
@@ -226,6 +227,7 @@ export async function callGeminiAPI(
   useGrounding: boolean = false,
   temperature: number = 0.0, 
   seed?: number,
+  model: string = GEMINI_MODEL_TEXT,
   attempt: number = 1 
 ): Promise<{ 
     text?: string; 
@@ -235,7 +237,7 @@ export async function callGeminiAPI(
     estimatedInputTokens?: number;
     estimatedOutputTokens?: number;
 }> {
-  const initialCallResult = await performGeminiCall(prompt, isJsonOutput, useGrounding, temperature, seed);
+  const initialCallResult = await performGeminiCall(prompt, isJsonOutput, useGrounding, temperature, seed, model);
   let totalEstimatedInputTokens = initialCallResult.estimatedInputTokens;
   let totalEstimatedOutputTokens = initialCallResult.estimatedOutputTokens;
 
@@ -287,7 +289,7 @@ The output MUST be ONLY the corrected, valid JSON object or array. Ensure all st
 Do not include any explanations, apologies, or surrounding text like markdown fences. Just the raw, corrected JSON.`;
         
         // Pass `prompt` as `originalPromptForFixer` to `performGeminiCall` for accurate input token counting for the fixer call itself
-        const retryResult = await performGeminiCall(fixerPrompt, true, false, 0.0, seed, fixerPrompt); 
+        const retryResult = await performGeminiCall(fixerPrompt, true, false, 0.0, seed, model, fixerPrompt); 
 
         totalEstimatedInputTokens += retryResult.estimatedInputTokens;
         totalEstimatedOutputTokens += retryResult.estimatedOutputTokens;

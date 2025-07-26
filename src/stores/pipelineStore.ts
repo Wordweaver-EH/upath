@@ -4,6 +4,7 @@ import { persist, subscribeWithSelector } from 'zustand/middleware'
 import { queuedLocalForageStorage, localForageStorage } from '../utils/storage'
 import { performDataMigration } from '../utils/migration'
 import { useUIStore } from './uiStore'
+import { useSettingsStore } from './settingsStore'
 import { 
   RawTranscript, 
   TranscriptProcessedData, 
@@ -379,7 +380,7 @@ export const usePipelineStore = create<PipelineStore>()(
         }
         
         const isReportStepForThisCall = stepId === StepId.P6_1_GENERATE_MARKDOWN_REPORT
-        const { apiKey, userDvFocus, temperature, seed } = settings
+        const { apiKey, userDvFocus, temperature, seed, model } = settings
         
         // Validate settings
         const apiKeyPresent = !!apiKey
@@ -632,6 +633,7 @@ export const usePipelineStore = create<PipelineStore>()(
               false, // useGrounding
               temperature,
               overrideSeed !== undefined ? overrideSeed : seed,
+              model || GEMINI_MODEL_TEXT, // Use model from settings or default
               1 // maxRetries
             );
             
@@ -692,6 +694,7 @@ export const usePipelineStore = create<PipelineStore>()(
             false, // useGrounding
             temperature, 
             effectiveSeed,
+            model || GEMINI_MODEL_TEXT, // Use model from settings or default
             1 // maxRetries/attempt
           )
           output = config.isJsonOutput ? apiResult.parsedJson : apiResult.text
@@ -1849,11 +1852,22 @@ export const usePipelineStore = create<PipelineStore>()(
         if (currentStepInfo.status === StepStatus.Error && retrySeedInput.trim()) {
           const seedValue = parseInt(retrySeedInput.trim(), 10)
           if (!isNaN(seedValue) && seedValue > 0) {
+            // Get settings from settingsStore
+            const settingsState = useSettingsStore.getState()
+            const settings = {
+              apiKey: settingsState.apiKeyPresent ? 'present' : '',
+              temperature: settingsState.temperature,
+              seed: settingsState.seed,
+              userDvFocus: settingsState.userDvFocus,
+              model: settingsState.model
+            }
+            
             // Retry the current step with the user-provided seed
             get().processSingleStep({
               stepId: currentStepInfo.stepId,
               transcriptIdToProcess: currentStepInfo.transcriptId,
-              overrideSeed: seedValue
+              overrideSeed: seedValue,
+              settings
             })
             
             // Clear the retry input - this should be handled by UI components

@@ -493,14 +493,17 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     Dependent Variable Focus
                   </h4>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {tabData.segmentationData.dependent_variable_focus.map((dv: string, index: number) => (
+                    {tabData.segmentationData.dependent_variable_focus && Array.isArray(tabData.segmentationData.dependent_variable_focus) ? 
+                      tabData.segmentationData.dependent_variable_focus.map((dv: string, index: number) => (
                       <span
                         key={index}
                         className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
                       >
                         {dv}
                       </span>
-                    ))}
+                    )) : (
+                      <span className="text-xs text-light-sidenote dark:text-dark-sidenote">No dependent variables specified</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -579,14 +582,17 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     Dependent Variable Focus
                   </h4>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {tabData.diachronicData.dependent_variable_focus.map((dv: string, index: number) => (
+                    {tabData.diachronicData.dependent_variable_focus && Array.isArray(tabData.diachronicData.dependent_variable_focus) ? 
+                      tabData.diachronicData.dependent_variable_focus.map((dv: string, index: number) => (
                       <span
                         key={index}
                         className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
                       >
                         {dv}
                       </span>
-                    ))}
+                    )) : (
+                      <span className="text-xs text-light-sidenote dark:text-dark-sidenote">No dependent variables specified</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -674,14 +680,17 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     Dependent Variable Focus
                   </h4>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {tabData.phaseData.dependent_variable_focus.map((dv: string, index: number) => (
+                    {tabData.phaseData.dependent_variable_focus && Array.isArray(tabData.phaseData.dependent_variable_focus) ? 
+                      tabData.phaseData.dependent_variable_focus.map((dv: string, index: number) => (
                       <span
                         key={index}
                         className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
                       >
                         {dv}
                       </span>
-                    ))}
+                    )) : (
+                      <span className="text-xs text-light-sidenote dark:text-dark-sidenote">No dependent variables specified</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -779,14 +788,17 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     Dependent Variable Focus
                   </h4>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {tabData.groupingData.dependent_variable_focus.map((dv: string, index: number) => (
+                    {tabData.groupingData.dependent_variable_focus && Array.isArray(tabData.groupingData.dependent_variable_focus) ? 
+                      tabData.groupingData.dependent_variable_focus.map((dv: string, index: number) => (
                       <span
                         key={index}
                         className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
                       >
                         {dv}
                       </span>
-                    ))}
+                    )) : (
+                      <span className="text-xs text-light-sidenote dark:text-dark-sidenote">No dependent variables specified</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -923,14 +935,18 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     Dependent Variable Focus
                   </h4>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {firstDuData.dependent_variable_focus.map((dv: string, index: number) => (
-                      <span
-                        key={index}
-                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-                      >
-                        {dv}
-                      </span>
-                    ))}
+                    {firstDuData.dependent_variable_focus && Array.isArray(firstDuData.dependent_variable_focus) ? (
+                      firstDuData.dependent_variable_focus.map((dv: string, index: number) => (
+                        <span
+                          key={index}
+                          className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                        >
+                          {dv}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-light-sidenote dark:text-dark-sidenote">No dependent variables specified</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1073,14 +1089,18 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     Dependent Variable Focus
                   </h4>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {firstDuData.dependent_variable_focus.map((dv: string, index: number) => (
-                      <span
-                        key={index}
-                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-                      >
-                        {dv}
-                      </span>
-                    ))}
+                    {firstDuData.dependent_variable_focus && Array.isArray(firstDuData.dependent_variable_focus) ? (
+                      firstDuData.dependent_variable_focus.map((dv: string, index: number) => (
+                        <span
+                          key={index}
+                          className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                        >
+                          {dv}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-light-sidenote dark:text-dark-sidenote">No dependent variables specified</span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1224,14 +1244,18 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     Dependent Variable Focus
                   </h4>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {firstDuData.dependent_variable_focus.map((dv: string, index: number) => (
-                      <span
-                        key={index}
-                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
-                      >
-                        {dv}
-                      </span>
-                    ))}
+                    {firstDuData.dependent_variable_focus && Array.isArray(firstDuData.dependent_variable_focus) ? (
+                      firstDuData.dependent_variable_focus.map((dv: string, index: number) => (
+                        <span
+                          key={index}
+                          className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                        >
+                          {dv}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="text-xs text-light-sidenote dark:text-dark-sidenote">No dependent variables specified</span>
+                    )}
                   </div>
                 </div>
               </div>

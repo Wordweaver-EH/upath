@@ -362,15 +362,26 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
   // Column definitions for AG-Grid
   const columnDefs: ColDef[] = useMemo(() => [
     {
+      field: 'selection',
+      headerName: '',
+      width: 50,
+      pinned: 'left',
+      checkboxSelection: true,
+      headerCheckboxSelection: true,
+      headerCheckboxSelectionFilteredOnly: true
+    },
+    {
       field: 'duId',
       headerName: 'DU ID',
       width: 100,
-      pinned: 'left'
+      pinned: 'left',
+      cellClass: 'selectable-cell'
     },
     {
       field: 'duDescription',
       headerName: 'DU Description',
       width: 250,
+      cellClass: 'selectable-cell',
       wrapText: true,
       autoHeight: true
     },
@@ -608,6 +619,51 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
       .sort((a, b) => a.chronological_index - b.chronological_index);
   }, [sortedSegmentsData, groupingData]);
 
+  const copySelectedRowsToClipboard = useCallback(() => {
+    if (!gridRef.current) return;
+    
+    const selectedNodes = gridRef.current.api.getSelectedNodes();
+    if (selectedNodes.length === 0) {
+      alert('Please select rows to copy');
+      return;
+    }
+    
+    // Get column headers
+    const headers = ['DU ID', 'DU Description', 'Segment ID', 'Segment Text', 'Phase', 'Chrono Index'];
+    
+    // Build table data
+    const rows = selectedNodes.map(node => {
+      const data = node.data;
+      return [
+        data.duId,
+        data.duDescription,
+        data.segmentId,
+        data.segmentText,
+        data.phase,
+        data.chronoIndex
+      ].join('\t');
+    });
+    
+    // Combine headers and rows with tab separation
+    const tableData = [headers.join('\t'), ...rows].join('\n');
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(tableData).then(() => {
+      // Visual feedback
+      const originalText = 'Copy Selected Rows';
+      const button = document.querySelector('[data-copy-button]');
+      if (button) {
+        button.textContent = '✓ Copied!';
+        setTimeout(() => {
+          button.textContent = originalText;
+        }, 2000);
+      }
+    }).catch(err => {
+      console.error('Failed to copy:', err);
+      alert('Failed to copy to clipboard');
+    });
+  }, []);
+
   const exportToCsv = useCallback(() => {
     const csvData: any[] = [];
     
@@ -730,6 +786,22 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
         </div>
       </div>
 
+      {/* Copy button for table view */}
+      {viewMode === 'table' && (
+        <div className="mb-2 flex gap-2">
+          <button
+            onClick={copySelectedRowsToClipboard}
+            data-copy-button
+            className="px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+          >
+            Copy Selected Rows
+          </button>
+          <span className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+            Select rows with checkboxes, then click to copy as table
+          </span>
+        </div>
+      )}
+
       {/* Content based on view mode */}
       {viewMode === 'cards' ? (
         <>
@@ -837,22 +909,57 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
             defaultColDef={{
               sortable: true,
               filter: true,
-              resizable: true
+              resizable: true,
+              wrapText: true,
+              autoHeight: true
             }}
             animateRows={true}
-            rowSelection="multiple"
             theme="legacy"
+            enableCellTextSelection={true}
+            ensureDomOrder={true}
+            suppressRowClickSelection={true}
+            suppressCellFocus={false}
+            rowSelection="multiple"
           />
         </div>
       )}
       
-      {/* Custom styles for line clamping */}
+      {/* Custom styles for line clamping and text selection */}
       <style>{`
         .line-clamp-2 {
           display: -webkit-box;
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
+        }
+        
+        /* Enable text selection in AG-Grid cells */
+        .ag-cell .selectable-cell,
+        .ag-cell-value {
+          user-select: text !important;
+          -webkit-user-select: text !important;
+          -moz-user-select: text !important;
+          -ms-user-select: text !important;
+        }
+        
+        /* Override AG-Grid's default selection prevention for range selection */
+        .ag-root-wrapper,
+        .ag-root,
+        .ag-body-viewport,
+        .ag-center-cols-container,
+        .ag-cell {
+          user-select: auto !important;
+          -webkit-user-select: auto !important;
+        }
+        
+        /* Ensure range selection is visible */
+        .ag-range-selected {
+          background-color: rgba(14, 101, 235, 0.2) !important;
+        }
+        
+        /* Style for range selection border */
+        .ag-range-selection {
+          border: 2px solid rgb(14, 101, 235) !important;
         }
       `}</style>
     </div>

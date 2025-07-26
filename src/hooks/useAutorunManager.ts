@@ -46,6 +46,7 @@ export const useAutorunManager = () => {
   const temperature = useSettingsStore(state => state.temperature)
   const seed = useSettingsStore(state => state.seed)
   const userDvFocus = useSettingsStore(state => state.userDvFocus)
+  const model = useSettingsStore(state => state.model)
 
   // Effect for live timer updates
   useEffect(() => {
@@ -173,7 +174,8 @@ export const useAutorunManager = () => {
                   apiKey,
                   temperature,
                   seed,
-                  userDvFocus
+                  userDvFocus,
+                  model
                 }
               });
               // Reset the processing flag after starting the next step
@@ -227,7 +229,8 @@ export const useAutorunManager = () => {
             apiKey,
             temperature,
             seed,
-            userDvFocus
+            userDvFocus,
+            model
           }
         });
         return; // Exit early after processing the resume position
@@ -263,7 +266,8 @@ export const useAutorunManager = () => {
             apiKey,
             temperature,
             seed,
-            userDvFocus
+            userDvFocus,
+            model
           }
         });
       } else {
@@ -280,7 +284,8 @@ export const useAutorunManager = () => {
             apiKey,
             temperature,
             seed,
-            userDvFocus
+            userDvFocus,
+            model
           }
         });
       }
