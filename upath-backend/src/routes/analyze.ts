@@ -160,7 +160,7 @@ export default async function analyzeRoute(fastify: FastifyInstance) {
         // Use REST API directly for thinking models
         const modelPath = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
         
-        const thinkingRequest = {
+        const thinkingRequest: any = {
           contents: [{ parts: [{ text: actualPrompt }] }],
           generationConfig: {
             temperature,
@@ -190,7 +190,7 @@ export default async function analyzeRoute(fastify: FastifyInstance) {
           throw new Error(`API request failed: ${errorText}`);
         }
         
-        const thinkingData = await thinkingResponse.json();
+        const thinkingData: any = await thinkingResponse.json();
         
         // Process all parts to separate thoughts from answers
         const parts = thinkingData.candidates?.[0]?.content?.parts || [];
