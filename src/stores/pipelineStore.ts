@@ -2136,16 +2136,24 @@ export const usePipelineStore = create<PipelineStore>()(
           useUIStore.getState().setHasRehydrated(true)
           useUIStore.getState().setSessionWasRestored(!!hasData)
           
+          // Restore accumulated time if available
+          if (state && 'accumulatedTime' in state && typeof state.accumulatedTime === 'number') {
+            useUIStore.setState({ accumulatedTime: state.accumulatedTime })
+            console.log('⏱️ [Rehydration] Restored accumulated time:', state.accumulatedTime)
+          }
+          
           console.log('🔄 [Rehydration] UI flags set - hasRehydrated: true, sessionWasRestored:', !!hasData)
         }
       },
       partialize: (state) => {
         // Only persist if there's actually data to save
+        const uiState = useUIStore.getState()
         const hasData = state.rawTranscripts.length > 0 || 
                        state.processedData.size > 0 || 
                        state.promptHistory.length > 0 ||
                        state.totalInputTokens > 0 ||
-                       state.totalOutputTokens > 0
+                       state.totalOutputTokens > 0 ||
+                       uiState.accumulatedTime > 0
         
         if (!hasData) {
           console.log('🚫 [Storage] Skipping persist - no meaningful data to save')
@@ -2159,14 +2167,16 @@ export const usePipelineStore = create<PipelineStore>()(
         })
         
         return {
-          // Only persist actual data, not UI state
+          // Only persist actual data, not UI state (except timer data)
           rawTranscripts: state.rawTranscripts,
           processedData: state.processedData,
           genericAnalysisState: state.genericAnalysisState,
           promptHistory: state.promptHistory,
           totalInputTokens: state.totalInputTokens,
           totalOutputTokens: state.totalOutputTokens,
-          processState: state.processState
+          processState: state.processState,
+          // Timer persistence
+          accumulatedTime: uiState.accumulatedTime
         }
       }
     }

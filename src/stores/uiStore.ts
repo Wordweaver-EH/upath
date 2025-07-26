@@ -14,6 +14,7 @@ interface UIState {
   isAutorunning: boolean
   processStartTime: number | null
   elapsedTime: number
+  accumulatedTime: number  // Total time accumulated from previous sessions
   
   // HIL Modal
   isHilModalOpen: boolean
@@ -109,6 +110,7 @@ export const useUIStore = create<UIStore>()(
     isAutorunning: false,
     processStartTime: null,
     elapsedTime: 0,
+    accumulatedTime: 0,
     isHilModalOpen: false,
     hilContext: null,
     hilUserGuidance: '',
@@ -184,13 +186,25 @@ export const useUIStore = create<UIStore>()(
     
     setAutorunning: (value: boolean) => {
       if (value) {
-        // Starting
-        set({ isAutorunning: true, processStartTime: Date.now(), elapsedTime: 0 });
+        // Starting/Resuming - continue from accumulated time
+        const { accumulatedTime } = get();
+        set({ 
+          isAutorunning: true, 
+          processStartTime: Date.now(), 
+          elapsedTime: accumulatedTime 
+        });
       } else {
-        // Stopping/Pausing - trigger resume checkpoint save in pipeline store
-        const { processStartTime } = get();
+        // Stopping/Pausing - accumulate the time
+        const { processStartTime, accumulatedTime } = get();
         if (processStartTime) {
-          set({ isAutorunning: false, elapsedTime: Math.floor((Date.now() - processStartTime) / 1000), processStartTime: null });
+          const sessionTime = Math.floor((Date.now() - processStartTime) / 1000);
+          const totalTime = accumulatedTime + sessionTime;
+          set({ 
+            isAutorunning: false, 
+            elapsedTime: totalTime,
+            accumulatedTime: totalTime,
+            processStartTime: null 
+          });
         } else {
           set({ isAutorunning: false });
         }
@@ -205,9 +219,10 @@ export const useUIStore = create<UIStore>()(
     },
     
     updateElapsedTime: () => {
-      const { processStartTime } = get()
+      const { processStartTime, accumulatedTime } = get()
       if (processStartTime) {
-        set({ elapsedTime: Math.floor((Date.now() - processStartTime) / 1000) })
+        const sessionTime = Math.floor((Date.now() - processStartTime) / 1000)
+        set({ elapsedTime: accumulatedTime + sessionTime })
       }
     },
     
@@ -374,6 +389,7 @@ Please provide a corrected response addressing the user's feedback.`
         isAutorunning: false,
         processStartTime: null,
         elapsedTime: 0,
+        accumulatedTime: 0,
         isHilModalOpen: false,
         hilContext: null,
         hilUserGuidance: '',
