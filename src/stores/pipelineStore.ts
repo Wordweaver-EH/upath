@@ -1946,7 +1946,7 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       loadStepData: (stepIdToLoad: StepId, transcriptId?: string, duId?: string, gduId?: string): { inputData?: any, outputData?: any, error?: string, groundingSources?: any[] } => {
-        const { processedData, genericAnalysisState, promptHistory } = get()
+        const { processedData, genericAnalysisState, promptHistory, rawTranscripts } = get()
         const keyPrefix = stepIdToDataKeyPrefix[stepIdToLoad]
         let output: any
         let error: string | undefined
@@ -1958,7 +1958,19 @@ export const usePipelineStore = create<PipelineStore>()(
           (transcriptId ? entry.transcriptId === transcriptId : true)
         )
         
-        const currentInputData = historyEntry?.requestPayload
+        // Get the proper input data by calling the step's getInput function
+        let currentInputData = historyEntry?.requestPayload
+        const stepConfig = STEP_CONFIGS[stepIdToLoad]
+        if (stepConfig && transcriptId) {
+          const currentTranscript = rawTranscripts.find(t => t.id === transcriptId)
+          if (currentTranscript) {
+            const inputResult = stepConfig.getInput(currentTranscript, processedData, genericAnalysisState)
+            if (inputResult.data) {
+              currentInputData = inputResult.data
+            }
+          }
+        }
+        
         const currentGroundingSources = historyEntry?.groundingSources
         
         // Get output data based on step type
