@@ -9,7 +9,8 @@ ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface SelectedUtterance {
   original_line_num: string;
-  utterance_text: string;
+  text: string;
+  utterance_text?: string; // Keep for backwards compatibility
   included: boolean;
   selection_justification: string;
 }
@@ -88,7 +89,7 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
         cellClass: (params) => params.data.included ? '' : 'opacity-60'
       },
       { 
-        field: 'utterance_text', 
+        field: 'text', 
         headerName: 'Utterance Text',
         flex: 2,
         wrapText: true,
@@ -96,7 +97,8 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
         sortable: false,
         resizable: true,
         editable: false,
-        cellClass: (params) => params.data.included ? 'py-2' : 'py-2 opacity-60'
+        cellClass: (params) => params.data.included ? 'py-2' : 'py-2 opacity-60',
+        valueGetter: (params) => params.data.text || params.data.utterance_text || ''
       },
       { 
         field: 'selection_justification', 
@@ -183,7 +185,7 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
       { field: 'original_line_num', headerName: 'Line #' },
       { field: 'included', headerName: 'Included' },
       { field: 'speaker', headerName: 'Speaker' },
-      { field: 'utterance_text', headerName: 'Utterance Text' },
+      { field: 'text', headerName: 'Utterance Text' },
       { field: 'selection_justification', headerName: 'Selection Justification' }
     ];
     const csvContent = convertToCSV(rowData, columns);
@@ -231,7 +233,7 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
           rowHeight={undefined}
           getRowHeight={(params) => {
             // Dynamic row height based on content
-            const textLength = params.data.utterance_text?.length || 0;
+            const textLength = (params.data.text || params.data.utterance_text)?.length || 0;
             const justificationLength = params.data.selection_justification?.length || 0;
             const baseHeight = 50;
             const extraHeight = Math.floor((textLength + justificationLength) / 100) * 20;

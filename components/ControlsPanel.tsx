@@ -67,6 +67,8 @@ const ControlsPanel: React.FC = () => {
     const currentStepInfo = useUIStore.getState().currentStepInfo;
     processSingleStep({ 
       stepId: currentStepInfo.stepId,
+      transcriptIdToProcess: currentStepInfo.transcriptId,
+      duIndex: currentStepInfo.currentDuForP2S ? undefined : undefined, // Let processSingleStep handle DU selection
       settings: {
         apiKey,
         temperature,

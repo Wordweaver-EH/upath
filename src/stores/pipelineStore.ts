@@ -402,13 +402,23 @@ export const usePipelineStore = create<PipelineStore>()(
         
         console.log(`✅ Step config found for: ${stepId}`);
         
+        // Invalidate subsequent steps before re-running
+        // This ensures that all downstream steps are cleared when re-running a completed step
+        console.log(`🔄 Invalidating subsequent steps from ${stepId}`);
+        get().invalidateStateFromStep(stepId, transcriptIdToProcess);
+        
+        // Re-fetch state after invalidation
+        const stateAfterInvalidation = get();
+        const updatedProcessedData = stateAfterInvalidation.processedData;
+        const updatedGenericAnalysisState = stateAfterInvalidation.genericAnalysisState;
+        
         // Add special debug logging for P1.5
         if (stepId === StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE) {
           console.log('🔍 [P1.5 Debug] Starting P1.5 processing');
           console.log('- transcriptIdToProcess:', transcriptIdToProcess);
           console.log('- currentTranscript exists:', !!rawTranscripts.find(t => t.id === transcriptIdToProcess));
           if (transcriptIdToProcess) {
-            const transcriptData = processedData.get(transcriptIdToProcess);
+            const transcriptData = updatedProcessedData.get(transcriptIdToProcess);
             console.log('- P1.4 output exists:', !!transcriptData?.p1_4_output);
             console.log('- P1.4 output:', transcriptData?.p1_4_output);
           }
@@ -420,7 +430,7 @@ export const usePipelineStore = create<PipelineStore>()(
           : undefined
         let currentDu: string | undefined = undefined
         let currentGDU: string | undefined = undefined
-        let tempGenericState = { ...genericAnalysisState }
+        let tempGenericState = { ...updatedGenericAnalysisState }
         
         // Handle P2S phase context
         console.log('[P2S Debug] Checking P2S context:', {
@@ -429,7 +439,7 @@ export const usePipelineStore = create<PipelineStore>()(
           isP2SStep: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)
         });
         if (transcriptIdToProcess && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)) {
-          const tData = processedData.get(transcriptIdToProcess)
+          const tData = updatedProcessedData.get(transcriptIdToProcess)
           console.log('[P2S Debug] Transcript data:', {
             hasData: !!tData,
             dus_for_p2s_processing: tData?.dus_for_p2s_processing,
@@ -535,7 +545,7 @@ export const usePipelineStore = create<PipelineStore>()(
         
         let inputResult = config.getInput(
           currentTranscript, 
-          processedData, 
+          updatedProcessedData, 
           tempGenericState, 
           apiKeyPresent, 
           userDvFocus, 
@@ -639,6 +649,38 @@ export const usePipelineStore = create<PipelineStore>()(
               1 // maxRetries
             );
             
+            // Add phase-specific history entry immediately
+            const phaseHistoryEntry: PromptHistoryEntry = {
+              stepId: `${stepId}_${duId.toUpperCase().replace(/ /g, '_')}`,
+              transcriptId: transcriptIdToProcess,
+              timestamp: new Date().toISOString(),
+              prompt: phasePrompt,
+              requestPayload: { 
+                model: model || GEMINI_MODEL_TEXT, 
+                contents: phasePrompt, 
+                temperature, 
+                seed: overrideSeed !== undefined ? overrideSeed : seed
+              },
+              responseRaw: phaseResult.parsedJson ? JSON.stringify(phaseResult.parsedJson) : '',
+              responseParsed: phaseResult.parsedJson,
+              error: phaseResult.error,
+              groundingSources: phaseResult.groundingSources,
+              estimatedInputTokens: phaseResult.estimatedInputTokens,
+              estimatedOutputTokens: phaseResult.estimatedOutputTokens,
+              thoughts: phaseResult.thoughts,
+              thoughtsTokenCount: phaseResult.thoughtsTokenCount
+            };
+            
+            set((state) => {
+              state.promptHistory.push(phaseHistoryEntry);
+              if (phaseResult.estimatedInputTokens) {
+                state.totalInputTokens += phaseResult.estimatedInputTokens;
+              }
+              if (phaseResult.estimatedOutputTokens) {
+                state.totalOutputTokens += phaseResult.estimatedOutputTokens;
+              }
+            });
+            
             if (phaseResult.error) {
               apiError = `Phase ${duId} sorting failed: ${phaseResult.error}`;
               break;
@@ -668,7 +710,7 @@ export const usePipelineStore = create<PipelineStore>()(
             } as P1_3_Output;
           }
           
-          promptForHistory = "P1_3 Intra-Phase Sorting: Multiple phase-specific LLM calls";
+          // No need to set promptForHistory for P1_3 since we add individual phase entries
         } else if (isReportStepForThisCall) {
           console.log('📝 Generating report programmatically...');
           // Generate report programmatically
@@ -736,33 +778,35 @@ export const usePipelineStore = create<PipelineStore>()(
           }
         }
         
-        // Add to prompt history
-        const historyEntry: PromptHistoryEntry = {
-          stepId,
-          transcriptId: transcriptIdToProcess,
-          timestamp: new Date().toISOString(),
-          prompt: promptForHistory,
-          requestPayload: isReportStepForThisCall 
-            ? { programmaticInput: inputData } 
-            : { 
-                model: GEMINI_MODEL_TEXT, 
-                contents: promptForHistory, 
-                temperature, 
-                seed: (!isReportStepForThisCall ? (overrideSeed !== undefined ? overrideSeed : seed) : undefined) 
-              },
-          responseRaw: typeof output === 'string' ? output : (output ? JSON.stringify(output) : ''),
-          responseParsed: output,
-          error: apiError,
-          groundingSources,
-          estimatedInputTokens: estIn,
-          estimatedOutputTokens: estOut,
-          thoughts,
-          thoughtsTokenCount
+        // Add to prompt history (skip for P1_3 since we add individual phase entries)
+        if (stepId !== StepId.P1_3_INTRA_PHASE_SORTING) {
+          const historyEntry: PromptHistoryEntry = {
+            stepId,
+            transcriptId: transcriptIdToProcess,
+            timestamp: new Date().toISOString(),
+            prompt: promptForHistory,
+            requestPayload: isReportStepForThisCall 
+              ? { programmaticInput: inputData } 
+              : { 
+                  model: GEMINI_MODEL_TEXT, 
+                  contents: promptForHistory, 
+                  temperature, 
+                  seed: (!isReportStepForThisCall ? (overrideSeed !== undefined ? overrideSeed : seed) : undefined) 
+                },
+            responseRaw: typeof output === 'string' ? output : (output ? JSON.stringify(output) : ''),
+            responseParsed: output,
+            error: apiError,
+            groundingSources,
+            estimatedInputTokens: estIn,
+            estimatedOutputTokens: estOut,
+            thoughts,
+            thoughtsTokenCount
+          }
+          
+          set((state) => {
+            state.promptHistory.push(historyEntry)
+          })
         }
-        
-        set((state) => {
-          state.promptHistory.push(historyEntry)
-        })
         
         // Handle errors
         if (apiError) {
@@ -1386,7 +1430,7 @@ export const usePipelineStore = create<PipelineStore>()(
         const { rawTranscripts, processedData, genericAnalysisState } = get()
         const activeTxId = transcriptId || (activeTranscriptIndex !== undefined ? rawTranscripts[activeTranscriptIndex]?.id : undefined)
         
-        const { invalidatedProcessedData, invalidatedGenericState } = getInvalidatedStates(
+        const { invalidatedProcessedData, invalidatedGenericState } = get().getInvalidatedStates(
           stepId,
           activeTxId,
           processedData,
@@ -1706,6 +1750,9 @@ export const usePipelineStore = create<PipelineStore>()(
             prompt: entry.prompt,
             responseParsed: entry.responseParsed,
             error: entry.error,
+            model: entry.requestPayload?.model,
+            temperature: entry.requestPayload?.temperature,
+            seed: entry.requestPayload?.seed,
             estimatedInputTokens: entry.estimatedInputTokens,
             estimatedOutputTokens: entry.estimatedOutputTokens,
             thoughts: entry.thoughts,
