@@ -201,7 +201,7 @@ const App: React.FC = () => {
       (hilContext) => {
         if (hilContext?.needsProcessing && hilContext.metaPrompt) {
           // Process the HIL correction with settings
-          const { stepInfo, metaPrompt } = hilContext
+          const { stepInfo, metaPrompt, modelParams } = hilContext
           const settings = useSettingsStore.getState()
           
           processSingleStep({
@@ -210,9 +210,10 @@ const App: React.FC = () => {
             hilMetaPrompt: metaPrompt,
             settings: {
               apiKey: settings.apiKeyPresent ? 'test-key' : '', // In real app, use actual key
-              temperature: settings.temperature,
+              temperature: modelParams?.temperature ?? settings.temperature,
               seed: settings.seed,
-              userDvFocus: settings.userDvFocus
+              userDvFocus: settings.userDvFocus,
+              model: modelParams?.model ?? settings.model
             }
           })
           

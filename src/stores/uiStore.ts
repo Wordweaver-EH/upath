@@ -61,7 +61,7 @@ interface UIActions {
   openHilModalWithContext: () => void
   closeHilModal: () => void
   setHilUserGuidance: (guidance: string) => void
-  handleHilSubmit: () => Promise<void>
+  handleHilSubmit: (modelParams?: { model: string; temperature: number }) => Promise<void>
   
   // Retry UI
   setRetrySeedInput: (value: string) => void
@@ -365,7 +365,7 @@ export const useUIStore = create<UIStore>()(
           }
         },
     
-    handleHilSubmit: async () => {
+    handleHilSubmit: async (modelParams?: { model: string; temperature: number }) => {
       const { hilContext, hilUserGuidance } = get()
       if (!hilContext || !hilUserGuidance.trim()) return
       
@@ -390,7 +390,8 @@ Please provide a corrected response addressing the user's feedback.`
           hilContext: {
             ...hilContext,
             metaPrompt,
-            needsProcessing: true
+            needsProcessing: true,
+            modelParams // Add model parameters to context
           }
         })
         

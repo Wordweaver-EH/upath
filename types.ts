@@ -670,6 +670,10 @@ export interface HilContext {
   previousResponse: string;
   metaPrompt?: string;
   needsProcessing?: boolean;
+  modelParams?: {
+    model: string;
+    temperature: number;
+  };
 }
 
 export interface GroundingChunkWeb {
