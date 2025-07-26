@@ -28,6 +28,8 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
   onUtterancesChange,
   filename
 }) => {
+  const gridRef = React.useRef<AgGridReact>(null);
+  
   const { rowData, columnDefs } = useMemo(() => {
     const cols: ColDef[] = [
       { 
@@ -221,6 +223,7 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
         }}
       >
         <AgGridReact
+          ref={gridRef}
           rowData={rowData}
           columnDefs={columnDefs}
           defaultColDef={{
@@ -252,6 +255,11 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
           }}
           onCellClicked={(event) => {
             if (event.column.getColId() === 'included' && onUtterancesChange) {
+              // Save current scroll position directly from the grid's scroll container
+              const gridApi = gridRef.current?.api;
+              const eBodyViewport = gridRef.current?.eGui?.querySelector('.ag-body-viewport');
+              const scrollTop = eBodyViewport?.scrollTop || 0;
+              
               const updatedUtterances = [...utterances];
               const index = utterances.findIndex(u => u.original_line_num === event.data.original_line_num);
               if (index !== -1) {
@@ -260,9 +268,19 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
                   included: !updatedUtterances[index].included 
                 };
                 onUtterancesChange(updatedUtterances);
+                
+                // Restore exact scroll position after state update
+                requestAnimationFrame(() => {
+                  const viewport = gridRef.current?.eGui?.querySelector('.ag-body-viewport');
+                  if (viewport) {
+                    viewport.scrollTop = scrollTop;
+                  }
+                });
               }
             }
           }}
+          suppressScrollOnNewData={true}
+          maintainColumnOrder={true}
         />
       </div>
     </>
