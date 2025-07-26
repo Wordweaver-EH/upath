@@ -1681,10 +1681,8 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       isHilModalDisabled: (currentStepInfo: CurrentStepInfo) => {
-        
         return currentStepInfo.stepId === StepId.IDLE || 
                currentStepInfo.status === StepStatus.Loading || 
-               currentStepInfo.stepId === StepId.COMPLETE || 
                !currentStepInfo.inputData || 
                (!currentStepInfo.outputData && !currentStepInfo.error)
       },
@@ -2121,7 +2119,9 @@ export const usePipelineStore = create<PipelineStore>()(
             gduId: gduNav,
             status: data.error ? StepStatus.Error : (data.outputData ? StepStatus.Success : StepStatus.Idle),
             error: data.error,
-            outputData: data.outputData
+            inputData: data.inputData,
+            outputData: data.outputData,
+            groundingSources: data.groundingSources
           })
         }
       },

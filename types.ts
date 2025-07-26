@@ -660,6 +660,8 @@ export interface CurrentStepInfo {
   groundingSources?: GroundingChunk[];
   currentGduForP4S?: string; // GDU_ID
   currentDuForP2S?: string; // du_id
+  duId?: string; // For navigation
+  gduId?: string; // For navigation
 }
 
 export interface HilContext {
