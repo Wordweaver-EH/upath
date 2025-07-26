@@ -122,6 +122,9 @@ const ReportRenderer: React.FC<ReportRendererProps> = ({ markdown, theme }) => {
 
 
 const App: React.FC = () => { 
+  // Local state for left panel collapse
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
+  
   // UI Store - consolidated selector for better performance
   const {
     theme,
@@ -440,28 +443,46 @@ const App: React.FC = () => {
         </Button>
       </header>
 
-      <main className="md:grid md:grid-cols-3 gap-4 p-4">
-        <SettingsPanel
-          PipelineOverviewComponent={
-            <PipelineOverview
-              allPipelineParts={allPipelinePartsInOrder}
-              STEP_CONFIGS={STEP_CONFIGS}
-              currentStepInfo={currentStepInfo}
-              getStepStatusForPipelineView={getStepStatusForPipelineView}
-              handlePipelineStepClick={handlePipelineStepClick}
-              PipelineStepNodeComponent={PipelineStepNode}
+      <main className={`flex gap-4 p-4 transition-all duration-300`}>
+        <div className={`transition-all duration-300 ${isLeftPanelCollapsed ? 'w-12' : 'w-80'} relative flex-shrink-0`}>
+          {/* Toggle button */}
+          <button
+            onClick={() => setIsLeftPanelCollapsed(!isLeftPanelCollapsed)}
+            className="absolute -right-3 top-4 z-50 bg-light-bg-alt dark:bg-dark-bg-alt border border-light-border dark:border-dark-border rounded-full p-1 shadow-md hover:shadow-lg transition-shadow"
+            aria-label={isLeftPanelCollapsed ? "Expand left panel" : "Collapse left panel"}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                d={isLeftPanelCollapsed ? "M9 5l7 7-7 7" : "M15 19l-7-7 7-7"} />
+            </svg>
+          </button>
+          
+          
+          {/* Panel content */}
+          <div className={`transition-all duration-300 overflow-hidden ${isLeftPanelCollapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
+            <SettingsPanel
+              PipelineOverviewComponent={
+                <PipelineOverview
+                  allPipelineParts={allPipelinePartsInOrder}
+                  STEP_CONFIGS={STEP_CONFIGS}
+                  currentStepInfo={currentStepInfo}
+                  getStepStatusForPipelineView={getStepStatusForPipelineView}
+                  handlePipelineStepClick={handlePipelineStepClick}
+                  PipelineStepNodeComponent={PipelineStepNode}
+                />
+              }
             />
-          }
-        />
+          </div>
+        </div>
 
-        <div className="md:col-span-2 space-y-4">
+        <div className="flex-1 space-y-4 min-w-0">
           <div className="space-y-2">
             <ControlsPanel />
           </div>
           
           <StatusDisplay />
 
-          <div ref={outputDisplayRef} className="output-display p-4 bg-light-bg dark:bg-dark-bg border border-light-border dark:border-dark-border rounded-lg shadow min-h-[200px] max-h-[calc(100vh-400px)] overflow-y-auto">
+          <div ref={outputDisplayRef} className="output-display p-4 bg-light-bg dark:bg-dark-bg border border-light-border dark:border-dark-border rounded-lg shadow min-h-[400px] max-h-[calc(100vh-200px)] overflow-y-auto">
             {renderOutput()} 
           </div>
         </div>
