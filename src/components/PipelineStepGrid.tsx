@@ -12,7 +12,7 @@ import { InitialSegmentationTable } from './InitialSegmentationTable';
 import { DiachronicUnitTable } from './DiachronicUnitTable';
 import { PhaseTaggingTable } from './PhaseTaggingTable';
 import { IntraPhaseSortingTable } from './IntraPhaseSortingTable';
-import { DiachronicUnitGroupingTable } from './DiachronicUnitGroupingTable';
+import { DiachronicUnitGroupingTable } from './DiachronicUnitGroupingTableEnhanced';
 import { RefinedDiachronicUnitTable } from './RefinedDiachronicUnitTable';
 import { TemporalPhaseAssignmentTable } from './TemporalPhaseAssignmentTable';
 import { EditableTextArea } from './EditableTextArea';
