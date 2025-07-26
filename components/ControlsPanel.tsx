@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { StepId, StepStatus } from '../types';
-import { PlayIcon, PauseIcon, NextIcon, PreviousIcon, RetryIcon, LightbulbIcon, DownloadIcon, AppendixIcon, ChevronDownIcon } from '../constants';
+import { PlayIcon, PauseIcon, NextIcon, PreviousIcon, RetryIcon, LightbulbIcon, DownloadIcon, AppendixIcon, ChevronDownIcon, STEP_ORDER_PART_NEG1, STEP_ORDER_PART_0, STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC, STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC } from '../constants';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
 import { useSettingsStore } from '../src/stores/settingsStore';
@@ -65,9 +65,24 @@ const ControlsPanel: React.FC = () => {
   // Handler for running current step
   const handleRunStep = () => {
     const currentStepInfo = useUIStore.getState().currentStepInfo;
+    const { stepId } = currentStepInfo;
+    
+    // Determine transcript ID based on step type
+    let transcriptIdToProcess = currentStepInfo.transcriptId;
+    
+    // If no transcript ID is set but this is a per-transcript step, use the active transcript
+    if (!transcriptIdToProcess && (
+      STEP_ORDER_PART_NEG1.includes(stepId) || 
+      STEP_ORDER_PART_0.includes(stepId) || 
+      STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.includes(stepId) ||
+      STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)
+    )) {
+      transcriptIdToProcess = rawTranscripts[activeTranscriptIndex]?.id;
+    }
+    
     processSingleStep({ 
       stepId: currentStepInfo.stepId,
-      transcriptIdToProcess: currentStepInfo.transcriptId,
+      transcriptIdToProcess,
       duIndex: currentStepInfo.currentDuForP2S ? undefined : undefined, // Let processSingleStep handle DU selection
       settings: {
         apiKey,

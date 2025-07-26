@@ -428,6 +428,16 @@ export const usePipelineStore = create<PipelineStore>()(
         const currentTranscript = transcriptIdToProcess 
           ? rawTranscripts.find(t => t.id === transcriptIdToProcess) 
           : undefined
+        
+        // Debug logging for transcript retrieval
+        console.log('📄 Transcript retrieval debug:', {
+          transcriptIdToProcess,
+          currentTranscriptFound: !!currentTranscript,
+          currentTranscriptId: currentTranscript?.id,
+          currentTranscriptHasContent: !!currentTranscript?.content,
+          rawTranscriptsCount: rawTranscripts.length
+        });
+        
         let currentDu: string | undefined = undefined
         let currentGDU: string | undefined = undefined
         let tempGenericState = { ...updatedGenericAnalysisState }

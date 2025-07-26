@@ -31,8 +31,7 @@ Input:
 
 Instructions:
 1.  Identify Independent Variable (IV) / Condition:
-    *   Examine the *first few lines* of the transcript. Look for a pattern like "Participant X, Condition Y (Score Z/W)" or similar identifying information that might indicate an experimental condition, grouping, or a key characteristic of this specific interview/participant.
-    *   Extract this information as the \`independent_variable_details\`. If no such clear IV is present in the first few lines, mark it as "Not explicitly stated in header."
+    *   Examine the *first few lines* of the transcript. Look for a pattern like "Participant X, Condition Y (Score Z/W)" and Extract this information as the \`independent_variable_details\`. Keep all such metadata details. If no such clear IV is present in the first few lines, mark it as "Not explicitly stated in header."
 2.  Record DV Focus:
     *   The \`dependent_variable_focus\` field in your output JSON MUST be the exact list of strings provided in "User-specified Dependent Variable Focus" from the Input section above.
 

@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { STEP_CONFIGS } from '../constants'
 import { subscribeWithSelector } from 'zustand/middleware'
 import { StepId, StepStatus, CurrentStepInfo, HilContext } from '../../types'
-import { ALL_PIPELINE_STEP_IDS_IN_ORDER, STEP_CONFIGS, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC } from '../../constants'
+import { ALL_PIPELINE_STEP_IDS_IN_ORDER, STEP_CONFIGS, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_ORDER_PART_NEG1, STEP_ORDER_PART_0, STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC, STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC } from '../../constants'
 import { stepIdToDataKeyPrefix, isGlobalStep } from '../utils/stepIdToDataKeyPrefix'
 
 interface UIState {
@@ -124,10 +124,16 @@ export const useUIStore = create<UIStore>()(
     navigateToStep: (stepId: StepId) => {
       const stepIndex = ALL_PIPELINE_STEP_IDS_IN_ORDER.indexOf(stepId)
       if (stepIndex >= 0) {
+        const { currentStepInfo } = get()
         set({ 
           currentStepInfo: { 
+            ...currentStepInfo, // Preserve existing fields like transcriptId
             stepId, 
-            status: StepStatus.Idle 
+            status: StepStatus.Idle,
+            outputData: undefined, // Clear output data for the new step
+            error: undefined, // Clear any errors
+            inputData: undefined, // Clear input data
+            groundingSources: undefined // Clear grounding sources
           },
           isAutorunning: false // Stop autorun when manually navigating
         })
@@ -142,8 +148,13 @@ export const useUIStore = create<UIStore>()(
       if (nextIndex < ALL_PIPELINE_STEP_IDS_IN_ORDER.length) {
         set({
           currentStepInfo: {
+            ...currentStepInfo, // Preserve existing fields like transcriptId
             stepId: ALL_PIPELINE_STEP_IDS_IN_ORDER[nextIndex] as StepId,
-            status: StepStatus.Idle
+            status: StepStatus.Idle,
+            outputData: undefined, // Clear output data for the new step
+            error: undefined, // Clear any errors
+            inputData: undefined, // Clear input data
+            groundingSources: undefined // Clear grounding sources
           }
         })
       }
@@ -157,8 +168,13 @@ export const useUIStore = create<UIStore>()(
       if (prevIndex >= 0) {
         set({
           currentStepInfo: {
+            ...currentStepInfo, // Preserve existing fields like transcriptId
             stepId: ALL_PIPELINE_STEP_IDS_IN_ORDER[prevIndex] as StepId,
-            status: StepStatus.Idle
+            status: StepStatus.Idle,
+            outputData: undefined, // Clear output data for the new step
+            error: undefined, // Clear any errors
+            inputData: undefined, // Clear input data
+            groundingSources: undefined // Clear grounding sources
           }
         })
       }
