@@ -579,6 +579,8 @@ export const usePipelineStore = create<PipelineStore>()(
         let output: string | any
         let apiError: string | undefined
         let groundingSources: PromptHistoryEntry['groundingSources']
+        let thoughts: string[] | undefined
+        let thoughtsTokenCount: number | undefined
         let estIn: number | undefined = 0
         let estOut: number | undefined = 0
         // NEW LOGIC: Check if this is a programmatic step (no generatePrompt function)
@@ -699,12 +701,16 @@ export const usePipelineStore = create<PipelineStore>()(
           )
           output = config.isJsonOutput ? apiResult.parsedJson : apiResult.text
           apiError = apiResult.error
+          thoughts = apiResult.thoughts
+          thoughtsTokenCount = apiResult.thoughtsTokenCount
           
           console.log('📡 API Response:', {
             hasOutput: !!output,
             outputType: typeof output,
             hasError: !!apiError,
-            error: apiError
+            error: apiError,
+            hasThoughts: !!thoughts,
+            thoughtsCount: thoughts?.length || 0
           });
           
           // Apply parseOutput validation if available and no API error
@@ -749,7 +755,9 @@ export const usePipelineStore = create<PipelineStore>()(
           error: apiError,
           groundingSources,
           estimatedInputTokens: estIn,
-          estimatedOutputTokens: estOut
+          estimatedOutputTokens: estOut,
+          thoughts,
+          thoughtsTokenCount
         }
         
         set((state) => {
@@ -1699,7 +1707,9 @@ export const usePipelineStore = create<PipelineStore>()(
             responseParsed: entry.responseParsed,
             error: entry.error,
             estimatedInputTokens: entry.estimatedInputTokens,
-            estimatedOutputTokens: entry.estimatedOutputTokens
+            estimatedOutputTokens: entry.estimatedOutputTokens,
+            thoughts: entry.thoughts,
+            thoughtsTokenCount: entry.thoughtsTokenCount
           }))
           const jsonContent = JSON.stringify(simplifiedHistory, null, 2)
           downloadFile(jsonContent, `${filename}.json`, 'application/json')

@@ -29,6 +29,8 @@ export interface PromptHistoryEntry {
   groundingSources?: GroundingChunk[];
   estimatedInputTokens?: number;
   estimatedOutputTokens?: number;
+  thoughts?: string[];
+  thoughtsTokenCount?: number;
 }
 
 // Part -1: Variable Identification Output

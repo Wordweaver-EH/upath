@@ -170,7 +170,7 @@ export default async function analyzeRoute(fastify: FastifyInstance) {
             // Enable thinking with dynamic budget (-1 lets model decide)
             thinkingConfig: {
               thinkingBudget: -1,  // Let model decide thinking budget (0-24576 or -1 for dynamic)
-              includeThoughts: false  // Don't include thought summaries in response
+              includeThoughts: true  // Include thought summaries in response for debugging
             }
           }
         };
@@ -191,9 +191,29 @@ export default async function analyzeRoute(fastify: FastifyInstance) {
         }
         
         const thinkingData = await thinkingResponse.json();
-        const text = thinkingData.candidates?.[0]?.content?.parts?.[0]?.text || '';
         
-        return { text };
+        // Process all parts to separate thoughts from answers
+        const parts = thinkingData.candidates?.[0]?.content?.parts || [];
+        const thoughts = [];
+        const answers = [];
+        
+        for (const part of parts) {
+          if (part.text) {
+            if (part.thought) {
+              thoughts.push(part.text);
+            } else {
+              answers.push(part.text);
+            }
+          }
+        }
+        
+        const thoughtsTokenCount = thinkingData.usageMetadata?.thoughtsTokenCount;
+        
+        return { 
+          text: answers.join('\n'), // Main response text
+          thoughts,                  // Array of thought summaries
+          thoughtsTokenCount
+        };
       }
       
       // For non-thinking models, use SDK as before
