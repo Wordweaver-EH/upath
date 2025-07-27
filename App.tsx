@@ -34,6 +34,7 @@ import GduMappingModal from './components/GduMappingModal';
 import { AppLoadingScreen } from './src/components/AppLoadingScreen';
 import { SessionRestoreNotification } from './src/components/SessionRestoreNotification';
 import { PipelineStepGrid } from './src/components/PipelineStepGrid';
+import { ChangeHistoryPanel } from './src/components/ChangeHistoryPanel';
 
 // AG Grid CSS
 import 'ag-grid-community/styles/ag-grid.css';
@@ -485,6 +486,11 @@ const App: React.FC = () => {
 
           <div ref={outputDisplayRef} className="output-display p-4 bg-light-bg dark:bg-dark-bg border border-light-border dark:border-dark-border rounded-lg shadow min-h-[400px] max-h-[calc(100vh-200px)] overflow-y-auto">
             {renderOutput()} 
+          </div>
+          
+          {/* Change History Panel - always visible */}
+          <div className="mt-4">
+            <ChangeHistoryPanel />
           </div>
         </div>
       </main>

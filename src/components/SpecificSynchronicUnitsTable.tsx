@@ -1,13 +1,15 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P2S_2_Output, P2S_2_SynchronicUnit } from '../../types';
+import { P2S_2_Output, P2S_2_SynchronicUnit, StepId } from '../../types';
 import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
+import { trackingHelpers } from '../stores/historyStore';
 
 interface SpecificSynchronicUnitsTableProps {
   unitsData: P2S_2_Output;
   theme: 'light' | 'dark';
   onUnitsChange?: (updatedData: P2S_2_Output) => void;
   filename?: string;
+  transcriptId?: string;
   hideVariableInfo?: boolean;
   hideInstructions?: boolean;
   compactSummary?: boolean;
@@ -35,6 +37,8 @@ const ISUCard: React.FC<{
   canDelete: boolean;
   onDelete: () => void;
   allUnits: P2S_2_SynchronicUnit[];
+  transcriptId?: string;
+  unitsDataId?: string;
 }> = ({ 
   unit, 
   index,
@@ -47,7 +51,9 @@ const ISUCard: React.FC<{
   theme,
   canDelete,
   onDelete,
-  allUnits
+  allUnits,
+  transcriptId,
+  unitsDataId
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(unit.unit_name);
@@ -59,6 +65,16 @@ const ISUCard: React.FC<{
   const levelColors = LEVEL_COLORS[unit.level as keyof typeof LEVEL_COLORS] || LEVEL_COLORS[1];
 
   const handleNameSave = () => {
+    // Track the change
+    if (transcriptId && unitsDataId) {
+      trackingHelpers.trackDataEdit(
+        `synchronic_units/${unitsDataId}/unit_${index}/name`,
+        unit.unit_name,
+        tempName,
+        transcriptId,
+        StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS
+      );
+    }
     onNameChange(tempName);
     setIsEditingName(false);
   };
@@ -69,6 +85,16 @@ const ISUCard: React.FC<{
   };
 
   const handleDefinitionSave = () => {
+    // Track the change
+    if (transcriptId && unitsDataId) {
+      trackingHelpers.trackDataEdit(
+        `synchronic_units/${unitsDataId}/unit_${index}/definition`,
+        unit.intensional_definition,
+        tempDefinition,
+        transcriptId,
+        StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS
+      );
+    }
     onDefinitionChange(tempDefinition);
     setIsEditingDefinition(false);
   };
@@ -344,6 +370,7 @@ export const SpecificSynchronicUnitsTable: React.FC<SpecificSynchronicUnitsTable
   theme,
   onUnitsChange,
   filename,
+  transcriptId,
   hideVariableInfo = false,
   hideInstructions = false,
   compactSummary = false
@@ -607,6 +634,8 @@ export const SpecificSynchronicUnitsTable: React.FC<SpecificSynchronicUnitsTable
             canDelete={unitsData.specific_synchronic_units_hierarchy.length > 1}
             onDelete={() => handleDeleteUnit(index)}
             allUnits={unitsData.specific_synchronic_units_hierarchy}
+            transcriptId={transcriptId}
+            unitsDataId={unitsData.analyzed_du_id}
           />
         ))}
       </div>

@@ -1,9 +1,11 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_2_Output, PhaseTaggedUtterance, PhaseTaggedSegment } from '../../types';
+import { P1_2_Output, PhaseTaggedUtterance, PhaseTaggedSegment, StepId } from '../../types';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -13,6 +15,7 @@ interface PhaseTaggingTableProps {
   theme: 'light' | 'dark';
   onPhaseTaggingChange?: (updatedData: P1_2_Output) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 // Phase colors mapping
@@ -62,7 +65,8 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
   phaseTaggingData,
   theme,
   onPhaseTaggingChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   console.log('[P1.2] phaseTaggingData:', phaseTaggingData);
   
@@ -95,26 +99,70 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
     return distribution;
   }, [phaseTaggingData]);
 
-  const { rowData, columnDefs } = useMemo(() => {
-    // Flatten the data for grid display
+  // Flatten the data for grid display
+  const flattenedData = useMemo(() => {
     const rows: any[] = [];
     
-    phaseTaggingData.phase_tagged_utterances.forEach((utterance: PhaseTaggedUtterance) => {
-      utterance.segments.forEach((segment: PhaseTaggedSegment) => {
+    phaseTaggingData.phase_tagged_utterances.forEach((utterance: PhaseTaggedUtterance, uIndex) => {
+      utterance.segments.forEach((segment: PhaseTaggedSegment, sIndex) => {
         rows.push({
+          id: `${uIndex}-${sIndex}`, // Unique identifier for tracking
           utterance_line: utterance.original_utterance.original_line_num,
           utterance_text: utterance.original_utterance.utterance_text,
           segment_id: segment.segment_id,
           segment_text: segment.segment_text,
           temporal_cues: segment.temporal_cues,
           coarse_phase: segment.coarse_phase,
-          // Store references for updates
-          utterance_ref: utterance,
-          segment_ref: segment
+          // Store indices for updates
+          utterance_index: uIndex,
+          segment_index: sIndex
         });
       });
     });
+    
+    return rows;
+  }, [phaseTaggingData]);
 
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(flattenedData, {
+    transcriptId,
+    stepId: StepId.P1_2_COARSE_PHASE_TAGGING,
+    dataPath: 'phase_tagging',
+    onSave: (changes) => {
+      if (onPhaseTaggingChange) {
+        // Apply changes back to the original structure
+        const updatedData = { ...phaseTaggingData };
+        
+        changes.forEach(change => {
+          // Find the row by its index (change.rowId is the row index)
+          const rowData = displayData[change.rowId as number];
+          if (rowData && change.field === 'coarse_phase') {
+            const utterance = updatedData.phase_tagged_utterances[rowData.utterance_index];
+            if (utterance && utterance.segments[rowData.segment_index]) {
+              utterance.segments[rowData.segment_index].coarse_phase = change.newValue;
+            }
+          }
+        });
+        
+        onPhaseTaggingChange(updatedData);
+      }
+    }
+  });
+
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(flattenedData);
+  }, [flattenedData, resetData]);
+
+  const columnDefs = useMemo(() => {
     const cols: ColDef[] = [
       { 
         field: 'utterance_line', 
@@ -166,36 +214,11 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
       }
     ];
 
-    return { rowData: rows, columnDefs: cols };
-  }, [phaseTaggingData]);
-
-  const handleCellValueChanged = useCallback((event: CellValueChangedEvent) => {
-    if (event.colDef.field === 'coarse_phase' && onPhaseTaggingChange) {
-      const updatedData = { ...phaseTaggingData };
-      const rowData = event.data;
-      
-      // Find and update the segment
-      updatedData.phase_tagged_utterances = updatedData.phase_tagged_utterances.map(utterance => {
-        if (utterance === rowData.utterance_ref) {
-          return {
-            ...utterance,
-            segments: utterance.segments.map(segment => {
-              if (segment === rowData.segment_ref) {
-                return { ...segment, coarse_phase: event.newValue };
-              }
-              return segment;
-            })
-          };
-        }
-        return utterance;
-      });
-
-      onPhaseTaggingChange(updatedData);
-    }
-  }, [phaseTaggingData, onPhaseTaggingChange]);
+    return cols;
+  }, []);
 
   const exportToCsv = useCallback(() => {
-    const csvData = rowData.map(row => ({
+    const csvData = displayData.map(row => ({
       'Line Number': row.utterance_line,
       'Original Utterance': row.utterance_text,
       'Segment ID': row.segment_id,
@@ -218,7 +241,7 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
       `${filename.replace(/\.[^/.]+$/, '')}_P1.2_phase_tagging.csv` : 
       'P1.2_phase_tagging.csv';
     downloadCSV(csv, exportFilename);
-  }, [rowData, filename]);
+  }, [displayData, filename]);
 
   return (
     <div className="space-y-4">
@@ -290,7 +313,7 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
         }}
       >
         <AgGridReact
-          rowData={rowData}
+          rowData={displayData}
           columnDefs={columnDefs}
           defaultColDef={{
             sortable: true,
@@ -298,16 +321,31 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
             resizable: true,
           }}
           animateRows={true}
-          onCellValueChanged={handleCellValueChanged}
+          onCellValueChanged={trackChange}
           groupDisplayType="singleColumn"
           tooltipShowDelay={500}
           theme="legacy"
         />
       </div>
 
+      {/* Save/Cancel buttons */}
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
+
       {/* Instructions */}
       <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
-        💡 Click on any Phase cell to change the phase assignment. Changes are saved automatically.
+        💡 Click on any Phase cell to change the phase assignment. Use Save to commit changes or Cancel to discard.
       </div>
     </div>
   );

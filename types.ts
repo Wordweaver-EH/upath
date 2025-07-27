@@ -841,6 +841,36 @@ export interface IrrWorkflowState {
   errorMessage?: string;
 }
 
+// Change tracking types
+export enum ChangeType {
+  SETTING_CHANGE = 'Setting Change',
+  DATA_EDIT = 'Manual Data Edit',
+  PIPELINE_ACTION = 'Pipeline Action',
+  HIL_CORRECTION = 'HIL Correction',
+  MODEL_SELECTION = 'Model Selection',
+  FILE_UPLOAD = 'File Upload',
+}
+
+export interface ChangeDetails {
+  stepId?: StepId;
+  transcriptId?: string;
+  source?: string; // Component or action that triggered the change
+  path?: string; // JSON path for data edits
+  oldValue?: any;
+  newValue?: any;
+  metadata?: Record<string, any>; // Additional context
+}
+
+export interface ChangeRecord {
+  id: string; // UUID
+  timestamp: string; // ISO 8601
+  type: ChangeType;
+  description: string; // Human-readable summary
+  details: ChangeDetails;
+  userId?: string; // For future multi-user support
+  sessionId?: string; // To group changes by session
+}
+
 /**
  * Enhanced GDU mapping item for UI display with additional context
  */

@@ -1,8 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
+import { StepId } from '../../types';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -20,15 +23,42 @@ interface SelectedUtterancesTableProps {
   theme: 'light' | 'dark';
   onUtterancesChange?: (updatedUtterances: SelectedUtterance[]) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = ({ 
   utterances, 
   theme,
   onUtterancesChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   const gridRef = React.useRef<AgGridReact>(null);
+  
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(utterances, {
+    transcriptId,
+    stepId: StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
+    dataPath: 'selected_procedural_utterances',
+    onSave: (changes) => {
+      if (onUtterancesChange) {
+        onUtterancesChange(displayData);
+      }
+    }
+  });
+  
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(utterances);
+  }, [utterances, resetData]);
   
   const { rowData, columnDefs } = useMemo(() => {
     const cols: ColDef[] = [
@@ -127,8 +157,8 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
       }
     ];
     
-    return { rowData: utterances, columnDefs: cols };
-  }, [utterances]);
+    return { rowData: displayData, columnDefs: cols };
+  }, [displayData]);
 
   // Define custom styles based on theme
   const gridStyles = theme === 'dark' ? {
@@ -242,47 +272,37 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
             const extraHeight = Math.floor((textLength + justificationLength) / 100) * 20;
             return Math.min(baseHeight + extraHeight, 200);
           }}
-          onCellValueChanged={(event: CellValueChangedEvent) => {
-            if (onUtterancesChange) {
-              // Create a new array with the updated utterance
-              const updatedUtterances = [...utterances];
-              const index = utterances.findIndex(u => u.original_line_num === event.data.original_line_num);
-              if (index !== -1) {
-                updatedUtterances[index] = { ...event.data };
-                onUtterancesChange(updatedUtterances);
-              }
-            }
-          }}
+          onCellValueChanged={trackChange}
           onCellClicked={(event) => {
-            if (event.column.getColId() === 'included' && onUtterancesChange) {
-              // Save current scroll position directly from the grid's scroll container
-              const gridApi = gridRef.current?.api;
-              const eBodyViewport = gridRef.current?.eGui?.querySelector('.ag-body-viewport');
-              const scrollTop = eBodyViewport?.scrollTop || 0;
-              
-              const updatedUtterances = [...utterances];
-              const index = utterances.findIndex(u => u.original_line_num === event.data.original_line_num);
-              if (index !== -1) {
-                updatedUtterances[index] = { 
-                  ...updatedUtterances[index], 
-                  included: !updatedUtterances[index].included 
-                };
-                onUtterancesChange(updatedUtterances);
-                
-                // Restore exact scroll position after state update
-                requestAnimationFrame(() => {
-                  const viewport = gridRef.current?.eGui?.querySelector('.ag-body-viewport');
-                  if (viewport) {
-                    viewport.scrollTop = scrollTop;
-                  }
-                });
-              }
+            if (event.column.getColId() === 'included') {
+              // Simulate a cell value change for checkbox clicks
+              const oldValue = event.data.included;
+              const newValue = !oldValue;
+              trackChange({
+                ...event,
+                oldValue,
+                newValue,
+                colDef: { field: 'included' }
+              } as any);
             }
           }}
           suppressScrollOnNewData={true}
           maintainColumnOrder={true}
         />
       </div>
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
     </>
   );
 };

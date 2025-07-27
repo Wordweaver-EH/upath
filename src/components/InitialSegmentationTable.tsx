@@ -3,7 +3,8 @@ import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_1_Output, SegmentedUtteranceSegment } from '../../types';
+import { P1_1_Output, SegmentedUtteranceSegment, StepId } from '../../types';
+import { trackingHelpers } from '../stores/historyStore';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -13,6 +14,7 @@ interface InitialSegmentationTableProps {
   theme: 'light' | 'dark';
   onSegmentationChange?: (updatedData: P1_1_Output) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 interface SegmentEditModalProps {
@@ -221,7 +223,8 @@ export const InitialSegmentationTable: React.FC<InitialSegmentationTableProps> =
   segmentationData,
   theme,
   onSegmentationChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   const [editingUtterance, setEditingUtterance] = useState<{
     lineNum: string;
@@ -256,6 +259,19 @@ export const InitialSegmentationTable: React.FC<InitialSegmentationTableProps> =
       );
       
       if (utteranceIndex !== -1) {
+        const oldSegments = updatedData.segmented_utterances[utteranceIndex].segments;
+        
+        // Track the change
+        if (transcriptId) {
+          trackingHelpers.trackDataEdit(
+            `segmentation/line_${editingUtterance.lineNum}`,
+            oldSegments,
+            updatedSegments,
+            transcriptId,
+            StepId.P1_1_INITIAL_SEGMENTATION
+          );
+        }
+        
         updatedData.segmented_utterances[utteranceIndex] = {
           ...updatedData.segmented_utterances[utteranceIndex],
           segments: updatedSegments
@@ -263,7 +279,7 @@ export const InitialSegmentationTable: React.FC<InitialSegmentationTableProps> =
         onSegmentationChange(updatedData);
       }
     }
-  }, [segmentationData, editingUtterance, onSegmentationChange]);
+  }, [segmentationData, editingUtterance, onSegmentationChange, transcriptId]);
 
   const handleExportCSV = () => {
     const csvData: any[] = [];

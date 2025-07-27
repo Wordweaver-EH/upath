@@ -4,6 +4,7 @@ import { subscribeWithSelector } from 'zustand/middleware'
 import { StepId, StepStatus, CurrentStepInfo, HilContext } from '../../types'
 import { ALL_PIPELINE_STEP_IDS_IN_ORDER, STEP_CONFIGS, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_ORDER_PART_NEG1, STEP_ORDER_PART_0, STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC, STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC } from '../../constants'
 import { stepIdToDataKeyPrefix, isGlobalStep } from '../utils/stepIdToDataKeyPrefix'
+import { trackingHelpers } from './historyStore'
 
 interface UIState {
   // Navigation
@@ -372,6 +373,18 @@ export const useUIStore = create<UIStore>()(
       const { stepInfo, originalPrompt } = hilContext
       const config = STEP_CONFIGS[stepInfo.stepId]
       if (config) {
+        // Track the HIL correction
+        trackingHelpers.trackHilCorrection(
+          hilUserGuidance,
+          stepInfo.transcriptId,
+          stepInfo.stepId,
+          {
+            originalPrompt: originalPrompt.substring(0, 100) + '...',
+            modelParams,
+            previousResponse: hilContext.previousResponse?.substring(0, 100) + '...'
+          }
+        )
+        
         const metaPrompt = `The original prompt was:
 --- ORIGINAL PROMPT START ---
 ${originalPrompt}

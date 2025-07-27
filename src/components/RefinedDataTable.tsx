@@ -1,9 +1,13 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { TagsEditor } from './TagsEditor';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { usePipelineStore } from '../stores/pipelineStore';
+import { StepId } from '../../types';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -20,6 +24,8 @@ interface RefinedDataTableProps {
   theme: 'light' | 'dark';
   onLinesChange?: (updatedLines: RefinedLine[]) => void;
   filename?: string;
+  transcriptId?: string;
+  stepId?: StepId;
 }
 
 const TagsRenderer: React.FC<ICellRendererParams> = (params) => {
@@ -53,8 +59,37 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
   refinedLines, 
   theme,
   onLinesChange,
-  filename
+  filename,
+  transcriptId,
+  stepId
 }) => {
+  const updateManualData = usePipelineStore(state => state.updateManualData);
+  
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(refinedLines, {
+    transcriptId,
+    stepId: stepId || StepId.P0_2_REFINE_DATA_TYPES,
+    dataPath: 'refined_data_transcript',
+    onSave: (changes) => {
+      // Apply changes and call the parent's onLinesChange
+      if (onLinesChange) {
+        onLinesChange(displayData);
+      }
+    }
+  });
+  
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(refinedLines);
+  }, [refinedLines, resetData]);
   const { rowData, columnDefs } = useMemo(() => {
     const cols: ColDef[] = [
       { 
@@ -132,8 +167,8 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
       }
     ];
     
-    return { rowData: refinedLines, columnDefs: cols };
-  }, [refinedLines]);
+    return { rowData: displayData, columnDefs: cols };
+  }, [displayData]);
 
   // Define custom styles based on theme
   const gridStyles = theme === 'dark' ? {
@@ -246,19 +281,22 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
             const extraHeight = Math.floor(textLength / 80) * 20 + (hasNotes ? 20 : 0);
             return Math.min(baseHeight + extraHeight, 200);
           }}
-          onCellValueChanged={(event: CellValueChangedEvent) => {
-            if (onLinesChange) {
-              // Create a new array with the updated line
-              const updatedLines = [...refinedLines];
-              const index = refinedLines.findIndex(line => line.line_num === event.data.line_num);
-              if (index !== -1) {
-                updatedLines[index] = { ...event.data };
-                onLinesChange(updatedLines);
-              }
-            }
-          }}
+          onCellValueChanged={trackChange}
         />
       </div>
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
     </>
   );
 };

@@ -1,10 +1,11 @@
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_4_Output, P1_3_Output, DiachronicUnit, SortedSegment } from '../../types';
+import { P1_4_Output, P1_3_Output, DiachronicUnit, SortedSegment, StepId } from '../../types';
 import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
+import { trackingHelpers } from '../stores/historyStore';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -15,6 +16,7 @@ interface DiachronicUnitGroupingTableProps {
   theme: 'light' | 'dark';
   onGroupingChange?: (updatedData: P1_4_Output) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 // Phase colors mapping
@@ -100,6 +102,7 @@ const DiachronicUnitCard: React.FC<{
   onDrop: (segmentId: string, segment: SortedSegment) => void;
   dragContext: DragContext | null;
   onDragStart: (segmentId: string, duId: string, segment: SortedSegment) => void;
+  transcriptId?: string;
 }> = ({ 
   unit, 
   segments, 
@@ -115,7 +118,8 @@ const DiachronicUnitCard: React.FC<{
   onMerge,
   onDrop,
   dragContext,
-  onDragStart
+  onDragStart,
+  transcriptId
 }) => {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [tempDescription, setTempDescription] = useState(unit.description);
@@ -131,6 +135,16 @@ const DiachronicUnitCard: React.FC<{
   const colors = PHASE_COLORS[dominantPhase as keyof typeof PHASE_COLORS];
 
   const handleDescriptionSave = () => {
+    // Track the change
+    if (transcriptId) {
+      trackingHelpers.trackDataEdit(
+        `diachronic_units/${unit.unit_id}/description`,
+        unit.description,
+        tempDescription,
+        transcriptId,
+        StepId.P1_4_DIACHRONIC_UNIT_GROUPING
+      );
+    }
     onDescriptionChange(tempDescription);
     setIsEditingDescription(false);
   };
@@ -303,7 +317,8 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
   sortedSegmentsData,
   theme,
   onGroupingChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   // Initialize with all units expanded
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(() => {
@@ -442,6 +457,20 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
   const handleSegmentRemove = useCallback((unitId: string, segmentId: string) => {
     if (!onGroupingChange) return;
     
+    const unit = groupingData.diachronic_units.find(u => u.unit_id === unitId);
+    if (!unit) return;
+    
+    // Track the change
+    if (transcriptId) {
+      trackingHelpers.trackDataEdit(
+        `diachronic_units/${unitId}/segments`,
+        unit.source_segment_ids,
+        unit.source_segment_ids.filter(id => id !== segmentId),
+        transcriptId,
+        StepId.P1_4_DIACHRONIC_UNIT_GROUPING
+      );
+    }
+    
     const updatedData = {
       ...groupingData,
       diachronic_units: groupingData.diachronic_units.map(unit => 
@@ -453,10 +482,36 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
     };
     
     onGroupingChange(updatedData);
-  }, [groupingData, onGroupingChange]);
+  }, [groupingData, onGroupingChange, transcriptId]);
 
   const handleSegmentDrop = useCallback((targetUnitId: string, segmentId: string, segment: SortedSegment) => {
     if (!onGroupingChange || !dragContext) return;
+    
+    const sourceUnit = groupingData.diachronic_units.find(u => u.unit_id === dragContext.fromDuId);
+    const targetUnit = groupingData.diachronic_units.find(u => u.unit_id === targetUnitId);
+    
+    if (!sourceUnit || !targetUnit) return;
+    
+    // Track changes for both source and target units
+    if (transcriptId) {
+      // Track removal from source
+      trackingHelpers.trackDataEdit(
+        `diachronic_units/${dragContext.fromDuId}/segments`,
+        sourceUnit.source_segment_ids,
+        sourceUnit.source_segment_ids.filter(id => id !== segmentId),
+        transcriptId,
+        StepId.P1_4_DIACHRONIC_UNIT_GROUPING
+      );
+      
+      // Track addition to target
+      trackingHelpers.trackDataEdit(
+        `diachronic_units/${targetUnitId}/segments`,
+        targetUnit.source_segment_ids,
+        [...targetUnit.source_segment_ids, segmentId],
+        transcriptId,
+        StepId.P1_4_DIACHRONIC_UNIT_GROUPING
+      );
+    }
     
     const updatedData = {
       ...groupingData,
@@ -474,7 +529,7 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
     
     onGroupingChange(updatedData);
     setDragContext(null);
-  }, [groupingData, onGroupingChange, dragContext]);
+  }, [groupingData, onGroupingChange, dragContext, transcriptId]);
 
   const handleDragStart = useCallback((segmentId: string, duId: string, segment: SortedSegment) => {
     setDragContext({ segmentId, fromDuId: duId, segment });
@@ -589,6 +644,18 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
     
     // If target unit specified, add to that unit
     if (targetUnitId) {
+      const targetUnit = groupingData.diachronic_units.find(u => u.unit_id === targetUnitId);
+      if (targetUnit && transcriptId) {
+        // Track the addition
+        trackingHelpers.trackDataEdit(
+          `diachronic_units/${targetUnitId}/segments`,
+          targetUnit.source_segment_ids,
+          [...targetUnit.source_segment_ids, segmentId],
+          transcriptId,
+          StepId.P1_4_DIACHRONIC_UNIT_GROUPING
+        );
+      }
+      
       updatedData.diachronic_units = updatedData.diachronic_units.map(unit => 
         unit.unit_id === targetUnitId 
           ? { ...unit, source_segment_ids: [...unit.source_segment_ids, segmentId] }
@@ -597,7 +664,7 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
     }
     
     onGroupingChange(updatedData);
-  }, [groupingData, onGroupingChange]);
+  }, [groupingData, onGroupingChange, transcriptId]);
 
   // Calculate excluded segments
   const excludedSegments = useMemo(() => {
@@ -825,6 +892,7 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
                 onDrop={(segId, seg) => handleSegmentDrop(unit.unit_id, segId, seg)}
                 dragContext={dragContext}
                 onDragStart={handleDragStart}
+                transcriptId={transcriptId}
               />
             ))}
             

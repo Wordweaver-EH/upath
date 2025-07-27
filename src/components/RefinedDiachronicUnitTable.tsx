@@ -1,9 +1,11 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_4_Output, RefinedDiachronicUnitP1_4 } from '../../types';
+import { P1_4_Output, RefinedDiachronicUnitP1_4, StepId } from '../../types';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -13,6 +15,7 @@ interface RefinedDiachronicUnitTableProps {
   theme: 'light' | 'dark';
   onRefinedChange?: (updatedData: P1_4_Output) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 // Custom renderer for temporal phase badges
@@ -100,7 +103,8 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
   refinedData,
   theme,
   onRefinedChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   console.log('[RefinedDiachronicUnitTable] Props:', { refinedData, theme, filename });
   
@@ -118,7 +122,57 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
     );
   }
 
-  const { rowData, columnDefs } = useMemo(() => {
+  // Prepare data for the grid
+  const flattenedData = useMemo(() => {
+    return refinedData.refined_diachronic_units.map(unit => ({
+      ...unit
+    }));
+  }, [refinedData]);
+
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(flattenedData, {
+    transcriptId,
+    stepId: StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
+    dataPath: 'refined_diachronic_units',
+    onSave: (changes) => {
+      if (onRefinedChange) {
+        // Apply changes back to the original structure
+        const updatedData = { ...refinedData };
+        
+        changes.forEach(change => {
+          const rowData = displayData[change.rowId as number];
+          if (rowData && change.field === 'description') {
+            const unitIndex = updatedData.refined_diachronic_units.findIndex(
+              u => u.unit_id === rowData.unit_id
+            );
+            if (unitIndex !== -1) {
+              updatedData.refined_diachronic_units[unitIndex] = {
+                ...updatedData.refined_diachronic_units[unitIndex],
+                description: change.newValue
+              };
+            }
+          }
+        });
+        
+        onRefinedChange(updatedData);
+      }
+    }
+  });
+
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(flattenedData);
+  }, [flattenedData, resetData]);
+
+  const columnDefs = useMemo(() => {
     const cols: ColDef[] = [
       {
         field: 'unit_id',
@@ -179,31 +233,10 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
       }
     ];
 
-    const rows = refinedData.refined_diachronic_units.map(unit => ({
-      ...unit
-    }));
-    
-    console.log('[RefinedDiachronicUnitTable] Generated rows:', rows);
     console.log('[RefinedDiachronicUnitTable] Column definitions:', cols);
 
-    return { rowData: rows, columnDefs: cols };
-  }, [refinedData]);
-
-  const handleCellValueChanged = useCallback((event: CellValueChangedEvent) => {
-    if (onRefinedChange) {
-      const updatedData = { ...refinedData };
-      const unitIndex = updatedData.refined_diachronic_units.findIndex(
-        u => u.unit_id === event.data.unit_id
-      );
-      
-      if (unitIndex !== -1) {
-        updatedData.refined_diachronic_units[unitIndex] = {
-          ...event.data
-        };
-        onRefinedChange(updatedData);
-      }
-    }
-  }, [refinedData, onRefinedChange]);
+    return cols;
+  }, []);
 
   const handleExportCSV = () => {
     const csvData = refinedData.refined_diachronic_units.map(unit => ({
@@ -271,7 +304,7 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
     <>
       <div className="mb-2 flex justify-between items-center">
         <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
-          💡 Edit descriptions, temporal phases, and confidence levels directly in the grid. Changes are saved automatically.
+          💡 Edit descriptions directly in the grid. Use Save to commit changes or Cancel to discard.
         </div>
         <button
           onClick={handleExportCSV}
@@ -290,16 +323,31 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
         }}
       >
         <AgGridReact
-          rowData={rowData}
+          rowData={displayData}
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
           rowHeight={60}
           animateRows={true}
           theme="legacy"
           rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
-          onCellValueChanged={handleCellValueChanged}
+          onCellValueChanged={trackChange}
         />
       </div>
+
+      {/* Save/Cancel buttons */}
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
     </>
   );
 };

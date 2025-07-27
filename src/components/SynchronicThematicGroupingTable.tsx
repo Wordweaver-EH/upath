@@ -1,13 +1,15 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P2S_1_Output, P2S_1_ThematicGroup, SegmentedUtteranceSegment } from '../../types';
+import { P2S_1_Output, P2S_1_ThematicGroup, SegmentedUtteranceSegment, StepId } from '../../types';
 import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
+import { trackingHelpers } from '../stores/historyStore';
 
 interface SynchronicThematicGroupingTableProps {
   groupingData: P2S_1_Output;
   theme: 'light' | 'dark';
   onGroupingChange?: (updatedData: P2S_1_Output) => void;
   filename?: string;
+  transcriptId?: string;
   hideVariableInfo?: boolean;
   hideInstructions?: boolean;
   hideSummaryActions?: boolean;
@@ -34,6 +36,8 @@ const ThematicGroupCard: React.FC<{
   theme: 'light' | 'dark';
   canDelete: boolean;
   onDelete: () => void;
+  transcriptId?: string;
+  groupingDataId?: string;
 }> = ({ 
   group, 
   index,
@@ -44,7 +48,9 @@ const ThematicGroupCard: React.FC<{
   onSegmentRemove,
   theme,
   canDelete,
-  onDelete
+  onDelete,
+  transcriptId,
+  groupingDataId
 }) => {
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [tempLabel, setTempLabel] = useState(group.group_label);
@@ -52,6 +58,16 @@ const ThematicGroupCard: React.FC<{
   const [tempJustification, setTempJustification] = useState(group.justification);
 
   const handleLabelSave = () => {
+    // Track the change
+    if (transcriptId && groupingDataId) {
+      trackingHelpers.trackDataEdit(
+        `thematic_groups/${groupingDataId}/group_${index}/label`,
+        group.group_label,
+        tempLabel,
+        transcriptId,
+        StepId.P2S_1_GROUP_SEGMENTS_BY_TOPIC
+      );
+    }
     onLabelChange(tempLabel);
     setIsEditingLabel(false);
   };
@@ -62,6 +78,16 @@ const ThematicGroupCard: React.FC<{
   };
 
   const handleJustificationSave = () => {
+    // Track the change
+    if (transcriptId && groupingDataId) {
+      trackingHelpers.trackDataEdit(
+        `thematic_groups/${groupingDataId}/group_${index}/justification`,
+        group.justification,
+        tempJustification,
+        transcriptId,
+        StepId.P2S_1_GROUP_SEGMENTS_BY_TOPIC
+      );
+    }
     onJustificationChange(tempJustification);
     setIsEditingJustification(false);
   };
@@ -248,6 +274,7 @@ export const SynchronicThematicGroupingTable: React.FC<SynchronicThematicGroupin
   theme,
   onGroupingChange,
   filename,
+  transcriptId,
   hideVariableInfo = false,
   hideInstructions = false,
   hideSummaryActions = false,
@@ -444,6 +471,8 @@ export const SynchronicThematicGroupingTable: React.FC<SynchronicThematicGroupin
             theme={theme}
             canDelete={groupingData.synchronic_thematic_groups.length > 1}
             onDelete={() => handleDeleteGroup(index)}
+            transcriptId={transcriptId}
+            groupingDataId={groupingData.analyzed_du_id}
           />
         ))}
       </div>

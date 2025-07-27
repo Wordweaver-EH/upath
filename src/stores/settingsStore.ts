@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { UserDVFocus } from '../../types'
 import { isApiKeySet } from '../../services/geminiService'
+import { trackingHelpers } from './historyStore'
 
 // Default DV focus input string
 const DEFAULT_DV_FOCUS_INPUT = 'cognitions, emotions, sensations, imagination, internal_experiences'
@@ -99,6 +100,7 @@ export const useSettingsStore = create<SettingsStore>()(
       updateSettings: (updates) => set(updates),
       
       validateAndSetDvFocus: (input: string) => {
+        const oldDvFocus = get().userDvFocus.dv_focus
         const dvs = parseDvFocusString(input)
         
         let error = ''
@@ -115,6 +117,16 @@ export const useSettingsStore = create<SettingsStore>()(
             userDvFocus: { dv_focus: [] }
           })
         } else {
+          // Track the change if DV focus actually changed
+          if (JSON.stringify(oldDvFocus) !== JSON.stringify(dvs)) {
+            trackingHelpers.trackSettingChange(
+              'DV Focus',
+              oldDvFocus,
+              dvs,
+              'SettingsPanel'
+            )
+          }
+          
           set({ 
             dvFocusInput: input,
             userDvFocus: { dv_focus: dvs },
@@ -124,8 +136,19 @@ export const useSettingsStore = create<SettingsStore>()(
       },
       
       validateAndSetSeed: (input: string) => {
+        const oldSeed = get().seed
         const num = parseInt(input, 10)
         if (!isNaN(num) && num > 0) {
+          // Track the change if seed actually changed
+          if (oldSeed !== num) {
+            trackingHelpers.trackSettingChange(
+              'Seed',
+              oldSeed,
+              num,
+              'SettingsPanel'
+            )
+          }
+          
           set({ 
             seedInput: input,
             seed: num,
@@ -186,14 +209,37 @@ export const useSettingsStore = create<SettingsStore>()(
       },
       
       setModel: (model: string) => {
+        const oldModel = get().model
+        if (oldModel !== model) {
+          trackingHelpers.trackModelSelection(oldModel, model, 'SettingsPanel')
+        }
         set({ model })
       },
       
       setTemperature: (temp: number) => {
-        set({ temperature: Math.max(0, Math.min(1, temp)) })
+        const oldTemp = get().temperature
+        const newTemp = Math.max(0, Math.min(1, temp))
+        if (oldTemp !== newTemp) {
+          trackingHelpers.trackSettingChange(
+            'Temperature',
+            oldTemp,
+            newTemp,
+            'SettingsPanel'
+          )
+        }
+        set({ temperature: newTemp })
       },
       
       setOutputDirectory: (dir: string) => {
+        const oldDir = get().outputDirectory
+        if (oldDir !== dir) {
+          trackingHelpers.trackSettingChange(
+            'Output Directory',
+            oldDir,
+            dir,
+            'SettingsPanel'
+          )
+        }
         set({ outputDirectory: dir })
       },
       

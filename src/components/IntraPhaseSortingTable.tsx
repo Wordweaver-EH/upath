@@ -1,10 +1,12 @@
-import React, { useMemo, useCallback, useState } from 'react';
+import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent, RowClassParams } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_3_Output, SortedSegment } from '../../types';
+import { P1_3_Output, SortedSegment, StepId } from '../../types';
 import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -14,6 +16,7 @@ interface IntraPhaseSortingTableProps {
   theme: 'light' | 'dark';
   onSortingChange?: (updatedData: P1_3_Output) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 // Phase colors mapping (same as P1.2)
@@ -115,7 +118,8 @@ export const IntraPhaseSortingTable: React.FC<IntraPhaseSortingTableProps> = ({
   sortingData,
   theme,
   onSortingChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   console.log('[P1.3] sortingData:', sortingData);
   
@@ -156,22 +160,66 @@ export const IntraPhaseSortingTable: React.FC<IntraPhaseSortingTableProps> = ({
     return grouped;
   }, [sortingData]);
 
-  const { rowData, columnDefs } = useMemo(() => {
-    // Only include segments from expanded phases
-    const rows: any[] = [];
-    
-    Object.entries(segmentsByPhase).forEach(([phase, segments]) => {
-      if (expandedPhases.has(phase)) {
-        segments.forEach(segment => {
-          rows.push({
-            ...segment,
-            utterance_line: segment.original_utterance.original_line_num,
-            utterance_text: segment.original_utterance.utterance_text
-          });
-        });
-      }
-    });
+  // Flatten data for display, adding unique IDs
+  const flattenedData = useMemo(() => {
+    return sortingData.sorted_segments.map((segment, index) => ({
+      ...segment,
+      id: segment.segment_id, // Use segment_id as unique identifier
+      index: index, // Store original index
+      utterance_line: segment.original_utterance.original_line_num,
+      utterance_text: segment.original_utterance.utterance_text
+    }));
+  }, [sortingData]);
 
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(flattenedData, {
+    transcriptId,
+    stepId: StepId.P1_3_INTRA_PHASE_SORTING,
+    dataPath: 'intra_phase_sorting',
+    onSave: (changes) => {
+      if (onSortingChange) {
+        // Apply changes back to the original structure
+        const updatedData = { ...sortingData };
+        
+        changes.forEach(change => {
+          const rowData = displayData[change.rowId as number];
+          if (rowData) {
+            const segmentIndex = updatedData.sorted_segments.findIndex(
+              s => s.segment_id === rowData.segment_id
+            );
+            if (segmentIndex !== -1) {
+              updatedData.sorted_segments[segmentIndex] = {
+                ...updatedData.sorted_segments[segmentIndex],
+                [change.field]: change.newValue
+              };
+            }
+          }
+        });
+        
+        onSortingChange(updatedData);
+      }
+    }
+  });
+
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(flattenedData);
+  }, [flattenedData, resetData]);
+
+  // Filter data based on expanded phases
+  const rowData = useMemo(() => {
+    return displayData.filter(segment => expandedPhases.has(segment.coarse_phase));
+  }, [displayData, expandedPhases]);
+
+  const columnDefs = useMemo(() => {
     const cols: ColDef[] = [
       { 
         field: 'chronological_index', 
@@ -249,30 +297,8 @@ export const IntraPhaseSortingTable: React.FC<IntraPhaseSortingTableProps> = ({
       }
     ];
 
-    return { rowData: rows, columnDefs: cols };
-  }, [sortingData, expandedPhases, segmentsByPhase]);
-
-  const handleCellValueChanged = useCallback((event: CellValueChangedEvent) => {
-    if (!onSortingChange) return;
-    
-    const field = event.colDef.field;
-    if (field === 'chronological_index' || field === 'placement_justification') {
-      const updatedData = { ...sortingData };
-      
-      // Find and update the segment
-      updatedData.sorted_segments = updatedData.sorted_segments.map(segment => {
-        if (segment.segment_id === event.data.segment_id) {
-          return {
-            ...segment,
-            [field]: event.newValue
-          };
-        }
-        return segment;
-      });
-      
-      onSortingChange(updatedData);
-    }
-  }, [sortingData, onSortingChange]);
+    return cols;
+  }, []);
 
   const togglePhase = useCallback((phase: string) => {
     setExpandedPhases(prev => {
@@ -379,7 +405,7 @@ export const IntraPhaseSortingTable: React.FC<IntraPhaseSortingTableProps> = ({
       {/* Export button */}
       <div className="flex justify-between items-center mb-2">
         <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
-          💡 Click on Index or Justification cells to edit. Segments with the same index are highlighted as simultaneous events.
+          💡 Click on Index or Justification cells to edit. Segments with the same index are highlighted as simultaneous events. Use Save to commit changes or Cancel to discard.
         </div>
         <button
           onClick={exportToCsv}
@@ -407,13 +433,28 @@ export const IntraPhaseSortingTable: React.FC<IntraPhaseSortingTableProps> = ({
             resizable: true,
           }}
           animateRows={true}
-          onCellValueChanged={handleCellValueChanged}
+          onCellValueChanged={trackChange}
           getRowClass={getRowClass}
           groupDisplayType="singleColumn"
           tooltipShowDelay={500}
           theme="legacy"
         />
       </div>
+
+      {/* Save/Cancel buttons */}
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
 
       {/* Legend */}
       <div className="text-sm text-light-sidenote dark:text-dark-sidenote space-y-1">

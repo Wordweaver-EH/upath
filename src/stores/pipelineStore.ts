@@ -54,6 +54,7 @@ import {
 import { downloadFile, generateTsvForPromptHistory } from '../utils/tsvHelper'
 import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from '../utils/htmlHelper'
 import { PipelineOrchestrator } from '../services/PipelineOrchestrator'
+import { trackingHelpers } from './historyStore'
 
 // Dependency injection interfaces for breaking circular dependencies
 interface UICallbacks {
@@ -116,6 +117,13 @@ interface PipelineActions {
     hilMetaPrompt?: string,
     settings?: SettingsData
   }) => Promise<void>
+  updateManualData: (
+    transcriptId: string,
+    dataPath: string,
+    newValue: any,
+    oldValue: any,
+    stepId?: StepId
+  ) => void
   // Helper functions for step processing  
   handleStepError: (
     stepId: StepId,
@@ -215,6 +223,15 @@ const createTranscriptSlice = (set: any, get: any): TranscriptSlice => ({
     console.log('🔄 addTranscripts called with', files.length, 'files');
     const newTranscripts = await Promise.all(files.map(processFileContent))
     console.log('✅ Processed transcripts:', newTranscripts);
+    
+    // Track file uploads
+    files.forEach(file => {
+      trackingHelpers.trackFileUpload(
+        file.name,
+        file.size,
+        file.type
+      )
+    })
     
     set((state: PipelineState) => {
       console.log('📝 Starting state update...');
@@ -1456,6 +1473,14 @@ export const usePipelineStore = create<PipelineStore>()(
       invalidateFromPart: (partName: string) => {
         const { processedData, genericAnalysisState, rawTranscripts } = get()
         
+        // Track the pipeline invalidation
+        trackingHelpers.trackPipelineAction(
+          `Invalidated pipeline from ${partName}`,
+          undefined, // stepId will be determined below
+          undefined, // no specific transcript
+          { partName }
+        )
+        
         // Find the first step of the specified part
         let firstStepOfPart: StepId | undefined
         
@@ -2154,6 +2179,31 @@ export const usePipelineStore = create<PipelineStore>()(
       clearAutorunResumePosition: () => {
         set((state) => {
           state.autorunResumePosition = undefined
+        })
+      },
+      
+      updateManualData: (transcriptId, dataPath, newValue, oldValue, stepId) => {
+        // Track the manual edit
+        trackingHelpers.trackDataEdit(
+          dataPath,
+          oldValue,
+          newValue,
+          transcriptId,
+          stepId
+        )
+        
+        // Update the actual data based on the path
+        // This is a simplified implementation - you may need to parse the path
+        // to update nested data structures
+        const parts = dataPath.split('.')
+        
+        set((state) => {
+          const processedData = state.processedData.get(transcriptId)
+          if (!processedData) return
+          
+          // For now, we'll just update the processed data
+          // In a real implementation, you'd parse the path and update the specific field
+          console.log(`Manual edit tracked: ${dataPath} changed from ${oldValue} to ${newValue}`)
         })
       }
     })),

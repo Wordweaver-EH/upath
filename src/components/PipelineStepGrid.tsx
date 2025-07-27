@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
@@ -28,6 +28,8 @@ import { SynchronicThematicGroupingTable } from './SynchronicThematicGroupingTab
 import { SpecificSynchronicUnitsTable } from './SpecificSynchronicUnitsTable';
 import { SpecificSynchronicStructureNetwork } from './SpecificSynchronicStructureNetwork';
 import { Part2SummaryTable } from './Part2SummaryTable';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
 import { transformP2SDataToSummary } from '../utils/p2s4DataTransformer';
 
 // Register AG Grid modules
@@ -138,6 +140,172 @@ const ExpandableRow: React.FC<{
         </div>
       )}
     </div>
+  );
+};
+
+// Variable Identification Grid Component with change tracking
+const VariableIdentificationGrid: React.FC<{
+  processedData: Map<string, TranscriptProcessedData>;
+  theme: 'light' | 'dark';
+  config: GridConfig;
+}> = ({ processedData, theme, config }) => {
+  const updateProcessedData = usePipelineStore(state => state.updateProcessedData);
+  
+  // Extract data for the grid
+  const initialData = useMemo(() => {
+    return config.extractData(processedData);
+  }, [config, processedData]);
+  
+  // Get transcript IDs for tracking
+  const transcriptIds = useMemo(() => {
+    return Array.from(processedData.keys()).filter(id => {
+      const data = processedData.get(id);
+      return data?.p_neg1_1_output;
+    });
+  }, [processedData]);
+  
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: originalTrackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(initialData, {
+    transcriptId: 'multi-transcript', // Generic ID since we have multiple transcripts
+    stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
+    dataPath: 'variable_identification',
+    onSave: (changes) => {
+      // Apply changes back to the store
+      changes.forEach(change => {
+        const rowData = displayData[change.rowId as number];
+        if (rowData && rowData.transcriptId) {
+          const transcriptData = processedData.get(rowData.transcriptId);
+          if (transcriptData && transcriptData.p_neg1_1_output) {
+            const updatedOutput = { ...transcriptData.p_neg1_1_output };
+            
+            if (change.field === 'independent_variable') {
+              updatedOutput.independent_variable_details = change.newValue || '';
+            } else if (change.field === 'dependent_variables') {
+              // Split the comma-separated string back into an array
+              updatedOutput.dependent_variable_focus = (change.newValue || '')
+                .split(',')
+                .map((s: string) => s.trim())
+                .filter((s: string) => s.length > 0);
+            }
+            
+            // Update the store
+            updateProcessedData(rowData.transcriptId, {
+              p_neg1_1_output: updatedOutput
+            });
+          }
+        }
+      });
+    }
+  });
+  
+  // Wrap the trackChange to include row-specific transcriptId
+  const trackChange = useCallback((event: CellValueChangedEvent) => {
+    // Add row data to the event for tracking
+    const enhancedEvent = {
+      ...event,
+      rowData: event.data
+    };
+    originalTrackChange(enhancedEvent);
+  }, [originalTrackChange]);
+  
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(initialData);
+  }, [initialData, resetData]);
+  
+  // Define custom styles based on theme
+  const gridStyles = theme === 'dark' ? {
+    '--ag-background-color': '#1a1a1a',
+    '--ag-header-background-color': '#252525',
+    '--ag-odd-row-background-color': '#252525',
+    '--ag-foreground-color': '#e6e6e6',
+    '--ag-header-foreground-color': '#e6e6e6',
+    '--ag-border-color': '#444444',
+    '--ag-row-hover-color': '#333333',
+    '--ag-header-column-resize-handle-color': '#ff6b6b',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-cell-horizontal-border': 'solid 1px #444444',
+  } : {
+    '--ag-background-color': '#faf8f1',
+    '--ag-header-background-color': '#f3f1ea',
+    '--ag-odd-row-background-color': '#f3f1ea',
+    '--ag-foreground-color': '#222222',
+    '--ag-header-foreground-color': '#222222',
+    '--ag-border-color': '#dcd9d0',
+    '--ag-row-hover-color': '#e9e6de',
+    '--ag-header-column-resize-handle-color': '#a00000',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-cell-horizontal-border': 'solid 1px #dcd9d0',
+  };
+  
+  // Add editable cell styling
+  const editableStyles = `
+    .editable-cell {
+      cursor: text !important;
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.05)' : 'rgba(160, 0, 0, 0.03)'} !important;
+    }
+    .editable-cell:hover {
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.1)' : 'rgba(160, 0, 0, 0.06)'} !important;
+    }
+    .ag-cell-editing {
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.15)' : 'rgba(160, 0, 0, 0.1)'} !important;
+      border: 2px solid ${theme === 'dark' ? '#ff6b6b' : '#a00000'} !important;
+    }
+  `;
+  
+  return (
+    <>
+      <style>{editableStyles}</style>
+      <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+        💡 Click on Independent Variable or Dependent Variables cells to edit them. Use Save to commit changes or Cancel to discard.
+      </div>
+      <div 
+        className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
+        style={{ 
+          height: config.height || '400px', 
+          width: '100%',
+          ...gridStyles as React.CSSProperties
+        }}
+      >
+        <AgGridReact
+          rowData={displayData}
+          columnDefs={config.columns}
+          defaultColDef={{
+            resizable: true,
+            sortable: true
+          }}
+          animateRows={true}
+          domLayout='normal'
+          theme='legacy'
+          onCellValueChanged={trackChange}
+        />
+      </div>
+      
+      {/* Save/Cancel buttons */}
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
+    </>
   );
 };
 
@@ -333,6 +501,8 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   theme={theme}
                   onLinesChange={handleLinesChange}
                   filename={tabData.filename}
+                  transcriptId={tabData.transcriptId}
+                  stepId={StepId.P0_2_REFINE_DATA_TYPES}
                 />
               </div>
             </div>
@@ -430,6 +600,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   theme={theme}
                   onUtterancesChange={handleUtterancesChange}
                   filename={tabData.filename}
+                  transcriptId={tabData.transcriptId}
                 />
               </div>
             </div>
@@ -454,6 +625,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
+                transcriptId: transcript.p1_1_output!.transcript_id || id,
                 segmentationData: transcript.p1_1_output!,
                 filename: transcript.filename
               }
@@ -518,6 +690,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   theme={theme}
                   onSegmentationChange={handleSegmentationChange}
                   filename={tabData.filename}
+                  transcriptId={tabData.transcriptId}
                 />
               </div>
             </div>
@@ -542,6 +715,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
+                transcriptId: transcript.p1_2_output!.transcript_id || id,
                 diachronicData: transcript.p1_2_output!,
                 segmentationData: transcript.p1_1_output,
                 filename: transcript.filename
@@ -607,6 +781,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   theme={theme}
                   onPhaseTaggingChange={handlePhaseTaggingChange}
                   filename={tabData.filename}
+                  transcriptId={tabData.transcriptId}
                 />
               </div>
             </div>
@@ -631,6 +806,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
+                transcriptId: transcript.p1_3_output!.transcript_id || id,
                 phaseData: transcript.p1_3_output!,
                 p1_2_output: transcript.p1_2_output,
                 filename: transcript.filename
@@ -705,6 +881,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   theme={theme}
                   onSortingChange={handleSortingChange}
                   filename={tabData.filename}
+                  transcriptId={tabData.transcriptId}
                 />
               </div>
             </div>
@@ -730,6 +907,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
+                transcriptId: transcript.p1_4_output!.transcript_id || id,
                 groupingData: transcript.p1_4_output!,
                 p1_3_output: transcript.p1_3_output,
                 filename: transcript.filename
@@ -811,6 +989,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   theme={theme}
                   onGroupingChange={handleGroupingChange}
                   filename={tabData.filename}
+                  transcriptId={tabData.transcriptId}
                 />
               </div>
             </div>
@@ -967,6 +1146,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     theme={theme}
                     onGroupingChange={(updatedData) => handleGroupingChange(duId, updatedData)}
                     filename={tabData.filename}
+                    transcriptId={tabData.transcriptId}
                     hideVariableInfo={true}
                     hideInstructions={true} // Instructions shown at bottom of transcript
                     compactSummary={true} // Use compact summary with just stats and download button
@@ -1121,6 +1301,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     theme={theme}
                     onUnitsChange={(updatedData) => handleUnitsChange(duId, updatedData)}
                     filename={tabData.filename}
+                    transcriptId={tabData.transcriptId}
                     hideVariableInfo={true}
                     hideInstructions={true} // Instructions shown at bottom of transcript
                     compactSummary={true} // Use compact summary
@@ -1276,6 +1457,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     theme={theme}
                     onNetworkChange={(updatedData) => handleNetworkChange(duId, updatedData)}
                     filename={tabData.filename}
+                    transcriptId={tabData.transcriptId}
                     hideVariableInfo={true}
                     hideInstructions={true} // Instructions shown at bottom of transcript
                     compactSummary={true} // Use compact summary
@@ -1367,6 +1549,17 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
     );
   }
 
+  // Use special component for Variable Identification
+  if (stepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION) {
+    return (
+      <VariableIdentificationGrid 
+        processedData={processedData}
+        theme={theme}
+        config={config}
+      />
+    );
+  }
+
   // Define custom styles based on theme
   const gridStyles = theme === 'dark' ? {
     '--ag-background-color': '#1a1a1a',
@@ -1393,32 +1586,9 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
     '--ag-font-size': '16px',
     '--ag-cell-horizontal-border': 'solid 1px #dcd9d0',
   };
-  
-  // Add editable cell styling
-  const editableStyles = `
-    .editable-cell {
-      cursor: text !important;
-      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.05)' : 'rgba(160, 0, 0, 0.03)'} !important;
-    }
-    .editable-cell:hover {
-      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.1)' : 'rgba(160, 0, 0, 0.06)'} !important;
-    }
-    .ag-cell-editing {
-      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.15)' : 'rgba(160, 0, 0, 0.1)'} !important;
-      border: 2px solid ${theme === 'dark' ? '#ff6b6b' : '#a00000'} !important;
-    }
-  `;
 
   return (
     <div className="space-y-4">
-      {stepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION && (
-        <>
-          <style>{editableStyles}</style>
-          <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
-            💡 Click on Independent Variable or Dependent Variables cells to edit them directly. Changes are saved automatically.
-          </div>
-        </>
-      )}
       <div 
         className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
         style={{ 
@@ -1443,37 +1613,6 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
             }
           }}
           rowSelection={config.expandableContent ? 'single' : undefined}
-          onCellValueChanged={(event: CellValueChangedEvent) => {
-            // Handle cell value changes for P_NEG1_1
-            if (stepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION) {
-              const { data, colDef } = event;
-              const transcriptId = data.transcriptId;
-              const fieldName = colDef.field;
-              
-              if (transcriptId && fieldName) {
-                const transcriptData = processedData.get(transcriptId);
-                if (transcriptData && transcriptData.p_neg1_1_output) {
-                  // Update the appropriate field
-                  const updatedOutput = { ...transcriptData.p_neg1_1_output };
-                  
-                  if (fieldName === 'independent_variable') {
-                    updatedOutput.independent_variable_details = event.newValue || '';
-                  } else if (fieldName === 'dependent_variables') {
-                    // Split the comma-separated string back into an array
-                    updatedOutput.dependent_variable_focus = (event.newValue || '')
-                      .split(',')
-                      .map((s: string) => s.trim())
-                      .filter((s: string) => s.length > 0);
-                  }
-                  
-                  // Update the store
-                  updateProcessedData(transcriptId, {
-                    p_neg1_1_output: updatedOutput
-                  });
-                }
-              }
-            }
-          }}
         />
       </div>
       
