@@ -3,6 +3,11 @@
 *Kevin Sheldrake and Zoltan Dienes*
 *School of Psychology, Faculty of Science, Engineering and Medicine, University of Sussex*
 
+## Related Documentation
+- **Theoretical Foundation**: See `manual_2018.md` for Valenzuela-Moguillansky & Vásquez-Rosati's detailed analysis procedure
+- **Implementation**: See `.claude/agents/micro-phenomenology-consultant.md` for AI agent guidance
+- **Pipeline Config**: See `src/config/CLAUDE.md` for µ-PATH implementation notes
+
 **Author Note**
 
 Correspondence concerning this article should be addressed to Kevin Sheldrake. Email: k.sheldrake@sussex.ac.uk

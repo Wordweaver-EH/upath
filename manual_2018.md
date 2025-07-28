@@ -1,4 +1,18 @@
 
+# An Analysis Procedure for the Micro-phenomenological Interview
+
+*Camila Valenzuela-Moguillansky & Alejandra Vásquez-Rosati (2019)*
+*Constructivist Foundations, 14(2), 123-145*
+
+## Related Documentation
+- **Simplified Approach**: See `manual_kev.md` for Sheldrake & Dienes' practical implementation
+- **Implementation**: See `.claude/agents/micro-phenomenology-consultant.md` for AI agent guidance
+- **Pipeline Config**: See `src/config/CLAUDE.md` for µ-PATH implementation notes
+
+---
+
+*Note: This is an excerpt from academic commentary. The language has been preserved for reference but see the simplified principles in the micro-phenomenology-consultant agent definition.*
+
 157
 First-Person experiences Christian tewes
 First-Person Research
