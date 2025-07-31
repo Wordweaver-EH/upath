@@ -68,6 +68,13 @@ function transformSingleDU(duId: string, duData: P2SDuData, p1_4_output?: P1_4_O
   const p2s2 = duData.p2s_2_output;
   const p2s3 = duData.p2s_3_output;
 
+  console.log(`[transformSingleDU] Processing ${duId}:`, {
+    hasP2s1: !!p2s1,
+    hasP2s2: !!p2s2,
+    hasP2s3: !!p2s3,
+    p2s2UnitsCount: p2s2?.specific_synchronic_units_hierarchy?.length || 0
+  });
+
   // Extract DU metadata
   const duName = p2s1?.analyzed_du_id || duId;
   const segmentCount = p2s1?.synchronic_thematic_groups
@@ -278,6 +285,7 @@ export function generateAgGridRows(summaryData: P2S4SummaryData): any[] {
   const rows: any[] = [];
   
   summaryData.duRecords.forEach((du, duIndex) => {
+    console.log(`[generateAgGridRows] Processing DU ${duIndex + 1}:`, du.name, 'ISU count:', du.isuThemes.size);
     const duRows: any[] = [];
     let isFirstDURow = true;
     
@@ -348,8 +356,10 @@ export function generateAgGridRows(summaryData: P2S4SummaryData): any[] {
       duRows[duRows.length - 1]._isLastDURow = true;
     }
     
+    console.log(`[generateAgGridRows] DU ${du.name} generated ${duRows.length} rows`);
     rows.push(...duRows);
   });
   
+  console.log(`[generateAgGridRows] Total rows generated:`, rows.length);
   return rows;
 }

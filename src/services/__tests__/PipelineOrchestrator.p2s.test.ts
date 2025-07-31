@@ -137,7 +137,7 @@ describe('PipelineOrchestrator - P2S DU Iteration', () => {
     })
 
     it('should handle undefined current_du_for_p2s_processing gracefully', () => {
-      // Simulate the bug condition where current_du becomes undefined
+      // Simulate the condition where current_du becomes undefined
       const transcriptData = mockProcessedData.get('transcript-1')!
       transcriptData.current_du_for_p2s_processing = undefined
       
@@ -153,11 +153,39 @@ describe('PipelineOrchestrator - P2S DU Iteration', () => {
         0
       )
 
-      // With the bug, this would incorrectly return nextDuIndex: 0
-      // The test verifies the behavior exists
-      if (nextStep?.nextDuIndex !== undefined) {
-        expect(nextStep.nextDuIndex).toBe(0) // Bug: -1 + 1 = 0
+      // After fix: Should skip to next transcript when current DU is invalid
+      expect(nextStep).toBeDefined()
+      expect(nextStep?.nextStepId).toBe(StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC)
+      expect(nextStep?.nextTranscriptIndex).toBe(1) // Move to transcript 2
+      expect(nextStep?.nextDuIndex).toBeUndefined() // No DU index when moving to next transcript
+      expect(nextStep?.iterationType).toBe('per-transcript')
+    })
+
+    it('should handle undefined current_du on last transcript', () => {
+      // Test when undefined DU occurs on the last transcript
+      const transcriptData = mockProcessedData.get('transcript-2')!
+      transcriptData.current_du_for_p2s_processing = undefined
+      
+      const currentStepInfo: CurrentStepInfo = {
+        stepId: StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
+        status: StepStatus.Success
       }
+
+      // Update process state to be on transcript 2
+      mockProcessState.currentPartIndex = 3  // Part 2
+      
+      const nextStep = orchestrator.getNextStep(
+        mockProcessState,
+        currentStepInfo,
+        { rawTranscripts: mockRawTranscripts, processedData: mockProcessedData, genericAnalysisState: mockGenericAnalysisState },
+        1 // Last transcript
+      )
+
+      // Should move to next part since no more transcripts
+      expect(nextStep).toBeDefined()
+      expect(nextStep?.nextStepId).toBe(StepId.P3_1_ALIGN_STRUCTURES) 
+      expect(nextStep?.nextTranscriptIndex).toBe(0) // Reset to first transcript for next part
+      expect(nextStep?.iterationType).toBe('global')
     })
   })
 

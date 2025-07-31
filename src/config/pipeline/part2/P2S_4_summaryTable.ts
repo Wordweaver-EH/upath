@@ -12,8 +12,15 @@ export const P2S_4_SUMMARY_TABLE_CONFIG: StepConfig = {
       return { data: null, error: "Missing current transcript ID for P2S.4" };
     }
 
+    // Get processed data from the store, not from currentTranscript
+    const processedTranscript = allProcessedData?.get(currentTranscript.id);
+    if (!processedTranscript) {
+      console.error('[P2S_4 Debug] No processed data found for transcript:', currentTranscript.id);
+      return { data: null, error: "No processed data available for this transcript." };
+    }
+
     // Check if P2S outputs exist
-    const p2sOutputs = currentTranscript.p2s_outputs_by_du;
+    const p2sOutputs = processedTranscript.p2s_outputs_by_du;
     if (!p2sOutputs || Object.keys(p2sOutputs).length === 0) {
       console.error('[P2S_4 Debug] No P2S outputs found for transcript:', currentTranscript.id);
       return { data: null, error: "No P2S outputs available. Please run P2S.1, P2S.2, and P2S.3 first." };

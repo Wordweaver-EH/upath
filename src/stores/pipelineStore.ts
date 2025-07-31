@@ -976,6 +976,8 @@ export const usePipelineStore = create<PipelineStore>()(
         console.log(`✅ [handleSuccessfulStep] Setting lastStepInfo to Success for: ${stepId}`);
         console.log(`- TranscriptId: ${transcriptIdToProcess || 'N/A (global)'}`);
         console.log(`- Output type: ${typeof output}`);
+        console.log(`- CurrentDU: ${currentDu || 'undefined'}`);
+        console.log(`- CurrentGDU: ${currentGDU || 'undefined'}`);
         
         // Update pipeline state - App.tsx will handle UI updates
         console.log(`📊 [handleSuccessfulStep] About to update lastStepInfo in state`);
@@ -992,9 +994,21 @@ export const usePipelineStore = create<PipelineStore>()(
         console.log(`📊 [handleSuccessfulStep] State update completed`);
         
         const key = stepIdToDataKeyPrefix[stepId]
+        console.log(`[handleSuccessfulStep Debug] key from stepIdToDataKeyPrefix: ${key}, type: ${typeof key}`);
         
-        // Handle transcript-specific outputs
-        if (transcriptIdToProcess && key && typeof key === 'string' && !STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(stepId)) {
+        // Determine if the step belongs to Part 0 or Part 1
+        const isP0orP1Step = 
+          STEP_ORDER_PART_NEG1.includes(stepId) ||
+          STEP_ORDER_PART_0.includes(stepId) ||
+          STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.includes(stepId);
+        
+        // Handle transcript-specific outputs (P0, P1) with the new, more specific condition
+        if (
+          transcriptIdToProcess &&
+          key &&
+          typeof key === 'string' &&
+          isP0orP1Step // Use the new explicit check
+        ) {
           set((state: any) => {
             const d = state.processedData.get(transcriptIdToProcess)
             if (d) {
@@ -1028,7 +1042,19 @@ export const usePipelineStore = create<PipelineStore>()(
           })
         }
         
-        // Handle P2S phase outputs
+        // Handle P2S phase outputs (this block is now correctly isolated)
+        console.log(`[P2S Condition Check] Checking P2S condition:`, {
+          currentDu: currentDu,
+          hasDu: !!currentDu,
+          transcriptIdToProcess: transcriptIdToProcess,
+          hasTranscriptId: !!transcriptIdToProcess,
+          isP2SStep: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId),
+          key: key,
+          hasKey: !!key,
+          keyType: typeof key,
+          keyIsString: typeof key === 'string',
+          allConditionsMet: !!(currentDu && transcriptIdToProcess && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId) && key && typeof key === 'string')
+        });
         if (currentDu && transcriptIdToProcess && STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId) && key && typeof key === 'string') {
           set((state: any) => {
             const tD = state.processedData.get(transcriptIdToProcess)
@@ -1038,15 +1064,21 @@ export const usePipelineStore = create<PipelineStore>()(
                 mermaid = transformSynchronicToMermaid((output as P2S_3_Output).specific_synchronic_structure, currentDu)
               }
               
+              const existingP2SOutputs = tD.p2s_outputs_by_du || {};
+              console.log(`[P2S Debug] Before update - Existing DUs with data:`, Object.keys(existingP2SOutputs));
+              
               const uP2S = {
-                ...(tD.p2s_outputs_by_du || {}),
+                ...existingP2SOutputs,
                 [currentDu!]: {
-                  ...(tD.p2s_outputs_by_du?.[currentDu!] || {}),
+                  ...(existingP2SOutputs[currentDu!] || {}),
                   [key as keyof P2SDuData]: output,
                   [`${key.replace('_output','_error')}` as keyof P2SDuData]: undefined,
                   ...(mermaid && { p2s_3_mermaid_syntax: mermaid })
                 }
               }
+              
+              console.log(`[P2S Debug] After update - DUs with data:`, Object.keys(uP2S));
+              console.log(`[P2S Debug] Current DU (${currentDu}) has:`, Object.keys(uP2S[currentDu!] || {}))
               
               let newProcDus = [...(tD.processed_dus_for_p2s || [])]
               let allDone = tD.isFullyProcessedSpecificSynchronic

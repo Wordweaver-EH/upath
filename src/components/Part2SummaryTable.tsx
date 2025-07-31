@@ -90,11 +90,20 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
   const gridRef = useRef<AgGridReact>(null);
   const [refreshKeys, setRefreshKeys] = React.useState<Record<string, number>>({});
   
+  // Debug logging
+  console.log('[Part2SummaryTable] Received data:', data);
+  console.log('[Part2SummaryTable] Number of DU records:', data.duRecords.length);
+  console.log('[Part2SummaryTable] DU names:', data.duRecords.map(du => du.name));
+  
   // Detect theme from DOM if not provided
   const effectiveTheme = theme || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
   
   // Generate table rows for ag-grid
-  const tableRows = useMemo(() => generateAgGridRows(data), [data]);
+  const tableRows = useMemo(() => {
+    const rows = generateAgGridRows(data);
+    console.log('[Part2SummaryTable] Generated table rows:', rows.length);
+    return rows;
+  }, [data]);
 
   // Export handler
   const handleExportHTML = useCallback(() => {
@@ -218,7 +227,10 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
           </div>
         </div>
         <div className="space-y-6">
-          {data.duRecords.map((du, index) => (
+          {console.log('[Part2SummaryTable] Mapping DU records for network diagrams:', data.duRecords.length)}
+          {data.duRecords.map((du, index) => {
+            console.log(`[Part2SummaryTable] Rendering DU ${index + 1}:`, du.name, du.id);
+            return (
             <div key={`${du.id}-container`} className="border border-light-border dark:border-dark-border rounded-lg p-4 bg-light-bg-alt dark:bg-dark-bg-alt">
               <div className="mb-3">
                 <NestedTooltip
@@ -358,7 +370,8 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -408,7 +421,7 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
       `}</style>
 
       {/* Custom styles for visual grouping and column borders */}
-      <style jsx>{`
+      <style>{`
         @media print {
           body {
             print-color-adjust: exact;

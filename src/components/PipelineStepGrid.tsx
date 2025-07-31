@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
@@ -1521,6 +1521,11 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
           const independentVariable = transcriptData?.p_neg1_1_output?.independent_variable_details || 'Not specified';
           const dependentVariables = transcriptData?.p_neg1_1_output?.dependent_variable_focus || [];
           
+          // Debug: Log the P2S outputs
+          console.log('[P2S.4 Debug] tabData.p2sOutputsByDU:', tabData.p2sOutputsByDU);
+          console.log('[P2S.4 Debug] Number of DUs:', Object.keys(tabData.p2sOutputsByDU).length);
+          console.log('[P2S.4 Debug] DU IDs:', Object.keys(tabData.p2sOutputsByDU));
+          
           // Transform P2S data into summary format
           const summaryData = transformP2SDataToSummary(
             tabData.transcriptId,
@@ -1530,6 +1535,9 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
             independentVariable,
             dependentVariables
           );
+          
+          console.log('[P2S.4 Debug] summaryData.duRecords:', summaryData.duRecords);
+          console.log('[P2S.4 Debug] Total DUs in summary:', summaryData.totalDUs);
           
           return <Part2SummaryTable data={summaryData} theme={theme} />;
         }}

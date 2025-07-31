@@ -1,5 +1,6 @@
-import { StepId, P2S_2_Output } from '../../../../types';
+import { StepId, P2S_2_Output, P2S_3_Output } from '../../../../types';
 import { StepConfig } from '../types';
+import { transformSynchronicToMermaid } from '../../../utils/visualizationHelper';
 
 export const P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE_CONFIG: StepConfig = {
   id: StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
@@ -89,4 +90,29 @@ A JSON object adhering EXACTLY to the following structure:
   "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
 }
 `,
+  saveToTranscript: (transcript, output, duId) => {
+    if (!duId) {
+      console.error('[P2S.3] No DU ID provided to saveToTranscript');
+      return transcript;
+    }
+    
+    // Generate mermaid syntax for the synchronic structure
+    let mermaidSyntax: string | undefined;
+    if (output && (output as P2S_3_Output).specific_synchronic_structure) {
+      mermaidSyntax = transformSynchronicToMermaid((output as P2S_3_Output).specific_synchronic_structure, duId);
+    }
+    
+    const p2sOutputs = transcript.p2s_outputs_by_du || {};
+    p2sOutputs[duId] = {
+      ...p2sOutputs[duId],
+      p2s_3_output: output,
+      p2s_3_error: undefined,
+      ...(mermaidSyntax && { p2s_3_mermaid_syntax: mermaidSyntax })
+    };
+    
+    return {
+      ...transcript,
+      p2s_outputs_by_du: p2sOutputs
+    };
+  }
 };

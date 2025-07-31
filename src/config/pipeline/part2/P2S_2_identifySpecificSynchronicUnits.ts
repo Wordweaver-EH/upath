@@ -88,4 +88,22 @@ A JSON object adhering EXACTLY to the following structure (NO extra text):
   "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
 }
 `,
+  saveToTranscript: (transcript, output, duId) => {
+    if (!duId) {
+      console.error('[P2S.2] No DU ID provided to saveToTranscript');
+      return transcript;
+    }
+    
+    const p2sOutputs = transcript.p2s_outputs_by_du || {};
+    p2sOutputs[duId] = {
+      ...p2sOutputs[duId],
+      p2s_2_output: output,
+      p2s_2_error: undefined
+    };
+    
+    return {
+      ...transcript,
+      p2s_outputs_by_du: p2sOutputs
+    };
+  }
 };

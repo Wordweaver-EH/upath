@@ -2,13 +2,9 @@ Directory structure:
 └── upath/
     ├── App.tsx
     ├── constants.tsx
-    ├── index.html
     ├── index.tsx
     ├── jest.config.js
     ├── LICENSE
-    ├── metadata.json
-    ├── package.json
-    ├── tsconfig.json
     ├── types.ts
     ├── vite.config.ts
     ├── .env.example
@@ -53,6 +49,8 @@ Directory structure:
     │   │   ├── TemporalPhaseAssignmentTable.tsx
     │   │   ├── TemporalPhaseEditor.tsx
     │   │   ├── TranscriptLinesTable.tsx
+    │   │   ├── icons/
+    │   │   │   └── index.tsx
     │   │   ├── tooltips/
     │   │   │   ├── ISUTooltip.tsx
     │   │   │   ├── PhaseTooltip.tsx
@@ -91,7 +89,8 @@ Directory structure:
     │   │           └── variableIdentification.ts
     │   ├── hooks/
     │   │   ├── useAutorunManager.ts
-    │   │   └── useEncryptedPrompt.ts
+    │   │   ├── useEncryptedPrompt.ts
+    │   │   └── useGridChangeTracker.ts
     │   ├── services/
     │   │   └── PipelineOrchestrator.ts
     │   ├── stores/
@@ -101,9 +100,6 @@ Directory structure:
     │   │   ├── pipelineStore.ts
     │   │   ├── settingsStore.ts
     │   │   └── uiStore.ts
-    │   ├── styles/
-    │   │   ├── ag-grid-custom-theme.css
-    │   │   └── tooltip.css
     │   ├── types/
     │   │   └── p2s4Types.ts
     │   └── utils/
@@ -124,8 +120,6 @@ Directory structure:
     │       └── visualizationHelper.ts
     ├── upath-backend/
     │   ├── frontend-encrypt-example.js
-    │   ├── package.json
-    │   ├── tsconfig.json
     │   ├── .env.example
     │   └── src/
     │       ├── index.ts
@@ -135,8 +129,6 @@ Directory structure:
     │       │   └── models.ts
     │       └── utils/
     │           └── encrypt.ts
-    ├── .claude/
-    │   └── settings.local.json
     └── .serena/
         ├── project.yml
         └── cache/
@@ -182,6 +174,7 @@ import GduMappingModal from './components/GduMappingModal';
 import { AppLoadingScreen } from './src/components/AppLoadingScreen';
 import { SessionRestoreNotification } from './src/components/SessionRestoreNotification';
 import { PipelineStepGrid } from './src/components/PipelineStepGrid';
+import { ChangeHistoryPanel } from './src/components/ChangeHistoryPanel';
 
 // AG Grid CSS
 import 'ag-grid-community/styles/ag-grid.css';
@@ -634,6 +627,11 @@ const App: React.FC = () => {
           <div ref={outputDisplayRef} className="output-display p-4 bg-light-bg dark:bg-dark-bg border border-light-border dark:border-dark-border rounded-lg shadow min-h-[400px] max-h-[calc(100vh-200px)] overflow-y-auto">
             {renderOutput()} 
           </div>
+          
+          {/* Change History Panel - always visible */}
+          <div className="mt-4">
+            <ChangeHistoryPanel />
+          </div>
         </div>
       </main>
 
@@ -677,6 +675,7 @@ FILE: constants.tsx
 
 
 import { StepId, UserDVFocus, SelectedUtterance, RawTranscript, TranscriptProcessedData, GenericAnalysisState, P_neg1_1_Output, P0_1_Output, P0_2_Output, P0_3_Output, P1_1_Output, P1_2_Output, P1_3_Output, P2S_1_Output, P2S_2_Output, P2S_3_Output, P3_1_Output, P3_2_Output, P4S_1_A_Output, P5_1_ComparativeAnalysisOutput, P5_1_Input, P5_1_InputWithFlag, P5_2_RefinementOutput, P7_1_Output, P7_3_Output, P7_3b_Output, P7_4_Output, P7_2_ProposedLink, P7_1_CandidateVariable } from './types';
+export * from './src/components/icons';
 import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './src/utils/htmlHelper'; // For P6.1 input
 import { ReportData } from './src/utils/reportHelper'; // Ensure this matches the actual path if different
 import { P_NEG1_1_VARIABLE_IDENTIFICATION_CONFIG } from './src/config/pipeline/partNeg1';
@@ -1307,26 +1306,6 @@ Hard rules – obey or fail:
 • Every TSV row appears **exactly once** in some GDU's \`contributing_refined_du_ids\`.
 • Output nothing except the JSON object.`.trim();
 
-export const PlayIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>);
-export const PauseIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M5.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 007.25 3h-1.5zM12.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 00-.75-.75h-1.5z" /></svg>);
-export const DownloadIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" /><path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" /></svg>);
-export const NextIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M8.22 5.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>);
-export const PreviousIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 0-1.06 0L6.47 9.47a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06L8.06 10l3.72-3.72a.75.75 0 0 0 0-1.06z" clipRule="evenodd" /></svg>);
-export const UploadIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M9.25 13.25a.75.75 0 001.5 0V4.793l2.969 2.97a.75.75 0 001.06-1.06l-4.25-4.25a.75.75 0 00-1.06 0L5.22 6.704a.75.75 0 001.06 1.06L9.25 4.793V13.25z" /><path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" /></svg>);
-export const LoadIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M3.75 3A1.75 1.75 0 0 0 2 4.75v1.272A2.228 2.228 0 0 0 3.75 6h12.5A2.228 2.228 0 0 0 18 6.022V4.75A1.75 1.75 0 0 0 16.25 3h-4.835a.25.25 0 0 1-.202-.098L10.5 2.016a.25.25 0 0 0-.202-.098H3.75zM2 9.75A1.75 1.75 0 0 1 3.75 8h12.5A1.75 1.75 0 0 1 18 9.75v5.5A1.75 1.75 0 0 1 16.25 17H3.75A1.75 1.75 0 0 1 2 15.25v-5.5z" /></svg>);
-export const SaveIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M2.5 2.5A2.5 2.5 0 0 0 0 5v10a2.5 2.5 0 0 0 2.5 2.5h15A2.5 2.5 0 0 0 20 15V5a2.5 2.5 0 0 0-2.5-2.5H15V.75a.75.75 0 0 0-1.5 0V2.5H6.5V.75a.75.75 0 0 0-1.5 0V2.5H2.5zM3.5 15V7h13v8a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1zM7 9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H7z" /></svg>);
-export const LightbulbIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M9.05 3.296a6.5 6.5 0 0 1 1.903 0l.536.216a.75.75 0 0 0 .86.095A6.476 6.476 0 0 1 16 9.5c0 1.598-.595 3.036-1.581 4.148a.75.75 0 0 0 .205 1.118l.26.173c.182.121.38.223.59.309a.75.75 0 0 1 .318 1.006A6.5 6.5 0 0 1 9.051 3.296zM5.556 14.898A.75.75 0 0 0 6 14.5V11a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 .556.725zM14.444 14.898a.75.75 0 0 1-.556-.725V11a.75.75 0 0 1 1.5 0v3.5a.75.75 0 0 1-.556.725zM10 17.5a.75.75 0 0 0 .75-.75V14h-1.5v2.75a.75.75 0 0 0 .75.75zM3.823 10.992a.75.75 0 0 1 1.006-.318c.21-.086.408-.188.59-.309l.26-.173a.75.75 0 0 1 .206-1.118A4.983 4.983 0 0 0 4 9.5a4.978 4.978 0 0 0-2.455-4.382.75.75 0 0 1-.095-.86l.216-.536a6.503 6.503 0 0 1 10.668 0l.216.536a.75.75 0 0 1-.095.86A4.979 4.979 0 0 0 12 9.5c0 .052.001.104.004.155a.75.75 0 0 1-1.498.09A3.5 3.5 0 0 0 10 9.498V9.5a3.5 3.5 0 0 0-3.418 3.072.75.75 0 0 1-1.006.318A6.522 6.522 0 0 1 3.823 10.992z"/></svg>);
-export const FileTextIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6.707A2.25 2.25 0 0017.328 5L14 1.672A2.25 2.25 0 0012.293 1H5.707A2.25 2.25 0 004 2zm.75 4.75A.75.75 0 015.5 6h9a.75.75 0 010 1.5h-9A.75.75 0 014.75 6.75zM4.75 9.25A.75.75 0 015.5 8.5h9a.75.75 0 010 1.5h-9A.75.75 0 014.75 9.25zm0 2.5A.75.75 0 015.5 11h9a.75.75 0 010 1.5h-9a.75.75 0 01-.75-.75zm.75 2.45a.75.75 0 000 1.5h4a.75.75 0 000-1.5h-4z" clipRule="evenodd" /></svg>);
-export const CheckCircleIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" /></svg>);
-export const InfoIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 opacity-75"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" /></svg>);
-export const ChevronDownIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M5.22 8.22a.75.75 0 011.06 0L10 11.94l3.72-3.72a.75.75 0 111.06 1.06l-4.25 4.25a.75.75 0 01-1.06 0L5.22 9.28a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>);
-export const ChevronUpIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M14.78 11.78a.75.75 0 01-1.06 0L10 8.06l-3.72 3.72a.75.75 0 11-1.06-1.06l4.25-4.25a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06z" clipRule="evenodd" /></svg>);
-export const ChevronRightIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M8.22 5.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>);
-export const RetryIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M15.323 10.243a5.25 5.25 0 00-7.815-1.11L6.06 7.677a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.06 0l2.25-2.25a.75.75 0 00-1.06-1.06l-1.274 1.273A3.75 3.75 0 0113.5 7.5c1.657 0 3.073 1.075 3.55 2.578a.75.75 0 001.45-.358A5.25 5.25 0 0015.323 10.243zM4.677 9.757a5.25 5.25 0 007.815 1.11l1.448 1.448a.75.75 0 001.06-1.06l-2.25-2.25a.75.75 0 00-1.06 0l-2.25 2.25a.75.75 0 101.06 1.06l1.274-1.273A3.75 3.75 0 016.5 12.5c-1.657 0-3.073-1.075-3.55-2.578a.75.75 0 00-1.45.358A5.25 5.25 0 004.677 9.757z" clipRule="evenodd" /></svg>);
-export const AppendixIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-  <path fillRule="evenodd" d="M3 3.75A.75.75 0 013.75 3h12.5a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75H3.75a.75.75 0 01-.75-.75V3.75zm0-1.5A2.25 2.25 0 00.75 3.75v12.5c0 1.243 1.007 2.25 2.25 2.25h12.5A2.25 2.25 0 0018.5 16.25V3.75A2.25 2.25 0 0016.25 1.5H3.75z" clipRule="evenodd" />
-  <path d="M5.023 6.958A.75.75 0 015.75 6.5h8.5a.75.75 0 010 1.5h-8.5a.75.75 0 01-.727-.542zM5.023 9.958A.75.75 0 015.75 9.5h8.5a.75.75 0 010 1.5h-8.5a.75.75 0 01-.727-.542zM5.75 12.5a.75.75 0 000 1.5h4a.75.75 0 000-1.5h-4z" />
-</svg>);
 
 
 export interface StepConfig {
@@ -2860,332 +2839,6 @@ if (missingActualConfigs.length > 0) {
 
 
 ================================================
-FILE: index.html
-================================================
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>µ-PATH: Micro-Phenomenological Analytic Threader</title>
-  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Updock&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;700&display=swap" rel="stylesheet">
-  <style>
-    /* Base styling for theme consistency */
-    body {
-      font-family: "EB Garamond", 'et-book', serif; /* Updated font stack */
-    }
-    /* Custom scrollbar for light theme */
-    .light ::-webkit-scrollbar { width: 8px; height: 8px; }
-    .light ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
-    .light ::-webkit-scrollbar-thumb { background: #aaa; border-radius: 10px; }
-    .light ::-webkit-scrollbar-thumb:hover { background: #888; }
-
-    /* Custom scrollbar for dark theme */
-    .dark ::-webkit-scrollbar { width: 8px; height: 8px; }
-    .dark ::-webkit-scrollbar-track { background: #333; border-radius: 10px; }
-    .dark ::-webkit-scrollbar-thumb { background: #666; border-radius: 10px; }
-    .dark ::-webkit-scrollbar-thumb:hover { background: #888; }
-
-    .ephemeral-border { position: relative; }
-    .ephemeral-border::after {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      border: 1px solid transparent;
-      animation: border-pulse 2s infinite;
-      pointer-events: none;
-      border-radius: 0.375rem; /* Corresponds to rounded-md */
-    }
-    /* Light theme pulse */
-    .light .ephemeral-border::after { animation-name: border-pulse-light; }
-    @keyframes border-pulse-light {
-      0%, 100% { border-color: transparent; }
-      50% { border-color: #a00000; } /* light-accent */
-    }
-    /* Dark theme pulse */
-    .dark .ephemeral-border::after { animation-name: border-pulse-dark; }
-    @keyframes border-pulse-dark {
-      0%, 100% { border-color: transparent; }
-      50% { border-color: #ff6b6b; } /* dark-accent */
-    }
-
-    /* CSS Custom Properties for Theming Mermaid (and other elements if needed) */
-    :root {
-      --app-font-body: "EB Garamond", 'et-book', serif; /* Updated font stack */
-      --app-bg: #faf8f1;         /* light-bg */
-      --app-text: #111111;       /* light-text (Updated for darker text) */
-      --app-accent-red: #a00000; /* light-accent */
-      --app-edge-stroke: #111111; /* light-text for lines/arrows (Updated for darker lines) */
-      --app-grid-lines: #dcd9d0;  /* light-border for Gantt grid lines - kept this lighter for grid lines */
-    }
-    .dark {
-      --app-bg: #1a1a1a;         /* dark-bg */
-      --app-text: #e6e6e6;       /* dark-text */
-      --app-accent-red: #ff6b6b; /* dark-accent */
-      --app-edge-stroke: #e6e6e6; /* dark-text for lines/arrows */
-      --app-grid-lines: #444444;  /* dark-border for Gantt grid lines */
-    }
-
-    /* General Mermaid SVG container styling */
-    .mermaid-container svg, div.mermaid svg {
-        max-width: 100%;
-        height: auto;
-        /* font-family: var(--app-font-body) !important; /* Ensure font propagates if not set by themeVariables */
-    }
-
-    /* Mermaid Safety-Net CSS Overrides (using Custom Properties) */
-    /* font & text colour */
-    .mermaid-container svg text, 
-    .mermaid-container svg .label text,
-    div.mermaid svg text,
-    div.mermaid svg .label text { /* fallback if htmlLabels is ever on */
-      font-family: var(--app-font-body) !important;
-      fill: var(--app-text) !important;
-      stroke: none !important; 
-      stroke-width: 1 !important; 
-      opacity: 1 !important;
-      visibility: visible !important;
-      font-size: 14px !important; /* Keep consistent font size */
-    }
-
-    /* shapes (rects, polygons, diamonds, etc.) */
-    .mermaid-container svg .node rect,
-    .mermaid-container svg .node circle,
-    .mermaid-container svg .node ellipse,
-    .mermaid-container svg .node polygon,
-    .mermaid-container svg .node path,
-    .mermaid-container svg .cluster rect,
-    .mermaid-container svg .task, /* Gantt tasks */
-    div.mermaid svg .node rect,
-    div.mermaid svg .node circle,
-    div.mermaid svg .node ellipse,
-    div.mermaid svg .node polygon,
-    div.mermaid svg .node path,
-    div.mermaid svg .cluster rect,
-    div.mermaid svg .task { /* Gantt tasks */
-      fill: var(--app-bg) !important;
-      stroke: var(--app-accent-red) !important;
-      stroke-width: 1.75px !important; /* a touch bolder, and ensure it applies */
-    }
-    
-    /* Edge and Arrow Styling (using Custom Properties) */
-    .mermaid-container svg .edgePath .path,
-    .mermaid-container svg .flowchart-link,
-    .mermaid-container svg .messageLine0,
-    .mermaid-container svg .messageLine1,
-    div.mermaid svg .edgePath .path,
-    div.mermaid svg .flowchart-link,
-    div.mermaid svg .messageLine0,
-    div.mermaid svg .messageLine1 {
-      stroke: var(--app-edge-stroke) !important;
-    }
-
-    .mermaid-container svg .arrowheadPath,
-    div.mermaid svg .arrowheadPath {
-      fill: var(--app-edge-stroke) !important;
-    }
-
-    /* Gantt specific grid lines (using Custom Properties) */
-    .mermaid-container svg .grid .tick,
-    div.mermaid svg .grid .tick {
-        stroke: var(--app-grid-lines) !important;
-    }
-
-    /* Markdown Report Header Styling */
-    .prose h1, .prose h2, .prose h3, .prose h4, .prose h5, .prose h6,
-    .dark .prose-invert h1, .dark .prose-invert h2, .dark .prose-invert h3, 
-    .dark .prose-invert h4, .dark .prose-invert h5, .dark .prose-invert h6 {
-      color: var(--app-accent-red) !important;
-    }
-
-    /* AG Grid Custom Styling to match µ-PATH theme */
-    /* Light mode */
-    .ag-theme-alpine {
-      --ag-font-family: var(--app-font-body);
-      --ag-font-size: 16px;
-      
-      /* Background colors */
-      --ag-background-color: #faf8f1;
-      --ag-header-background-color: #f3f1ea;
-      --ag-odd-row-background-color: #f3f1ea;
-      --ag-modal-overlay-background-color: rgba(0, 0, 0, 0.3);
-      
-      /* Text colors */
-      --ag-foreground-color: #222222;
-      --ag-header-foreground-color: #222222;
-      --ag-secondary-foreground-color: #666666;
-      
-      /* Border colors */
-      --ag-border-color: #dcd9d0;
-      --ag-header-column-separator-color: #dcd9d0;
-      --ag-header-column-resize-handle-color: #a00000;
-      
-      /* Row hover and selection */
-      --ag-row-hover-color: #e9e6de;
-      --ag-selected-row-background-color: rgba(160, 0, 0, 0.1);
-      
-      /* Interactive elements */
-      --ag-range-selection-border-color: #a00000;
-      --ag-input-focus-border-color: #a00000;
-      
-      /* Remove rounded corners to match app aesthetic */
-      --ag-border-radius: 0;
-      --ag-card-radius: 0;
-    }
-
-    /* Dark mode */
-    .ag-theme-alpine-dark {
-      --ag-font-family: var(--app-font-body);
-      --ag-font-size: 16px;
-      
-      /* Background colors */
-      --ag-background-color: #1a1a1a;
-      --ag-header-background-color: #252525;
-      --ag-odd-row-background-color: #252525;
-      --ag-modal-overlay-background-color: rgba(0, 0, 0, 0.7);
-      
-      /* Text colors */
-      --ag-foreground-color: #e6e6e6;
-      --ag-header-foreground-color: #e6e6e6;
-      --ag-secondary-foreground-color: #a0a0a0;
-      
-      /* Border colors */
-      --ag-border-color: #444444;
-      --ag-header-column-separator-color: #444444;
-      --ag-header-column-resize-handle-color: #ff6b6b;
-      
-      /* Row hover and selection */
-      --ag-row-hover-color: #333333;
-      --ag-selected-row-background-color: rgba(255, 107, 107, 0.1);
-      
-      /* Interactive elements */
-      --ag-range-selection-border-color: #ff6b6b;
-      --ag-input-focus-border-color: #ff6b6b;
-      
-      /* Remove rounded corners to match app aesthetic */
-      --ag-border-radius: 0;
-      --ag-card-radius: 0;
-    }
-
-    /* Additional customizations for both themes */
-    .ag-theme-alpine .ag-root-wrapper,
-    .ag-theme-alpine-dark .ag-root-wrapper {
-      border: 1px solid var(--ag-border-color);
-    }
-
-    /* Header styling */
-    .ag-theme-alpine .ag-header,
-    .ag-theme-alpine-dark .ag-header {
-      font-weight: 600;
-      border-bottom: 2px solid var(--ag-border-color);
-    }
-
-    /* Remove cell borders for cleaner look */
-    .ag-theme-alpine .ag-cell,
-    .ag-theme-alpine-dark .ag-cell {
-      border-right: none;
-      border-bottom: 1px solid var(--ag-border-color);
-    }
-
-    /* Last column no border */
-    .ag-theme-alpine .ag-cell:last-child,
-    .ag-theme-alpine-dark .ag-cell:last-child {
-      border-right: none;
-    }
-
-  </style>
-  <script>
-    // Minimal blocking script to set theme initially
-    (function() {
-      try {
-        const theme = localStorage.getItem('app-theme');
-        if (theme === 'dark' || (!theme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.classList.add('dark');
-          document.documentElement.classList.remove('light');
-          if (document.body) {
-            document.body.classList.add('dark'); 
-            document.body.classList.remove('light');
-          }
-        } else {
-          document.documentElement.classList.add('light');
-          document.documentElement.classList.remove('dark');
-          if (document.body) {
-            document.body.classList.add('light'); 
-            document.body.classList.remove('dark');
-          }
-        }
-      } catch (e) {
-        document.documentElement.classList.add('light');
-        if (document.body) {
-          document.body.classList.add('light');
-        }
-      }
-    })();
-  </script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          fontFamily: {
-            serif: ["EB Garamond", 'et-book', 'serif'], /* Updated font stack */
-            logoP: ['Updock', 'cursive'],
-          },
-          colors: {
-            'light-bg': '#faf8f1',
-            'light-bg-alt': '#f3f1ea',
-            'light-text': '#222222', // Main app text, distinct from diagram's --app-text
-            'light-accent': '#a00000',
-            'light-accent-hover': '#800000',
-            'light-accent-subtle': '#CD5C5C', // Muted Red for Light Mode (IndianRed)
-            'light-sidenote': '#666666',
-            'light-border': '#dcd9d0',
-            'light-input-bg': '#e9e6de',
-            'light-success': '#228B22',
-
-            'dark-bg': '#1a1a1a',
-            'dark-bg-alt': '#252525',
-            'dark-text': '#e6e6e6',
-            'dark-accent': '#ff6b6b',
-            'dark-accent-hover': '#ff4a4a',
-            'dark-accent-subtle': '#F08080', // Muted Red for Dark Mode (LightCoral)
-            'dark-sidenote': '#a0a0a0',
-            'dark-border': '#444444',
-            'dark-input-bg': '#333333',
-            'dark-success': '#90EE90',
-          }
-        }
-      }
-    }
-  </script>
-<script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.1.0",
-    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
-    "react/": "https://esm.sh/react@^19.1.0/",
-    "@google/genai": "https://esm.sh/@google/genai@^1.3.0",
-    "marked": "https://esm.sh/marked@^13.0.2",
-    "mermaid": "https://esm.sh/mermaid@^11.6.0"
-  }
-}
-</script>
-<link rel="stylesheet" href="/index.css">
-</head>
-<body class="bg-light-bg text-light-text dark:bg-dark-bg dark:text-dark-text font-serif transition-colors duration-300">
-  <div id="root"></div>
-  <script type="module" src="/index.tsx"></script>
-</body>
-</html>
-
-
-
-================================================
 FILE: index.tsx
 ================================================
 import React from 'react';
@@ -3421,100 +3074,6 @@ By using this software, you acknowledge that you have read this License,
 understand it, and agree to be bound by its terms and conditions.
 
 For licensing inquiries, contact: wordweaver.eh@gmail.com
-
-
-================================================
-FILE: metadata.json
-================================================
-{
-  "name": "Copy of wkCopy of Copy of uPATH : Micro-Phenomenological Analytic Threader v6.2",
-  "description": "A React application to perform fullanalysis on micro-phenomenological interview transcripts using a prompt chain system with Gemini API.\n\nValenzuela-Moguillansky, Camila, and Alejandra Vásquez-Rosati. \"An analysis procedure for the micro-phenomenological interview.\" Constructivist Foundations 14.2 (2019): 123-145.",
-  "requestFramePermissions": [],
-  "prompt": ""
-}
-
-
-================================================
-FILE: package.json
-================================================
-{
-  "name": "upath",
-  "private": true,
-  "version": "0.11.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:run": "vitest run"
-  },
-  "dependencies": {
-    "@fastify/deepmerge": "^3.1.0",
-    "@google/genai": "^1.3.0",
-    "@headlessui/react": "^2.2.4",
-    "@types/crypto-js": "^4.2.2",
-    "ag-grid-community": "^34.0.2",
-    "ag-grid-react": "^34.0.2",
-    "crypto-js": "^4.2.0",
-    "immer": "^10.1.1",
-    "localforage": "^1.10.0",
-    "marked": "^13.0.2",
-    "mermaid": "^11.6.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "zustand": "^5.0.6"
-  },
-  "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@types/react": "^19.1.8",
-    "@types/react-dom": "^19.1.6",
-    "@vitest/ui": "^3.2.4",
-    "jsdom": "^26.1.0",
-    "typescript": "~5.7.2",
-    "vite": "^6.2.0",
-    "vitest": "^3.2.4"
-  }
-}
-
-
-
-================================================
-FILE: tsconfig.json
-================================================
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "experimentalDecorators": true,
-    "useDefineForClassFields": false,
-    "module": "ESNext",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
-    "skipLibCheck": true,
-
-    /* Bundler mode */
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-    "allowJs": true,
-    "jsx": "react-jsx",
-
-    /* Linting */
-    "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true,
-
-    "baseUrl": ".",
-    "paths": {
-      "@/*" :  ["./*"]
-    }
-  }
-}
-
 
 
 ================================================
@@ -5916,7 +5475,6 @@ import { useSettingsStore } from '../src/stores/settingsStore';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
 import { Button, Input, Select } from '../src/components/ui';
-import { ChangeHistoryPanel } from '../src/components/ChangeHistoryPanel';
 
 // No props needed - component gets all data from stores
 interface SettingsPanelProps {
@@ -6115,7 +5673,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           </ul>
         </div>
       )}
-      <ChangeHistoryPanel />
     </aside>
   );
 };
@@ -7563,11 +7120,12 @@ FILE: src/components/DiachronicUnitGroupingTableEnhanced.tsx
 ================================================
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_4_Output, P1_3_Output, DiachronicUnit, SortedSegment } from '../../types';
+import { P1_4_Output, P1_3_Output, DiachronicUnit, SortedSegment, StepId } from '../../types';
 import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
+import { trackingHelpers } from '../stores/historyStore';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -7578,6 +7136,7 @@ interface DiachronicUnitGroupingTableProps {
   theme: 'light' | 'dark';
   onGroupingChange?: (updatedData: P1_4_Output) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 // Phase colors mapping
@@ -7663,6 +7222,7 @@ const DiachronicUnitCard: React.FC<{
   onDrop: (segmentId: string, segment: SortedSegment) => void;
   dragContext: DragContext | null;
   onDragStart: (segmentId: string, duId: string, segment: SortedSegment) => void;
+  transcriptId?: string;
 }> = ({ 
   unit, 
   segments, 
@@ -7678,7 +7238,8 @@ const DiachronicUnitCard: React.FC<{
   onMerge,
   onDrop,
   dragContext,
-  onDragStart
+  onDragStart,
+  transcriptId
 }) => {
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [tempDescription, setTempDescription] = useState(unit.description);
@@ -7694,6 +7255,16 @@ const DiachronicUnitCard: React.FC<{
   const colors = PHASE_COLORS[dominantPhase as keyof typeof PHASE_COLORS];
 
   const handleDescriptionSave = () => {
+    // Track the change
+    if (transcriptId) {
+      trackingHelpers.trackDataEdit(
+        `diachronic_units/${unit.unit_id}/description`,
+        unit.description,
+        tempDescription,
+        transcriptId,
+        StepId.P1_4_DIACHRONIC_UNIT_GROUPING
+      );
+    }
     onDescriptionChange(tempDescription);
     setIsEditingDescription(false);
   };
@@ -7866,7 +7437,8 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
   sortedSegmentsData,
   theme,
   onGroupingChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   // Initialize with all units expanded
   const [expandedUnits, setExpandedUnits] = useState<Set<string>>(() => {
@@ -8005,6 +7577,20 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
   const handleSegmentRemove = useCallback((unitId: string, segmentId: string) => {
     if (!onGroupingChange) return;
     
+    const unit = groupingData.diachronic_units.find(u => u.unit_id === unitId);
+    if (!unit) return;
+    
+    // Track the change
+    if (transcriptId) {
+      trackingHelpers.trackDataEdit(
+        `diachronic_units/${unitId}/segments`,
+        unit.source_segment_ids,
+        unit.source_segment_ids.filter(id => id !== segmentId),
+        transcriptId,
+        StepId.P1_4_DIACHRONIC_UNIT_GROUPING
+      );
+    }
+    
     const updatedData = {
       ...groupingData,
       diachronic_units: groupingData.diachronic_units.map(unit => 
@@ -8016,10 +7602,36 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
     };
     
     onGroupingChange(updatedData);
-  }, [groupingData, onGroupingChange]);
+  }, [groupingData, onGroupingChange, transcriptId]);
 
   const handleSegmentDrop = useCallback((targetUnitId: string, segmentId: string, segment: SortedSegment) => {
     if (!onGroupingChange || !dragContext) return;
+    
+    const sourceUnit = groupingData.diachronic_units.find(u => u.unit_id === dragContext.fromDuId);
+    const targetUnit = groupingData.diachronic_units.find(u => u.unit_id === targetUnitId);
+    
+    if (!sourceUnit || !targetUnit) return;
+    
+    // Track changes for both source and target units
+    if (transcriptId) {
+      // Track removal from source
+      trackingHelpers.trackDataEdit(
+        `diachronic_units/${dragContext.fromDuId}/segments`,
+        sourceUnit.source_segment_ids,
+        sourceUnit.source_segment_ids.filter(id => id !== segmentId),
+        transcriptId,
+        StepId.P1_4_DIACHRONIC_UNIT_GROUPING
+      );
+      
+      // Track addition to target
+      trackingHelpers.trackDataEdit(
+        `diachronic_units/${targetUnitId}/segments`,
+        targetUnit.source_segment_ids,
+        [...targetUnit.source_segment_ids, segmentId],
+        transcriptId,
+        StepId.P1_4_DIACHRONIC_UNIT_GROUPING
+      );
+    }
     
     const updatedData = {
       ...groupingData,
@@ -8037,7 +7649,7 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
     
     onGroupingChange(updatedData);
     setDragContext(null);
-  }, [groupingData, onGroupingChange, dragContext]);
+  }, [groupingData, onGroupingChange, dragContext, transcriptId]);
 
   const handleDragStart = useCallback((segmentId: string, duId: string, segment: SortedSegment) => {
     setDragContext({ segmentId, fromDuId: duId, segment });
@@ -8152,6 +7764,18 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
     
     // If target unit specified, add to that unit
     if (targetUnitId) {
+      const targetUnit = groupingData.diachronic_units.find(u => u.unit_id === targetUnitId);
+      if (targetUnit && transcriptId) {
+        // Track the addition
+        trackingHelpers.trackDataEdit(
+          `diachronic_units/${targetUnitId}/segments`,
+          targetUnit.source_segment_ids,
+          [...targetUnit.source_segment_ids, segmentId],
+          transcriptId,
+          StepId.P1_4_DIACHRONIC_UNIT_GROUPING
+        );
+      }
+      
       updatedData.diachronic_units = updatedData.diachronic_units.map(unit => 
         unit.unit_id === targetUnitId 
           ? { ...unit, source_segment_ids: [...unit.source_segment_ids, segmentId] }
@@ -8160,7 +7784,7 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
     }
     
     onGroupingChange(updatedData);
-  }, [groupingData, onGroupingChange]);
+  }, [groupingData, onGroupingChange, transcriptId]);
 
   // Calculate excluded segments
   const excludedSegments = useMemo(() => {
@@ -8388,6 +8012,7 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
                 onDrop={(segId, seg) => handleSegmentDrop(unit.unit_id, segId, seg)}
                 dragContext={dragContext}
                 onDragStart={handleDragStart}
+                transcriptId={transcriptId}
               />
             ))}
             
@@ -8533,12 +8158,14 @@ export const DiachronicUnitGroupingTable: React.FC<DiachronicUnitGroupingTablePr
 ================================================
 FILE: src/components/DiachronicUnitTable.tsx
 ================================================
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_2_Output, P1_1_Output, DiachronicUnitP1_2 } from '../../types';
+import { P1_2_Output, P1_1_Output, DiachronicUnitP1_2, StepId } from '../../types';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -8549,6 +8176,7 @@ interface DiachronicUnitTableProps {
   theme: 'light' | 'dark';
   onDiachronicChange?: (updatedData: P1_2_Output) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 // Custom cell renderer for source segment IDs
@@ -8579,7 +8207,8 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
   segmentationData,
   theme,
   onDiachronicChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   console.log('[P1.2] diachronicData:', diachronicData);
   console.log('[P1.2] diachronic_units:', diachronicData?.diachronic_units);
@@ -8593,7 +8222,60 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
     );
   }
 
-  const { rowData, columnDefs } = useMemo(() => {
+  // Prepare data for the grid
+  const flattenedData = useMemo(() => {
+    return diachronicData.diachronic_units.map(unit => ({
+      unit_id: unit.unit_id,
+      description: unit.description,
+      source_segment_ids: unit.source_segment_ids,
+      segment_count: unit.source_segment_ids.length
+    }));
+  }, [diachronicData]);
+
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(flattenedData, {
+    transcriptId,
+    stepId: StepId.P1_4_DIACHRONIC_UNIT_GROUPING,
+    dataPath: 'diachronic_units',
+    onSave: (changes) => {
+      if (onDiachronicChange) {
+        // Apply changes back to the original structure
+        const updatedData = { ...diachronicData };
+        
+        changes.forEach(change => {
+          const rowData = displayData[change.rowId as number];
+          if (rowData && change.field === 'description') {
+            const unitIndex = updatedData.diachronic_units.findIndex(
+              u => u.unit_id === rowData.unit_id
+            );
+            if (unitIndex !== -1) {
+              updatedData.diachronic_units[unitIndex] = {
+                ...updatedData.diachronic_units[unitIndex],
+                description: change.newValue
+              };
+            }
+          }
+        });
+        
+        onDiachronicChange(updatedData);
+      }
+    }
+  });
+
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(flattenedData);
+  }, [flattenedData, resetData]);
+
+  const columnDefs = useMemo(() => {
     const cols: ColDef[] = [
       { 
         field: 'unit_id', 
@@ -8643,33 +8325,8 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
       }
     ];
 
-    const rows = diachronicData.diachronic_units.map(unit => ({
-      unit_id: unit.unit_id,
-      description: unit.description,
-      source_segment_ids: unit.source_segment_ids,
-      segment_count: unit.source_segment_ids.length
-    }));
-
-    console.log('[P1.2] rowData:', rows);
-    return { rowData: rows, columnDefs: cols };
-  }, [diachronicData]);
-
-  const handleCellValueChanged = useCallback((event: CellValueChangedEvent) => {
-    if (event.colDef.field === 'description' && onDiachronicChange) {
-      const updatedData = { ...diachronicData };
-      const unitIndex = updatedData.diachronic_units.findIndex(
-        u => u.unit_id === event.data.unit_id
-      );
-      
-      if (unitIndex !== -1) {
-        updatedData.diachronic_units[unitIndex] = {
-          ...updatedData.diachronic_units[unitIndex],
-          description: event.newValue
-        };
-        onDiachronicChange(updatedData);
-      }
-    }
-  }, [diachronicData, onDiachronicChange]);
+    return cols;
+  }, []);
 
   const handleExportCSV = () => {
     const csvData = diachronicData.diachronic_units.map(unit => ({
@@ -8747,7 +8404,7 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
     <>
       <div className="mb-2 flex justify-between items-center">
         <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
-          💡 Click on description cells to edit them directly. Changes are saved automatically.
+          💡 Click on description cells to edit them directly. Use Save to commit changes or Cancel to discard.
         </div>
         <button
           onClick={handleExportCSV}
@@ -8766,16 +8423,31 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
         }}
       >
         <AgGridReact
-          rowData={rowData}
+          rowData={displayData}
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
           rowHeight={60}
           animateRows={true}
           theme="legacy"
           rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
-          onCellValueChanged={handleCellValueChanged}
+          onCellValueChanged={trackChange}
         />
       </div>
+
+      {/* Save/Cancel buttons */}
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
     </>
   );
 };
@@ -8904,7 +8576,8 @@ import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_1_Output, SegmentedUtteranceSegment } from '../../types';
+import { P1_1_Output, SegmentedUtteranceSegment, StepId } from '../../types';
+import { trackingHelpers } from '../stores/historyStore';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -8914,6 +8587,7 @@ interface InitialSegmentationTableProps {
   theme: 'light' | 'dark';
   onSegmentationChange?: (updatedData: P1_1_Output) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 interface SegmentEditModalProps {
@@ -9122,7 +8796,8 @@ export const InitialSegmentationTable: React.FC<InitialSegmentationTableProps> =
   segmentationData,
   theme,
   onSegmentationChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   const [editingUtterance, setEditingUtterance] = useState<{
     lineNum: string;
@@ -9157,6 +8832,19 @@ export const InitialSegmentationTable: React.FC<InitialSegmentationTableProps> =
       );
       
       if (utteranceIndex !== -1) {
+        const oldSegments = updatedData.segmented_utterances[utteranceIndex].segments;
+        
+        // Track the change
+        if (transcriptId) {
+          trackingHelpers.trackDataEdit(
+            `segmentation/line_${editingUtterance.lineNum}`,
+            oldSegments,
+            updatedSegments,
+            transcriptId,
+            StepId.P1_1_INITIAL_SEGMENTATION
+          );
+        }
+        
         updatedData.segmented_utterances[utteranceIndex] = {
           ...updatedData.segmented_utterances[utteranceIndex],
           segments: updatedSegments
@@ -9164,7 +8852,7 @@ export const InitialSegmentationTable: React.FC<InitialSegmentationTableProps> =
         onSegmentationChange(updatedData);
       }
     }
-  }, [segmentationData, editingUtterance, onSegmentationChange]);
+  }, [segmentationData, editingUtterance, onSegmentationChange, transcriptId]);
 
   const handleExportCSV = () => {
     const csvData: any[] = [];
@@ -9366,13 +9054,15 @@ export const InitialSegmentationTable: React.FC<InitialSegmentationTableProps> =
 ================================================
 FILE: src/components/IntraPhaseSortingTable.tsx
 ================================================
-import React, { useMemo, useCallback, useState } from 'react';
+import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent, RowClassParams } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_3_Output, SortedSegment } from '../../types';
+import { P1_3_Output, SortedSegment, StepId } from '../../types';
 import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -9382,6 +9072,7 @@ interface IntraPhaseSortingTableProps {
   theme: 'light' | 'dark';
   onSortingChange?: (updatedData: P1_3_Output) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 // Phase colors mapping (same as P1.2)
@@ -9483,7 +9174,8 @@ export const IntraPhaseSortingTable: React.FC<IntraPhaseSortingTableProps> = ({
   sortingData,
   theme,
   onSortingChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   console.log('[P1.3] sortingData:', sortingData);
   
@@ -9524,22 +9216,66 @@ export const IntraPhaseSortingTable: React.FC<IntraPhaseSortingTableProps> = ({
     return grouped;
   }, [sortingData]);
 
-  const { rowData, columnDefs } = useMemo(() => {
-    // Only include segments from expanded phases
-    const rows: any[] = [];
-    
-    Object.entries(segmentsByPhase).forEach(([phase, segments]) => {
-      if (expandedPhases.has(phase)) {
-        segments.forEach(segment => {
-          rows.push({
-            ...segment,
-            utterance_line: segment.original_utterance.original_line_num,
-            utterance_text: segment.original_utterance.utterance_text
-          });
-        });
-      }
-    });
+  // Flatten data for display, adding unique IDs
+  const flattenedData = useMemo(() => {
+    return sortingData.sorted_segments.map((segment, index) => ({
+      ...segment,
+      id: segment.segment_id, // Use segment_id as unique identifier
+      index: index, // Store original index
+      utterance_line: segment.original_utterance.original_line_num,
+      utterance_text: segment.original_utterance.utterance_text
+    }));
+  }, [sortingData]);
 
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(flattenedData, {
+    transcriptId,
+    stepId: StepId.P1_3_INTRA_PHASE_SORTING,
+    dataPath: 'intra_phase_sorting',
+    onSave: (changes) => {
+      if (onSortingChange) {
+        // Apply changes back to the original structure
+        const updatedData = { ...sortingData };
+        
+        changes.forEach(change => {
+          const rowData = displayData[change.rowId as number];
+          if (rowData) {
+            const segmentIndex = updatedData.sorted_segments.findIndex(
+              s => s.segment_id === rowData.segment_id
+            );
+            if (segmentIndex !== -1) {
+              updatedData.sorted_segments[segmentIndex] = {
+                ...updatedData.sorted_segments[segmentIndex],
+                [change.field]: change.newValue
+              };
+            }
+          }
+        });
+        
+        onSortingChange(updatedData);
+      }
+    }
+  });
+
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(flattenedData);
+  }, [flattenedData, resetData]);
+
+  // Filter data based on expanded phases
+  const rowData = useMemo(() => {
+    return displayData.filter(segment => expandedPhases.has(segment.coarse_phase));
+  }, [displayData, expandedPhases]);
+
+  const columnDefs = useMemo(() => {
     const cols: ColDef[] = [
       { 
         field: 'chronological_index', 
@@ -9617,30 +9353,8 @@ export const IntraPhaseSortingTable: React.FC<IntraPhaseSortingTableProps> = ({
       }
     ];
 
-    return { rowData: rows, columnDefs: cols };
-  }, [sortingData, expandedPhases, segmentsByPhase]);
-
-  const handleCellValueChanged = useCallback((event: CellValueChangedEvent) => {
-    if (!onSortingChange) return;
-    
-    const field = event.colDef.field;
-    if (field === 'chronological_index' || field === 'placement_justification') {
-      const updatedData = { ...sortingData };
-      
-      // Find and update the segment
-      updatedData.sorted_segments = updatedData.sorted_segments.map(segment => {
-        if (segment.segment_id === event.data.segment_id) {
-          return {
-            ...segment,
-            [field]: event.newValue
-          };
-        }
-        return segment;
-      });
-      
-      onSortingChange(updatedData);
-    }
-  }, [sortingData, onSortingChange]);
+    return cols;
+  }, []);
 
   const togglePhase = useCallback((phase: string) => {
     setExpandedPhases(prev => {
@@ -9747,7 +9461,7 @@ export const IntraPhaseSortingTable: React.FC<IntraPhaseSortingTableProps> = ({
       {/* Export button */}
       <div className="flex justify-between items-center mb-2">
         <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
-          💡 Click on Index or Justification cells to edit. Segments with the same index are highlighted as simultaneous events.
+          💡 Click on Index or Justification cells to edit. Segments with the same index are highlighted as simultaneous events. Use Save to commit changes or Cancel to discard.
         </div>
         <button
           onClick={exportToCsv}
@@ -9775,13 +9489,28 @@ export const IntraPhaseSortingTable: React.FC<IntraPhaseSortingTableProps> = ({
             resizable: true,
           }}
           animateRows={true}
-          onCellValueChanged={handleCellValueChanged}
+          onCellValueChanged={trackChange}
           getRowClass={getRowClass}
           groupDisplayType="singleColumn"
           tooltipShowDelay={500}
           theme="legacy"
         />
       </div>
+
+      {/* Save/Cancel buttons */}
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
 
       {/* Legend */}
       <div className="text-sm text-light-sidenote dark:text-dark-sidenote space-y-1">
@@ -10093,11 +9822,20 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
   const gridRef = useRef<AgGridReact>(null);
   const [refreshKeys, setRefreshKeys] = React.useState<Record<string, number>>({});
   
+  // Debug logging
+  console.log('[Part2SummaryTable] Received data:', data);
+  console.log('[Part2SummaryTable] Number of DU records:', data.duRecords.length);
+  console.log('[Part2SummaryTable] DU names:', data.duRecords.map(du => du.name));
+  
   // Detect theme from DOM if not provided
   const effectiveTheme = theme || (document.documentElement.classList.contains('dark') ? 'dark' : 'light');
   
   // Generate table rows for ag-grid
-  const tableRows = useMemo(() => generateAgGridRows(data), [data]);
+  const tableRows = useMemo(() => {
+    const rows = generateAgGridRows(data);
+    console.log('[Part2SummaryTable] Generated table rows:', rows.length);
+    return rows;
+  }, [data]);
 
   // Export handler
   const handleExportHTML = useCallback(() => {
@@ -10221,7 +9959,10 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
           </div>
         </div>
         <div className="space-y-6">
-          {data.duRecords.map((du, index) => (
+          {console.log('[Part2SummaryTable] Mapping DU records for network diagrams:', data.duRecords.length)}
+          {data.duRecords.map((du, index) => {
+            console.log(`[Part2SummaryTable] Rendering DU ${index + 1}:`, du.name, du.id);
+            return (
             <div key={`${du.id}-container`} className="border border-light-border dark:border-dark-border rounded-lg p-4 bg-light-bg-alt dark:bg-dark-bg-alt">
               <div className="mb-3">
                 <NestedTooltip
@@ -10361,7 +10102,8 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -10411,7 +10153,7 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
       `}</style>
 
       {/* Custom styles for visual grouping and column borders */}
-      <style jsx>{`
+      <style>{`
         @media print {
           body {
             print-color-adjust: exact;
@@ -10532,12 +10274,14 @@ export const Part2SummaryTable: React.FC<Part2SummaryTableProps> = ({ data, them
 ================================================
 FILE: src/components/PhaseTaggingTable.tsx
 ================================================
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_2_Output, PhaseTaggedUtterance, PhaseTaggedSegment } from '../../types';
+import { P1_2_Output, PhaseTaggedUtterance, PhaseTaggedSegment, StepId } from '../../types';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -10547,6 +10291,7 @@ interface PhaseTaggingTableProps {
   theme: 'light' | 'dark';
   onPhaseTaggingChange?: (updatedData: P1_2_Output) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 // Phase colors mapping
@@ -10596,7 +10341,8 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
   phaseTaggingData,
   theme,
   onPhaseTaggingChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   console.log('[P1.2] phaseTaggingData:', phaseTaggingData);
   
@@ -10629,26 +10375,70 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
     return distribution;
   }, [phaseTaggingData]);
 
-  const { rowData, columnDefs } = useMemo(() => {
-    // Flatten the data for grid display
+  // Flatten the data for grid display
+  const flattenedData = useMemo(() => {
     const rows: any[] = [];
     
-    phaseTaggingData.phase_tagged_utterances.forEach((utterance: PhaseTaggedUtterance) => {
-      utterance.segments.forEach((segment: PhaseTaggedSegment) => {
+    phaseTaggingData.phase_tagged_utterances.forEach((utterance: PhaseTaggedUtterance, uIndex) => {
+      utterance.segments.forEach((segment: PhaseTaggedSegment, sIndex) => {
         rows.push({
+          id: `${uIndex}-${sIndex}`, // Unique identifier for tracking
           utterance_line: utterance.original_utterance.original_line_num,
           utterance_text: utterance.original_utterance.utterance_text,
           segment_id: segment.segment_id,
           segment_text: segment.segment_text,
           temporal_cues: segment.temporal_cues,
           coarse_phase: segment.coarse_phase,
-          // Store references for updates
-          utterance_ref: utterance,
-          segment_ref: segment
+          // Store indices for updates
+          utterance_index: uIndex,
+          segment_index: sIndex
         });
       });
     });
+    
+    return rows;
+  }, [phaseTaggingData]);
 
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(flattenedData, {
+    transcriptId,
+    stepId: StepId.P1_2_COARSE_PHASE_TAGGING,
+    dataPath: 'phase_tagging',
+    onSave: (changes) => {
+      if (onPhaseTaggingChange) {
+        // Apply changes back to the original structure
+        const updatedData = { ...phaseTaggingData };
+        
+        changes.forEach(change => {
+          // Find the row by its index (change.rowId is the row index)
+          const rowData = displayData[change.rowId as number];
+          if (rowData && change.field === 'coarse_phase') {
+            const utterance = updatedData.phase_tagged_utterances[rowData.utterance_index];
+            if (utterance && utterance.segments[rowData.segment_index]) {
+              utterance.segments[rowData.segment_index].coarse_phase = change.newValue;
+            }
+          }
+        });
+        
+        onPhaseTaggingChange(updatedData);
+      }
+    }
+  });
+
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(flattenedData);
+  }, [flattenedData, resetData]);
+
+  const columnDefs = useMemo(() => {
     const cols: ColDef[] = [
       { 
         field: 'utterance_line', 
@@ -10700,36 +10490,11 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
       }
     ];
 
-    return { rowData: rows, columnDefs: cols };
-  }, [phaseTaggingData]);
-
-  const handleCellValueChanged = useCallback((event: CellValueChangedEvent) => {
-    if (event.colDef.field === 'coarse_phase' && onPhaseTaggingChange) {
-      const updatedData = { ...phaseTaggingData };
-      const rowData = event.data;
-      
-      // Find and update the segment
-      updatedData.phase_tagged_utterances = updatedData.phase_tagged_utterances.map(utterance => {
-        if (utterance === rowData.utterance_ref) {
-          return {
-            ...utterance,
-            segments: utterance.segments.map(segment => {
-              if (segment === rowData.segment_ref) {
-                return { ...segment, coarse_phase: event.newValue };
-              }
-              return segment;
-            })
-          };
-        }
-        return utterance;
-      });
-
-      onPhaseTaggingChange(updatedData);
-    }
-  }, [phaseTaggingData, onPhaseTaggingChange]);
+    return cols;
+  }, []);
 
   const exportToCsv = useCallback(() => {
-    const csvData = rowData.map(row => ({
+    const csvData = displayData.map(row => ({
       'Line Number': row.utterance_line,
       'Original Utterance': row.utterance_text,
       'Segment ID': row.segment_id,
@@ -10752,7 +10517,7 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
       `${filename.replace(/\.[^/.]+$/, '')}_P1.2_phase_tagging.csv` : 
       'P1.2_phase_tagging.csv';
     downloadCSV(csv, exportFilename);
-  }, [rowData, filename]);
+  }, [displayData, filename]);
 
   return (
     <div className="space-y-4">
@@ -10824,7 +10589,7 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
         }}
       >
         <AgGridReact
-          rowData={rowData}
+          rowData={displayData}
           columnDefs={columnDefs}
           defaultColDef={{
             sortable: true,
@@ -10832,16 +10597,31 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
             resizable: true,
           }}
           animateRows={true}
-          onCellValueChanged={handleCellValueChanged}
+          onCellValueChanged={trackChange}
           groupDisplayType="singleColumn"
           tooltipShowDelay={500}
           theme="legacy"
         />
       </div>
 
+      {/* Save/Cancel buttons */}
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
+
       {/* Instructions */}
       <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
-        💡 Click on any Phase cell to change the phase assignment. Changes are saved automatically.
+        💡 Click on any Phase cell to change the phase assignment. Use Save to commit changes or Cancel to discard.
       </div>
     </div>
   );
@@ -10851,7 +10631,7 @@ export const PhaseTaggingTable: React.FC<PhaseTaggingTableProps> = ({
 ================================================
 FILE: src/components/PipelineStepGrid.tsx
 ================================================
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
@@ -10881,6 +10661,8 @@ import { SynchronicThematicGroupingTable } from './SynchronicThematicGroupingTab
 import { SpecificSynchronicUnitsTable } from './SpecificSynchronicUnitsTable';
 import { SpecificSynchronicStructureNetwork } from './SpecificSynchronicStructureNetwork';
 import { Part2SummaryTable } from './Part2SummaryTable';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
 import { transformP2SDataToSummary } from '../utils/p2s4DataTransformer';
 
 // Register AG Grid modules
@@ -10991,6 +10773,172 @@ const ExpandableRow: React.FC<{
         </div>
       )}
     </div>
+  );
+};
+
+// Variable Identification Grid Component with change tracking
+const VariableIdentificationGrid: React.FC<{
+  processedData: Map<string, TranscriptProcessedData>;
+  theme: 'light' | 'dark';
+  config: GridConfig;
+}> = ({ processedData, theme, config }) => {
+  const updateProcessedData = usePipelineStore(state => state.updateProcessedData);
+  
+  // Extract data for the grid
+  const initialData = useMemo(() => {
+    return config.extractData(processedData);
+  }, [config, processedData]);
+  
+  // Get transcript IDs for tracking
+  const transcriptIds = useMemo(() => {
+    return Array.from(processedData.keys()).filter(id => {
+      const data = processedData.get(id);
+      return data?.p_neg1_1_output;
+    });
+  }, [processedData]);
+  
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: originalTrackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(initialData, {
+    transcriptId: 'multi-transcript', // Generic ID since we have multiple transcripts
+    stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
+    dataPath: 'variable_identification',
+    onSave: (changes) => {
+      // Apply changes back to the store
+      changes.forEach(change => {
+        const rowData = displayData[change.rowId as number];
+        if (rowData && rowData.transcriptId) {
+          const transcriptData = processedData.get(rowData.transcriptId);
+          if (transcriptData && transcriptData.p_neg1_1_output) {
+            const updatedOutput = { ...transcriptData.p_neg1_1_output };
+            
+            if (change.field === 'independent_variable') {
+              updatedOutput.independent_variable_details = change.newValue || '';
+            } else if (change.field === 'dependent_variables') {
+              // Split the comma-separated string back into an array
+              updatedOutput.dependent_variable_focus = (change.newValue || '')
+                .split(',')
+                .map((s: string) => s.trim())
+                .filter((s: string) => s.length > 0);
+            }
+            
+            // Update the store
+            updateProcessedData(rowData.transcriptId, {
+              p_neg1_1_output: updatedOutput
+            });
+          }
+        }
+      });
+    }
+  });
+  
+  // Wrap the trackChange to include row-specific transcriptId
+  const trackChange = useCallback((event: CellValueChangedEvent) => {
+    // Add row data to the event for tracking
+    const enhancedEvent = {
+      ...event,
+      rowData: event.data
+    };
+    originalTrackChange(enhancedEvent);
+  }, [originalTrackChange]);
+  
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(initialData);
+  }, [initialData, resetData]);
+  
+  // Define custom styles based on theme
+  const gridStyles = theme === 'dark' ? {
+    '--ag-background-color': '#1a1a1a',
+    '--ag-header-background-color': '#252525',
+    '--ag-odd-row-background-color': '#252525',
+    '--ag-foreground-color': '#e6e6e6',
+    '--ag-header-foreground-color': '#e6e6e6',
+    '--ag-border-color': '#444444',
+    '--ag-row-hover-color': '#333333',
+    '--ag-header-column-resize-handle-color': '#ff6b6b',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-cell-horizontal-border': 'solid 1px #444444',
+  } : {
+    '--ag-background-color': '#faf8f1',
+    '--ag-header-background-color': '#f3f1ea',
+    '--ag-odd-row-background-color': '#f3f1ea',
+    '--ag-foreground-color': '#222222',
+    '--ag-header-foreground-color': '#222222',
+    '--ag-border-color': '#dcd9d0',
+    '--ag-row-hover-color': '#e9e6de',
+    '--ag-header-column-resize-handle-color': '#a00000',
+    '--ag-font-family': '"EB Garamond", "et-book", serif',
+    '--ag-font-size': '16px',
+    '--ag-cell-horizontal-border': 'solid 1px #dcd9d0',
+  };
+  
+  // Add editable cell styling
+  const editableStyles = `
+    .editable-cell {
+      cursor: text !important;
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.05)' : 'rgba(160, 0, 0, 0.03)'} !important;
+    }
+    .editable-cell:hover {
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.1)' : 'rgba(160, 0, 0, 0.06)'} !important;
+    }
+    .ag-cell-editing {
+      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.15)' : 'rgba(160, 0, 0, 0.1)'} !important;
+      border: 2px solid ${theme === 'dark' ? '#ff6b6b' : '#a00000'} !important;
+    }
+  `;
+  
+  return (
+    <>
+      <style>{editableStyles}</style>
+      <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+        💡 Click on Independent Variable or Dependent Variables cells to edit them. Use Save to commit changes or Cancel to discard.
+      </div>
+      <div 
+        className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
+        style={{ 
+          height: config.height || '400px', 
+          width: '100%',
+          ...gridStyles as React.CSSProperties
+        }}
+      >
+        <AgGridReact
+          rowData={displayData}
+          columnDefs={config.columns}
+          defaultColDef={{
+            resizable: true,
+            sortable: true
+          }}
+          animateRows={true}
+          domLayout='normal'
+          theme='legacy'
+          onCellValueChanged={trackChange}
+        />
+      </div>
+      
+      {/* Save/Cancel buttons */}
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
+    </>
   );
 };
 
@@ -11285,6 +11233,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   theme={theme}
                   onUtterancesChange={handleUtterancesChange}
                   filename={tabData.filename}
+                  transcriptId={tabData.transcriptId}
                 />
               </div>
             </div>
@@ -11309,6 +11258,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
+                transcriptId: transcript.p1_1_output!.transcript_id || id,
                 segmentationData: transcript.p1_1_output!,
                 filename: transcript.filename
               }
@@ -11373,6 +11323,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   theme={theme}
                   onSegmentationChange={handleSegmentationChange}
                   filename={tabData.filename}
+                  transcriptId={tabData.transcriptId}
                 />
               </div>
             </div>
@@ -11397,6 +11348,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
+                transcriptId: transcript.p1_2_output!.transcript_id || id,
                 diachronicData: transcript.p1_2_output!,
                 segmentationData: transcript.p1_1_output,
                 filename: transcript.filename
@@ -11462,6 +11414,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   theme={theme}
                   onPhaseTaggingChange={handlePhaseTaggingChange}
                   filename={tabData.filename}
+                  transcriptId={tabData.transcriptId}
                 />
               </div>
             </div>
@@ -11486,6 +11439,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
+                transcriptId: transcript.p1_3_output!.transcript_id || id,
                 phaseData: transcript.p1_3_output!,
                 p1_2_output: transcript.p1_2_output,
                 filename: transcript.filename
@@ -11560,6 +11514,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   theme={theme}
                   onSortingChange={handleSortingChange}
                   filename={tabData.filename}
+                  transcriptId={tabData.transcriptId}
                 />
               </div>
             </div>
@@ -11585,6 +11540,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
               label: transcript.filename,
               data: {
                 transcriptMapId: id,
+                transcriptId: transcript.p1_4_output!.transcript_id || id,
                 groupingData: transcript.p1_4_output!,
                 p1_3_output: transcript.p1_3_output,
                 filename: transcript.filename
@@ -11666,6 +11622,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                   theme={theme}
                   onGroupingChange={handleGroupingChange}
                   filename={tabData.filename}
+                  transcriptId={tabData.transcriptId}
                 />
               </div>
             </div>
@@ -11822,6 +11779,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     theme={theme}
                     onGroupingChange={(updatedData) => handleGroupingChange(duId, updatedData)}
                     filename={tabData.filename}
+                    transcriptId={tabData.transcriptId}
                     hideVariableInfo={true}
                     hideInstructions={true} // Instructions shown at bottom of transcript
                     compactSummary={true} // Use compact summary with just stats and download button
@@ -11976,6 +11934,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     theme={theme}
                     onUnitsChange={(updatedData) => handleUnitsChange(duId, updatedData)}
                     filename={tabData.filename}
+                    transcriptId={tabData.transcriptId}
                     hideVariableInfo={true}
                     hideInstructions={true} // Instructions shown at bottom of transcript
                     compactSummary={true} // Use compact summary
@@ -12131,6 +12090,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
                     theme={theme}
                     onNetworkChange={(updatedData) => handleNetworkChange(duId, updatedData)}
                     filename={tabData.filename}
+                    transcriptId={tabData.transcriptId}
                     hideVariableInfo={true}
                     hideInstructions={true} // Instructions shown at bottom of transcript
                     compactSummary={true} // Use compact summary
@@ -12194,6 +12154,11 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
           const independentVariable = transcriptData?.p_neg1_1_output?.independent_variable_details || 'Not specified';
           const dependentVariables = transcriptData?.p_neg1_1_output?.dependent_variable_focus || [];
           
+          // Debug: Log the P2S outputs
+          console.log('[P2S.4 Debug] tabData.p2sOutputsByDU:', tabData.p2sOutputsByDU);
+          console.log('[P2S.4 Debug] Number of DUs:', Object.keys(tabData.p2sOutputsByDU).length);
+          console.log('[P2S.4 Debug] DU IDs:', Object.keys(tabData.p2sOutputsByDU));
+          
           // Transform P2S data into summary format
           const summaryData = transformP2SDataToSummary(
             tabData.transcriptId,
@@ -12203,6 +12168,9 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
             independentVariable,
             dependentVariables
           );
+          
+          console.log('[P2S.4 Debug] summaryData.duRecords:', summaryData.duRecords);
+          console.log('[P2S.4 Debug] Total DUs in summary:', summaryData.totalDUs);
           
           return <Part2SummaryTable data={summaryData} theme={theme} />;
         }}
@@ -12219,6 +12187,17 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
       <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">
         No grid configuration for this step. Displaying raw data.
       </div>
+    );
+  }
+
+  // Use special component for Variable Identification
+  if (stepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION) {
+    return (
+      <VariableIdentificationGrid 
+        processedData={processedData}
+        theme={theme}
+        config={config}
+      />
     );
   }
 
@@ -12248,32 +12227,9 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
     '--ag-font-size': '16px',
     '--ag-cell-horizontal-border': 'solid 1px #dcd9d0',
   };
-  
-  // Add editable cell styling
-  const editableStyles = `
-    .editable-cell {
-      cursor: text !important;
-      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.05)' : 'rgba(160, 0, 0, 0.03)'} !important;
-    }
-    .editable-cell:hover {
-      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.1)' : 'rgba(160, 0, 0, 0.06)'} !important;
-    }
-    .ag-cell-editing {
-      background-color: ${theme === 'dark' ? 'rgba(255, 107, 107, 0.15)' : 'rgba(160, 0, 0, 0.1)'} !important;
-      border: 2px solid ${theme === 'dark' ? '#ff6b6b' : '#a00000'} !important;
-    }
-  `;
 
   return (
     <div className="space-y-4">
-      {stepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION && (
-        <>
-          <style>{editableStyles}</style>
-          <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
-            💡 Click on Independent Variable or Dependent Variables cells to edit them directly. Changes are saved automatically.
-          </div>
-        </>
-      )}
       <div 
         className={theme === 'dark' ? 'ag-theme-alpine-dark' : 'ag-theme-alpine'} 
         style={{ 
@@ -12298,37 +12254,6 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
             }
           }}
           rowSelection={config.expandableContent ? 'single' : undefined}
-          onCellValueChanged={(event: CellValueChangedEvent) => {
-            // Handle cell value changes for P_NEG1_1
-            if (stepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION) {
-              const { data, colDef } = event;
-              const transcriptId = data.transcriptId;
-              const fieldName = colDef.field;
-              
-              if (transcriptId && fieldName) {
-                const transcriptData = processedData.get(transcriptId);
-                if (transcriptData && transcriptData.p_neg1_1_output) {
-                  // Update the appropriate field
-                  const updatedOutput = { ...transcriptData.p_neg1_1_output };
-                  
-                  if (fieldName === 'independent_variable') {
-                    updatedOutput.independent_variable_details = event.newValue || '';
-                  } else if (fieldName === 'dependent_variables') {
-                    // Split the comma-separated string back into an array
-                    updatedOutput.dependent_variable_focus = (event.newValue || '')
-                      .split(',')
-                      .map((s: string) => s.trim())
-                      .filter((s: string) => s.length > 0);
-                  }
-                  
-                  // Update the store
-                  updateProcessedData(transcriptId, {
-                    p_neg1_1_output: updatedOutput
-                  });
-                }
-              }
-            }
-          }}
         />
       </div>
       
@@ -12349,7 +12274,7 @@ export const PipelineStepGrid: React.FC<PipelineStepGridProps> = ({
 ================================================
 FILE: src/components/RefinedDataTable.tsx
 ================================================
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
@@ -12357,6 +12282,8 @@ import { TagsEditor } from './TagsEditor';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
 import { usePipelineStore } from '../stores/pipelineStore';
 import { StepId } from '../../types';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -12413,6 +12340,32 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
   stepId
 }) => {
   const updateManualData = usePipelineStore(state => state.updateManualData);
+  
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(refinedLines, {
+    transcriptId,
+    stepId: stepId || StepId.P0_2_REFINE_DATA_TYPES,
+    dataPath: 'refined_data_transcript',
+    onSave: (changes) => {
+      // Apply changes and call the parent's onLinesChange
+      if (onLinesChange) {
+        onLinesChange(displayData);
+      }
+    }
+  });
+  
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(refinedLines);
+  }, [refinedLines, resetData]);
   const { rowData, columnDefs } = useMemo(() => {
     const cols: ColDef[] = [
       { 
@@ -12490,8 +12443,8 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
       }
     ];
     
-    return { rowData: refinedLines, columnDefs: cols };
-  }, [refinedLines]);
+    return { rowData: displayData, columnDefs: cols };
+  }, [displayData]);
 
   // Define custom styles based on theme
   const gridStyles = theme === 'dark' ? {
@@ -12604,35 +12557,22 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
             const extraHeight = Math.floor(textLength / 80) * 20 + (hasNotes ? 20 : 0);
             return Math.min(baseHeight + extraHeight, 200);
           }}
-          onCellValueChanged={(event: CellValueChangedEvent) => {
-            if (onLinesChange) {
-              // Create a new array with the updated line
-              const updatedLines = [...refinedLines];
-              const index = refinedLines.findIndex(line => line.line_num === event.data.line_num);
-              if (index !== -1) {
-                // Track the change if we have a transcriptId
-                if (transcriptId && updateManualData) {
-                  const oldValue = event.oldValue;
-                  const newValue = event.newValue;
-                  const fieldName = event.colDef.field;
-                  const dataPath = `refined_data_transcript[${index}].${fieldName}`;
-                  
-                  updateManualData(
-                    transcriptId,
-                    dataPath,
-                    newValue,
-                    oldValue,
-                    stepId || StepId.P0_2_REFINE_DATA_TYPES
-                  );
-                }
-                
-                updatedLines[index] = { ...event.data };
-                onLinesChange(updatedLines);
-              }
-            }
-          }}
+          onCellValueChanged={trackChange}
         />
       </div>
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
     </>
   );
 };
@@ -12641,12 +12581,14 @@ export const RefinedDataTable: React.FC<RefinedDataTableProps> = ({
 ================================================
 FILE: src/components/RefinedDiachronicUnitTable.tsx
 ================================================
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_4_Output, RefinedDiachronicUnitP1_4 } from '../../types';
+import { P1_4_Output, RefinedDiachronicUnitP1_4, StepId } from '../../types';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -12656,6 +12598,7 @@ interface RefinedDiachronicUnitTableProps {
   theme: 'light' | 'dark';
   onRefinedChange?: (updatedData: P1_4_Output) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 // Custom renderer for temporal phase badges
@@ -12743,7 +12686,8 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
   refinedData,
   theme,
   onRefinedChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   console.log('[RefinedDiachronicUnitTable] Props:', { refinedData, theme, filename });
   
@@ -12761,7 +12705,57 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
     );
   }
 
-  const { rowData, columnDefs } = useMemo(() => {
+  // Prepare data for the grid
+  const flattenedData = useMemo(() => {
+    return refinedData.refined_diachronic_units.map(unit => ({
+      ...unit
+    }));
+  }, [refinedData]);
+
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(flattenedData, {
+    transcriptId,
+    stepId: StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
+    dataPath: 'refined_diachronic_units',
+    onSave: (changes) => {
+      if (onRefinedChange) {
+        // Apply changes back to the original structure
+        const updatedData = { ...refinedData };
+        
+        changes.forEach(change => {
+          const rowData = displayData[change.rowId as number];
+          if (rowData && change.field === 'description') {
+            const unitIndex = updatedData.refined_diachronic_units.findIndex(
+              u => u.unit_id === rowData.unit_id
+            );
+            if (unitIndex !== -1) {
+              updatedData.refined_diachronic_units[unitIndex] = {
+                ...updatedData.refined_diachronic_units[unitIndex],
+                description: change.newValue
+              };
+            }
+          }
+        });
+        
+        onRefinedChange(updatedData);
+      }
+    }
+  });
+
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(flattenedData);
+  }, [flattenedData, resetData]);
+
+  const columnDefs = useMemo(() => {
     const cols: ColDef[] = [
       {
         field: 'unit_id',
@@ -12822,31 +12816,10 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
       }
     ];
 
-    const rows = refinedData.refined_diachronic_units.map(unit => ({
-      ...unit
-    }));
-    
-    console.log('[RefinedDiachronicUnitTable] Generated rows:', rows);
     console.log('[RefinedDiachronicUnitTable] Column definitions:', cols);
 
-    return { rowData: rows, columnDefs: cols };
-  }, [refinedData]);
-
-  const handleCellValueChanged = useCallback((event: CellValueChangedEvent) => {
-    if (onRefinedChange) {
-      const updatedData = { ...refinedData };
-      const unitIndex = updatedData.refined_diachronic_units.findIndex(
-        u => u.unit_id === event.data.unit_id
-      );
-      
-      if (unitIndex !== -1) {
-        updatedData.refined_diachronic_units[unitIndex] = {
-          ...event.data
-        };
-        onRefinedChange(updatedData);
-      }
-    }
-  }, [refinedData, onRefinedChange]);
+    return cols;
+  }, []);
 
   const handleExportCSV = () => {
     const csvData = refinedData.refined_diachronic_units.map(unit => ({
@@ -12914,7 +12887,7 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
     <>
       <div className="mb-2 flex justify-between items-center">
         <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
-          💡 Edit descriptions, temporal phases, and confidence levels directly in the grid. Changes are saved automatically.
+          💡 Edit descriptions directly in the grid. Use Save to commit changes or Cancel to discard.
         </div>
         <button
           onClick={handleExportCSV}
@@ -12933,16 +12906,31 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
         }}
       >
         <AgGridReact
-          rowData={rowData}
+          rowData={displayData}
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
           rowHeight={60}
           animateRows={true}
           theme="legacy"
           rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
-          onCellValueChanged={handleCellValueChanged}
+          onCellValueChanged={trackChange}
         />
       </div>
+
+      {/* Save/Cancel buttons */}
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
     </>
   );
 };
@@ -12951,11 +12939,14 @@ export const RefinedDiachronicUnitTable: React.FC<RefinedDiachronicUnitTableProp
 ================================================
 FILE: src/components/SelectedUtterancesTable.tsx
 ================================================
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
+import { StepId } from '../../types';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -12973,15 +12964,42 @@ interface SelectedUtterancesTableProps {
   theme: 'light' | 'dark';
   onUtterancesChange?: (updatedUtterances: SelectedUtterance[]) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = ({ 
   utterances, 
   theme,
   onUtterancesChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   const gridRef = React.useRef<AgGridReact>(null);
+  
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(utterances, {
+    transcriptId,
+    stepId: StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
+    dataPath: 'selected_procedural_utterances',
+    onSave: (changes) => {
+      if (onUtterancesChange) {
+        onUtterancesChange(displayData);
+      }
+    }
+  });
+  
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(utterances);
+  }, [utterances, resetData]);
   
   const { rowData, columnDefs } = useMemo(() => {
     const cols: ColDef[] = [
@@ -13080,8 +13098,8 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
       }
     ];
     
-    return { rowData: utterances, columnDefs: cols };
-  }, [utterances]);
+    return { rowData: displayData, columnDefs: cols };
+  }, [displayData]);
 
   // Define custom styles based on theme
   const gridStyles = theme === 'dark' ? {
@@ -13195,47 +13213,37 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
             const extraHeight = Math.floor((textLength + justificationLength) / 100) * 20;
             return Math.min(baseHeight + extraHeight, 200);
           }}
-          onCellValueChanged={(event: CellValueChangedEvent) => {
-            if (onUtterancesChange) {
-              // Create a new array with the updated utterance
-              const updatedUtterances = [...utterances];
-              const index = utterances.findIndex(u => u.original_line_num === event.data.original_line_num);
-              if (index !== -1) {
-                updatedUtterances[index] = { ...event.data };
-                onUtterancesChange(updatedUtterances);
-              }
-            }
-          }}
+          onCellValueChanged={trackChange}
           onCellClicked={(event) => {
-            if (event.column.getColId() === 'included' && onUtterancesChange) {
-              // Save current scroll position directly from the grid's scroll container
-              const gridApi = gridRef.current?.api;
-              const eBodyViewport = gridRef.current?.eGui?.querySelector('.ag-body-viewport');
-              const scrollTop = eBodyViewport?.scrollTop || 0;
-              
-              const updatedUtterances = [...utterances];
-              const index = utterances.findIndex(u => u.original_line_num === event.data.original_line_num);
-              if (index !== -1) {
-                updatedUtterances[index] = { 
-                  ...updatedUtterances[index], 
-                  included: !updatedUtterances[index].included 
-                };
-                onUtterancesChange(updatedUtterances);
-                
-                // Restore exact scroll position after state update
-                requestAnimationFrame(() => {
-                  const viewport = gridRef.current?.eGui?.querySelector('.ag-body-viewport');
-                  if (viewport) {
-                    viewport.scrollTop = scrollTop;
-                  }
-                });
-              }
+            if (event.column.getColId() === 'included') {
+              // Simulate a cell value change for checkbox clicks
+              const oldValue = event.data.included;
+              const newValue = !oldValue;
+              trackChange({
+                ...event,
+                oldValue,
+                newValue,
+                colDef: { field: 'included' }
+              } as any);
             }
           }}
           suppressScrollOnNewData={true}
           maintainColumnOrder={true}
         />
       </div>
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
     </>
   );
 };
@@ -14107,14 +14115,16 @@ FILE: src/components/SpecificSynchronicUnitsTable.tsx
 ================================================
 import React, { useState, useMemo, useCallback } from 'react';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P2S_2_Output, P2S_2_SynchronicUnit } from '../../types';
+import { P2S_2_Output, P2S_2_SynchronicUnit, StepId } from '../../types';
 import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
+import { trackingHelpers } from '../stores/historyStore';
 
 interface SpecificSynchronicUnitsTableProps {
   unitsData: P2S_2_Output;
   theme: 'light' | 'dark';
   onUnitsChange?: (updatedData: P2S_2_Output) => void;
   filename?: string;
+  transcriptId?: string;
   hideVariableInfo?: boolean;
   hideInstructions?: boolean;
   compactSummary?: boolean;
@@ -14142,6 +14152,8 @@ const ISUCard: React.FC<{
   canDelete: boolean;
   onDelete: () => void;
   allUnits: P2S_2_SynchronicUnit[];
+  transcriptId?: string;
+  unitsDataId?: string;
 }> = ({ 
   unit, 
   index,
@@ -14154,7 +14166,9 @@ const ISUCard: React.FC<{
   theme,
   canDelete,
   onDelete,
-  allUnits
+  allUnits,
+  transcriptId,
+  unitsDataId
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(unit.unit_name);
@@ -14166,6 +14180,16 @@ const ISUCard: React.FC<{
   const levelColors = LEVEL_COLORS[unit.level as keyof typeof LEVEL_COLORS] || LEVEL_COLORS[1];
 
   const handleNameSave = () => {
+    // Track the change
+    if (transcriptId && unitsDataId) {
+      trackingHelpers.trackDataEdit(
+        `synchronic_units/${unitsDataId}/unit_${index}/name`,
+        unit.unit_name,
+        tempName,
+        transcriptId,
+        StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS
+      );
+    }
     onNameChange(tempName);
     setIsEditingName(false);
   };
@@ -14176,6 +14200,16 @@ const ISUCard: React.FC<{
   };
 
   const handleDefinitionSave = () => {
+    // Track the change
+    if (transcriptId && unitsDataId) {
+      trackingHelpers.trackDataEdit(
+        `synchronic_units/${unitsDataId}/unit_${index}/definition`,
+        unit.intensional_definition,
+        tempDefinition,
+        transcriptId,
+        StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS
+      );
+    }
     onDefinitionChange(tempDefinition);
     setIsEditingDefinition(false);
   };
@@ -14451,6 +14485,7 @@ export const SpecificSynchronicUnitsTable: React.FC<SpecificSynchronicUnitsTable
   theme,
   onUnitsChange,
   filename,
+  transcriptId,
   hideVariableInfo = false,
   hideInstructions = false,
   compactSummary = false
@@ -14714,6 +14749,8 @@ export const SpecificSynchronicUnitsTable: React.FC<SpecificSynchronicUnitsTable
             canDelete={unitsData.specific_synchronic_units_hierarchy.length > 1}
             onDelete={() => handleDeleteUnit(index)}
             allUnits={unitsData.specific_synchronic_units_hierarchy}
+            transcriptId={transcriptId}
+            unitsDataId={unitsData.analyzed_du_id}
           />
         ))}
       </div>
@@ -14738,14 +14775,16 @@ FILE: src/components/SynchronicThematicGroupingTable.tsx
 ================================================
 import React, { useState, useMemo, useCallback } from 'react';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P2S_1_Output, P2S_1_ThematicGroup, SegmentedUtteranceSegment } from '../../types';
+import { P2S_1_Output, P2S_1_ThematicGroup, SegmentedUtteranceSegment, StepId } from '../../types';
 import { ChevronDownIcon, ChevronRightIcon } from '../../constants';
+import { trackingHelpers } from '../stores/historyStore';
 
 interface SynchronicThematicGroupingTableProps {
   groupingData: P2S_1_Output;
   theme: 'light' | 'dark';
   onGroupingChange?: (updatedData: P2S_1_Output) => void;
   filename?: string;
+  transcriptId?: string;
   hideVariableInfo?: boolean;
   hideInstructions?: boolean;
   hideSummaryActions?: boolean;
@@ -14772,6 +14811,8 @@ const ThematicGroupCard: React.FC<{
   theme: 'light' | 'dark';
   canDelete: boolean;
   onDelete: () => void;
+  transcriptId?: string;
+  groupingDataId?: string;
 }> = ({ 
   group, 
   index,
@@ -14782,7 +14823,9 @@ const ThematicGroupCard: React.FC<{
   onSegmentRemove,
   theme,
   canDelete,
-  onDelete
+  onDelete,
+  transcriptId,
+  groupingDataId
 }) => {
   const [isEditingLabel, setIsEditingLabel] = useState(false);
   const [tempLabel, setTempLabel] = useState(group.group_label);
@@ -14790,6 +14833,16 @@ const ThematicGroupCard: React.FC<{
   const [tempJustification, setTempJustification] = useState(group.justification);
 
   const handleLabelSave = () => {
+    // Track the change
+    if (transcriptId && groupingDataId) {
+      trackingHelpers.trackDataEdit(
+        `thematic_groups/${groupingDataId}/group_${index}/label`,
+        group.group_label,
+        tempLabel,
+        transcriptId,
+        StepId.P2S_1_GROUP_SEGMENTS_BY_TOPIC
+      );
+    }
     onLabelChange(tempLabel);
     setIsEditingLabel(false);
   };
@@ -14800,6 +14853,16 @@ const ThematicGroupCard: React.FC<{
   };
 
   const handleJustificationSave = () => {
+    // Track the change
+    if (transcriptId && groupingDataId) {
+      trackingHelpers.trackDataEdit(
+        `thematic_groups/${groupingDataId}/group_${index}/justification`,
+        group.justification,
+        tempJustification,
+        transcriptId,
+        StepId.P2S_1_GROUP_SEGMENTS_BY_TOPIC
+      );
+    }
     onJustificationChange(tempJustification);
     setIsEditingJustification(false);
   };
@@ -14986,6 +15049,7 @@ export const SynchronicThematicGroupingTable: React.FC<SynchronicThematicGroupin
   theme,
   onGroupingChange,
   filename,
+  transcriptId,
   hideVariableInfo = false,
   hideInstructions = false,
   hideSummaryActions = false,
@@ -15182,6 +15246,8 @@ export const SynchronicThematicGroupingTable: React.FC<SynchronicThematicGroupin
             theme={theme}
             canDelete={groupingData.synchronic_thematic_groups.length > 1}
             onDelete={() => handleDeleteGroup(index)}
+            transcriptId={transcriptId}
+            groupingDataId={groupingData.analyzed_du_id}
           />
         ))}
       </div>
@@ -15829,6 +15895,49 @@ export const TranscriptLinesTable: React.FC<TranscriptLinesTableProps> = ({
     </>
   );
 };
+
+
+================================================
+FILE: src/components/icons/index.tsx
+================================================
+import React from 'react';
+
+export const PlayIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" /></svg>);
+
+export const PauseIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M5.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 007.25 3h-1.5zM12.75 3a.75.75 0 00-.75.75v12.5c0 .414.336.75.75.75h1.5a.75.75 0 00.75-.75V3.75A.75.75 0 0014.25 3h-1.5z" /></svg>);
+
+export const DownloadIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M10.75 2.75a.75.75 0 00-1.5 0v8.614L6.295 8.235a.75.75 0 10-1.09 1.03l4.25 4.5a.75.75 0 001.09 0l4.25-4.5a.75.75 0 00-1.09-1.03l-2.955 3.129V2.75z" /><path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" /></svg>);
+
+export const NextIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M8.22 5.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>);
+
+export const PreviousIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 0-1.06 0L6.47 9.47a.75.75 0 0 0 0 1.06l4.25 4.25a.75.75 0 0 0 1.06-1.06L8.06 10l3.72-3.72a.75.75 0 0 0 0-1.06z" clipRule="evenodd" /></svg>);
+
+export const UploadIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M9.25 13.25a.75.75 0 001.5 0V4.793l2.969 2.97a.75.75 0 001.06-1.06l-4.25-4.25a.75.75 0 00-1.06 0L5.22 6.704a.75.75 0 001.06 1.06L9.25 4.793V13.25z" /><path d="M3.5 12.75a.75.75 0 00-1.5 0v2.5A2.75 2.75 0 004.75 18h10.5A2.75 2.75 0 0018 15.25v-2.5a.75.75 0 00-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5z" /></svg>);
+
+export const LoadIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M3.75 3A1.75 1.75 0 0 0 2 4.75v1.272A2.228 2.228 0 0 0 3.75 6h12.5A2.228 2.228 0 0 0 18 6.022V4.75A1.75 1.75 0 0 0 16.25 3h-4.835a.25.25 0 0 1-.202-.098L10.5 2.016a.25.25 0 0 0-.202-.098H3.75zM2 9.75A1.75 1.75 0 0 1 3.75 8h12.5A1.75 1.75 0 0 1 18 9.75v5.5A1.75 1.75 0 0 1 16.25 17H3.75A1.75 1.75 0 0 1 2 15.25v-5.5z" /></svg>);
+
+export const SaveIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M2.5 2.5A2.5 2.5 0 0 0 0 5v10a2.5 2.5 0 0 0 2.5 2.5h15A2.5 2.5 0 0 0 20 15V5a2.5 2.5 0 0 0-2.5-2.5H15V.75a.75.75 0 0 0-1.5 0V2.5H6.5V.75a.75.75 0 0 0-1.5 0V2.5H2.5zM3.5 15V7h13v8a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1zM7 9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1H7z" /></svg>);
+
+export const LightbulbIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M9.05 3.296a6.5 6.5 0 0 1 1.903 0l.536.216a.75.75 0 0 0 .86.095A6.476 6.476 0 0 1 16 9.5c0 1.598-.595 3.036-1.581 4.148a.75.75 0 0 0 .205 1.118l.26.173c.182.121.38.223.59.309a.75.75 0 0 1 .318 1.006A6.5 6.5 0 0 1 9.051 3.296zM5.556 14.898A.75.75 0 0 0 6 14.5V11a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 .556.725zM14.444 14.898a.75.75 0 0 1-.556-.725V11a.75.75 0 0 1 1.5 0v3.5a.75.75 0 0 1-.556.725zM10 17.5a.75.75 0 0 0 .75-.75V14h-1.5v2.75a.75.75 0 0 0 .75.75zM3.823 10.992a.75.75 0 0 1 1.006-.318c.21-.086.408-.188.59-.309l.26-.173a.75.75 0 0 1 .206-1.118A4.983 4.983 0 0 0 4 9.5a4.978 4.978 0 0 0-2.455-4.382.75.75 0 0 1-.095-.86l.216-.536a6.503 6.503 0 0 1 10.668 0l.216.536a.75.75 0 0 1-.095.86A4.979 4.979 0 0 0 12 9.5c0 .052.001.104.004.155a.75.75 0 0 1-1.498.09A3.5 3.5 0 0 0 10 9.498V9.5a3.5 3.5 0 0 0-3.418 3.072.75.75 0 0 1-1.006.318A6.522 6.522 0 0 1 3.823 10.992z"/></svg>);
+
+export const FileTextIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M4 2a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6.707A2.25 2.25 0 0017.328 5L14 1.672A2.25 2.25 0 0012.293 1H5.707A2.25 2.25 0 004 2zm.75 4.75A.75.75 0 015.5 6h9a.75.75 0 010 1.5h-9A.75.75 0 014.75 6.75zM4.75 9.25A.75.75 0 015.5 8.5h9a.75.75 0 010 1.5h-9A.75.75 0 014.75 9.25zm0 2.5A.75.75 0 015.5 11h9a.75.75 0 010 1.5h-9a.75.75 0 01-.75-.75zm.75 2.45a.75.75 0 000 1.5h4a.75.75 0 000-1.5h-4z" clipRule="evenodd" /></svg>);
+
+export const CheckCircleIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" /></svg>);
+
+export const InfoIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 opacity-75"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" /></svg>);
+
+export const ChevronDownIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M5.22 8.22a.75.75 0 011.06 0L10 11.94l3.72-3.72a.75.75 0 111.06 1.06l-4.25 4.25a.75.75 0 01-1.06 0L5.22 9.28a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>);
+
+export const ChevronUpIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M14.78 11.78a.75.75 0 01-1.06 0L10 8.06l-3.72 3.72a.75.75 0 11-1.06-1.06l4.25-4.25a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06z" clipRule="evenodd" /></svg>);
+
+export const ChevronRightIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M8.22 5.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>);
+
+export const RetryIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M15.323 10.243a5.25 5.25 0 00-7.815-1.11L6.06 7.677a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.06 0l2.25-2.25a.75.75 0 00-1.06-1.06l-1.274 1.273A3.75 3.75 0 0113.5 7.5c1.657 0 3.073 1.075 3.55 2.578a.75.75 0 001.45-.358A5.25 5.25 0 0015.323 10.243zM4.677 9.757a5.25 5.25 0 007.815 1.11l1.448 1.448a.75.75 0 001.06-1.06l-2.25-2.25a.75.75 0 00-1.06 0l-2.25 2.25a.75.75 0 101.06 1.06l1.274-1.273A3.75 3.75 0 016.5 12.5c-1.657 0-3.073-1.075-3.55-2.578a.75.75 0 00-1.45.358A5.25 5.25 0 004.677 9.757z" clipRule="evenodd" /></svg>);
+
+export const AppendixIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+  <path fillRule="evenodd" d="M3 3.75A.75.75 0 013.75 3h12.5a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75H3.75a.75.75 0 01-.75-.75V3.75zm0-1.5A2.25 2.25 0 00.75 3.75v12.5c0 1.243 1.007 2.25 2.25 2.25h12.5A2.25 2.25 0 0018.5 16.25V3.75A2.25 2.25 0 0016.25 1.5H3.75z" clipRule="evenodd" />
+  <path d="M5.023 6.958A.75.75 0 015.75 6.5h8.5a.75.75 0 010 1.5h-8.5a.75.75 0 01-.727-.542zM5.023 9.958A.75.75 0 015.75 9.5h8.5a.75.75 0 010 1.5h-8.5a.75.75 0 01-.727-.542zM5.75 12.5a.75.75 0 000 1.5h4a.75.75 0 000-1.5h-4z" />
+</svg>);
 
 
 ================================================
@@ -17587,6 +17696,24 @@ A JSON object with ONLY the following structure (NO extra text or explanations):
   "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
 }
 `,
+  saveToTranscript: (transcript, output, duId) => {
+    if (!duId) {
+      console.error('[P2S.1] No DU ID provided to saveToTranscript');
+      return transcript;
+    }
+    
+    const p2sOutputs = transcript.p2s_outputs_by_du || {};
+    p2sOutputs[duId] = {
+      ...p2sOutputs[duId],
+      p2s_1_output: output,
+      p2s_1_error: undefined
+    };
+    
+    return {
+      ...transcript,
+      p2s_outputs_by_du: p2sOutputs
+    };
+  }
 };
 
 
@@ -17683,14 +17810,33 @@ A JSON object adhering EXACTLY to the following structure (NO extra text):
   "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
 }
 `,
+  saveToTranscript: (transcript, output, duId) => {
+    if (!duId) {
+      console.error('[P2S.2] No DU ID provided to saveToTranscript');
+      return transcript;
+    }
+    
+    const p2sOutputs = transcript.p2s_outputs_by_du || {};
+    p2sOutputs[duId] = {
+      ...p2sOutputs[duId],
+      p2s_2_output: output,
+      p2s_2_error: undefined
+    };
+    
+    return {
+      ...transcript,
+      p2s_outputs_by_du: p2sOutputs
+    };
+  }
 };
 
 
 ================================================
 FILE: src/config/pipeline/part2/P2S_3_defineSpecificSynchronicStructure.ts
 ================================================
-import { StepId, P2S_2_Output } from '../../../../types';
+import { StepId, P2S_2_Output, P2S_3_Output } from '../../../../types';
 import { StepConfig } from '../types';
+import { transformSynchronicToMermaid } from '../../../utils/visualizationHelper';
 
 export const P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE_CONFIG: StepConfig = {
   id: StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
@@ -17780,6 +17926,31 @@ A JSON object adhering EXACTLY to the following structure:
   "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
 }
 `,
+  saveToTranscript: (transcript, output, duId) => {
+    if (!duId) {
+      console.error('[P2S.3] No DU ID provided to saveToTranscript');
+      return transcript;
+    }
+    
+    // Generate mermaid syntax for the synchronic structure
+    let mermaidSyntax: string | undefined;
+    if (output && (output as P2S_3_Output).specific_synchronic_structure) {
+      mermaidSyntax = transformSynchronicToMermaid((output as P2S_3_Output).specific_synchronic_structure, duId);
+    }
+    
+    const p2sOutputs = transcript.p2s_outputs_by_du || {};
+    p2sOutputs[duId] = {
+      ...p2sOutputs[duId],
+      p2s_3_output: output,
+      p2s_3_error: undefined,
+      ...(mermaidSyntax && { p2s_3_mermaid_syntax: mermaidSyntax })
+    };
+    
+    return {
+      ...transcript,
+      p2s_outputs_by_du: p2sOutputs
+    };
+  }
 };
 
 
@@ -17800,8 +17971,15 @@ export const P2S_4_SUMMARY_TABLE_CONFIG: StepConfig = {
       return { data: null, error: "Missing current transcript ID for P2S.4" };
     }
 
+    // Get processed data from the store, not from currentTranscript
+    const processedTranscript = allProcessedData?.get(currentTranscript.id);
+    if (!processedTranscript) {
+      console.error('[P2S_4 Debug] No processed data found for transcript:', currentTranscript.id);
+      return { data: null, error: "No processed data available for this transcript." };
+    }
+
     // Check if P2S outputs exist
-    const p2sOutputs = currentTranscript.p2s_outputs_by_du;
+    const p2sOutputs = processedTranscript.p2s_outputs_by_du;
     if (!p2sOutputs || Object.keys(p2sOutputs).length === 0) {
       console.error('[P2S_4 Debug] No P2S outputs found for transcript:', currentTranscript.id);
       return { data: null, error: "No P2S outputs available. Please run P2S.1, P2S.2, and P2S.3 first." };
@@ -18379,6 +18557,193 @@ export function useEncryptedPrompt(options: UseEncryptedPromptOptions = {}): Use
 
 
 ================================================
+FILE: src/hooks/useGridChangeTracker.ts
+================================================
+import { useState, useCallback, useRef } from 'react';
+import { CellValueChangedEvent } from 'ag-grid-community';
+import { trackingHelpers } from '../stores/historyStore';
+import { StepId } from '../../types';
+
+interface GridChange {
+  rowId: string | number;
+  field: string;
+  oldValue: any;
+  newValue: any;
+  rowData?: any;
+}
+
+interface UseGridChangeTrackerOptions {
+  transcriptId?: string;
+  stepId?: StepId;
+  dataPath?: string;
+  onSave?: (changes: GridChange[]) => void;
+}
+
+export function useGridChangeTracker<T extends Record<string, any>>(
+  originalData: T[],
+  options: UseGridChangeTrackerOptions = {}
+) {
+  const { transcriptId, stepId, dataPath, onSave } = options;
+  
+  // Keep track of the original data
+  const originalDataRef = useRef(originalData);
+  
+  // Display data that includes pending changes
+  const [displayData, setDisplayData] = useState<T[]>(() => 
+    originalData.map(item => ({ ...item }))
+  );
+  
+  // Track pending changes
+  const [pendingChanges, setPendingChanges] = useState<Map<string, GridChange>>(
+    new Map()
+  );
+  
+  // Handle cell value changes
+  const onCellValueChanged = useCallback((event: CellValueChangedEvent) => {
+    const { data, colDef, oldValue, newValue } = event;
+    const field = colDef.field;
+    
+    console.log('[useGridChangeTracker] onCellValueChanged:', { field, oldValue, newValue, data });
+    
+    if (!field || oldValue === newValue) return;
+    
+    // Find the row index
+    const rowIndex = originalDataRef.current.findIndex(item => {
+      // Try to match by common id fields
+      if ('id' in item && 'id' in data) return item.id === data.id;
+      if ('line_num' in item && 'line_num' in data) return item.line_num === data.line_num;
+      if ('original_line_num' in item && 'original_line_num' in data) return item.original_line_num === data.original_line_num;
+      if ('segment_id' in item && 'segment_id' in data) return item.segment_id === data.segment_id;
+      if ('unit_id' in item && 'unit_id' in data) return item.unit_id === data.unit_id;
+      // Fallback to object comparison
+      return JSON.stringify(item) === JSON.stringify(data);
+    });
+    
+    if (rowIndex === -1) {
+      console.log('[useGridChangeTracker] Could not find row index for data:', data);
+      return;
+    }
+    
+    console.log('[useGridChangeTracker] Found row at index:', rowIndex);
+    
+    // Create a unique key for this change
+    const changeKey = `${rowIndex}-${field}`;
+    
+    // Update pending changes
+    setPendingChanges(prev => {
+      const newChanges = new Map(prev);
+      
+      // If this cell was previously changed, use the original oldValue
+      const existingChange = prev.get(changeKey);
+      const originalOldValue = existingChange ? existingChange.oldValue : oldValue;
+      
+      // If we're changing back to the original value, remove the change
+      if (originalOldValue === newValue) {
+        newChanges.delete(changeKey);
+      } else {
+        newChanges.set(changeKey, {
+          rowId: rowIndex,
+          field,
+          oldValue: originalOldValue,
+          newValue,
+          rowData: data
+        });
+      }
+      
+      return newChanges;
+    });
+    
+    // Update display data immediately for user feedback
+    setDisplayData(prev => {
+      const newData = [...prev];
+      newData[rowIndex] = { ...newData[rowIndex], [field]: newValue };
+      return newData;
+    });
+  }, []);
+  
+  // Save all pending changes
+  const handleSave = useCallback(() => {
+    console.log('[useGridChangeTracker] handleSave called with:', {
+      pendingChangesSize: pendingChanges.size,
+      transcriptId,
+      dataPath,
+      stepId
+    });
+    
+    if (pendingChanges.size === 0) return;
+    
+    const changesArray = Array.from(pendingChanges.values());
+    
+    console.log('[useGridChangeTracker] Changes to save:', changesArray);
+    
+    // Track changes in history store
+    if (transcriptId && dataPath) {
+      // Create a summary of all changes
+      const changesSummary = changesArray
+        .map(change => `${change.field}: ${JSON.stringify(change.oldValue)} → ${JSON.stringify(change.newValue)}`)
+        .join(', ');
+      
+      console.log('[useGridChangeTracker] Calling trackingHelpers.trackDataEdit with:', {
+        dataPath,
+        oldValues: changesArray.map(c => ({ field: c.field, value: c.oldValue })),
+        newValues: changesArray.map(c => ({ field: c.field, value: c.newValue })),
+        transcriptId,
+        stepId
+      });
+      
+      trackingHelpers.trackDataEdit(
+        dataPath,
+        changesArray.map(c => ({ field: c.field, value: c.oldValue })),
+        changesArray.map(c => ({ field: c.field, value: c.newValue })),
+        transcriptId,
+        stepId
+      );
+    } else {
+      console.warn('[useGridChangeTracker] Missing transcriptId or dataPath, cannot track changes:', {
+        transcriptId,
+        dataPath
+      });
+    }
+    
+    // Call the optional onSave callback
+    if (onSave) {
+      onSave(changesArray);
+    }
+    
+    // Clear pending changes
+    setPendingChanges(new Map());
+    
+    // Update the original data reference
+    originalDataRef.current = displayData;
+  }, [pendingChanges, transcriptId, dataPath, stepId, onSave, displayData]);
+  
+  // Cancel all pending changes
+  const handleCancel = useCallback(() => {
+    setPendingChanges(new Map());
+    setDisplayData(originalDataRef.current.map(item => ({ ...item })));
+  }, []);
+  
+  // Reset with new data (useful when parent data changes)
+  const resetData = useCallback((newData: T[]) => {
+    originalDataRef.current = newData;
+    setDisplayData(newData.map(item => ({ ...item })));
+    setPendingChanges(new Map());
+  }, []);
+  
+  return {
+    displayData,
+    onCellValueChanged,
+    handleSave,
+    handleCancel,
+    hasPendingChanges: pendingChanges.size > 0,
+    pendingChangesCount: pendingChanges.size,
+    pendingChanges: Array.from(pendingChanges.values()),
+    resetData
+  };
+}
+
+
+================================================
 FILE: src/services/PipelineOrchestrator.ts
 ================================================
 /**
@@ -18685,15 +19050,26 @@ export class PipelineOrchestrator {
         if (tData) {
           const dus = tData.dus_for_p2s_processing || []
           const currentDuIndex = dus.indexOf(tData.current_du_for_p2s_processing || '')
+          const currentStep = currentPosition.part.steps[stepIndex]
           
-          // If we're at the last step of P2S and there are more DUs to process
-          if (stepIndex === part.steps.length - 1 && currentDuIndex < dus.length - 1) {
-            // Go back to first P2S step for next DU
+          // Special handling for P2S.4 - it should only run after ALL DUs are processed
+          if (currentStep === StepId.P2S_4_SUMMARY_TABLE) {
+            // P2S.4 is complete, move to next part/transcript
+            // Don't iterate over DUs for P2S.4
+          } else if (currentStep === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE && currentDuIndex < dus.length - 1) {
+            // After P2S.3, go back to P2S.1 for next DU (skip P2S.4 until all DUs are done)
             return {
-              nextStepId: part.steps[0],
+              nextStepId: part.steps[0], // Back to P2S.1
               nextTranscriptIndex: activeTranscriptIndex,
               nextDuIndex: currentDuIndex + 1,
               iterationType: 'per-du'
+            }
+          } else if (currentStep === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE && currentDuIndex === dus.length - 1) {
+            // All DUs processed, now run P2S.4
+            return {
+              nextStepId: StepId.P2S_4_SUMMARY_TABLE,
+              nextTranscriptIndex: activeTranscriptIndex,
+              iterationType: 'global' // P2S.4 is global for the transcript
             }
           }
         }
@@ -19150,18 +19526,43 @@ export const trackingHelpers = {
     transcriptId?: string,
     stepId?: any
   ) => {
-    useHistoryStore.getState().trackChange(
-      ChangeType.DATA_EDIT,
-      `Edited data at ${path}`,
-      {
-        path,
-        oldValue,
-        newValue,
-        transcriptId,
-        stepId,
-        source: 'DataTable',
-      }
-    );
+    // Handle batch changes
+    if (Array.isArray(oldValue) && Array.isArray(newValue)) {
+      const changeCount = oldValue.length;
+      const description = changeCount > 1 
+        ? `Edited ${changeCount} fields in ${path}` 
+        : `Edited data at ${path}`;
+      
+      useHistoryStore.getState().trackChange(
+        ChangeType.DATA_EDIT,
+        description,
+        {
+          path,
+          oldValue,
+          newValue,
+          transcriptId,
+          stepId,
+          source: 'DataTable',
+          metadata: {
+            changeCount,
+            isBatch: true
+          }
+        }
+      );
+    } else {
+      useHistoryStore.getState().trackChange(
+        ChangeType.DATA_EDIT,
+        `Edited data at ${path}`,
+        {
+          path,
+          oldValue,
+          newValue,
+          transcriptId,
+          stepId,
+          source: 'DataTable',
+        }
+      );
+    }
   },
   
   // Track HIL correction
@@ -19244,6 +19645,27 @@ export const trackingHelpers = {
     );
   },
 };
+
+// Add debugging helper in development
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  (window as any).checkTrackingHistory = () => {
+    const state = useHistoryStore.getState();
+    console.log('History Store State:', {
+      isEnabled: state.isEnabled,
+      historyCount: state.history.length,
+      recentChanges: state.getRecentChanges(5),
+      fullHistory: state.history
+    });
+    return state.history;
+  };
+  
+  (window as any).clearTrackingHistory = () => {
+    useHistoryStore.getState().clearHistory();
+    console.log('History cleared');
+  };
+  
+  console.log('🔍 History debugging helpers added to window: checkTrackingHistory(), clearTrackingHistory()');
+}
 
 // Expose store to window for debugging
 if (typeof window !== 'undefined') {
@@ -23026,259 +23448,6 @@ Please provide a corrected response addressing the user's feedback.`
 
 
 ================================================
-FILE: src/styles/ag-grid-custom-theme.css
-================================================
-/* Custom AG-Grid Theme for µ-PATH */
-
-/* Light theme */
-.ag-theme-alpine {
-  --ag-background-color: #faf8f1;
-  --ag-foreground-color: #111111;
-  --ag-header-background-color: #f3f1ea;
-  --ag-header-foreground-color: #111111;
-  --ag-odd-row-background-color: #faf8f1;
-  --ag-row-hover-color: #e9e6de;
-  --ag-border-color: #dcd9d0;
-  --ag-secondary-border-color: #dcd9d0;
-  --ag-header-cell-hover-background-color: #e9e6de;
-  --ag-selected-row-background-color: rgba(160, 0, 0, 0.1);
-  --ag-range-selection-border-color: #a00000;
-  --ag-header-column-separator-color: #dcd9d0;
-  --ag-header-column-resize-handle-color: #a00000;
-  --ag-input-border-color: #dcd9d0;
-  --ag-input-focus-border-color: #a00000;
-  --ag-disabled-foreground-color: #999999;
-  --ag-chip-background-color: #f3f1ea;
-  --ag-chip-border-color: #dcd9d0;
-}
-
-/* Dark theme */
-.ag-theme-alpine-dark {
-  --ag-background-color: #1a1a1a;
-  --ag-foreground-color: #e6e6e6;
-  --ag-header-background-color: #252525;
-  --ag-header-foreground-color: #e6e6e6;
-  --ag-odd-row-background-color: #1a1a1a;
-  --ag-row-hover-color: #333333;
-  --ag-border-color: #444444;
-  --ag-secondary-border-color: #444444;
-  --ag-header-cell-hover-background-color: #333333;
-  --ag-selected-row-background-color: rgba(255, 107, 107, 0.1);
-  --ag-range-selection-border-color: #ff6b6b;
-  --ag-header-column-separator-color: #444444;
-  --ag-header-column-resize-handle-color: #ff6b6b;
-  --ag-input-border-color: #444444;
-  --ag-input-focus-border-color: #ff6b6b;
-  --ag-disabled-foreground-color: #666666;
-  --ag-chip-background-color: #252525;
-  --ag-chip-border-color: #444444;
-}
-
-/* Additional customizations */
-.ag-theme-alpine,
-.ag-theme-alpine-dark {
-  font-family: 'EB Garamond', 'et-book', Palatino, 'Palatino Linotype', 'Palatino LT STD', Georgia, serif;
-}
-
-.ag-theme-alpine .ag-header-cell,
-.ag-theme-alpine-dark .ag-header-cell {
-  font-weight: 600;
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.ag-theme-alpine .ag-cell,
-.ag-theme-alpine-dark .ag-cell {
-  font-size: 0.875rem;
-  line-height: 1.5;
-}
-
-/* Remove cell focus outline */
-.ag-theme-alpine .ag-cell-focus,
-.ag-theme-alpine-dark .ag-cell-focus {
-  border: none !important;
-  outline: none !important;
-}
-
-/* Custom scrollbar */
-.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar,
-.ag-theme-alpine-dark .ag-body-viewport::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-track {
-  background: #f3f1ea;
-}
-
-.ag-theme-alpine-dark .ag-body-viewport::-webkit-scrollbar-track {
-  background: #252525;
-}
-
-.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb {
-  background: #dcd9d0;
-  border-radius: 4px;
-}
-
-.ag-theme-alpine-dark .ag-body-viewport::-webkit-scrollbar-thumb {
-  background: #444444;
-  border-radius: 4px;
-}
-
-.ag-theme-alpine .ag-body-viewport::-webkit-scrollbar-thumb:hover {
-  background: #a00000;
-}
-
-.ag-theme-alpine-dark .ag-body-viewport::-webkit-scrollbar-thumb:hover {
-  background: #ff6b6b;
-}
-
-/* Phase color classes - matching annotated transcript theme */
-.phase-beginning { 
-  background-color: rgba(173, 216, 230, 0.3); /* lightblue */
-  color: #111111;
-}
-.dark .phase-beginning { 
-  background-color: rgba(70, 130, 180, 0.25); /* steelblue */
-  color: #e6e6e6;
-}
-
-.phase-core { 
-  background-color: rgba(127, 255, 212, 0.3); /* aquamarine */
-  color: #111111;
-}
-.dark .phase-core { 
-  background-color: rgba(32, 178, 170, 0.25); /* lightseagreen */
-  color: #e6e6e6;
-}
-
-.phase-ending { 
-  background-color: rgba(221, 160, 221, 0.25); /* plum */
-  color: #111111;
-}
-.dark .phase-ending { 
-  background-color: rgba(147, 112, 219, 0.2); /* mediumslateblue */
-  color: #e6e6e6;
-}
-
-.phase-transition { 
-  background-color: rgba(255, 215, 0, 0.25); /* gold */
-  color: #111111;
-}
-.dark .phase-transition { 
-  background-color: rgba(218, 165, 32, 0.2); /* goldenrod */
-  color: #e6e6e6;
-}
-
-
-================================================
-FILE: src/styles/tooltip.css
-================================================
-/* Nested Tooltip Styles */
-.nested-tooltip {
-  @apply bg-light-bg dark:bg-dark-bg;
-  @apply rounded-lg shadow-lg;
-  @apply text-light-text dark:text-dark-text;
-  background-color: #faf8f1 !important; /* Light mode background */
-  border: 2px solid #c4c1b8 !important; /* Darker than light-border for more contrast */
-  opacity: 1 !important;
-  pointer-events: auto;
-  animation: tooltipFadeIn 0.2s ease-out;
-}
-
-.dark .nested-tooltip {
-  background-color: #1a1a1a !important; /* Dark mode background */
-  border: 2px solid #666666 !important; /* Lighter than dark-border for more contrast */
-}
-
-.nested-tooltip-content {
-  @apply relative;
-  max-width: 90vw; /* Use viewport width instead of fixed rem */
-  width: 80vw; /* Default to 80% of viewport */
-  max-height: 80vh;
-  overflow: auto;
-}
-
-/* Depth-based styling */
-.nested-tooltip.depth-0 {
-  @apply shadow-xl;
-}
-
-.nested-tooltip.depth-1 {
-  @apply shadow-lg;
-  margin-left: 1rem;
-}
-
-.nested-tooltip.depth-2 {
-  @apply shadow-md;
-  margin-left: 2rem;
-}
-
-/* Animation */
-@keyframes tooltipFadeIn {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-5px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-}
-
-/* Scrollbar styling for tooltips */
-.nested-tooltip-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.nested-tooltip-content::-webkit-scrollbar-track {
-  @apply bg-light-bg-alt dark:bg-dark-bg-alt;
-  border-radius: 3px;
-}
-
-.nested-tooltip-content::-webkit-scrollbar-thumb {
-  @apply bg-light-border dark:bg-dark-border;
-  border-radius: 3px;
-}
-
-.nested-tooltip-content::-webkit-scrollbar-thumb:hover {
-  @apply bg-light-accent dark:bg-dark-accent;
-}
-
-/* Utility classes for tooltip content */
-.line-clamp-2 {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-/* Phase-specific coloring in tooltips */
-.phase-tooltip-content .rdu-item:hover {
-  transform: translateX(2px);
-  transition: transform 0.2s ease;
-}
-
-.rdu-tooltip-content .du-item:hover {
-  transform: translateX(2px);
-  transition: transform 0.2s ease;
-}
-
-/* Visual connection between nested tooltips */
-.nested-tooltip.depth-1::before,
-.nested-tooltip.depth-2::before {
-  content: '';
-  position: absolute;
-  left: -10px;
-  top: 20px;
-  width: 10px;
-  height: 2px;
-  @apply bg-light-border dark:bg-dark-border;
-}
-
-
-================================================
 FILE: src/types/p2s4Types.ts
 ================================================
 // P2S.4 Summary Table Types
@@ -25185,6 +25354,13 @@ function transformSingleDU(duId: string, duData: P2SDuData, p1_4_output?: P1_4_O
   const p2s2 = duData.p2s_2_output;
   const p2s3 = duData.p2s_3_output;
 
+  console.log(`[transformSingleDU] Processing ${duId}:`, {
+    hasP2s1: !!p2s1,
+    hasP2s2: !!p2s2,
+    hasP2s3: !!p2s3,
+    p2s2UnitsCount: p2s2?.specific_synchronic_units_hierarchy?.length || 0
+  });
+
   // Extract DU metadata
   const duName = p2s1?.analyzed_du_id || duId;
   const segmentCount = p2s1?.synchronic_thematic_groups
@@ -25395,6 +25571,7 @@ export function generateAgGridRows(summaryData: P2S4SummaryData): any[] {
   const rows: any[] = [];
   
   summaryData.duRecords.forEach((du, duIndex) => {
+    console.log(`[generateAgGridRows] Processing DU ${duIndex + 1}:`, du.name, 'ISU count:', du.isuThemes.size);
     const duRows: any[] = [];
     let isFirstDURow = true;
     
@@ -25465,9 +25642,11 @@ export function generateAgGridRows(summaryData: P2S4SummaryData): any[] {
       duRows[duRows.length - 1]._isLastDURow = true;
     }
     
+    console.log(`[generateAgGridRows] DU ${du.name} generated ${duRows.length} rows`);
     rows.push(...duRows);
   });
   
+  console.log(`[generateAgGridRows] Total rows generated:`, rows.length);
   return rows;
 }
 
@@ -28082,82 +28261,6 @@ function encryptPrompt(text, key) {
 
 
 ================================================
-FILE: upath-backend/package.json
-================================================
-{
-  "name": "upath-backend",
-  "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "dev": "nodemon --exec tsx src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:run": "vitest run"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
-  "dependencies": {
-    "@fastify/cors": "^11.0.1",
-    "@google/generative-ai": "^0.24.1",
-    "dotenv": "^17.1.0",
-    "fastify": "^5.4.0"
-  },
-  "devDependencies": {
-    "@types/node": "^24.0.11",
-    "@types/supertest": "^6.0.3",
-    "@vitest/ui": "^3.2.4",
-    "jsdom": "^26.1.0",
-    "nodemon": "^3.1.10",
-    "supertest": "^7.1.3",
-    "tsx": "^4.20.3",
-    "typescript": "^5.8.3",
-    "vitest": "^3.2.4"
-  }
-}
-
-
-
-================================================
-FILE: upath-backend/tsconfig.json
-================================================
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "commonjs",
-    "lib": ["ES2020"],
-    "outDir": "./dist",
-    "rootDir": "./src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "resolveJsonModule": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "removeComments": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "noImplicitThis": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "noImplicitOverride": true,
-    "allowUnusedLabels": false,
-    "allowUnreachableCode": false,
-    "exactOptionalPropertyTypes": true
-  },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
-}
-
-
-================================================
 FILE: upath-backend/.env.example
 ================================================
 # Gemini API Configuration
@@ -28648,102 +28751,6 @@ fetch('/api/analyze', {
 .then(response => response.json())
 .then(data => console.log(data));
 `);
-}
-
-
-================================================
-FILE: .claude/settings.local.json
-================================================
-{
-  "permissions": {
-    "allow": [
-      "mcp__serena__activate_project",
-      "mcp__serena__initial_instructions",
-      "mcp__serena__check_onboarding_performed",
-      "mcp__serena__onboarding",
-      "mcp__serena__get_symbols_overview",
-      "mcp__serena__find_symbol",
-      "mcp__serena__list_dir",
-      "mcp__serena__search_for_pattern",
-      "mcp__serena__write_memory",
-      "mcp__serena__replace_regex",
-      "Bash(find:*)",
-      "Bash(grep:*)",
-      "mcp__serena__read_memory",
-      "mcp__zen__thinkdeep",
-      "mcp__zen__chat",
-      "mcp__zen__analyze",
-      "Bash(npx tsc:*)",
-      "mcp__serena__think_about_task_adherence",
-      "Bash(npm run dev:*)",
-      "mcp__serena__think_about_collected_information",
-      "mcp__serena__insert_after_symbol",
-      "mcp__serena__replace_symbol_body",
-      "mcp__serena__summarize_changes",
-      "Bash(ls:*)",
-      "Bash(git check-ignore:*)",
-      "mcp__serena__get_current_config",
-      "mcp__serena__restart_language_server",
-      "mcp__serena__find_referencing_symbols",
-      "mcp__zen__debug",
-      "Bash(npm run test:run:*)",
-      "Bash(npm run test:*)",
-      "Bash(node:*)",
-      "mcp__zen__planner",
-      "Bash(curl:*)",
-      "mcp__playwright__browser_navigate",
-      "mcp__serena__find_file",
-      "Bash(mkdir:*)",
-      "Bash(npm run build:*)",
-      "Bash(jq:*)",
-      "Bash(awk:*)",
-      "Bash(sed:*)",
-      "mcp__serena__think_about_whether_you_are_done",
-      "mcp__serena__insert_before_symbol",
-      "Bash(rg:*)",
-      "Bash(git checkout:*)",
-      "mcp__serena__list_memories",
-      "Bash(npm test:*)",
-      "Bash(npm run lint)",
-      "Bash(npm run:*)",
-      "mcp__serena__switch_modes",
-      "mcp__zen__listmodels",
-      "mcp__zen__codereview",
-      "Bash(timeout 10s npm run dev:*)",
-      "mcp__context7__resolve-library-id",
-      "mcp__context7__get-library-docs",
-      "Bash(npm install:*)",
-      "Bash(pkill:*)",
-      "mcp__ide__getDiagnostics",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "Bash(rm:*)",
-      "Bash(gemini:*)",
-      "Bash(mv:*)",
-      "Bash(kill:*)",
-      "Bash(true)",
-      "Bash(cat:*)",
-      "mcp__zen__consensus",
-      "Bash(cp:*)",
-      "Bash(gh issue create:*)",
-      "Bash(gh issue close:*)",
-      "Bash(gh issue:*)",
-      "Bash(npm init:*)",
-      "Bash(timeout 5s npm run dev)",
-      "Bash(git worktree:*)",
-      "Bash(git branch:*)",
-      "Bash(NODE_ENV=test npm run test -- P1_3_RefineDiachronicUnitsNode.test.ts)",
-      "mcp__deepwiki__read_wiki_structure",
-      "mcp__deepwiki__read_wiki_contents",
-      "mcp__deepwiki__ask_question",
-      "Bash(npx tsx:*)",
-      "Bash(GEMINI_API_KEY=test-key npm run dev)",
-      "Bash(GEMINI_API_KEY=test-key timeout 6s npm run dev)",
-      "Bash(gitingest --help)"
-    ],
-    "deny": []
-  }
 }
 
 

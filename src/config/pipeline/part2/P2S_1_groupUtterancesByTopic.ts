@@ -93,4 +93,22 @@ A JSON object with ONLY the following structure (NO extra text or explanations):
   "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
 }
 `,
+  saveToTranscript: (transcript, output, duId) => {
+    if (!duId) {
+      console.error('[P2S.1] No DU ID provided to saveToTranscript');
+      return transcript;
+    }
+    
+    const p2sOutputs = transcript.p2s_outputs_by_du || {};
+    p2sOutputs[duId] = {
+      ...p2sOutputs[duId],
+      p2s_1_output: output,
+      p2s_1_error: undefined
+    };
+    
+    return {
+      ...transcript,
+      p2s_outputs_by_du: p2sOutputs
+    };
+  }
 };

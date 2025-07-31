@@ -301,16 +301,44 @@ export class PipelineOrchestrator {
         const tData = processedData.get(transcriptId)
         if (tData) {
           const dus = tData.dus_for_p2s_processing || []
-          const currentDuIndex = dus.indexOf(tData.current_du_for_p2s_processing || '')
+          const currentDu = tData.current_du_for_p2s_processing
           
-          // If we're at the last step of P2S and there are more DUs to process
-          if (stepIndex === part.steps.length - 1 && currentDuIndex < dus.length - 1) {
-            // Go back to first P2S step for next DU
+          // Handle undefined or invalid current DU
+          if (!currentDu || !dus.includes(currentDu)) {
+            console.warn(`[PipelineOrchestrator] Invalid current_du_for_p2s_processing: ${currentDu} for transcript ${transcriptId}`)
+            // Skip to next transcript if DU is invalid
+            if (activeTranscriptIndex < rawTranscripts.length - 1) {
+              return {
+                nextStepId: part.steps[0],
+                nextTranscriptIndex: activeTranscriptIndex + 1,
+                iterationType: 'per-transcript'
+              }
+            }
+            // No more transcripts, move to next part
+            return this.getNextPart(partIndex, dataState)
+          }
+          
+          const currentDuIndex = dus.indexOf(currentDu)
+          const currentStep = currentPosition.part.steps[stepIndex]
+          
+          // Special handling for P2S.4 - it should only run after ALL DUs are processed
+          if (currentStep === StepId.P2S_4_SUMMARY_TABLE) {
+            // P2S.4 is complete, move to next part/transcript
+            // Don't iterate over DUs for P2S.4
+          } else if (currentStep === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE && currentDuIndex < dus.length - 1) {
+            // After P2S.3, go back to P2S.1 for next DU (skip P2S.4 until all DUs are done)
             return {
-              nextStepId: part.steps[0],
+              nextStepId: part.steps[0], // Back to P2S.1
               nextTranscriptIndex: activeTranscriptIndex,
               nextDuIndex: currentDuIndex + 1,
               iterationType: 'per-du'
+            }
+          } else if (currentStep === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE && currentDuIndex === dus.length - 1) {
+            // All DUs processed, now run P2S.4
+            return {
+              nextStepId: StepId.P2S_4_SUMMARY_TABLE,
+              nextTranscriptIndex: activeTranscriptIndex,
+              iterationType: 'global' // P2S.4 is global for the transcript
             }
           }
         }
@@ -394,7 +422,24 @@ export class PipelineOrchestrator {
     if (!tData) return null
 
     const dus = tData.dus_for_p2s_processing || []
-    const currentDuIndex = dus.indexOf(tData.current_du_for_p2s_processing || '')
+    const currentDu = tData.current_du_for_p2s_processing
+    
+    // Handle undefined or invalid current DU
+    if (!currentDu || !dus.includes(currentDu)) {
+      console.warn(`[PipelineOrchestrator] Invalid current_du_for_p2s_processing in checkP2SDuIteration: ${currentDu} for transcript ${transcriptId}`)
+      // Move to next transcript if available
+      if (activeTranscriptIndex < rawTranscripts.length - 1) {
+        return {
+          nextStepId: currentPart.steps[0],
+          nextTranscriptIndex: activeTranscriptIndex + 1,
+          iterationType: 'per-transcript'
+        }
+      }
+      // All transcripts processed, move to next part
+      return null
+    }
+    
+    const currentDuIndex = dus.indexOf(currentDu)
 
     // Check if more DUs to process for current transcript
     if (currentDuIndex < dus.length - 1) {
