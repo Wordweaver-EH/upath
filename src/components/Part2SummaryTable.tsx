@@ -36,6 +36,15 @@ const DUCellRenderer: React.FC<ICellRendererParams> = ({ data }) => {
 const ISUCellRenderer: React.FC<ICellRendererParams> = ({ data }) => {
   if (!data.isuName) return null;
   
+  // Special handling for empty DUs
+  if (data._isEmptyDU) {
+    return (
+      <div className="p-2 italic text-light-sidenote dark:text-dark-sidenote">
+        {data.isuName}
+      </div>
+    );
+  }
+  
   return (
     <div className="p-2">
       <div className="mb-1">

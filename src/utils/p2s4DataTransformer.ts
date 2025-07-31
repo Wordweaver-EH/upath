@@ -296,60 +296,87 @@ export function generateAgGridRows(summaryData: P2S4SummaryData): any[] {
         return a.unitName.localeCompare(b.unitName);
       });
     
-    sortedISUs.forEach(isu => {
-      let isFirstISURow = true;
-      
-      if (isu.utterances.length === 0) {
-        duRows.push({
-          id: `${du.id}_${isu.id}_empty`,
-          duName: isFirstDURow ? du.name : '',
-          duDescription: isFirstDURow ? du.description : '',
-          duSegmentCount: isFirstDURow ? du.segmentCount : '',
-          isuName: isu.unitName,
-          isuLevel: isu.level,
-          isuIsChild: isu.level > 1,
-          isuAbstractionOp: isu.abstractionOp,
-          isuDefinition: isu.intensionalDefinition,
-          utteranceText: 'No utterances',
-          utteranceSpeaker: '',
-          utteranceSegmentId: '',
-          utteranceTimestamp: '',
-          networkMermaid: isFirstDURow ? du.networkDiagram.mermaidSyntax : '',
-          networkNodeCount: isFirstDURow ? du.networkDiagram.nodeCount : '',
-          networkLinkCount: isFirstDURow ? du.networkDiagram.linkCount : '',
-          _isFirstDURow: isFirstDURow,
-          _duData: du
-        });
-        isFirstDURow = false;
-      } else {
-        isu.utterances.forEach((utterance, uttIndex) => {
+    // Check if DU has no ISUs
+    if (sortedISUs.length === 0) {
+      console.log(`[generateAgGridRows] DU ${du.name} has no ISUs - creating placeholder row`);
+      duRows.push({
+        id: `${du.id}_empty`,
+        duName: du.name,
+        duDescription: du.description || 'No description',
+        duSegmentCount: du.segmentCount,
+        isuName: 'No synchronic units identified',
+        isuLevel: '',
+        isuIsChild: false,
+        isuAbstractionOp: '',
+        isuDefinition: '',
+        utteranceText: '',
+        utteranceSpeaker: '',
+        utteranceSegmentId: '',
+        utteranceTimestamp: '',
+        networkMermaid: du.networkDiagram.mermaidSyntax || '',
+        networkNodeCount: du.networkDiagram.nodeCount || 0,
+        networkLinkCount: du.networkDiagram.linkCount || 0,
+        _isFirstDURow: true,
+        _isLastDURow: true,
+        _isEmptyDU: true,
+        _duData: du
+      });
+    } else {
+      sortedISUs.forEach(isu => {
+        let isFirstISURow = true;
+        
+        if (isu.utterances.length === 0) {
           duRows.push({
-            id: `${du.id}_${isu.id}_${utterance.id}`,
+            id: `${du.id}_${isu.id}_empty`,
             duName: isFirstDURow ? du.name : '',
             duDescription: isFirstDURow ? du.description : '',
             duSegmentCount: isFirstDURow ? du.segmentCount : '',
-            isuName: isFirstISURow ? isu.unitName : '',
-            isuLevel: isFirstISURow ? isu.level : '',
-            isuIsChild: isFirstISURow && isu.level > 1,
-            isuAbstractionOp: isFirstISURow ? isu.abstractionOp : '',
-            isuDefinition: isFirstISURow ? isu.intensionalDefinition : '',
-            utteranceText: utterance.text,
-            utteranceSpeaker: utterance.speaker,
-            utteranceSegmentId: utterance.segmentId,
-            utteranceTimestamp: utterance.timestamp || '',
+            isuName: isu.unitName,
+            isuLevel: isu.level,
+            isuIsChild: isu.level > 1,
+            isuAbstractionOp: isu.abstractionOp,
+            isuDefinition: isu.intensionalDefinition,
+            utteranceText: 'No utterances',
+            utteranceSpeaker: '',
+            utteranceSegmentId: '',
+            utteranceTimestamp: '',
             networkMermaid: isFirstDURow ? du.networkDiagram.mermaidSyntax : '',
             networkNodeCount: isFirstDURow ? du.networkDiagram.nodeCount : '',
             networkLinkCount: isFirstDURow ? du.networkDiagram.linkCount : '',
             _isFirstDURow: isFirstDURow,
-            _isFirstISURow: isFirstISURow,
-            _duData: du,
-            _isuData: isu
+            _duData: du
           });
           isFirstDURow = false;
-          isFirstISURow = false;
-        });
-      }
-    });
+        } else {
+          isu.utterances.forEach((utterance, uttIndex) => {
+            duRows.push({
+              id: `${du.id}_${isu.id}_${utterance.id}`,
+              duName: isFirstDURow ? du.name : '',
+              duDescription: isFirstDURow ? du.description : '',
+              duSegmentCount: isFirstDURow ? du.segmentCount : '',
+              isuName: isFirstISURow ? isu.unitName : '',
+              isuLevel: isFirstISURow ? isu.level : '',
+              isuIsChild: isFirstISURow && isu.level > 1,
+              isuAbstractionOp: isFirstISURow ? isu.abstractionOp : '',
+              isuDefinition: isFirstISURow ? isu.intensionalDefinition : '',
+              utteranceText: utterance.text,
+              utteranceSpeaker: utterance.speaker,
+              utteranceSegmentId: utterance.segmentId,
+              utteranceTimestamp: utterance.timestamp || '',
+              networkMermaid: isFirstDURow ? du.networkDiagram.mermaidSyntax : '',
+              networkNodeCount: isFirstDURow ? du.networkDiagram.nodeCount : '',
+              networkLinkCount: isFirstDURow ? du.networkDiagram.linkCount : '',
+              _isFirstDURow: isFirstDURow,
+              _isFirstISURow: isFirstISURow,
+              _duData: du,
+              _isuData: isu
+            });
+            isFirstDURow = false;
+            isFirstISURow = false;
+          });
+        }
+      });
+    }
     
     // Mark the last row of this DU
     if (duRows.length > 0) {

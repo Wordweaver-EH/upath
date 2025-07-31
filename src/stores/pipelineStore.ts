@@ -1028,6 +1028,10 @@ export const usePipelineStore = create<PipelineStore>()(
                 nD.p2s_outputs_by_du = {}
                 nD.isFullyProcessedSpecificSynchronic = dus.length === 0
                 console.log('🔍 [P1.4 Debug] Set DUs for P2S processing:', dus);
+                console.log('📊 [P2S Processing] Total DUs identified for Part 2 Synchronic analysis:', dus.length);
+                dus.forEach((duId, index) => {
+                  console.log(`  📌 DU ${index + 1}/${dus.length}: ${duId}`);
+                });
               }
               
               // Special handling for P1.5
@@ -1067,6 +1071,20 @@ export const usePipelineStore = create<PipelineStore>()(
               const existingP2SOutputs = tD.p2s_outputs_by_du || {};
               console.log(`[P2S Debug] Before update - Existing DUs with data:`, Object.keys(existingP2SOutputs));
               
+              // Log P2S processing details
+              console.log(`📝 [${stepId}] Processing DU: ${currentDu}`);
+              if (stepId === StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC && output) {
+                const thematicGroups = (output as any)?.synchronic_thematic_groups?.length || 0;
+                console.log(`  📊 [P2S.1] Thematic groups found: ${thematicGroups}`);
+              } else if (stepId === StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS && output) {
+                const isus = (output as any)?.specific_synchronic_units_hierarchy?.length || 0;
+                console.log(`  📊 [P2S.2] ISUs identified: ${isus}`);
+              } else if (stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE && output) {
+                const nodes = (output as any)?.specific_synchronic_structure?.network_nodes?.length || 0;
+                const links = (output as any)?.specific_synchronic_structure?.network_links?.length || 0;
+                console.log(`  📊 [P2S.3] Network structure: ${nodes} nodes, ${links} links`);
+              }
+              
               const uP2S = {
                 ...existingP2SOutputs,
                 [currentDu!]: {
@@ -1086,6 +1104,7 @@ export const usePipelineStore = create<PipelineStore>()(
                 newProcDus = Array.from(new Set([...newProcDus, currentDu!]))
                 const transcriptDus = tD.dus_for_p2s_processing || []
                 allDone = transcriptDus.length > 0 ? newProcDus.length === transcriptDus.length : true
+                console.log(`✅ [P2S.3] Completed DU: ${currentDu} (${newProcDus.length}/${transcriptDus.length} DUs processed)`);
               }
               
               state.processedData.set(transcriptIdToProcess, {
