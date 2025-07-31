@@ -129,11 +129,11 @@ describe('PipelineOrchestrator - P2S DU Iteration', () => {
         0
       )
 
-      // Should move to P2S_1 for next transcript
+      // Should move to P2S_4 after all DUs are processed
       expect(nextStep).toBeDefined()
-      expect(nextStep?.nextStepId).toBe(StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC)
-      expect(nextStep?.nextTranscriptIndex).toBe(1) // Move to transcript 2
-      expect(nextStep?.iterationType).toBe('per-transcript')
+      expect(nextStep?.nextStepId).toBe(StepId.P2S_4_SUMMARY_TABLE)
+      expect(nextStep?.nextTranscriptIndex).toBe(0) // Stay on same transcript
+      expect(nextStep?.iterationType).toBe('global')
     })
 
     it('should handle undefined current_du_for_p2s_processing gracefully', () => {
@@ -247,10 +247,10 @@ describe('PipelineOrchestrator - P2S DU Iteration', () => {
         1 // Last transcript
       )
 
-      // Should move to Part 3 (Generic Diachronic)
+      // Should move to P2S_4 before Part 3
       expect(nextStep).toBeDefined()
-      expect(nextStep?.nextStepId).toBe(StepId.P3_1_ALIGN_STRUCTURES)
-      expect(nextStep?.nextTranscriptIndex).toBe(0)
+      expect(nextStep?.nextStepId).toBe(StepId.P2S_4_SUMMARY_TABLE)
+      expect(nextStep?.nextTranscriptIndex).toBe(1) // Stay on last transcript
       expect(nextStep?.iterationType).toBe('global')
     })
   })
@@ -319,8 +319,69 @@ describe('PipelineOrchestrator - P2S DU Iteration', () => {
         0
       )
 
-      // Should move to next transcript after single DU
+      // Should move to P2S_4 after single DU
+      expect(nextStep?.nextStepId).toBe(StepId.P2S_4_SUMMARY_TABLE)
+      expect(nextStep?.nextTranscriptIndex).toBe(0)
+      expect(nextStep?.iterationType).toBe('global')
+    })
+  })
+
+  describe('P2S.4 Transitions', () => {
+    it('should move from P2S_4 to next transcript', () => {
+      // Set up completed P2S processing for transcript 1
+      const transcript1Data = mockProcessedData.get('transcript-1')!
+      transcript1Data.isFullyProcessedSpecificSynchronic = true
+      
+      mockProcessState.currentPartIndex = 3  // Part 2
+      mockProcessState.currentStepIndex = 3  // P2S_4
+
+      const currentStepInfo: CurrentStepInfo = {
+        stepId: StepId.P2S_4_SUMMARY_TABLE,
+        status: StepStatus.Success
+      }
+
+      const nextStep = orchestrator.getNextStep(
+        mockProcessState,
+        currentStepInfo,
+        { rawTranscripts: mockRawTranscripts, processedData: mockProcessedData, genericAnalysisState: mockGenericAnalysisState },
+        0
+      )
+
+      // Should move to P2S_1 for next transcript
+      expect(nextStep).toBeDefined()
+      expect(nextStep?.nextStepId).toBe(StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC)
       expect(nextStep?.nextTranscriptIndex).toBe(1)
+      expect(nextStep?.iterationType).toBe('per-transcript')
+    })
+
+    it('should move from P2S_4 to Part 3 when all transcripts complete', () => {
+      // Set both transcripts as fully processed
+      const transcript1Data = mockProcessedData.get('transcript-1')!
+      transcript1Data.isFullyProcessedSpecificSynchronic = true
+      
+      const transcript2Data = mockProcessedData.get('transcript-2')!
+      transcript2Data.isFullyProcessedSpecificSynchronic = true
+
+      mockProcessState.currentPartIndex = 3  // Part 2
+      mockProcessState.currentStepIndex = 3  // P2S_4
+
+      const currentStepInfo: CurrentStepInfo = {
+        stepId: StepId.P2S_4_SUMMARY_TABLE,
+        status: StepStatus.Success
+      }
+
+      const nextStep = orchestrator.getNextStep(
+        mockProcessState,
+        currentStepInfo,
+        { rawTranscripts: mockRawTranscripts, processedData: mockProcessedData, genericAnalysisState: mockGenericAnalysisState },
+        1 // Last transcript
+      )
+
+      // Should move to Part 3
+      expect(nextStep).toBeDefined()
+      expect(nextStep?.nextStepId).toBe(StepId.P3_1_ALIGN_STRUCTURES)
+      expect(nextStep?.nextTranscriptIndex).toBe(0)
+      expect(nextStep?.iterationType).toBe('global')
     })
   })
 
