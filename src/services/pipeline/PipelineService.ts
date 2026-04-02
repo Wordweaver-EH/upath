@@ -14,6 +14,7 @@ import { isGlobalStep } from '../../utils/stepIdToDataKeyPrefix'
 import { usePipelineOrchestrationStore } from '../../stores/pipelineOrchestrationStore'
 import { usePromptHistoryStore } from '../../stores/promptHistoryStore'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { useUIStore } from '../../stores/uiStore'
 
 import { StepParameterValidationService } from './StepParameterValidationService'
 import { StepContextPreparationService } from './StepContextPreparationService'
@@ -233,6 +234,10 @@ export class PipelineService {
             autoDownloadResults: settings.autoDownloadResults
           }
         }
+      },
+      uiStore: {
+        setCurrentStepInfo: (info) => useUIStore.getState().setCurrentStepInfo(info),
+        setActiveTranscript: (index) => useUIStore.getState().setActiveTranscript(index)
       }
     })
     

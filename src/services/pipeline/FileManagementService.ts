@@ -56,7 +56,7 @@ export class FileManagementService {
       if (typeof data.activeTranscriptIndex !== 'number') {
         throw new Error('Invalid state file: missing activeTranscriptIndex')
       }
-      if (!data.currentStepInfo || typeof data.currentStepInfo !== 'object') {
+      if (typeof data.currentStepInfo !== 'object' || data.currentStepInfo === null) {
         throw new Error('Invalid state file: missing currentStepInfo')
       }
       
@@ -65,7 +65,7 @@ export class FileManagementService {
       if (error instanceof Error && error.message.startsWith('Invalid state file:')) {
         throw error
       }
-      throw new Error('Invalid state file')
+      throw new Error(`Invalid state file: ${error instanceof Error ? error.message : String(error)}`)
     }
   }
   

@@ -99,6 +99,10 @@ describe('PipelineStateManagementService', () => {
           outputDirectory: 'outputs',
           autoDownloadResults: false
         })
+      },
+      uiStore: {
+        setCurrentStepInfo: vi.fn(),
+        setActiveTranscript: vi.fn()
       }
     }
 
@@ -181,6 +185,10 @@ describe('PipelineStateManagementService', () => {
         savedState.currentStepInfo
       )
       expect(mockDependencies.orchestrationStore.setActiveTranscriptIndex).toHaveBeenCalledWith(2)
+
+      // Verify uiStore is synced
+      expect(mockDependencies.uiStore.setCurrentStepInfo).toHaveBeenCalledWith(savedState.currentStepInfo)
+      expect(mockDependencies.uiStore.setActiveTranscript).toHaveBeenCalledWith(2)
     })
 
     it('should handle empty saved state', () => {
@@ -195,6 +203,10 @@ describe('PipelineStateManagementService', () => {
       expect(mockDependencies.settingsStore.updateSettings).toHaveBeenCalled()
       expect(mockDependencies.orchestrationStore.setCurrentStepInfo).toHaveBeenCalled()
       expect(mockDependencies.orchestrationStore.setActiveTranscriptIndex).toHaveBeenCalledWith(0)
+
+      // Verify uiStore is synced
+      expect(mockDependencies.uiStore.setCurrentStepInfo).toHaveBeenCalled()
+      expect(mockDependencies.uiStore.setActiveTranscript).toHaveBeenCalledWith(0)
     })
   })
 
@@ -327,6 +339,12 @@ describe('PipelineStateManagementService', () => {
         status: StepStatus.Idle
       })
       expect(mockDependencies.orchestrationStore.setShouldStopAutorun).toHaveBeenCalledWith(true)
+
+      // Verify uiStore is synced to IDLE on reset
+      expect(mockDependencies.uiStore.setCurrentStepInfo).toHaveBeenCalledWith({
+        stepId: StepId.IDLE,
+        status: StepStatus.Idle
+      })
     })
   })
 

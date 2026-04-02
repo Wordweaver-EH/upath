@@ -54,6 +54,12 @@ export interface StateManagementDependencies {
     }
   }
 
+  // UI store operations (for syncing visible state after loadState/reset)
+  uiStore: {
+    setCurrentStepInfo: (info: CurrentStepInfo) => void
+    setActiveTranscript: (index: number) => void
+  }
+
   // Settings store operations
   settingsStore: {
     updateSettings: (updates: {
@@ -124,6 +130,10 @@ export class PipelineStateManagementService implements IPipelineStateManagementS
     // Restore UI state (currentStepInfo and activeTranscriptIndex)
     orchestrationStore.setCurrentStepInfo(savedState.currentStepInfo)
     orchestrationStore.setActiveTranscriptIndex(savedState.activeTranscriptIndex)
+
+    // Sync uiStore so the visible UI reflects the loaded position
+    this.dependencies.uiStore.setCurrentStepInfo(savedState.currentStepInfo)
+    this.dependencies.uiStore.setActiveTranscript(savedState.activeTranscriptIndex)
   }
 
   /**
@@ -163,7 +173,7 @@ export class PipelineStateManagementService implements IPipelineStateManagementS
    * Reset all pipeline-related state
    */
   resetPipeline(): void {
-    const { transcriptStore, analysisResultStore, promptHistoryStore, orchestrationStore } = this.dependencies
+    const { transcriptStore, analysisResultStore, promptHistoryStore, orchestrationStore, uiStore } = this.dependencies
     
     // Reset transcript store
     transcriptStore.reset()
@@ -205,11 +215,14 @@ export class PipelineStateManagementService implements IPipelineStateManagementS
     promptHistoryStore.reset()
     
     // Signal UI state reset
-    orchestrationStore.setCurrentStepInfo({ 
-      stepId: StepId.IDLE, 
-      status: StepStatus.Idle 
+    orchestrationStore.setCurrentStepInfo({
+      stepId: StepId.IDLE,
+      status: StepStatus.Idle
     })
     orchestrationStore.setShouldStopAutorun(true)
+
+    // Sync uiStore so the visible UI reflects the reset position
+    uiStore.setCurrentStepInfo({ stepId: StepId.IDLE, status: StepStatus.Idle })
   }
   
   /**
