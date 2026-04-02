@@ -368,11 +368,7 @@ export interface IPipelineService {
   
   // State management
   loadState(savedState: any): void
-  getSaveState(
-    activeTranscriptIndex: number,
-    currentStepInfo: CurrentStepInfo,
-    settings: any
-  ): any
+  getSaveState(): any
   resetPipeline(): void
   resetPromptHistoryOnly(): void
   clearAutosaveData(): Promise<void>

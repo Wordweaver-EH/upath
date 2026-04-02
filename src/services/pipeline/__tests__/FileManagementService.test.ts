@@ -93,14 +93,13 @@ describe('FileManagementService', () => {
     it('should save state to JSON file', () => {
       const mockState = {
         rawTranscripts: [],
-        processedData: [],
+        processedDataArray: [],
         genericAnalysisState: {},
         promptHistory: [],
-        settings: {},
         activeTranscriptIndex: 0,
         currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle }
       }
-      
+
       service.saveStateToFile(mockState, 'test-state.json')
       
       expect(global.URL.createObjectURL).toHaveBeenCalledWith(
@@ -115,18 +114,17 @@ describe('FileManagementService', () => {
     it('should load valid state from file', async () => {
       const validState = {
         rawTranscripts: [],
-        processedData: [],
+        processedDataArray: [],
         genericAnalysisState: {},
         promptHistory: [],
-        settings: {},
         activeTranscriptIndex: 0,
         currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle }
       }
-      
+
       const mockFile = createMockFile(JSON.stringify(validState), 'state.json')
-      
+
       const result = await service.loadStateFromFile(mockFile)
-      
+
       expect(result).toEqual(validState)
     })
     

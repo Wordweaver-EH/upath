@@ -97,13 +97,7 @@ export const useStoreActions = () => {
       service.handleDroppedFiles(files),
     
     saveStateToFile: () => {
-      const settings = {
-        apiKey: useSettingsStore.getState().apiKey,
-        temperature: useSettingsStore.getState().temperature,
-        seed: useSettingsStore.getState().seed,
-        userDvFocus: useSettingsStore.getState().userDvFocus
-      }
-      const savedState = service.getSaveState(activeTranscriptIndex, currentStepInfo, settings)
+      const savedState = service.getSaveState()
       service.saveStateToFile(savedState, `upath-session-${Date.now()}.json`)
     },
     

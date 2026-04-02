@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { PipelineStateManagementService } from '../PipelineStateManagementService'
-import { 
-  SavedState, 
-  StepId, 
+import {
+  SavedState,
+  StepId,
   StepStatus,
   RawTranscript,
   TranscriptProcessedData,
   GenericAnalysisState,
-  PromptHistoryEntry
+  PromptHistoryEntry,
+  UserDVFocus
 } from '../../../../types'
 import { localForageStorage } from '../../../utils/storage'
 
@@ -18,13 +19,33 @@ vi.mock('../../../utils/storage', () => ({
   }
 }))
 
+const makeDefaultSavedState = (overrides: Partial<SavedState> = {}): SavedState => ({
+  version: '1.0',
+  rawTranscripts: [],
+  processedDataArray: [],
+  genericAnalysisState: {} as GenericAnalysisState,
+  promptHistory: [],
+  activeTranscriptIndex: 0,
+  currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle },
+  userDvFocus: { dv_focus: [] } as UserDVFocus,
+  dvFocusInput: '',
+  temperature: 0.7,
+  seedInput: '42',
+  outputDirectory: 'outputs',
+  autoDownloadResults: false,
+  totalInputTokens: 0,
+  totalOutputTokens: 0,
+  elapsedTime: 0,
+  ...overrides
+})
+
 describe('PipelineStateManagementService', () => {
   let service: PipelineStateManagementService
   let mockDependencies: any
-  
+
   beforeEach(() => {
     vi.clearAllMocks()
-    
+
     // Create mock dependencies
     mockDependencies = {
       transcriptStore: {
@@ -60,13 +81,30 @@ describe('PipelineStateManagementService', () => {
       },
       orchestrationStore: {
         setCurrentStepInfo: vi.fn(),
-        setShouldStopAutorun: vi.fn()
+        setActiveTranscriptIndex: vi.fn(),
+        setShouldStopAutorun: vi.fn(),
+        getState: vi.fn().mockReturnValue({
+          currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle },
+          activeTranscriptIndex: 0
+        })
+      },
+      settingsStore: {
+        updateSettings: vi.fn(),
+        getState: vi.fn().mockReturnValue({
+          userDvFocus: { dv_focus: [] } as UserDVFocus,
+          dvFocusInput: '',
+          temperature: 0.7,
+          seedInput: '42',
+          seed: 42,
+          outputDirectory: 'outputs',
+          autoDownloadResults: false
+        })
       }
     }
-    
+
     service = new PipelineStateManagementService(mockDependencies)
   })
-  
+
   describe('loadState', () => {
     it('should load saved state into all stores correctly', () => {
       const mockTranscript: RawTranscript = {
@@ -74,14 +112,14 @@ describe('PipelineStateManagementService', () => {
         filename: 'test.txt',
         content: 'test content'
       }
-      
+
       const mockProcessedData: TranscriptProcessedData = {
         filename: 'test.txt',
         p_neg1_1_output: { variables: [] },
         isFullyProcessedSpecificDiachronic: false,
         isFullyProcessedSpecificSynchronic: false
       }
-      
+
       const mockPromptEntry: PromptHistoryEntry = {
         timestamp: new Date(),
         stepId: StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
@@ -91,10 +129,10 @@ describe('PipelineStateManagementService', () => {
         estimatedInputTokens: 100,
         estimatedOutputTokens: 50
       }
-      
-      const savedState: SavedState = {
-        version: '1.0',
-        savedAt: new Date().toISOString(),
+
+      const mockUserDvFocus: UserDVFocus = { dv_focus: ['cognitions', 'emotions'] }
+
+      const savedState = makeDefaultSavedState({
         rawTranscripts: [mockTranscript],
         processedDataArray: [['transcript-1', mockProcessedData]],
         genericAnalysisState: {
@@ -102,56 +140,64 @@ describe('PipelineStateManagementService', () => {
           isFullyProcessedGenericDiachronic: true
         } as GenericAnalysisState,
         promptHistory: [mockPromptEntry],
-        activeTranscriptIndex: 0,
+        activeTranscriptIndex: 2,
         totalInputTokens: 100,
         totalOutputTokens: 50,
-        userDvFocus: 'test focus',
-        temperature: 0.7,
-        seed: 12345,
+        userDvFocus: mockUserDvFocus,
+        dvFocusInput: 'cognitions, emotions',
+        temperature: 0.8,
+        seedInput: '99',
+        outputDirectory: 'my-outputs',
+        autoDownloadResults: true,
         currentStepInfo: { stepId: StepId.P3_1_IDENTIFY_GDUS, status: StepStatus.Success }
-      }
-      
+      })
+
       service.loadState(savedState)
-      
+
       // Verify transcript store operations
       expect(mockDependencies.transcriptStore.reset).toHaveBeenCalledOnce()
       expect(mockDependencies.transcriptStore.addTranscriptsSync).toHaveBeenCalledWith([mockTranscript])
       expect(mockDependencies.transcriptStore.updateProcessedData).toHaveBeenCalledWith('transcript-1', mockProcessedData)
-      
+
       // Verify analysis result store operations
       expect(mockDependencies.analysisResultStore.updateGenericState).toHaveBeenCalledWith(savedState.genericAnalysisState)
-      
+
       // Verify prompt history store operations
       expect(mockDependencies.promptHistoryStore.reset).toHaveBeenCalledOnce()
       expect(mockDependencies.promptHistoryStore.addPromptEntry).toHaveBeenCalledWith(mockPromptEntry)
+
+      // Verify settings store operations
+      expect(mockDependencies.settingsStore.updateSettings).toHaveBeenCalledWith({
+        userDvFocus: mockUserDvFocus,
+        dvFocusInput: 'cognitions, emotions',
+        temperature: 0.8,
+        seedInput: '99',
+        outputDirectory: 'my-outputs',
+        autoDownloadResults: true
+      })
+
+      // Verify orchestration store operations
+      expect(mockDependencies.orchestrationStore.setCurrentStepInfo).toHaveBeenCalledWith(
+        savedState.currentStepInfo
+      )
+      expect(mockDependencies.orchestrationStore.setActiveTranscriptIndex).toHaveBeenCalledWith(2)
     })
-    
+
     it('should handle empty saved state', () => {
-      const savedState: SavedState = {
-        version: '1.0',
-        savedAt: new Date().toISOString(),
-        rawTranscripts: [],
-        processedDataArray: [],
-        genericAnalysisState: {} as GenericAnalysisState,
-        promptHistory: [],
-        activeTranscriptIndex: 0,
-        totalInputTokens: 0,
-        totalOutputTokens: 0,
-        userDvFocus: '',
-        temperature: 0.7,
-        seed: 0,
-        currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle }
-      }
-      
+      const savedState = makeDefaultSavedState()
+
       service.loadState(savedState)
-      
+
       expect(mockDependencies.transcriptStore.reset).toHaveBeenCalledOnce()
       expect(mockDependencies.transcriptStore.addTranscriptsSync).toHaveBeenCalledWith([])
       expect(mockDependencies.analysisResultStore.updateGenericState).toHaveBeenCalledWith({})
       expect(mockDependencies.promptHistoryStore.reset).toHaveBeenCalledOnce()
+      expect(mockDependencies.settingsStore.updateSettings).toHaveBeenCalled()
+      expect(mockDependencies.orchestrationStore.setCurrentStepInfo).toHaveBeenCalled()
+      expect(mockDependencies.orchestrationStore.setActiveTranscriptIndex).toHaveBeenCalledWith(0)
     })
   })
-  
+
   describe('getSaveState', () => {
     it('should extract current state from all stores', () => {
       const mockTranscript: RawTranscript = {
@@ -159,11 +205,11 @@ describe('PipelineStateManagementService', () => {
         filename: 'test.txt',
         content: 'test content'
       }
-      
+
       const mockProcessedData = new Map([
         ['transcript-1', { filename: 'test.txt' } as TranscriptProcessedData]
       ])
-      
+
       const mockPromptHistory: PromptHistoryEntry[] = [{
         timestamp: new Date(),
         stepId: StepId.P3_1_IDENTIFY_GDUS,
@@ -172,41 +218,47 @@ describe('PipelineStateManagementService', () => {
         estimatedInputTokens: 100,
         estimatedOutputTokens: 50
       }]
-      
+
+      const mockUserDvFocus: UserDVFocus = { dv_focus: ['cognitions'] }
+      const mockCurrentStepInfo = { stepId: StepId.P3_1_IDENTIFY_GDUS, status: StepStatus.Success }
+
       mockDependencies.transcriptStore.getState.mockReturnValue({
         rawTranscripts: [mockTranscript],
         processedData: mockProcessedData
       })
-      
+
       mockDependencies.analysisResultStore.getState.mockReturnValue({
         genericAnalysisState: {
           p3_1_output: { test: 'data' },
           isFullyProcessedGenericDiachronic: true
         }
       })
-      
+
       mockDependencies.promptHistoryStore.getState.mockReturnValue({
         promptHistory: mockPromptHistory,
         totalInputTokens: 100,
         totalOutputTokens: 50
       })
-      
-      const settings = {
-        userDvFocus: 'test focus',
-        temperature: 0.7,
-        seed: 12345
-      }
-      
-      const currentStepInfo = { 
-        stepId: StepId.P3_1_IDENTIFY_GDUS, 
-        status: StepStatus.Success 
-      }
-      
-      const result = service.getSaveState(0, currentStepInfo, settings)
-      
+
+      mockDependencies.orchestrationStore.getState.mockReturnValue({
+        currentStepInfo: mockCurrentStepInfo,
+        activeTranscriptIndex: 3
+      })
+
+      mockDependencies.settingsStore.getState.mockReturnValue({
+        userDvFocus: mockUserDvFocus,
+        dvFocusInput: 'cognitions',
+        temperature: 0.9,
+        seedInput: '123',
+        seed: 123,
+        outputDirectory: 'test-outputs',
+        autoDownloadResults: true
+      })
+
+      const result = service.getSaveState()
+
       expect(result).toEqual({
         version: '1.0',
-        savedAt: expect.any(String),
         rawTranscripts: [mockTranscript],
         processedDataArray: [['transcript-1', { filename: 'test.txt' }]],
         genericAnalysisState: {
@@ -214,21 +266,25 @@ describe('PipelineStateManagementService', () => {
           isFullyProcessedGenericDiachronic: true
         },
         promptHistory: mockPromptHistory,
-        activeTranscriptIndex: 0,
+        activeTranscriptIndex: 3,
+        currentStepInfo: mockCurrentStepInfo,
         totalInputTokens: 100,
         totalOutputTokens: 50,
-        userDvFocus: 'test focus',
-        temperature: 0.7,
-        seed: 12345,
-        currentStepInfo: currentStepInfo
+        userDvFocus: mockUserDvFocus,
+        dvFocusInput: 'cognitions',
+        temperature: 0.9,
+        seedInput: '123',
+        outputDirectory: 'test-outputs',
+        autoDownloadResults: true,
+        elapsedTime: 0
       })
     })
   })
-  
+
   describe('resetPipeline', () => {
     it('should reset all pipeline-related state', () => {
       service.resetPipeline()
-      
+
       // Verify analysis state is reset
       expect(mockDependencies.analysisResultStore.updateGenericState).toHaveBeenCalledWith({
         p3_1_output: undefined,
@@ -261,10 +317,10 @@ describe('PipelineStateManagementService', () => {
         p7_1_error: undefined,
         p7_1_mermaid_syntax: undefined
       })
-      
+
       // Verify prompt history is reset
       expect(mockDependencies.promptHistoryStore.reset).toHaveBeenCalledOnce()
-      
+
       // Verify UI state is reset
       expect(mockDependencies.orchestrationStore.setCurrentStepInfo).toHaveBeenCalledWith({
         stepId: StepId.IDLE,
@@ -273,52 +329,40 @@ describe('PipelineStateManagementService', () => {
       expect(mockDependencies.orchestrationStore.setShouldStopAutorun).toHaveBeenCalledWith(true)
     })
   })
-  
+
   describe('clearAutosaveData', () => {
     it('should clear autosave data from storage', async () => {
       vi.mocked(localForageStorage.removeItem).mockResolvedValue(undefined)
-      
+
       await service.clearAutosaveData()
-      
+
       expect(localForageStorage.removeItem).toHaveBeenCalledWith('upath-autosave-session-v2-localforage')
     })
-    
+
     it('should handle storage errors', async () => {
       const error = new Error('Storage error')
       vi.mocked(localForageStorage.removeItem).mockRejectedValue(error)
-      
+
       await expect(service.clearAutosaveData()).rejects.toThrow('Storage error')
     })
   })
-  
+
   describe('edge cases', () => {
     it('should handle malformed processedDataArray entries', () => {
-      const savedState: SavedState = {
-        version: '1.0',
-        savedAt: new Date().toISOString(),
-        rawTranscripts: [],
+      const savedState = makeDefaultSavedState({
         processedDataArray: [
           ['transcript-1', { filename: 'test.txt' } as TranscriptProcessedData],
           ['transcript-2', null as any], // Malformed entry
           [null as any, { filename: 'test2.txt' } as TranscriptProcessedData] // Invalid ID
-        ],
-        genericAnalysisState: {} as GenericAnalysisState,
-        promptHistory: [],
-        activeTranscriptIndex: 0,
-        totalInputTokens: 0,
-        totalOutputTokens: 0,
-        userDvFocus: '',
-        temperature: 0.7,
-        seed: 0,
-        currentStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle }
-      }
-      
+        ]
+      })
+
       // Should not throw
       expect(() => service.loadState(savedState)).not.toThrow()
-      
-      // Should still call updateProcessedData for valid entries
+
+      // Should still call updateProcessedData for all entries
       expect(mockDependencies.transcriptStore.updateProcessedData).toHaveBeenCalledWith(
-        'transcript-1', 
+        'transcript-1',
         { filename: 'test.txt' }
       )
       expect(mockDependencies.transcriptStore.updateProcessedData).toHaveBeenCalledWith(
@@ -330,20 +374,20 @@ describe('PipelineStateManagementService', () => {
         { filename: 'test2.txt' }
       )
     })
-    
+
     it('should handle concurrent state operations', async () => {
       // Mock successful removal for concurrent operations test
       vi.mocked(localForageStorage.removeItem).mockResolvedValue(undefined)
-      
+
       // Simulate concurrent operations
       const promises = [
         service.clearAutosaveData(),
         service.clearAutosaveData(),
         service.clearAutosaveData()
       ]
-      
+
       await Promise.all(promises)
-      
+
       // Should handle concurrent calls gracefully
       expect(localForageStorage.removeItem).toHaveBeenCalledTimes(3)
     })

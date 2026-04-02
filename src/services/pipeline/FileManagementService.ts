@@ -44,7 +44,7 @@ export class FileManagementService {
       if (!data.rawTranscripts || !Array.isArray(data.rawTranscripts)) {
         throw new Error('Invalid state file: missing rawTranscripts')
       }
-      if (!data.processedData || !Array.isArray(data.processedData)) {
+      if (!data.processedDataArray || !Array.isArray(data.processedDataArray)) {
         throw new Error('Invalid state file: missing processedData')
       }
       if (!data.genericAnalysisState || typeof data.genericAnalysisState !== 'object') {
@@ -52,9 +52,6 @@ export class FileManagementService {
       }
       if (!data.promptHistory || !Array.isArray(data.promptHistory)) {
         throw new Error('Invalid state file: missing promptHistory')
-      }
-      if (!data.settings || typeof data.settings !== 'object') {
-        throw new Error('Invalid state file: missing settings')
       }
       if (typeof data.activeTranscriptIndex !== 'number') {
         throw new Error('Invalid state file: missing activeTranscriptIndex')

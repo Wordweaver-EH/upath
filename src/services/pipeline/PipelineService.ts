@@ -12,6 +12,8 @@ import {
 import { useAnalysisResultStore } from '../../stores/analysisResultStore'
 import { isGlobalStep } from '../../utils/stepIdToDataKeyPrefix'
 import { usePipelineOrchestrationStore } from '../../stores/pipelineOrchestrationStore'
+import { usePromptHistoryStore } from '../../stores/promptHistoryStore'
+import { useSettingsStore } from '../../stores/settingsStore'
 
 import { StepParameterValidationService } from './StepParameterValidationService'
 import { StepContextPreparationService } from './StepContextPreparationService'
@@ -29,8 +31,6 @@ import { ExportService } from './ExportService'
 import { PipelineStateManagementService } from './PipelineStateManagementService'
 import { PipelineUIService } from './PipelineUIService'
 import { StoreTransactionService } from './StoreTransactionService'
-import { usePipelineOrchestrationStore } from '../../stores/pipelineOrchestrationStore'
-import { usePromptHistoryStore } from '../../stores/promptHistoryStore'
 
 /**
  * Master service that composes all pipeline services into a cohesive API
@@ -197,7 +197,6 @@ export class PipelineService {
         reset: dependencies.resetPromptHistory,
         addPromptEntry: dependencies.addPromptEntry,
         getState: () => {
-          // Get the actual prompt history store state
           const promptHistoryStore = usePromptHistoryStore.getState()
           return {
             promptHistory: promptHistoryStore.promptHistory,
@@ -208,16 +207,32 @@ export class PipelineService {
       },
       orchestrationStore: {
         setCurrentStepInfo: dependencies.setCurrentStepInfo,
-        setShouldStopAutorun: (value: boolean) => {
-          // Get the actual orchestration store and call the method
+        setActiveTranscriptIndex: (index: number) =>
+          usePipelineOrchestrationStore.getState().setActiveTranscriptIndex(index),
+        setShouldStopAutorun: (value: boolean) =>
+          usePipelineOrchestrationStore.getState().setShouldStopAutorun(value),
+        getState: () => {
           const orchestrationStore = usePipelineOrchestrationStore.getState()
-          orchestrationStore.setShouldStopAutorun(value)
-        },
-        reset: dependencies.resetOrchestrationState,
-        getState: () => ({
-          currentStepInfo: dependencies.getCurrentStepInfo(),
-          autorunning: false // This would come from the actual store
-        })
+          return {
+            currentStepInfo: orchestrationStore.currentStepInfo,
+            activeTranscriptIndex: orchestrationStore.activeTranscriptIndex || 0
+          }
+        }
+      },
+      settingsStore: {
+        updateSettings: (updates) => useSettingsStore.getState().updateSettings(updates),
+        getState: () => {
+          const settings = useSettingsStore.getState()
+          return {
+            userDvFocus: settings.userDvFocus,
+            dvFocusInput: settings.dvFocusInput,
+            temperature: settings.temperature,
+            seedInput: settings.seedInput,
+            seed: settings.seed,
+            outputDirectory: settings.outputDirectory,
+            autoDownloadResults: settings.autoDownloadResults
+          }
+        }
       }
     })
     
@@ -321,16 +336,8 @@ export class PipelineService {
     this.stateManagementService.loadState(savedState)
   }
   
-  getSaveState(
-    activeTranscriptIndex: number,
-    currentStepInfo: CurrentStepInfo,
-    settings: any
-  ): SavedState {
-    return this.stateManagementService.getSaveState(
-      activeTranscriptIndex,
-      currentStepInfo,
-      settings
-    )
+  getSaveState(): SavedState {
+    return this.stateManagementService.getSaveState()
   }
   
   resetPipeline(): void {

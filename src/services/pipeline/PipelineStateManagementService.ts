@@ -1,12 +1,13 @@
-import { 
-  SavedState, 
+import {
+  SavedState,
   GenericAnalysisState,
   CurrentStepInfo,
   StepId,
   StepStatus,
   RawTranscript,
   TranscriptProcessedData,
-  PromptHistoryEntry
+  PromptHistoryEntry,
+  UserDVFocus
 } from '../../../types'
 import { localForageStorage } from '../../utils/storage'
 
@@ -22,7 +23,7 @@ export interface StateManagementDependencies {
       processedData: Map<string, TranscriptProcessedData>
     }
   }
-  
+
   // Analysis result store operations
   analysisResultStore: {
     updateGenericState: (updates: Partial<GenericAnalysisState>) => void
@@ -30,7 +31,7 @@ export interface StateManagementDependencies {
       genericAnalysisState: GenericAnalysisState
     }
   }
-  
+
   // Prompt history store operations
   promptHistoryStore: {
     reset: () => void
@@ -41,93 +42,120 @@ export interface StateManagementDependencies {
       totalOutputTokens: number
     }
   }
-  
+
   // Pipeline orchestration store operations
   orchestrationStore: {
     setCurrentStepInfo: (info: CurrentStepInfo) => void
+    setActiveTranscriptIndex: (index: number) => void
     setShouldStopAutorun: (value: boolean) => void
+    getState: () => {
+      currentStepInfo: CurrentStepInfo
+      activeTranscriptIndex: number
+    }
+  }
+
+  // Settings store operations
+  settingsStore: {
+    updateSettings: (updates: {
+      userDvFocus?: UserDVFocus
+      dvFocusInput?: string
+      temperature?: number
+      seedInput?: string
+      seed?: number
+      outputDirectory?: string
+      autoDownloadResults?: boolean
+    }) => void
+    getState: () => {
+      userDvFocus: UserDVFocus
+      dvFocusInput: string
+      temperature: number
+      seedInput: string
+      seed: number | undefined
+      outputDirectory: string
+      autoDownloadResults: boolean
+    }
   }
 }
 
 export interface IPipelineStateManagementService {
   loadState(savedState: SavedState): void
-  getSaveState(
-    activeTranscriptIndex: number,
-    currentStepInfo: CurrentStepInfo,
-    settings: {
-      userDvFocus: string
-      temperature: number
-      seed: number
-    }
-  ): SavedState
+  getSaveState(): SavedState
   resetPipeline(): void
   clearAutosaveData(): Promise<void>
 }
 
 export class PipelineStateManagementService implements IPipelineStateManagementService {
   constructor(private dependencies: StateManagementDependencies) {}
-  
+
   /**
    * Load a saved state into all stores
    */
   loadState(savedState: SavedState): void {
-    const { transcriptStore, analysisResultStore, promptHistoryStore } = this.dependencies
-    
+    const { transcriptStore, analysisResultStore, promptHistoryStore, orchestrationStore, settingsStore } = this.dependencies
+
     // Load transcript data
     transcriptStore.reset()
     transcriptStore.addTranscriptsSync(savedState.rawTranscripts)
-    
-    // Restore processed data entries
+
+    // Restore processed data entries (Map revived from Array<[string, data]>)
     savedState.processedDataArray.forEach(([id, data]) => {
       transcriptStore.updateProcessedData(id, data)
     })
-    
+
     // Load generic analysis state
     analysisResultStore.updateGenericState(savedState.genericAnalysisState)
-    
+
     // Load prompt history
     promptHistoryStore.reset()
     savedState.promptHistory.forEach(entry => {
       promptHistoryStore.addPromptEntry(entry)
     })
-    
-    // Note: UI state (currentStepInfo) is not restored from saved state
-    // The caller should handle UI state updates if needed
+
+    // Restore settings from saved state
+    settingsStore.updateSettings({
+      userDvFocus: savedState.userDvFocus,
+      dvFocusInput: savedState.dvFocusInput,
+      temperature: savedState.temperature,
+      seedInput: savedState.seedInput,
+      outputDirectory: savedState.outputDirectory,
+      autoDownloadResults: savedState.autoDownloadResults
+    })
+
+    // Restore UI state (currentStepInfo and activeTranscriptIndex)
+    orchestrationStore.setCurrentStepInfo(savedState.currentStepInfo)
+    orchestrationStore.setActiveTranscriptIndex(savedState.activeTranscriptIndex)
   }
-  
+
   /**
    * Get current state from all stores for saving
    */
-  getSaveState(
-    activeTranscriptIndex: number,
-    currentStepInfo: CurrentStepInfo,
-    settings: {
-      userDvFocus: string
-      temperature: number
-      seed: number
-    }
-  ): SavedState {
-    const { transcriptStore, analysisResultStore, promptHistoryStore } = this.dependencies
-    
+  getSaveState(): SavedState {
+    const { transcriptStore, analysisResultStore, promptHistoryStore, orchestrationStore, settingsStore } = this.dependencies
+
     // Get state from all stores
     const transcriptState = transcriptStore.getState()
     const analysisState = analysisResultStore.getState()
     const historyState = promptHistoryStore.getState()
-    
+    const orchestrationState = orchestrationStore.getState()
+    const settings = settingsStore.getState()
+
     return {
       version: '1.0',
-      savedAt: new Date().toISOString(),
       rawTranscripts: transcriptState.rawTranscripts,
       processedDataArray: Array.from(transcriptState.processedData.entries()),
       genericAnalysisState: analysisState.genericAnalysisState,
       promptHistory: historyState.promptHistory,
-      activeTranscriptIndex: activeTranscriptIndex,
+      activeTranscriptIndex: orchestrationState.activeTranscriptIndex,
+      currentStepInfo: orchestrationState.currentStepInfo,
       totalInputTokens: historyState.totalInputTokens,
       totalOutputTokens: historyState.totalOutputTokens,
       userDvFocus: settings.userDvFocus,
+      dvFocusInput: settings.dvFocusInput,
       temperature: settings.temperature,
-      seed: settings.seed,
-      currentStepInfo: currentStepInfo
+      seedInput: settings.seedInput,
+      outputDirectory: settings.outputDirectory,
+      autoDownloadResults: settings.autoDownloadResults,
+      elapsedTime: 0  // Transient: not tracked across saves
     }
   }
   
