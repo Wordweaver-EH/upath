@@ -17,6 +17,7 @@ run_log
 # Environment variables
 .env
 upath-backend/.env
+upath-backend/node_modules/
 
 # Editor directories and files
 .vscode/*
