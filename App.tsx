@@ -88,8 +88,8 @@ const ReportRenderer: React.FC<ReportRendererProps> = ({ markdown, theme }) => {
     };
 
     const options: MarkedOptions = { renderer };
-    const parsed = marked.parse(markdown, options) as string;
-    setHtml(DOMPurify.sanitize(parsed, { ADD_TAGS: ['div'], ADD_ATTR: ['class'] }));
+    const parsed = marked.parse(markdown ?? '', options) as string;
+    setHtml(DOMPurify.sanitize(parsed));
   }, [markdown]);
 
   useEffect(() => {
