@@ -3,6 +3,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { marked, Renderer as MarkedRenderer, MarkedOptions, Tokens } from 'marked';
+import DOMPurify from 'dompurify';
 import {
   TranscriptProcessedData, GenericAnalysisState, StepId, StepStatus,
   P2SPhaseData, IrrWorkflowState, IrrResults, P9_1_SemanticGduMapping,
@@ -88,7 +89,7 @@ const ReportRenderer: React.FC<ReportRendererProps> = ({ markdown, theme }) => {
 
     const options: MarkedOptions = { renderer };
     const parsed = marked.parse(markdown, options) as string;
-    setHtml(parsed);
+    setHtml(DOMPurify.sanitize(parsed, { ADD_TAGS: ['div'], ADD_ATTR: ['class'] }));
   }, [markdown]);
 
   useEffect(() => {
