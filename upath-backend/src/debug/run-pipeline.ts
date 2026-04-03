@@ -233,6 +233,92 @@ async function runP13(p1_2_output: unknown, model: string): Promise<unknown> {
   };
 }
 
+// ── P2S per-DU runner ─────────────────────────────────────────────────────────
+
+async function runP2S(
+  stepAlias: 'p2s_1' | 'p2s_2' | 'p2s_3',
+  input: unknown,
+  model: string
+): Promise<{ transcript_id: string; p2s_outputs_by_du: Record<string, unknown> }> {
+  const entry = STEP_REGISTRY[stepAlias];
+  const cfg = entry.config;
+  if (!cfg?.generatePrompt) throw new Error(`No generatePrompt for ${stepAlias}`);
+
+  const p2sByDu: Record<string, unknown> = {};
+
+  if (stepAlias === 'p2s_1') {
+    // input is p1_5 output. Also need p1_4 (DU→segment IDs) and p1_1 (segment text).
+    const p1_5 = input as Record<string, unknown>;
+    const p1_4 = loadJsonFile(path.join(DEBUG_OUTPUT_DIR, 'p1_4_output.json')) as Record<string, unknown>;
+    const p1_1 = loadJsonFile(path.join(DEBUG_OUTPUT_DIR, 'p1_1_output.json')) as Record<string, unknown>;
+
+    const dus = (p1_4['diachronic_units'] as Array<Record<string, unknown>>) ?? [];
+
+    for (const du of dus) {
+      const duId = String(du['unit_id']);
+      const segIds = new Set<string>(
+        ((du['source_segment_ids'] as string[]) ?? [])
+      );
+      const segments: unknown[] = [];
+
+      // Collect segment objects from P1.1 output that belong to this DU
+      const segmentedUtterances = (p1_1['segmented_utterances'] as Array<Record<string, unknown>>) ?? [];
+      for (const segContainer of segmentedUtterances) {
+        const segs = (segContainer['segments'] as Array<Record<string, unknown>>) ?? [];
+        for (const seg of segs) {
+          if (segIds.has(String(seg['segment_id']))) segments.push(seg);
+        }
+      }
+
+      if (segments.length === 0) {
+        console.error(`  [p2s_1] WARNING: no segments for DU ${duId} — skipping`);
+        continue;
+      }
+
+      const duInput = {
+        transcript_id: String(p1_5['transcript_id']),
+        analyzed_du_id: duId,
+        segments_for_du_analysis: segments,
+        independent_variable_details: String(p1_4['independent_variable_details']),
+        dependent_variable_focus: p1_4['dependent_variable_focus'],
+      };
+
+      console.error(`  → DU ${duId} (${segments.length} segments)…`);
+      const prompt = cfg.generatePrompt(duInput);
+      const duOutput = await callGemini(prompt, model, cfg.isJsonOutput, cfg.responseSchema);
+      p2sByDu[duId] = { p2s_1_output: duOutput };
+    }
+
+    return { transcript_id: String(p1_5['transcript_id']), p2s_outputs_by_du: p2sByDu };
+  }
+
+  if (stepAlias === 'p2s_2') {
+    // input is p2s_1 aggregate output
+    const agg = input as { transcript_id: string; p2s_outputs_by_du: Record<string, Record<string, unknown>> };
+    for (const [duId, duData] of Object.entries(agg.p2s_outputs_by_du)) {
+      const duInput = duData['p2s_1_output'];
+      if (duInput === undefined) continue;
+      console.error(`  → DU ${duId}…`);
+      const prompt = cfg.generatePrompt(duInput);
+      const duOutput = await callGemini(prompt, model, cfg.isJsonOutput, cfg.responseSchema);
+      p2sByDu[duId] = { ...duData, p2s_2_output: duOutput };
+    }
+    return { transcript_id: agg.transcript_id, p2s_outputs_by_du: p2sByDu };
+  }
+
+  // p2s_3: input is p2s_2 aggregate output
+  const agg = input as { transcript_id: string; p2s_outputs_by_du: Record<string, Record<string, unknown>> };
+  for (const [duId, duData] of Object.entries(agg.p2s_outputs_by_du)) {
+    const duInput = duData['p2s_2_output'];
+    if (duInput === undefined) continue;
+    console.error(`  → DU ${duId}…`);
+    const prompt = cfg.generatePrompt(duInput);
+    const duOutput = await callGemini(prompt, model, cfg.isJsonOutput, cfg.responseSchema);
+    p2sByDu[duId] = { ...duData, p2s_3_output: duOutput };
+  }
+  return { transcript_id: agg.transcript_id, p2s_outputs_by_du: p2sByDu };
+}
+
 // ── Chain orchestration ───────────────────────────────────────────────────────
 
 function resolveStepRange(fromAlias: string, toAlias: string): StepAlias[] {
@@ -313,7 +399,7 @@ async function runChain(steps: StepAlias[], initialInput: unknown, model: string
     if (entry.isP13) {
       output = await runP13(currentInput, model);
     } else if (entry.isP2S) {
-      throw new Error(`P2S steps (${stepAlias}) are not yet implemented — run Task 5 first`);
+      output = await runP2S(stepAlias as 'p2s_1' | 'p2s_2' | 'p2s_3', currentInput, model);
     } else {
       output = await runStandardStep(stepAlias, currentInput, model);
     }
