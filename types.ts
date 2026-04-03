@@ -144,9 +144,17 @@ export interface SpecificDiachronicPhase {
     description: string;
     units_involved: string[]; // refined_du_ids from P1_4_Output.refined_diachronic_units[].unit_id
 }
+export interface HingePoint {
+    from_phase: string;
+    to_phase: string;
+    transition_description: string;
+    trigger?: string;
+    source_du_ids?: string[];
+}
 export interface SpecificDiachronicStructureType {
     summary: string;
     phases: SpecificDiachronicPhase[];
+    hinge_points?: HingePoint[];
     validation_errors?: string[];
     visualization_hint?: string;
     iv_preliminary_observation?: string;
