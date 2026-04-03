@@ -33,18 +33,29 @@ export const P1_4_DIACHRONIC_UNIT_GROUPING_CONFIG: StepConfig = {
     },
     required: ["transcript_id", "diachronic_units", "independent_variable_details", "dependent_variable_focus"]
   },
-  generatePrompt: (input: P1_3_Output) => `You are a micro-phenomenological analyst. You will be given a chronologically ordered list of segments from an interview. Your task is to group consecutive segments into Diachronic Units (DUs). A DU represents a coherent, meaningful phase or 'moment' within the participant's stream of experience. It is a single 'beat' or 'scene' in their experiential narrative. All segments within one DU should be thematically unified or explicitly or implicitly reported as simultaneous. The transition between DUs marks a shift in the nature of the experience. This shift may be explicit with temporal and causal cues or be an implicit shift that indicates a new momentary experience arising due to an experiential shift, e.g. shift in focus, sensation, intention, cognition. The DU and segments are in chronological order of phenomenology, i.e. they are sorted according to how they happened in the original experience as opposed to the order they were reported in in the interview.
+  generatePrompt: (input: P1_3_Output) => `You are a micro-phenomenological analyst performing diachronic unit grouping. You will be given a chronologically ordered list of segments from an interview. Your task is to group consecutive segments into Diachronic Units (DUs).
+
+A DU represents a single coherent experiential state — one 'beat' in the participant's stream of experience. Segments are in chronological order of the original experience (not interview order).
+
+IMPORTANT — When to create a new DU:
+Create a new DU whenever the participant's WAY OF ENGAGING with the experience shifts, even if the topic has not changed. Types of shifts that require a new DU:
+- Agency shift: the participant moves from actively doing something to passively receiving (or vice versa)
+- A new sensory or perceptual quality emerges
+- Something spontaneous or involuntary occurs
+- The participant pauses to reflect or evaluate mid-experience
+
+When in doubt about whether two segments belong in the same DU, prefer to split them into separate DUs.
 
 Input:
 The fully sorted list of all segments from step P1.3 for transcript ID ${input.transcript_id}.
 Sorted segments: ${JSON.stringify(input.sorted_segments, null, 2)}
 
 Instructions:
-1. Read the segments in the order provided. They have already been sorted chronologically.
-2. Group consecutive segments that describe the same continuous moment, action, or thought process.
-3. Create a new DU whenever there is a clear break or transition to a new moment.
-4. No DU should have segments from only the interviewer.
-5. Provide a concise \`description\` for each DU that captures the essence of that moment.
+1. Read the segments in the order provided. They have already been sorted by experience chronology.
+2. For each segment, ask: does this describe the same experiential state as the previous segment, or has the participant's mode of engagement shifted?
+3. Create a new DU whenever a shift occurs.
+4. No DU should contain segments from only the interviewer.
+5. Provide a concise \`description\` for each DU that captures what the participant is experiencing in that moment. Avoid abstract theoretical labels.
 6. Each DU should have a unique \`unit_id\` (e.g., "du_1", "du_2", etc.).
 7. List the \`source_segment_ids\` that constitute each DU.
 
@@ -59,9 +70,9 @@ A JSON object containing a list of Diachronic Units:
       "source_segment_ids": ["utt_5_1_seg_0", "utt_6_1_seg_0"]
     },
     {
-      "unit_id": "du_2", 
-      "description": "Sustained attention and deepening of the sensory experience",
-      "source_segment_ids": ["utt_6_1_seg_1", "utt_8_1_seg_0", "utt_8_1_seg_1"]
+      "unit_id": "du_2",
+      "description": "Actively trying to push distracting thoughts aside",
+      "source_segment_ids": ["utt_6_1_seg_1", "utt_8_1_seg_0"]
     }
   ],
   "independent_variable_details": "${input.independent_variable_details}",
