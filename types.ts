@@ -154,7 +154,7 @@ export interface HingePoint {
 export interface SpecificDiachronicStructureType {
     summary: string;
     phases: SpecificDiachronicPhase[];
-    hinge_points?: HingePoint[];
+    hinge_points: HingePoint[];
     validation_errors?: string[];
     visualization_hint?: string;
     iv_preliminary_observation?: string;
