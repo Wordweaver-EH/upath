@@ -188,7 +188,7 @@ async function performGeminiCall(
             },
             body: JSON.stringify(createApiRequestBody(
                 effectivePrompt,
-                true, // Always encrypt prompts for network calls
+                encryptionConfig.enabled, // Encrypt only when REACT_APP_USE_ENCRYPTION=true
                 {
                     model,
                     isJsonOutput,

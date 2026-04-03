@@ -3,7 +3,7 @@ import CryptoJS from 'crypto-js';
 // Read encryption settings from environment variables
 // These should match the backend settings
 const ENCRYPTION_ENABLED = process.env.REACT_APP_USE_ENCRYPTION === 'true';
-const ENCRYPTION_KEY = process.env.REACT_APP_ENCRYPTION_KEY || "b630a313659957d2370d66f6378596b0d2478569f360af08cadf305d4f12968a";
+const ENCRYPTION_KEY = process.env.REACT_APP_ENCRYPTION_KEY ?? '';
 
 // Export configuration for other modules to use
 export const encryptionConfig = {
@@ -20,6 +20,9 @@ export const encryptionConfig = {
  * @returns Encrypted string in format 'iv:ciphertext'
  */
 export function encryptPrompt(text: string, key: string = ENCRYPTION_KEY): string {
+  if (!ENCRYPTION_KEY || ENCRYPTION_KEY.trim().length === 0) {
+    throw new Error('REACT_APP_ENCRYPTION_KEY must be set when encryption is enabled');
+  }
   try {
     // Log message (only in development)
     if (process.env.NODE_ENV === 'development') {
