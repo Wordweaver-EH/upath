@@ -70,7 +70,7 @@ describe('Analyze Endpoint - Real Production Test', () => {
     expect(response.statusCode).toBe(500);
     const body = JSON.parse(response.body);
     expect(body).toHaveProperty('error');
-    expect(body.error).toContain('API error');
+    expect(body.error).toBe('Internal server error');
   });
 
   it('should accept valid model parameter from request', async () => {
@@ -180,5 +180,88 @@ describe('Analyze Endpoint - Real Production Test', () => {
     expect(requestConfig.generationConfig.responseSchema).toEqual(testSchema);
 
     spy.mockRestore();
+  });
+
+  it('should return 400 when encrypted=true but ENCRYPTION_KEY is not set', async () => {
+    // Ensure ENCRYPTION_KEY is absent
+    const savedKey = process.env.ENCRYPTION_KEY;
+    delete process.env.ENCRYPTION_KEY;
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/analyze',
+      payload: {
+        prompt: 'someIVhex:someciphertext',
+        encrypted: true
+      }
+    });
+
+    expect(response.statusCode).toBe(400);
+    const body = JSON.parse(response.body);
+    expect(body.error).toBe('Failed to decrypt prompt');
+
+    // Restore
+    if (savedKey !== undefined) process.env.ENCRYPTION_KEY = savedKey;
+  });
+
+  it('should return generic error message on 500, not internal details', async () => {
+    // invalid-model triggers a Gemini API error (500 path)
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/analyze',
+      payload: {
+        prompt: 'Test prompt',
+        model: 'invalid-model-name'
+      }
+    });
+
+    expect(response.statusCode).toBe(500);
+    const body = JSON.parse(response.body);
+    expect(body.error).toBe('Internal server error');
+    // Must NOT leak internal details
+    expect(body.error).not.toContain('API error');
+    expect(body.error).not.toContain('models/');
+  });
+});
+
+describe('CORS with CORS_ORIGINS env var', () => {
+  let corsApp: FastifyInstance;
+
+  beforeAll(async () => {
+    process.env.GEMINI_API_KEY = 'test-api-key';
+    process.env.CORS_ORIGINS = 'http://example.com,http://other.com';
+    const { buildApp } = await import('../server');
+    corsApp = await buildApp();
+  });
+
+  afterAll(async () => {
+    await corsApp.close();
+    delete process.env.CORS_ORIGINS;
+  });
+
+  it('should allow origin from CORS_ORIGINS env var', async () => {
+    const response = await corsApp.inject({
+      method: 'OPTIONS',
+      url: '/api/analyze',
+      headers: {
+        'origin': 'http://example.com',
+        'access-control-request-method': 'POST'
+      }
+    });
+    expect(response.statusCode).toBe(204);
+    expect(response.headers['access-control-allow-origin']).toBe('http://example.com');
+  });
+
+  it('should reject origin not in CORS_ORIGINS env var', async () => {
+    const response = await corsApp.inject({
+      method: 'OPTIONS',
+      url: '/api/analyze',
+      headers: {
+        'origin': 'http://notallowed.com',
+        'access-control-request-method': 'POST'
+      }
+    });
+    // Fastify/cors returns 204 but without access-control-allow-origin for disallowed origins
+    expect(response.headers['access-control-allow-origin']).not.toBe('http://notallowed.com');
   });
 });

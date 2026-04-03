@@ -17,10 +17,11 @@ interface AnalyzeRequest {
 
 // Encryption functions for prompt security
 export function decryptPrompt(encryptedText: string): string {
+  const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+  if (!ENCRYPTION_KEY || ENCRYPTION_KEY.trim().length === 0) {
+    throw new Error('ENCRYPTION_KEY environment variable is required');
+  }
   try {
-    // The encryption key should be stored in environment variables
-    const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-key-please-change-in-production';
-    
     // Pad key to 32 bytes (same as frontend)
     const keyBuffer = Buffer.from(ENCRYPTION_KEY.padEnd(32).slice(0, 32));
     
@@ -71,6 +72,7 @@ export function decryptPrompt(encryptedText: string): string {
 }
 
 const DEFAULT_MODEL = 'gemini-2.5-flash';
+const MAX_OUTPUT_TOKENS = parseInt(process.env.MAX_OUTPUT_TOKENS ?? '', 10) || 65536;
 
 // Thinking models that support thinking mode
 const THINKING_MODELS = [
@@ -124,7 +126,7 @@ export default async function analyzeRoute(fastify: FastifyInstance) {
       // Configure request
       const generationConfig: any = { 
         temperature, 
-        maxOutputTokens: 65536,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
         ...(seed !== undefined && { seed })
       };
       
@@ -168,7 +170,7 @@ export default async function analyzeRoute(fastify: FastifyInstance) {
           contents: [{ parts: [{ text: actualPrompt }] }],
           generationConfig: {
             temperature,
-            maxOutputTokens: 65536,
+            maxOutputTokens: MAX_OUTPUT_TOKENS,
             ...(seed !== undefined && { seed }),
             ...(isJsonOutput && { responseMimeType: 'application/json' }),
             ...(responseSchema && { responseSchema }),
@@ -233,7 +235,7 @@ export default async function analyzeRoute(fastify: FastifyInstance) {
     } catch (error) {
       fastify.log.error('Gemini API call failed:', error);
       return reply.status(500).send({
-        error: `API error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        error: 'Internal server error'
       });
     }
   });
