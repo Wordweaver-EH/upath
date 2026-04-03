@@ -149,7 +149,6 @@ export interface HingePoint {
     to_phase: string;
     transition_description: string;
     trigger?: string;
-    source_du_ids?: string[];
 }
 export interface SpecificDiachronicStructureType {
     summary: string;
