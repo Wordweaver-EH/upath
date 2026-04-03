@@ -20,7 +20,7 @@ export const encryptionConfig = {
  * @returns Encrypted string in format 'iv:ciphertext'
  */
 export function encryptPrompt(text: string, key: string = ENCRYPTION_KEY): string {
-  if (!ENCRYPTION_KEY || ENCRYPTION_KEY.trim().length === 0) {
+  if (!key || key.trim().length === 0) {
     throw new Error('REACT_APP_ENCRYPTION_KEY must be set when encryption is enabled');
   }
   try {
