@@ -5,7 +5,7 @@ import { StepId, UserDVFocus, SelectedUtterance, RawTranscript, TranscriptProces
 import { calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from './src/utils/htmlHelper'; // For P6.1 input
 import { ReportData } from './src/utils/reportHelper'; // Ensure this matches the actual path if different
 
-export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash-preview-04-17';
+export const GEMINI_MODEL_TEXT = 'gemini-2.5-flash';
 
 // Feature flag for P3_2 implementation approach
 export const P3_2_APPROACH = process.env.REACT_APP_P3_2_APPROACH || 'original';
@@ -631,6 +631,7 @@ export const CheckCircleIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox=
 export const InfoIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 opacity-75"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" /></svg>);
 export const ChevronDownIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M5.22 8.22a.75.75 0 011.06 0L10 11.94l3.72-3.72a.75.75 0 111.06 1.06l-4.25 4.25a.75.75 0 01-1.06 0L5.22 9.28a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>);
 export const ChevronUpIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M14.78 11.78a.75.75 0 01-1.06 0L10 8.06l-3.72 3.72a.75.75 0 11-1.06-1.06l4.25-4.25a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06z" clipRule="evenodd" /></svg>);
+export const ChevronRightIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M8.22 5.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 010-1.06z" clipRule="evenodd" /></svg>);
 export const RetryIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M15.323 10.243a5.25 5.25 0 00-7.815-1.11L6.06 7.677a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.06 0l2.25-2.25a.75.75 0 00-1.06-1.06l-1.274 1.273A3.75 3.75 0 0113.5 7.5c1.657 0 3.073 1.075 3.55 2.578a.75.75 0 001.45-.358A5.25 5.25 0 0015.323 10.243zM4.677 9.757a5.25 5.25 0 007.815 1.11l1.448 1.448a.75.75 0 001.06-1.06l-2.25-2.25a.75.75 0 00-1.06 0l-2.25 2.25a.75.75 0 101.06 1.06l1.274-1.273A3.75 3.75 0 016.5 12.5c-1.657 0-3.073-1.075-3.55-2.578a.75.75 0 00-1.45.358A5.25 5.25 0 004.677 9.757z" clipRule="evenodd" /></svg>);
 export const AppendixIcon = (<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
   <path fillRule="evenodd" d="M3 3.75A.75.75 0 013.75 3h12.5a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75H3.75a.75.75 0 01-.75-.75V3.75zm0-1.5A2.25 2.25 0 00.75 3.75v12.5c0 1.243 1.007 2.25 2.25 2.25h12.5A2.25 2.25 0 0018.5 16.25V3.75A2.25 2.25 0 0016.25 1.5H3.75z" clipRule="evenodd" />
@@ -660,116 +661,39 @@ export interface StepConfig {
 
 type ConfigMap = { [key in StepId]?: StepConfig };
 
-export const STEP_ORDER_PART_NEG1 = [StepId.P_NEG1_1_VARIABLE_IDENTIFICATION];
-export const STEP_ORDER_PART_0 = [StepId.P0_1_TRANSCRIPTION_ADHERENCE, StepId.P0_2_REFINE_DATA_TYPES, StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES];
-export const STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC = [StepId.P1_1_INITIAL_SEGMENTATION, StepId.P1_2_DIACHRONIC_UNIT_ID, StepId.P1_3_REFINE_DIACHRONIC_UNITS, StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE];
-export const STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC = [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC, StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS, StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE];
-export const STEP_ORDER_PART_3_GENERIC_DIACHRONIC = [StepId.P3_1_ALIGN_STRUCTURES, StepId.P3_2_IDENTIFY_GDUS, StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE];
-export const STEP_ORDER_PART_4_GENERIC_SYNCHRONIC = [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS];
-export const STEP_ORDER_PART_5_REFINEMENT = [
-  StepId.P5_1_IV_COMPARATIVE_ANALYSIS,
-  StepId.P5_2_HOLISTIC_REFINEMENT
-];
-export const STEP_ORDER_PART_7_CAUSAL_MODELING = [
-  StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION,
-  StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS,
-  StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS,
-  StepId.P7_3B_VALIDATE_AND_CLEAN_DAG,
-  StepId.P7_4_ANALYZE_PATHS_AND_BIASES,
-  StepId.P7_5_GENERATE_FORMAL_HYPOTHESES
-];
-export const STEP_ORDER_PART_6_REPORT = [StepId.P6_1_GENERATE_MARKDOWN_REPORT];
+// Import step ordering and configuration from centralized pipeline definition
+import {
+  STEP_ORDER_PART_NEG1,
+  STEP_ORDER_PART_0,
+  STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC,
+  STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC,
+  STEP_ORDER_PART_3_GENERIC_DIACHRONIC,
+  STEP_ORDER_PART_4_GENERIC_SYNCHRONIC,
+  STEP_ORDER_PART_5_REFINEMENT,
+  STEP_ORDER_PART_7_CAUSAL_MODELING,
+  STEP_ORDER_PART_6_REPORT,
+  ALL_PIPELINE_STEP_IDS_IN_ORDER,
+  ESSENTIAL_STEPS_FOR_AUTODOWNLOAD,
+  STEP_DISPLAY_NAMES,
+  getStepDisplayName
+} from './src/config/pipelineDefinition';
 
-// User-friendly display names for pipeline steps (hides confusing technical naming)
-export const STEP_DISPLAY_NAMES: Record<StepId, string> = {
-  // Part 1: Variable Identification
-  [StepId.P_NEG1_1_VARIABLE_IDENTIFICATION]: "1. Variable Identification",
-  
-  // Part 2: Data Preparation  
-  [StepId.P0_1_TRANSCRIPTION_ADHERENCE]: "2. Transcript Preparation",
-  [StepId.P0_2_REFINE_DATA_TYPES]: "3. Data Type Refinement", 
-  [StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]: "4. Utterance Selection",
-  
-  // Part 3: Temporal Analysis
-  [StepId.P1_1_INITIAL_SEGMENTATION]: "5. Initial Segmentation",
-  [StepId.P1_2_DIACHRONIC_UNIT_ID]: "6. Temporal Unit Identification", 
-  [StepId.P1_3_REFINE_DIACHRONIC_UNITS]: "7. Temporal Unit Refinement",
-  [StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "8. Temporal Structure",
-  
-  // Part 4: Synchronic Analysis
-  [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "9. Topic Grouping",
-  [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "10. Synchronic Units",
-  [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "11. Synchronic Structure",
-  
-  // Part 5: Cross-Transcript Analysis  
-  [StepId.P3_1_ALIGN_STRUCTURES]: "12. Structure Alignment",
-  [StepId.P3_2_IDENTIFY_GDUS]: "13. Generic Unit Identification",
-  [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "14. Generic Structure",
-  
-  // Part 6: Generic Synchronic Analysis
-  [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES]: "15. Node Identification", 
-  [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: "16. Generic Synchronic Groups",
-  
-  // Part 7: Refinement
-  [StepId.P5_1_IV_COMPARATIVE_ANALYSIS]: "17. Comparative Analysis",
-  [StepId.P5_2_HOLISTIC_REFINEMENT]: "18. Holistic Refinement",
-  
-  // Part 8: Causal Modeling
-  [StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION]: "19. Variable Formalization",
-  [StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS]: "20. Causal Links",
-  [StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS]: "21. Causal Diagram",
-  [StepId.P7_3B_VALIDATE_AND_CLEAN_DAG]: "22. Diagram Validation", 
-  [StepId.P7_4_ANALYZE_PATHS_AND_BIASES]: "23. Path Analysis",
-  [StepId.P7_5_GENERATE_FORMAL_HYPOTHESES]: "24. Hypothesis Generation",
-  
-  // Part 9: Final Report
-  [StepId.P6_1_GENERATE_MARKDOWN_REPORT]: "25. Final Report",
-  
-  // Meta states
-  [StepId.IDLE]: "Ready",
-  [StepId.COMPLETE]: "Complete"
+// Re-export for backward compatibility
+export {
+  STEP_ORDER_PART_NEG1,
+  STEP_ORDER_PART_0,
+  STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC,
+  STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC,
+  STEP_ORDER_PART_3_GENERIC_DIACHRONIC,
+  STEP_ORDER_PART_4_GENERIC_SYNCHRONIC,
+  STEP_ORDER_PART_5_REFINEMENT,
+  STEP_ORDER_PART_7_CAUSAL_MODELING,
+  STEP_ORDER_PART_6_REPORT,
+  ALL_PIPELINE_STEP_IDS_IN_ORDER,
+  ESSENTIAL_STEPS_FOR_AUTODOWNLOAD,
+  STEP_DISPLAY_NAMES,
+  getStepDisplayName
 };
-
-// Helper function to get user-friendly step name
-export function getStepDisplayName(stepId: StepId): string {
-  return STEP_DISPLAY_NAMES[stepId] || stepId;
-}
-
-export const ALL_PIPELINE_STEP_IDS_IN_ORDER: StepId[] = [
-    ...STEP_ORDER_PART_NEG1,
-    ...STEP_ORDER_PART_0,
-    ...STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC,
-    ...STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC,
-    ...STEP_ORDER_PART_3_GENERIC_DIACHRONIC,
-    ...STEP_ORDER_PART_4_GENERIC_SYNCHRONIC,
-    ...STEP_ORDER_PART_5_REFINEMENT,
-    ...STEP_ORDER_PART_7_CAUSAL_MODELING,
-    ...STEP_ORDER_PART_6_REPORT,
-    StepId.COMPLETE, // Represents the final state after all processing
-];
-
-export const ESSENTIAL_STEPS_FOR_AUTODOWNLOAD: StepId[] = [
-  // Part 0
-  StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
-  // Part I
-  StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
-  // Part II_S (Note: P2S_3 output is per phase, handled in App.tsx)
-  StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
-  // Part III
-  StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE,
-  // Part IV_S (Note: P4S_1_B output is per GDU, handled in App.tsx)
-  StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS,
-  // Part V
-  StepId.P5_1_IV_COMPARATIVE_ANALYSIS,
-  StepId.P5_2_HOLISTIC_REFINEMENT,
-  // Part VII
-  StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS, // Initial DAG
-  StepId.P7_3B_VALIDATE_AND_CLEAN_DAG, // Cleaned DAG
-  StepId.P7_5_GENERATE_FORMAL_HYPOTHESES,
-  // Part VI
-  StepId.P6_1_GENERATE_MARKDOWN_REPORT,
-  StepId.COMPLETE, // Final report if auto-download enabled
-];
 
 const CAUSAL_INFERENCE_GLOSSARY_TEXT = `
 Causal Inference Glossary for Reference:
@@ -936,16 +860,51 @@ ${input.raw_transcript_text_from_file}
       if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P0.2." };
       const p0_1_data = allProcessedData?.get(currentTranscript.id)?.p0_1_output;
       if (!p0_1_data) return { data: null, error: `Missing P0.1 output for transcript ${currentTranscript.id}` };
-      return { data: p0_1_data };
+      
+      // Parse the line-numbered transcript to extract line numbers and text
+      const parsedLines = p0_1_data.line_numbered_transcript.map(line => {
+        // Extract line number (format: "1: ...")
+        const lineMatch = line.match(/^(\d+):\s*(.*)$/);
+        if (!lineMatch) {
+          return { lineNumber: '', speaker: '', text: line };
+        }
+        
+        const [, lineNumber, rest] = lineMatch;
+        
+        // Check for speaker (format: "Speaker Name: ..." or "P1: ...")
+        const speakerMatch = rest.match(/^([^:]+):\s*(.*)$/);
+        if (speakerMatch) {
+          const [, speaker, text] = speakerMatch;
+          // Check if this is actually a speaker and not just a colon in the text
+          if (speaker.match(/^[A-Z]\d+$/) || speaker.match(/^[A-Z][a-z]+ [A-Z][a-z]+$/) || speaker.length < 30) {
+            return { lineNumber, speaker: speaker.trim(), text: text.trim() };
+          }
+        }
+        
+        // No speaker found, treat as regular text
+        return { lineNumber, speaker: '', text: rest };
+      });
+      
+      return { 
+        data: {
+          ...p0_1_data,
+          parsed_lines: parsedLines
+        }
+      };
     },
-    generatePrompt: (input: P0_1_Output) => `You are a micro-phenomenological data preparation analyst. Your task is to refine the line-numbered transcript by identifying different types of information.
+    generatePrompt: (input: P0_1_Output & { parsed_lines: Array<{ lineNumber: string; speaker: string; text: string }> }) => `You are a micro-phenomenological data preparation analyst. Your task is to refine the line-numbered transcript by identifying different types of information.
 Input:
-The JSON output from the previous step (Prompt 0.1) for transcript ID ${input.transcript_id}.
-${JSON.stringify(input, null, 2)}
+The parsed transcript lines for transcript ID ${input.transcript_id}.
+${JSON.stringify({ 
+  transcript_id: input.transcript_id,
+  parsed_lines: input.parsed_lines,
+  transcription_convention_notes: input.transcription_convention_notes,
+  initial_impressions_log: input.initial_impressions_log
+}, null, 2)}
 
 Instructions:
-1. Re-read and categorize each line:
-   For each numbered line, determine if it primarily contains:
+1. Re-read and categorize each parsed line:
+   For each line in parsed_lines, determine if it primarily contains:
     - "procedural_information": Utterances related to the interview process itself (e.g., interviewer's questions, participant's reflections on the question or process, meta-comments).
     - "experiential_content": Utterances directly describing the lived experience being investigated.
     - "ambiguous_or_mixed": Lines that are hard to categorize or contain both.
@@ -961,7 +920,8 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
   "refined_data_transcript": [
     {
       "line_num": 1,
-      "text": "text of line 1...",
+      "speaker": "P1",
+      "text": "text content without line number or speaker prefix",
       "information_tags": ["tag1", "tag2"],
       "decision_notes": "Optional notes for line 1."
     },
@@ -988,39 +948,32 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
       if (!p0_2_data || !p_neg1_1_data) return { data: null, error: `Missing P0.2 or P-1.1 output for transcript ${currentTranscript.id}` };
       return { data: { ...p0_2_data, p_neg1_1_output: p_neg1_1_data } };
     },
-    generatePrompt: (input: P0_2_Output & { p_neg1_1_output: P_neg1_1_Output }) => `You are a micro-phenomenological analyst. Your task is to select utterances crucial for understanding the diachronic (temporal) structure of the *experience itself*, focusing on the participant's procedural account of their experience.
+    generatePrompt: (input: P0_2_Output & { p_neg1_1_output: P_neg1_1_Output }) => `You are a micro-phenomenological analyst. Your task is to evaluate ALL utterances from the refined data transcript and determine which are crucial for understanding the diachronic (temporal) structure of the *experience itself*.
 Input:
 The JSON output from P0.2 (refined data transcript) and P-1.1 (IV/DV info) for transcript ID ${input.transcript_id}.
 P0.2 Output: ${JSON.stringify({ transcript_id: input.transcript_id, refined_data_transcript: input.refined_data_transcript }, null, 2)}
 P-1.1 Output: ${JSON.stringify(input.p_neg1_1_output, null, 2)}
 
 Instructions:
-1.  Focus: The goal is to isolate the participant's narrative of *how the experience unfolded*. This means selecting utterances that describe actions, steps, or stages in the experience.
+1.  Focus: Evaluate EVERY line from the refined data transcript. For each line, determine whether it should be included for diachronic analysis based on whether it describes *how the experience unfolded*.
 2.  Selection Criteria:
-    *   Prioritize lines tagged "experiential_content".
-    *   From these, select utterances that indicate a sequence, action, or a part of the experiential process. These are "procedural utterances" in the context of the experience itself.
-    *   Interviewer questions, participant's meta-comments on the interview *process* (unless they also reveal experiential process), or purely descriptive (static) experiential content should generally be EXCLUDED from this selection, *unless* they are essential for understanding the flow of the described experience.
-    *   If a single original line was very long and contained multiple distinct procedural steps, you MAY split it and represent each as a separate selected utterance. If you do this, use a format like "LINE_NUM.SUB_INDEX" for \`original_line_num\` (e.g., "23.1", "23.2").
-3.  Justification: For each selected utterance, provide a brief \`selection_justification\` explaining why it's considered procedural to the experience.
-4.  Discarded Info Summary: Briefly summarize what kind of information was generally discarded (e.g., "Interviewer prompts, participant's self-corrections not directly related to experiential flow").
+    *   IMPORTANT: Copy the speaker field from refined_data_transcript to the output. Use only the text content from refined_data_transcript (no line numbers or speaker prefixes in utterance_text).
+    *   Include (true): Lines that describe actions, steps, stages, or temporal progression in the experience. These are "procedural utterances" in the context of the experience itself.
+    *   Exclude (false): Interviewer questions, participant's meta-comments on the interview *process* (unless they also reveal experiential process), or purely descriptive (static) experiential content.
+    *   Prioritize lines tagged "experiential_content" but evaluate all lines.
+    *   If a single original line was very long and contained multiple distinct procedural steps, you MAY split it and represent each as a separate utterance. If you do this, use a format like "LINE_NUM.SUB_INDEX" for \`original_line_num\` (e.g., "23.1", "23.2").
+3.  Justification: For EVERY utterance, provide a BRIEF \`selection_justification\` (5-10 words maximum) explaining why it was included or excluded. Examples:
+    *   "Describes temporal progression"
+    *   "Static state description"
+    *   "Interviewer question"
+    *   "Meta-comment about interview"
+    *   "Action sequence described"
+4.  IMPORTANT: Output minified JSON with no unnecessary whitespace. Be extremely concise.
 5.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from P-1.1 MUST be copied verbatim into the output.
 
 Output:
-A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
-{
-  "transcript_id": "${input.transcript_id}",
-  "selected_procedural_utterances": [
-    {
-      "original_line_num": "string (e.g., '5' or '5.1')",
-      "utterance_text": "text of the selected utterance...",
-      "selection_justification": "Brief justification for selection."
-    }
-    // ... more utterances
-  ],
-  "discarded_info_summary": "Summary of discarded info.",
-  "independent_variable_details": "${input.p_neg1_1_output.independent_variable_details}",
-  "dependent_variable_focus": ${JSON.stringify(input.p_neg1_1_output.dependent_variable_focus)}
-}
+A MINIFIED JSON object (no extra whitespace) adhering EXACTLY to the following structure:
+{"transcript_id":"${input.transcript_id}","selected_procedural_utterances":[{"original_line_num":"1","speaker":"P1","utterance_text":"full text...","selection_justification":"brief reason here","included":false},{"original_line_num":"2","speaker":"Kevin Sheldrake","utterance_text":"full text...","selection_justification":"another brief reason","included":true}],"independent_variable_details":"${input.p_neg1_1_output.independent_variable_details}","dependent_variable_focus":${JSON.stringify(input.p_neg1_1_output.dependent_variable_focus)}}
 `,
   },
   [StepId.P1_1_INITIAL_SEGMENTATION]: {
@@ -1034,10 +987,18 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
         if (!p0_3_data) return { data: null, error: `Missing P0.3 output for transcript ${currentTranscript.id}` };
         return { data: p0_3_data };
     },
-    generatePrompt: (input: P0_3_Output) => `You are a micro-phenomenological analyst. Your task is to segment the selected procedural utterances based on temporal cues, focusing on the described experience's unfolding.
+    generatePrompt: (input: P0_3_Output) => {
+      // Filter to only include utterances where included === true
+      const includedUtterances = input.selected_procedural_utterances.filter(u => u.included);
+      const filteredInput = {
+        ...input,
+        selected_procedural_utterances: includedUtterances
+      };
+      
+      return `You are a micro-phenomenological analyst. Your task is to segment the selected procedural utterances based on temporal cues, focusing on the described experience's unfolding.
 Input:
-JSON output from P0.3 for transcript ID ${input.transcript_id}.
-P0.3 Output: ${JSON.stringify(input, null, 2)}
+JSON output from P0.3 for transcript ID ${input.transcript_id} (showing only INCLUDED utterances).
+P0.3 Output: ${JSON.stringify(filteredInput, null, 2)}
 
 Instructions:
 1.  Focus on "Action Units": Read each selected procedural utterance. Identify "minimal action units" or "elementary acts" within them. An utterance might contain one or multiple such segments.
@@ -1075,10 +1036,11 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
     }
     // ... more segmented utterances
   ],
-  "independent_variable_details": "${input.independent_variable_details}",
-  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
+  "independent_variable_details": "${filteredInput.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(filteredInput.dependent_variable_focus)}
 }
-`,
+`;
+    },
   },
   [StepId.P1_2_DIACHRONIC_UNIT_ID]: {
     id: StepId.P1_2_DIACHRONIC_UNIT_ID,
@@ -1291,7 +1253,10 @@ A JSON object adhering EXACTLY to the following structure, with NO additional ex
         segment_ids_in_phase.forEach(segId => {
             const segContainer = p1_1_data?.segmented_utterances.find(sc => sc.segments.some(s => s.segment_id === segId));
             if (segContainer && !utterances_for_phase.some(u => u.original_line_num === segContainer.original_utterance.original_line_num && u.utterance_text === segContainer.original_utterance.utterance_text)) {
-                utterances_for_phase.push(segContainer.original_utterance);
+                // Double-check that the utterance is included (though it should be by now)
+                if (!('included' in segContainer.original_utterance) || segContainer.original_utterance.included) {
+                    utterances_for_phase.push(segContainer.original_utterance);
+                }
             }
         });
 

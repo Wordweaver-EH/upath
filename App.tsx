@@ -31,6 +31,15 @@ import PipelineOverview, { PipelineStepNode } from './components/PipelineOvervie
 import { Button } from './src/components/ui';
 import IRRModal from './components/IRRModal';
 import GduMappingModal from './components/GduMappingModal';
+import { AppLoadingScreen } from './src/components/AppLoadingScreen';
+import { SessionRestoreNotification } from './src/components/SessionRestoreNotification';
+import { PipelineStepGrid } from './src/components/PipelineStepGrid';
+
+// AG Grid CSS
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-alpine.css';
+import './src/styles/ag-grid-custom-theme.css';
+import './src/styles/tooltip.css';
 
 import { useUIStore, useSettingsStore, usePipelineStore, useIRRStore, initializeStores, selectCurrentStepDisplay } from './src/stores';
 import { useAutorunManager } from './src/hooks/useAutorunManager';
@@ -128,7 +137,9 @@ const App: React.FC = () => {
     openHilModal,
     closeHilModal,
     setHilUserGuidance,
-    setCurrentStepInfo
+    setCurrentStepInfo,
+    hasRehydrated,
+    sessionWasRestored
   } = useUIStore();
   
   // Pipeline Store - consolidated selector
@@ -150,7 +161,8 @@ const App: React.FC = () => {
     userDvFocus,
     outputDirectory,
     temperature,
-    seed
+    seed,
+    apiKeyPresent
   } = useSettingsStore();
   
   // IRR Store - consolidated selector
@@ -214,9 +226,20 @@ const App: React.FC = () => {
   }, [processSingleStep])
   
   // Get actions from the store
-  const handlePipelineStepClick = usePipelineStore(state => state.handlePipelineStepClick);
+  const handlePipelineStepClickRaw = usePipelineStore(state => state.handlePipelineStepClick);
   const clearShouldStopAutorunFlag = usePipelineStore(state => state.clearShouldStopAutorunFlag);
   const clearLastHilContext = usePipelineStore(state => state.clearLastHilContext);
+  
+  // Wrapper to provide activeTranscriptIndex
+  const handlePipelineStepClick = (stepId: StepId) => {
+    const settings = {
+      apiKey: apiKeyPresent ? 'test-key' : '', // In real app, use actual key
+      temperature,
+      seed,
+      userDvFocus
+    };
+    handlePipelineStepClickRaw(stepId, settings, activeTranscriptIndex);
+  };
   
   // Listen for pipeline state changes to update UI
   useEffect(() => {
@@ -304,6 +327,7 @@ const App: React.FC = () => {
   const stepDisplay = selectCurrentStepDisplay(currentStepInfo, rawTranscripts.length);
   
   const renderOutput = () => {
+    console.log('[App Debug] stepDisplay:', stepDisplay, 'currentStepInfo.stepId:', currentStepInfo.stepId);
     switch (stepDisplay.type) {
       case 'loading':
         return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote animate-pulse">{stepDisplay.message}</div>;
@@ -315,12 +339,46 @@ const App: React.FC = () => {
         return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">{stepDisplay.message}</div>;
       
       case 'mermaid':
+        // Check if this step should use grid display instead
+        const gridStepsForMermaid = [
+          StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
+        ];
+        
+        if (gridStepsForMermaid.includes(currentStepInfo.stepId) && processedData.size > 0) {
+          console.log('[App Debug] Redirecting mermaid step to grid:', currentStepInfo.stepId);
+          return <PipelineStepGrid 
+            processedData={processedData} 
+            stepId={currentStepInfo.stepId}
+            theme={theme} 
+          />;
+        }
+        
         return <MermaidDiagram chart={stepDisplay.chart} theme={theme} />;
       
       case 'report':
         return <ReportRenderer markdown={stepDisplay.markdown} theme={theme} />;
       
       case 'output':
+        // Special handling for steps with grid display
+        const gridSteps = [
+          StepId.P_NEG1_1_VARIABLE_IDENTIFICATION,
+          StepId.P0_1_TRANSCRIPTION_ADHERENCE,
+          StepId.P0_2_REFINE_DATA_TYPES,
+          StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
+          StepId.P1_1_INITIAL_SEGMENTATION,
+          StepId.P1_2_DIACHRONIC_UNIT_ID,
+          StepId.P1_3_REFINE_DIACHRONIC_UNITS
+        ];
+        
+        if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {
+          console.log('[App Debug] Rendering grid step:', currentStepInfo.stepId, 'processedData size:', processedData.size);
+          return <PipelineStepGrid 
+            processedData={processedData} 
+            stepId={currentStepInfo.stepId}
+            theme={theme} 
+          />;
+        }
+        
         if (typeof stepDisplay.data === 'object' && stepDisplay.data !== null) {
           try { 
             return <pre className="text-xs whitespace-pre-wrap break-all">{JSON.stringify(stepDisplay.data, null, 2)}</pre>; 
@@ -338,8 +396,17 @@ const App: React.FC = () => {
     }
   };
 
+  // Show loading screen until hydration is complete
+  if (!hasRehydrated) {
+    return <AppLoadingScreen message="Loading previous session..." />
+  }
+
   return (
-    <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-dark-bg text-dark-text' : 'bg-light-bg text-light-text'} font-serif transition-colors duration-300`}>
+    <>
+      {/* Session Restore Notification */}
+      <SessionRestoreNotification />
+      
+      <div className={`min-h-screen ${theme === 'dark' ? 'dark bg-dark-bg text-dark-text' : 'bg-light-bg text-light-text'} font-serif transition-colors duration-300`}>
       <header className="p-4 flex justify-between items-center border-b border-light-border dark:border-dark-border bg-light-bg-alt dark:bg-dark-bg-alt sticky top-0 z-40">
         <h1 className="text-xl font-bold text-light-accent dark:text-dark-accent">
           <span style={{ fontFamily: "'Times New Roman', serif" }}>µ</span>-<span className="font-logoP">P</span>ATH: Micro-Phenomenological Analysis Threader
@@ -392,6 +459,7 @@ const App: React.FC = () => {
         getHilPreviousResponseDisplay={getHilPreviousResponseDisplay}
       />
     </div>
+    </>
   );
 };
 // export default App; // Assuming this will be added by your system if needed

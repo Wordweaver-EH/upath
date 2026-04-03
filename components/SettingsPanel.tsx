@@ -139,8 +139,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             disabled={rawTranscripts.length === 0 && currentStepInfo.stepId === StepId.IDLE}
             variant="secondary"
             className="w-full"
+            title="Export current analysis state to a JSON file for backup or sharing"
           >
-            {SaveIcon} <span>Save State</span>
+            {SaveIcon} <span>Export State to File</span>
           </Button>
           <div>
             <label htmlFor="loadStateFile">

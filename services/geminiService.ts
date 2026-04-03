@@ -1,26 +1,85 @@
 
-
-import { GoogleGenAI, GenerateContentResponse, GenerateContentParameters } from "@google/genai";
-import type { GroundingChunk } from '../types'; // Ensure GroundingChunk types are imported if used
+import type { GroundingChunk } from '../types';
+import { createApiRequestBody, encryptionConfig } from './encryptionService';
 import { GEMINI_MODEL_TEXT } from '../constants';
 
-const API_KEY = process.env.API_KEY;
+const BACKEND_URL = process.env.NODE_ENV === 'production' 
+  ? process.env.REACT_APP_BACKEND_URL || 'http://localhost:3001'
+  : 'http://localhost:3001';
 
-let ai: GoogleGenAI | null = null;
+/**
+ * Health Check Cache
+ * 
+ * Caches backend health status to avoid excessive network requests.
+ * The frontend may call isApiKeySet() frequently during UI updates,
+ * so caching prevents unnecessary load on the backend health endpoint.
+ */
+let healthCheckCache: { isHealthy: boolean; timestamp: number } | null = null;
+const HEALTH_CHECK_CACHE_DURATION = 30000; // 30 seconds
 
-if (API_KEY) {
-  try {
-    ai = new GoogleGenAI({ apiKey: API_KEY });
-  } catch (error) {
-    console.error("Failed to initialize GoogleGenAI:", error);
-    ai = null; 
+/**
+ * Check if backend is available and properly configured
+ * 
+ * This function replaces the original API key check with a proper health check
+ * against the backend server. It verifies that:
+ * - Backend server is running and reachable
+ * - Backend can respond to HTTP requests
+ * - Network connectivity is working
+ * 
+ * Uses caching to avoid excessive requests while providing real-time status.
+ * 
+ * @returns Promise<boolean> - true if backend is healthy, false otherwise
+ */
+export async function isApiKeySet(): Promise<boolean> {
+  // CACHE CHECK: Return cached result if still valid
+  // Reduces network load and improves UI responsiveness
+  if (healthCheckCache && (Date.now() - healthCheckCache.timestamp < HEALTH_CHECK_CACHE_DURATION)) {
+    return healthCheckCache.isHealthy;
   }
-} else {
-  console.warn("Gemini API Key (process.env.API_KEY) is not set. API calls will be disabled.");
+
+  try {
+    // HEALTH CHECK: Call backend health endpoint
+    const response = await fetch(`${BACKEND_URL}/health`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const isHealthy = response.ok;
+    
+    // CACHE UPDATE: Store result with timestamp
+    healthCheckCache = {
+      isHealthy,
+      timestamp: Date.now()
+    };
+
+    return isHealthy;
+  } catch (error) {
+    // ERROR HANDLING: Log warning and cache failure result
+    // This handles network errors, server down, etc.
+    console.warn('Backend health check failed:', error);
+    
+    healthCheckCache = {
+      isHealthy: false,
+      timestamp: Date.now()
+    };
+
+    return false;
+  }
 }
 
-export function isApiKeySet(): boolean {
-  return !!API_KEY && !!ai;
+/**
+ * Synchronous version of API key check using cached data
+ * 
+ * Provided for backward compatibility with code that expects
+ * a synchronous function. Returns cached health status or false
+ * if no cached data is available.
+ * 
+ * @returns boolean - cached health status
+ */
+export function isApiKeySetSync(): boolean {
+  return healthCheckCache?.isHealthy || false;
 }
 
 // Helper function to estimate tokens (1 token ~ 4 chars)
@@ -109,56 +168,51 @@ async function performGeminiCall(
     originalPromptForFixer?: string 
 ): Promise<{ 
     responseText: string; 
-    response?: GenerateContentResponse; 
+    response?: any; 
     error?: string;
     estimatedInputTokens: number;
     estimatedOutputTokens: number;
 }> {
-    if (!isApiKeySet() || !ai) {
-        return { 
-            responseText: "", 
-            error: "API Key not configured or Gemini AI not initialized.",
-            estimatedInputTokens: estimateTokens(originalPromptForFixer || prompt),
-            estimatedOutputTokens: 0
-        };
-    }
-
     const effectivePrompt = originalPromptForFixer || prompt;
     const estimatedInputTokens = estimateTokens(effectivePrompt);
 
-    const params: GenerateContentParameters = {
-        model: GEMINI_MODEL_TEXT,
-        contents: effectivePrompt, // Use effectivePrompt for the API call
-        config: {
-            temperature: temperature, 
-        }
-    };
-
-    if (seed !== undefined && !isNaN(seed) && seed > 0) {
-        params.config = { ...params.config, seed: seed };
-    }
-
-    if (isJsonOutput && !useGrounding) {
-        params.config = { ...params.config, responseMimeType: "application/json" };
-    }
-    
-    if (useGrounding) {
-        if (params.config?.responseMimeType === "application/json") {
-            delete params.config.responseMimeType;
-        }
-        params.config = { ...params.config, tools: [{googleSearch: {}}] };
-    }
-
     try {
-        const response: GenerateContentResponse = await ai.models.generateContent(params);
-        const responseText = response.text ?? ""; // Ensure responseText is always a string
-        const estimatedOutputTokens = estimateTokens(responseText);
-        return { responseText, response, estimatedInputTokens, estimatedOutputTokens };
+        const response = await fetch(`${BACKEND_URL}/api/analyze`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(createApiRequestBody(
+                effectivePrompt,
+                true, // Always encrypt prompts for network calls
+                {
+                    model: GEMINI_MODEL_TEXT,
+                    isJsonOutput,
+                    useGrounding,
+                    temperature,
+                    seed
+                }
+            )),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        
+        return { 
+            responseText: data.text || "", 
+            response: data, // The full response from backend
+            estimatedInputTokens: data.estimatedInputTokens || estimatedInputTokens,
+            estimatedOutputTokens: data.estimatedOutputTokens || estimateTokens(data.text || "")
+        };
     } catch (error) {
-        console.error("Gemini API call failed:", error, "Prompt:", effectivePrompt, "Params:", params);
+        console.error("Backend API call failed:", error, "Prompt:", effectivePrompt);
         return { 
             responseText: "", 
-            error: `Gemini API call error: ${(error as Error).message || "Unknown Gemini API error"}${originalPromptForFixer ? ' (during retry attempt)' : ''}`,
+            error: `Backend API call error: ${(error as Error).message || "Unknown backend API error"}${originalPromptForFixer ? ' (during retry attempt)' : ''}`,
             estimatedInputTokens,
             estimatedOutputTokens: 0
         };
@@ -181,14 +235,6 @@ export async function callGeminiAPI(
     estimatedInputTokens?: number;
     estimatedOutputTokens?: number;
 }> {
-  if (!isApiKeySet() || !ai) {
-    return { 
-        error: "API Key not configured or Gemini AI not initialized.",
-        estimatedInputTokens: estimateTokens(prompt),
-        estimatedOutputTokens: 0
-    };
-  }
-
   const initialCallResult = await performGeminiCall(prompt, isJsonOutput, useGrounding, temperature, seed);
   let totalEstimatedInputTokens = initialCallResult.estimatedInputTokens;
   let totalEstimatedOutputTokens = initialCallResult.estimatedOutputTokens;
@@ -205,8 +251,8 @@ export async function callGeminiAPI(
   const response = initialCallResult.response;
   
   let groundingSources: GroundingChunk[] | undefined = undefined;
-  if (useGrounding && response?.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-      groundingSources = response.candidates[0].groundingMetadata.groundingChunks as GroundingChunk[];
+  if (useGrounding && response?.groundingSources) {
+      groundingSources = response.groundingSources as GroundingChunk[];
   }
 
   if (isJsonOutput || (useGrounding && prompt.toLowerCase().includes("json"))) {
@@ -234,8 +280,9 @@ The AI responded with the following text, which is not valid JSON or does not ma
 ${responseText}
 --- MALFORMED RESPONSE END ---
 
-Please analyze the original prompt's instructions for JSON output (paying close attention to the expected schema, field names, data types, and overall structure, especially for long string fields like markdown reports).
+Please analyze the original prompt's instructions for JSON output (paying close attention to the expected schema, field names, data types, and overall structure).
 Then, correct the malformed response to be valid JSON that accurately reflects the data described and adheres to the original prompt's schema.
+IMPORTANT: If the original prompt requested minified JSON, output minified JSON with no unnecessary whitespace.
 The output MUST be ONLY the corrected, valid JSON object or array. Ensure all string values are complete and correctly quoted, and that there are no trailing characters or missing terminators.
 Do not include any explanations, apologies, or surrounding text like markdown fences. Just the raw, corrected JSON.`;
         

@@ -141,33 +141,8 @@ export function transformSynchronicToMermaid(
 
 
 export function transformDiachronicToMermaid(structure?: SpecificDiachronicStructureType): string {
-  if (!structure || !structure.phases || structure.phases.length === 0) {
-    return `gantt
-dateFormat X
-title Specific Diachronic Structure (No Phases)
-axisFormat %s
-
-section Empty
-Empty Phase :empty_phase, 0, 1d`;
-  }
-  const titleText = structure.summary ? `SDS: ${structure.summary}` : 'Specific Diachronic Experience';
-  const safeTitle = sanitizeMermaidLabel(titleText.substring(0, 70) + (titleText.length > 70 ? "..." : "")).slice(1,-1);
-
-  let mermaidSyntax = `gantt
-dateFormat X
-title ${safeTitle}
-axisFormat %s\n\n`;
-
-  mermaidSyntax += `section Phases\n`;
-  structure.phases.forEach((phase, index) => {
-    const duration = Math.max(1, phase.units_involved?.length || 1);
-    const phaseId = sanitizeMermaidId(phase.phase_name || `phase_${index}`, `ph_`);
-    const phaseLabelText = phase.phase_name || `Phase ${index + 1}`;
-    const safePhaseLabel = phaseLabelText.replace(/:/g, '-').replace(/,/g, '');
-
-    mermaidSyntax += `${safePhaseLabel} :${phaseId}, ${index}, ${duration}d\n`;
-  });
-  return mermaidSyntax;
+  // Return empty string - we'll use a comparison table instead of individual Gantt charts
+  return '';
 }
 
 export function transformGenericDiachronicToMermaid(gdsDefinition?: GenericDiachronicStructureDefinition): string {

@@ -1,9 +1,13 @@
 import { useEffect } from 'react'
 import { StepId, StepStatus } from '../../types'
-import { ESSENTIAL_STEPS_FOR_AUTODOWNLOAD, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC } from '../../constants'
+import { ESSENTIAL_STEPS_FOR_AUTODOWNLOAD, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_CONFIGS } from '../../constants'
 import { useUIStore } from '../stores'
 import { usePipelineStore } from '../stores'
 import { useSettingsStore } from '../stores'
+import { PipelineOrchestrator } from '../services/PipelineOrchestrator'
+
+// Create orchestrator instance
+const orchestrator = new PipelineOrchestrator()
 
 /**
  * Custom hook to manage the autorun logic
@@ -23,8 +27,10 @@ export const useAutorunManager = () => {
 
   // Pipeline Store state and actions
   const rawTranscripts = usePipelineStore(state => state.rawTranscripts)
+  const processedData = usePipelineStore(state => state.processedData)
   const genericAnalysisState = usePipelineStore(state => state.genericAnalysisState)
-  const getNextStepDetails = usePipelineStore(state => state.getNextStepDetails)
+  const processState = usePipelineStore(state => state.processState)
+  const updateProcessState = usePipelineStore(state => state.updateProcessState)
   const processSingleStep = usePipelineStore(state => state.processSingleStep)
   const downloadOutput = usePipelineStore(state => state.downloadOutput)
   const isGlobalStep = usePipelineStore(state => state.isGlobalStep)
@@ -62,12 +68,34 @@ export const useAutorunManager = () => {
     
     if (isAutorunning && currentStepInfo.status === StepStatus.Success) {
       console.log(`✅ Autorun active & step successful - checking next step`);
-      const details = getNextStepDetails(currentStepInfo, activeTranscriptIndex);
-      console.log(`- getNextStepDetails result:`, details);
+      
+      // Use orchestrator instead of getNextStepDetails
+      const nextStep = orchestrator.getNextStep(
+        processState,
+        currentStepInfo,
+        { rawTranscripts, processedData, genericAnalysisState },
+        activeTranscriptIndex
+      );
+      
+      // Convert orchestrator response to legacy format for compatibility
+      const details = nextStep ? {
+        nextStepId: nextStep.nextStepId,
+        nextTranscriptIndex: nextStep.nextTranscriptIndex ?? activeTranscriptIndex
+      } : null;
+      
+      console.log(`- orchestrator.getNextStep result:`, details);
       
       if (details) {
         console.log(`🎯 Found next step: ${details.nextStepId} (transcript index: ${details.nextTranscriptIndex})`);
-        setActiveTranscript(details.nextTranscriptIndex); 
+        setActiveTranscript(details.nextTranscriptIndex);
+        
+        // Update process state
+        const newProcessState = orchestrator.updateProcessState(
+          processState,
+          currentStepInfo.stepId,
+          currentStepInfo.status
+        );
+        updateProcessState(newProcessState); 
         
         if (details.nextStepId === StepId.COMPLETE) {
             console.log(`🏁 Next step is COMPLETE - finalizing`);
@@ -120,21 +148,57 @@ export const useAutorunManager = () => {
       console.log(`🛑 Autorun stopped (error)`);
       setAutorunning(false);
     } else if (isAutorunning && currentStepInfo.status === StepStatus.Idle && rawTranscripts.length > 0) {
-      console.log(`🚀 Autorun starting from Idle - beginning first step`);
-      const firstStepId = StepId.P_NEG1_1_VARIABLE_IDENTIFICATION;
-      const firstTranscriptId = rawTranscripts[0]?.id;
-      console.log(`- Starting with: ${firstStepId}`);
-      console.log(`- First transcript: ${firstTranscriptId}`);
-      processSingleStep({ 
-        stepId: firstStepId, 
-        transcriptIdToProcess: firstTranscriptId,
-        settings: {
-          apiKey,
-          temperature,
-          seed,
-          userDvFocus
-        }
-      });
+      console.log(`🚀 Autorun starting from Idle - checking for resume point`);
+      
+      // Check if we should resume from a previous point by getting next step details
+      // This handles the case where the pipeline was paused and we're resuming
+      const resumeNextStep = orchestrator.getNextStep(
+        processState,
+        { stepId: StepId.IDLE, status: StepStatus.Idle },
+        { rawTranscripts, processedData, genericAnalysisState },
+        activeTranscriptIndex
+      );
+      
+      const resumeDetails = resumeNextStep ? {
+        nextStepId: resumeNextStep.nextStepId,
+        nextTranscriptIndex: resumeNextStep.nextTranscriptIndex ?? activeTranscriptIndex
+      } : null;
+      
+      if (resumeDetails) {
+        console.log(`📍 Resuming from: ${resumeDetails.nextStepId} (transcript index: ${resumeDetails.nextTranscriptIndex})`);
+        setActiveTranscript(resumeDetails.nextTranscriptIndex);
+        
+        const isResumeGlobal = isGlobalStep(resumeDetails.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(resumeDetails.nextStepId);
+        const resumeTxId = isResumeGlobal ? undefined : rawTranscripts[resumeDetails.nextTranscriptIndex]?.id;
+        
+        processSingleStep({ 
+          stepId: resumeDetails.nextStepId, 
+          transcriptIdToProcess: resumeTxId,
+          settings: {
+            apiKey,
+            temperature,
+            seed,
+            userDvFocus
+          }
+        });
+      } else {
+        // Only start from beginning if no progress has been made
+        console.log(`🆕 Starting fresh from first step`);
+        const firstStepId = StepId.P_NEG1_1_VARIABLE_IDENTIFICATION;
+        const firstTranscriptId = rawTranscripts[0]?.id;
+        console.log(`- Starting with: ${firstStepId}`);
+        console.log(`- First transcript: ${firstTranscriptId}`);
+        processSingleStep({ 
+          stepId: firstStepId, 
+          transcriptIdToProcess: firstTranscriptId,
+          settings: {
+            apiKey,
+            temperature,
+            seed,
+            userDvFocus
+          }
+        });
+      }
     } else {
       console.log(`⏸️ Autorun conditions not met`);
       console.log(`- isAutorunning: ${isAutorunning}`);
@@ -150,7 +214,6 @@ export const useAutorunManager = () => {
     isAutorunning, 
     currentStepInfo, 
     genericAnalysisState, 
-    getNextStepDetails, 
     rawTranscripts, 
     processSingleStep, 
     downloadOutput, 
@@ -161,6 +224,9 @@ export const useAutorunManager = () => {
     setCurrentStepInfo, 
     setAutorunning, 
     setActiveTranscript,
-    isGlobalStep
+    isGlobalStep,
+    processState,
+    updateProcessState,
+    activeTranscriptIndex
   ]);
 }

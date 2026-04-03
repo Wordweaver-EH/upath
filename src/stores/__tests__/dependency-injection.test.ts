@@ -43,7 +43,7 @@ describe('Dependency Injection Interfaces', () => {
     
     // Should accept stepId and settings parameters
     expect(() => {
-      store.handlePipelineStepClick('P0_1' as StepId, mockSettings);
+      store.handlePipelineStepClick('P0_1' as StepId, mockSettings, 0);
     }).not.toThrow();
   });
   

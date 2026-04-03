@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
-import { persist, createJSONStorage, subscribeWithSelector } from 'zustand/middleware'
+import { persist, subscribeWithSelector } from 'zustand/middleware'
+import { localForageStorage } from '../utils/storage'
+import { performDataMigration } from '../utils/migration'
+import { useUIStore } from './uiStore'
 import { 
   RawTranscript, 
   TranscriptProcessedData, 
@@ -13,6 +16,7 @@ import {
   CurrentStepInfo,
   HilContext
 } from '../../types'
+import { ProcessState } from '../config/pipelineDefinition'
 import { 
   STEP_CONFIGS, 
   ALL_PIPELINE_STEP_IDS_IN_ORDER,
@@ -26,7 +30,8 @@ import {
   STEP_ORDER_PART_6_REPORT,
   STEP_ORDER_PART_7_CAUSAL_MODELING,
   P3_2_APPROACH,
-  getStepDisplayName
+  getStepDisplayName,
+  GEMINI_MODEL_TEXT
 } from '../../constants'
 import { callGeminiAPI } from '../../services/geminiService'
 // Circular dependency removed - UI updates handled through dependency injection
@@ -40,6 +45,7 @@ import {
 } from '../utils/visualizationHelper'
 import { downloadFile, generateTsvForPromptHistory } from '../utils/tsvHelper'
 import { generateHtmlAppendix, calculateGduUtteranceCounts, calculateGssCategoryUtteranceCounts, calculateGduTransitionCounts } from '../utils/htmlHelper'
+import { PipelineOrchestrator } from '../services/PipelineOrchestrator'
 
 // Dependency injection interfaces for breaking circular dependencies
 interface UICallbacks {
@@ -76,6 +82,11 @@ interface GenericAnalysisSlice {
 interface DependencyInjectionSlice {
   uiCallbacks?: UICallbacks
   setUICallbacks: (callbacks: UICallbacks) => void
+}
+interface ProcessSlice {
+  processState: ProcessState
+  updateProcessState: (updates: Partial<ProcessState>) => void
+  setProcessState: (state: ProcessState) => void
 }
 
 interface PromptSlice {
@@ -127,9 +138,8 @@ interface PipelineActions {
     invalidatedProcessedData: Map<string, TranscriptProcessedData>
     invalidatedGenericState: GenericAnalysisState
   }
-  getNextStepDetails: () => { nextStepId: StepId; nextTranscriptIndex: number } | null
-  processNextStep: () => void
   resetPipeline: () => void
+  clearAutosaveData: () => Promise<void>
   loadState: (savedState: SavedState) => void
   getSaveState: () => SavedState
   downloadOutput: (stepIdToDownload?: StepId, transcriptId?: string, dataToDownload?: any) => void
@@ -146,7 +156,7 @@ interface PipelineActions {
   isGlobalStep: (stepId: StepId) => boolean
   loadStepData: (stepId: StepId, transcriptId?: string, phaseId?: string, gduId?: string) => any
   getStepStatusForPipelineView: (stepId: StepId, transcriptId?: string, phaseId?: string, gduId?: string) => StepStatus
-  handlePipelineStepClick: (clickedStepId: StepId, settings: SettingsData) => void
+  handlePipelineStepClick: (clickedStepId: StepId, settings: SettingsData, activeTranscriptIndex: number) => void
   // State cleanup actions
   clearShouldStopAutorunFlag: () => void
   clearLastHilContext: () => void
@@ -168,7 +178,7 @@ interface PipelineSelectors {
   getStepStatusForPipelineView: (stepId: StepId, uiState?: { currentStepInfo: CurrentStepInfo; activeTranscriptIndex: number }) => { status: StepStatus; error?: string }
 }
 
-type PipelineState = TranscriptSlice & GenericAnalysisSlice & PromptSlice & DependencyInjectionSlice
+type PipelineState = TranscriptSlice & GenericAnalysisSlice & PromptSlice & DependencyInjectionSlice & ProcessSlice
 type PipelineStore = PipelineState & PipelineActions & PipelineSelectors
 
 // UI updates are now handled through state changes that App.tsx listens to
@@ -302,6 +312,27 @@ const createDependencyInjectionSlice = (set: any, get: any): DependencyInjection
   }
 })
 
+const createProcessSlice = (set: any, get: any): ProcessSlice => ({
+  processState: {
+    status: 'idle',
+    currentPartIndex: -1,
+    currentStepIndex: -1,
+    iterationContext: {}
+  },
+  
+  updateProcessState: (updates: Partial<ProcessState>) => {
+    set((state: PipelineState) => {
+      state.processState = { ...state.processState, ...updates }
+    })
+  },
+  
+  setProcessState: (newState: ProcessState) => {
+    set((state: PipelineState) => {
+      state.processState = newState
+    })
+  }
+})
+
 // Main store
 export const usePipelineStore = create<PipelineStore>()(
   subscribeWithSelector(
@@ -311,6 +342,7 @@ export const usePipelineStore = create<PipelineStore>()(
       ...createGenericAnalysisSlice(set, get),
       ...createPromptSlice(set, get),
       ...createDependencyInjectionSlice(set, get),
+      ...createProcessSlice(set, get),
       
       // Main pipeline orchestrator - integrated from pipelineActions.ts
       processSingleStep: async (params) => {
@@ -567,7 +599,7 @@ export const usePipelineStore = create<PipelineStore>()(
           requestPayload: isReportStepForThisCall 
             ? { programmaticInput: inputData } 
             : { 
-                model: 'gemini-2.5-flash-preview-04-17', 
+                model: GEMINI_MODEL_TEXT, 
                 contents: promptForHistory, 
                 temperature, 
                 seed: (!isReportStepForThisCall ? (overrideSeed !== undefined ? overrideSeed : seed) : undefined) 
@@ -1189,234 +1221,7 @@ export const usePipelineStore = create<PipelineStore>()(
         }
       },
       
-      getNextStepDetails: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
-        const { rawTranscripts, processedData, genericAnalysisState } = get()
-        
-        const currentTranscriptId = rawTranscripts[activeTranscriptIndex]?.id
-        const currentTData = currentTranscriptId ? processedData.get(currentTranscriptId) : undefined
-        
-        if (currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length > 0) {
-          return { nextStepId: STEP_ORDER_PART_NEG1[0], nextTranscriptIndex: 0 }
-        }
-        
-        // Handle Part -1 steps
-        const currentPartNeg1StepIndex = STEP_ORDER_PART_NEG1.indexOf(currentStepInfo.stepId)
-        if (currentPartNeg1StepIndex !== -1) {
-          const pNeg1DoneThisTranscript = currentTData?.p_neg1_1_output || currentTData?.p_neg1_1_error
-          if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || pNeg1DoneThisTranscript) {
-            if (activeTranscriptIndex < rawTranscripts.length - 1) return { nextStepId: STEP_ORDER_PART_NEG1[0], nextTranscriptIndex: activeTranscriptIndex + 1 }
-            const allVarIdDone = rawTranscripts.every(rt => processedData.get(rt.id)?.p_neg1_1_output || processedData.get(rt.id)?.p_neg1_1_error)
-            if (allVarIdDone) return { nextStepId: STEP_ORDER_PART_0[0], nextTranscriptIndex: 0 }
-          }
-        }
-        
-        // Handle Part 0 steps
-        const currentPart0StepIndex = STEP_ORDER_PART_0.indexOf(currentStepInfo.stepId)
-        if (currentPart0StepIndex !== -1) {
-          const key = stepIdToDataKeyPrefix[currentStepInfo.stepId] as keyof TranscriptProcessedData
-          const part0OutputExists = key && (currentTData?.[key] || currentTData?.[`${key.replace('_output', '_error')}` as keyof TranscriptProcessedData])
-          if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || part0OutputExists) {
-            if (currentPart0StepIndex < STEP_ORDER_PART_0.length - 1) return { nextStepId: STEP_ORDER_PART_0[currentPart0StepIndex + 1], nextTranscriptIndex: activeTranscriptIndex }
-            if (activeTranscriptIndex < rawTranscripts.length - 1) return { nextStepId: STEP_ORDER_PART_0[0], nextTranscriptIndex: activeTranscriptIndex + 1 }
-            if (rawTranscripts.every(rt => STEP_ORDER_PART_0.every(s => { 
-              const k = stepIdToDataKeyPrefix[s] as keyof TranscriptProcessedData
-              return k && (processedData.get(rt.id)?.[k] || processedData.get(rt.id)?.[`${k.replace('_output','_error')}` as keyof TranscriptProcessedData])
-            }))) {
-              return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: 0 }
-            }
-          }
-        }
-        
-        // Handle Part 1 steps
-        const currentPart1StepIndex = STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.indexOf(currentStepInfo.stepId)
-        if (currentPart1StepIndex !== -1) {
-          const key = stepIdToDataKeyPrefix[currentStepInfo.stepId] as keyof TranscriptProcessedData
-          const part1OutputExists = key && (currentTData?.[key] || currentTData?.[`${key.replace('_output', '_error')}` as keyof TranscriptProcessedData])
-          if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || part1OutputExists) {
-            if (currentPart1StepIndex < STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC.length - 1) {
-              return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[currentPart1StepIndex + 1], nextTranscriptIndex: activeTranscriptIndex }
-            }
-            if (currentStepInfo.stepId === StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE && currentTData?.isFullyProcessedSpecificDiachronic) {
-              if ((currentTData?.phases_for_p2s_processing?.length || 0) > 0 && !currentTData?.isFullyProcessedSpecificSynchronic) {
-                return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex }
-              }
-              if (activeTranscriptIndex < rawTranscripts.length - 1) {
-                return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: activeTranscriptIndex + 1 }
-              }
-              if (rawTranscripts.every(rt => processedData.get(rt.id)?.isFullyProcessedSpecificDiachronic) && 
-                  rawTranscripts.every(rt => { 
-                    const d = processedData.get(rt.id)
-                    return !d || (!d.phases_for_p2s_processing?.length || d.isFullyProcessedSpecificSynchronic)
-                  })) {
-                return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0], nextTranscriptIndex: 0 }
-              }
-            }
-          }
-        }
-        
-        // Handle Part 2 steps
-        const currentP2SStepIndex = STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.indexOf(currentStepInfo.stepId)
-        if (currentP2SStepIndex !== -1 && currentTData) {
-          const phaseDone = currentStepInfo.currentPhaseForP2S
-          let p2sOutputForCurrentPhaseAndStepExists = false
-          if (phaseDone) {
-            const key = stepIdToDataKeyPrefix[currentStepInfo.stepId] as keyof P2SPhaseData
-            if (key) {
-              const pData = currentTData.p2s_outputs_by_phase?.[phaseDone]
-              p2sOutputForCurrentPhaseAndStepExists = !!(pData?.[key] || pData?.[`${key.replace('_output', '_error')}` as keyof P2SPhaseData])
-            }
-          } else if (currentTData.isFullyProcessedSpecificSynchronic && !currentTData.phases_for_p2s_processing?.length) {
-            p2sOutputForCurrentPhaseAndStepExists = true
-          }
-          
-          if (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || p2sOutputForCurrentPhaseAndStepExists) {
-            if (currentP2SStepIndex < STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.length - 1) {
-              return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[currentP2SStepIndex + 1], nextTranscriptIndex: activeTranscriptIndex }
-            }
-            if (currentStepInfo.stepId === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE) {
-              const totalPhases = currentTData.phases_for_p2s_processing || []
-              const processedPhases = currentTData.processed_phases_for_p2s || []
-              const allPhasesProcessed = totalPhases.length > 0 && totalPhases.every(phase => processedPhases.includes(phase))
-              
-              if (!allPhasesProcessed && totalPhases.length > 0) {
-                return { nextStepId: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC[0], nextTranscriptIndex: activeTranscriptIndex }
-              } else {
-                if (activeTranscriptIndex < rawTranscripts.length - 1) {
-                  return { nextStepId: STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC[0], nextTranscriptIndex: activeTranscriptIndex + 1 }
-                } else {
-                  return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[0], nextTranscriptIndex: 0 }
-                }
-              }
-            }
-          }
-        }
-        
-        // Handle Part 3 steps
-        const currentPart3StepIndex = STEP_ORDER_PART_3_GENERIC_DIACHRONIC.indexOf(currentStepInfo.stepId)
-        if (currentPart3StepIndex !== -1 && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || genericAnalysisState.isFullyProcessedGenericDiachronic)) {
-          if (genericAnalysisState.isFullyProcessedGenericDiachronic) {
-            if ((genericAnalysisState.core_gdus_for_sync_analysis?.length || 0) > 0 && !genericAnalysisState.isFullyProcessedGenericSynchronic) {
-              return { nextStepId: StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, nextTranscriptIndex: 0 }
-            }
-            if (STEP_ORDER_PART_5_REFINEMENT.length > 0 && !genericAnalysisState.isRefinementDone) {
-              return { nextStepId: STEP_ORDER_PART_5_REFINEMENT[0], nextTranscriptIndex: 0 }
-            }
-            if (STEP_ORDER_PART_7_CAUSAL_MODELING.length > 0 && !genericAnalysisState.isCausalModelingDone) {
-              return { nextStepId: STEP_ORDER_PART_7_CAUSAL_MODELING[0], nextTranscriptIndex: 0 }
-            }
-            return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 }
-          }
-          if (currentPart3StepIndex < STEP_ORDER_PART_3_GENERIC_DIACHRONIC.length - 1) {
-            return { nextStepId: STEP_ORDER_PART_3_GENERIC_DIACHRONIC[currentPart3StepIndex + 1], nextTranscriptIndex: 0 }
-          }
-        }
-        
-        // Handle Part 4 steps
-        const currentP4SStepIndex = STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.indexOf(currentStepInfo.stepId)
-        if (currentP4SStepIndex !== -1) {
-          const stepErrorExists = currentStepInfo.stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES ? genericAnalysisState.p4s_1_a_error : genericAnalysisState.p4s_1_b_error
-          const gduContextIsDone = (
-            currentStepInfo.stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES && genericAnalysisState.p4s_1_a_outputs_by_gdu?.[currentStepInfo.currentGduForP4S || '']
-          ) || (
-            currentStepInfo.stepId === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS && genericAnalysisState.processed_gdus_for_p4s?.includes(currentStepInfo.currentGduForP4S || '')
-          )
-          
-          if (currentStepInfo.status === StepStatus.Success || (currentStepInfo.status === StepStatus.Error && stepErrorExists) || gduContextIsDone) {
-            if (currentStepInfo.stepId === StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES) {
-              return { nextStepId: StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS, nextTranscriptIndex: 0 }
-            } else if (currentStepInfo.stepId === StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS) {
-              if (genericAnalysisState.isFullyProcessedGenericSynchronic) {
-                if (STEP_ORDER_PART_5_REFINEMENT.length > 0) return { nextStepId: STEP_ORDER_PART_5_REFINEMENT[0], nextTranscriptIndex: 0 }
-                if (STEP_ORDER_PART_7_CAUSAL_MODELING.length > 0) return { nextStepId: STEP_ORDER_PART_7_CAUSAL_MODELING[0], nextTranscriptIndex: 0 }
-                return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 }
-              } else {
-                return { nextStepId: StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES, nextTranscriptIndex: 0 }
-              }
-            }
-          }
-        }
-        
-        // Handle Part 5 steps
-        const currentPart5StepIndex = STEP_ORDER_PART_5_REFINEMENT.indexOf(currentStepInfo.stepId)
-        if (currentPart5StepIndex !== -1 && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || genericAnalysisState.isRefinementDone)) {
-          if (genericAnalysisState.isRefinementDone) {
-            if (STEP_ORDER_PART_7_CAUSAL_MODELING.length > 0 && !genericAnalysisState.isCausalModelingDone) {
-              return { nextStepId: STEP_ORDER_PART_7_CAUSAL_MODELING[0], nextTranscriptIndex: 0 }
-            }
-            if (STEP_ORDER_PART_6_REPORT.length > 0 && !genericAnalysisState.isReportGenerated) {
-              return { nextStepId: STEP_ORDER_PART_6_REPORT[0], nextTranscriptIndex: 0 }
-            }
-            return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 }
-          }
-          if (currentPart5StepIndex < STEP_ORDER_PART_5_REFINEMENT.length - 1) {
-            return { nextStepId: STEP_ORDER_PART_5_REFINEMENT[currentPart5StepIndex + 1], nextTranscriptIndex: 0 }
-          }
-        }
-        
-        // Handle Part 7 steps
-        const currentPart7StepIndex = STEP_ORDER_PART_7_CAUSAL_MODELING.indexOf(currentStepInfo.stepId)
-        if (currentPart7StepIndex !== -1 && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || genericAnalysisState.isCausalModelingDone)) {
-          if (genericAnalysisState.isCausalModelingDone) {
-            if (STEP_ORDER_PART_6_REPORT.length > 0 && !genericAnalysisState.isReportGenerated) {
-              return { nextStepId: STEP_ORDER_PART_6_REPORT[0], nextTranscriptIndex: 0 }
-            }
-            return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 }
-          }
-          if (currentPart7StepIndex < STEP_ORDER_PART_7_CAUSAL_MODELING.length - 1) {
-            return { nextStepId: STEP_ORDER_PART_7_CAUSAL_MODELING[currentPart7StepIndex + 1], nextTranscriptIndex: 0 }
-          }
-        }
-        
-        // Handle Part 6 steps
-        const currentPart6StepIndex = STEP_ORDER_PART_6_REPORT.indexOf(currentStepInfo.stepId)
-        if (currentPart6StepIndex !== -1 && (currentStepInfo.status === StepStatus.Success || currentStepInfo.status === StepStatus.Error || genericAnalysisState.isReportGenerated)) {
-          if (genericAnalysisState.isReportGenerated) return { nextStepId: StepId.COMPLETE, nextTranscriptIndex: 0 }
-          if (currentPart6StepIndex < STEP_ORDER_PART_6_REPORT.length - 1) {
-            return { nextStepId: STEP_ORDER_PART_6_REPORT[currentPart6StepIndex + 1], nextTranscriptIndex: 0 }
-          }
-        }
-        
-        if (currentStepInfo.stepId === StepId.COMPLETE) return null
-        return null
-      },
-      
-      processNextStep: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
-        const { rawTranscripts } = get()
-        const details = get().getNextStepDetails(currentStepInfo, activeTranscriptIndex)
-        
-        if (!details) {
-          const { genericAnalysisState } = get()
-          if (currentStepInfo.stepId !== StepId.COMPLETE && genericAnalysisState.isReportGenerated) {
-            const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "All processing complete."
-            // Update pipeline state - App.tsx will handle UI updates
-            set(state => ({
-              ...state,
-              lastStepInfo: { stepId: StepId.COMPLETE, status: StepStatus.Success, outputData: report },
-              shouldStopAutorun: true
-            }))
-          }
-          return
-        }
-        
-        // Note: activeTranscript update should be handled by the caller
-        
-        if (details.nextStepId === StepId.COMPLETE) {
-          const { genericAnalysisState } = get()
-          const report = typeof genericAnalysisState.p6_1_output === 'string' ? genericAnalysisState.p6_1_output : "Processing complete."
-          // Update pipeline state - App.tsx will handle UI updates
-          set(state => ({
-            ...state,
-            lastStepInfo: { stepId: StepId.COMPLETE, status: StepStatus.Success, outputData: report },
-            shouldStopAutorun: true
-          }))
-        } else {
-          const isNextGlobal = isGlobalStep(details.nextStepId) || STEP_ORDER_PART_4_GENERIC_SYNCHRONIC.includes(details.nextStepId)
-          const nextTxId = isNextGlobal ? undefined : rawTranscripts[details.nextTranscriptIndex]?.id
-          get().processSingleStep({ stepId: details.nextStepId, transcriptIdToProcess: nextTxId })
-        }
-      },
-      
-      invalidateStateFromStep: (stepId: StepId, transcriptId?: string, activeTranscriptIndex?: number) => {
+                  invalidateStateFromStep: (stepId: StepId, transcriptId?: string, activeTranscriptIndex?: number) => {
         const { rawTranscripts, processedData, genericAnalysisState } = get()
         const activeTxId = transcriptId || (activeTranscriptIndex !== undefined ? rawTranscripts[activeTranscriptIndex]?.id : undefined)
         
@@ -1454,6 +1259,15 @@ export const usePipelineStore = create<PipelineStore>()(
           lastStepInfo: { stepId: StepId.IDLE, status: StepStatus.Idle },
           shouldStopAutorun: true
         }))
+      },
+      
+      clearAutosaveData: async () => {
+        try {
+          await localForageStorage.removeItem('upath-autosave-session-v2-localforage')
+          console.log('Autosave data cleared')
+        } catch (error) {
+          console.error('Failed to clear autosave data:', error)
+        }
       },
       
       loadState: (savedState: SavedState) => {
@@ -1521,10 +1335,19 @@ export const usePipelineStore = create<PipelineStore>()(
       },
 
       isNextStepDisabled: (currentStepInfo: CurrentStepInfo, activeTranscriptIndex: number) => {
-        const { genericAnalysisState } = get()
+        const { genericAnalysisState, rawTranscripts, processedData, processState } = get()
+        
+        const orchestrator = new PipelineOrchestrator()
+        
+        const nextStep = orchestrator.getNextStep(
+          processState,
+          currentStepInfo,
+          { rawTranscripts, processedData, genericAnalysisState },
+          activeTranscriptIndex
+        )
         
         return currentStepInfo.status === StepStatus.Loading || 
-               (!get().getNextStepDetails(currentStepInfo, activeTranscriptIndex) && currentStepInfo.stepId !== StepId.COMPLETE && !genericAnalysisState.isReportGenerated)
+               (!nextStep && currentStepInfo.stepId !== StepId.COMPLETE && !genericAnalysisState.isReportGenerated)
       },
 
       isRunStepDisabled: (currentStepInfo: CurrentStepInfo, apiKeyPresent: boolean, dvFocusError?: string) => {
@@ -1902,7 +1725,7 @@ export const usePipelineStore = create<PipelineStore>()(
         return { status, error }
       },
       
-      handlePipelineStepClick: (clickedStepId: StepId, settings: SettingsData) => {
+      handlePipelineStepClick: (clickedStepId: StepId, settings: SettingsData, activeTranscriptIndex: number) => {
         const { rawTranscripts, processedData, uiCallbacks } = get()
         
         // Use injected UI callbacks instead of direct store access
@@ -1948,7 +1771,8 @@ export const usePipelineStore = create<PipelineStore>()(
             phaseId: phaseNav,
             gduId: gduNav,
             status: data.error ? StepStatus.Error : (data.outputData ? StepStatus.Success : StepStatus.Idle),
-            error: data.error
+            error: data.error,
+            outputData: data.outputData
           })
         }
       },
@@ -1967,53 +1791,133 @@ export const usePipelineStore = create<PipelineStore>()(
       }
     })),
     {
-      name: 'upath-pipeline',
-      storage: createJSONStorage(() => ({
-        getItem: (name) => {
-          const str = localStorage.getItem(name)
+      name: 'upath-autosave-session-v2-localforage',
+      storage: {
+        getItem: async (name) => {
+          const str = await localForageStorage.getItem(name)
           if (!str) return null
-          const data = JSON.parse(str)
-          return {
-            ...data,
-            state: {
-              ...data.state,
-              // Convert processedData array back to Map - with safety check
-              processedData: new Map(data.state.processedData || [])
+          
+          try {
+            const data = JSON.parse(str)
+            console.log('🔍 [Storage] Parsed data from storage:', {
+              rawTranscriptsLength: data.state?.rawTranscripts?.length || 0,
+              processedDataLength: data.state?.processedData?.length || 0,
+              hasState: !!data.state
+            })
+            
+            const result = {
+              ...data,
+              state: {
+                ...data.state,
+                // Convert processedData array back to Map
+                processedData: new Map(data.state.processedData || [])
+              }
             }
+            
+            console.log('🔍 [Storage] Returning deserialized data:', {
+              rawTranscriptsLength: result.state?.rawTranscripts?.length || 0,
+              processedDataSize: result.state?.processedData?.size || 0
+            })
+            
+            return result
+          } catch (e) {
+            console.error('Failed to parse stored data:', e)
+            return null
           }
         },
-        setItem: (name, value) => {
-          // Comprehensive safety checks for persistence
-          if (!value || !value.state) {
-            console.warn('⚠️ [persist] Skipping serialization - invalid state structure:', value);
-            return;
-          }
+        setItem: async (name, value) => {
+          console.log('💾 [Storage] setItem - incoming value:', {
+            rawTranscriptsLength: value.state?.rawTranscripts?.length || 0,
+            processedDataType: value.state?.processedData?.constructor?.name || 'unknown',
+            processedDataSize: value.state?.processedData instanceof Map ? value.state.processedData.size : (value.state?.processedData?.length || 0)
+          })
           
           const dataToStore = {
             ...value,
             state: {
               ...value.state,
-              // Convert Map to array for storage - with safety check
-              processedData: value.state.processedData ? Array.from(value.state.processedData.entries()) : []
+              // Convert Map to array for storage
+              processedData: value.state.processedData instanceof Map 
+                ? Array.from(value.state.processedData.entries()) 
+                : []
             }
           }
-          localStorage.setItem(name, JSON.stringify(dataToStore))
+          
+          console.log('💾 [Storage] setItem - final data:', {
+            rawTranscriptsLength: dataToStore.state?.rawTranscripts?.length || 0,
+            processedDataLength: dataToStore.state?.processedData?.length || 0
+          })
+          
+          await localForageStorage.setItem(name, JSON.stringify(dataToStore))
         },
-        removeItem: (name) => localStorage.removeItem(name)
-      })),
-      partialize: (state) => ({
-        // Only persist actual data, not UI state
-        rawTranscripts: state.rawTranscripts,
-        processedData: state.processedData,
-        genericAnalysisState: state.genericAnalysisState,
-        promptHistory: state.promptHistory,
-        totalInputTokens: state.totalInputTokens,
-        totalOutputTokens: state.totalOutputTokens
-      })
+        removeItem: async (name) => await localForageStorage.removeItem(name)
+      },
+      onRehydrateStorage: () => (state, error) => {
+        console.log('🔄 [Rehydration] onRehydrateStorage callback called')
+        console.log('🔄 [Rehydration] state:', state ? 'present' : 'null')
+        console.log('🔄 [Rehydration] error:', error)
+        
+        if (error) {
+          console.error('❌ [Rehydration] Failed to rehydrate state from localForage:', error)
+          useUIStore.getState().setHasRehydrated(true)
+          useUIStore.getState().setSessionWasRestored(false)
+        } else {
+          // Set UI flags based on whether data was restored
+          const hasData = state && (
+            state.rawTranscripts?.length > 0 || 
+            state.processedData?.size > 0 ||
+            state.promptHistory?.length > 0
+          )
+          console.log('✅ [Rehydration] hasData check:', hasData)
+          console.log('✅ [Rehydration] rawTranscripts length:', state?.rawTranscripts?.length || 0)
+          console.log('✅ [Rehydration] processedData size:', state?.processedData?.size || 0)
+          
+          useUIStore.getState().setHasRehydrated(true)
+          useUIStore.getState().setSessionWasRestored(!!hasData)
+          
+          console.log('🔄 [Rehydration] UI flags set - hasRehydrated: true, sessionWasRestored:', !!hasData)
+        }
+      },
+      partialize: (state) => {
+        // Only persist if there's actually data to save
+        const hasData = state.rawTranscripts.length > 0 || 
+                       state.processedData.size > 0 || 
+                       state.promptHistory.length > 0 ||
+                       state.totalInputTokens > 0 ||
+                       state.totalOutputTokens > 0
+        
+        if (!hasData) {
+          console.log('🚫 [Storage] Skipping persist - no meaningful data to save')
+          return undefined // Don't persist empty state
+        }
+        
+        console.log('✅ [Storage] Persisting meaningful data:', {
+          transcripts: state.rawTranscripts.length,
+          processedData: state.processedData.size,
+          promptHistory: state.promptHistory.length
+        })
+        
+        return {
+          // Only persist actual data, not UI state
+          rawTranscripts: state.rawTranscripts,
+          processedData: state.processedData,
+          genericAnalysisState: state.genericAnalysisState,
+          promptHistory: state.promptHistory,
+          totalInputTokens: state.totalInputTokens,
+          totalOutputTokens: state.totalOutputTokens
+        }
+      }
     }
     )
   )
 )
+
+// Perform data migration on app startup
+if (typeof window !== 'undefined') {
+  performDataMigration().catch(error => {
+    console.error('Failed to perform data migration:', error)
+  })
+}
 
 // Selectors for derived state
 export const selectCurrentStepDisplay = (currentStepInfo: CurrentStepInfo, transcriptsLength: number) => {

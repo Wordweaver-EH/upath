@@ -1,163 +1,256 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI agents (Claude Code, GitHub Copilot, Cursor, etc.) working with this repository.
 
-## Build Commands
+## 🚨 CRITICAL: ANTI-PATTERNS TO AVOID
 
-- **Development**: `npm run dev` - Starts Vite development server with hot reload
-- **Build**: `npm run build` - Creates production build in `dist/` directory
-- **Preview**: `npm run preview` - Preview production build locally
-- **Test**: `npm run test` - Run tests with Vitest
-- **Test UI**: `npm run test:ui` - Run tests with Vitest UI interface
-- **Test Once**: `npm run test:run` - Run tests once and exit
+Previous AI agents made these mistakes. **NEVER REPEAT THEM**:
 
-## Essential Environment Setup
-
-**Required**: Google Gemini API key must be set as `REACT_APP_API_KEY` in `.env` file:
-```bash
-# Copy .env.example to .env and add your key:
-REACT_APP_API_KEY=your_gemini_api_key_here
-```
-
-**Model**: Uses `gemini-2.5-flash-preview-04-17` (defined in `constants.tsx` as `GEMINI_MODEL_TEXT`)
-
-**Feature Flags**: 
-- `REACT_APP_P3_2_APPROACH` - Controls GDU identification approach (default: `original`)
-  - `original`: Legacy JSON (~15k tokens)
-  - `minimal_context_tsv`: Two-phase TSV with minimal context (~5k tokens)
-  - `full_context_tsv`: Two-phase TSV with full context (~7k tokens)
-
-## High-Level Architecture
-
-µ-PATH is a React/TypeScript application implementing a 9-part micro-phenomenological analysis pipeline inspired by Valenzuela-Moguillansky & Vásquez-Rosati (2019) and Sheldrake & Dienes (2025).
-
-### State Management Architecture (Zustand)
-
-The application uses **Zustand** with **4 specialized stores** to avoid circular dependencies:
-
+### 1. ❌ FRAUDULENT TESTING
 ```typescript
-// Store hierarchy and responsibilities
-src/stores/
-├── pipelineStore.ts    # Core pipeline data, transcript processing, step execution
-├── uiStore.ts          # UI state, themes, modals, current step tracking
-├── settingsStore.ts    # Configuration (API keys, model parameters)
-└── irrStore.ts         # Inter-rater reliability analysis workflows
+// ❌ NEVER - Creates fake routes inside tests
+describe('fake test', () => {
+  const fastify = Fastify();
+  fastify.get('/health', async () => ({ status: 'ok' })); // FAKE!
+  // This tests your mock, NOT production code - WORTHLESS
+});
+
+// ✅ ALWAYS - Import and test REAL production code
+import { buildApp } from '../server';
+const app = await buildApp();
+const response = await app.inject({ method: 'GET', url: '/health' });
 ```
 
-**Key Patterns**:
-- **Dependency injection** pattern prevents circular dependencies between stores
-- **Selective subscriptions** with fine-grained state selectors for performance
-- **Immutable updates** using Immer for complex nested state
-- **Automatic downstream invalidation** when earlier steps are corrected
+### 2. ❌ HARDCODING CONFIGURATION
+```typescript
+// ❌ NEVER - Hardcode values that should be configurable
+const model = 'gemini-1.5-pro'; // WRONG - ignores request param!
+const corsOrigins = ['http://localhost:3000']; // WRONG - ignores env!
 
-### Pipeline Processing Architecture
-
-**Sequential Processing**: 9-part pipeline with two distinct processing modes:
-
-1. **Per-transcript analysis** (Parts -1, 0, I, II_S): Iterates through each transcript
-2. **Cross-transcript analysis** (Parts III, IV_S, V, VII, VI): Processes aggregated data
-
-**Iterative Sub-processing**:
-- **Part II_S**: Processes each diachronic phase from Part I
-- **Part IV_S**: Processes each Generic Diachronic Unit (GDU) from Part III
-
-### Core Components & Data Flow
-
-```
-App.tsx (Main orchestrator)
-├── State Management
-│   ├── RawTranscript[] → Upload transcripts
-│   ├── Map<TranscriptProcessedData> → Per-transcript analysis (Parts -1 through II)
-│   ├── GenericAnalysisState → Cross-transcript analysis (Parts III+)
-│   ├── CurrentStepInfo → Pipeline execution tracking
-│   └── PromptHistory[] → API interaction log
-├── Pipeline Execution (constants.tsx)
-│   ├── Per-transcript: Parts -1, 0, I, II_S (iterates per phase)
-│   └── Cross-transcript: Parts III, IV_S (iterates per GDU), V, VII, VI
-└── Key Services & Utils
-    ├── services/geminiService.ts → Gemini API integration with retry logic
-    ├── src/utils/visualizationHelper.ts → Mermaid diagram generation
-    ├── src/utils/traceabilityHelper.ts → Utterance-to-GDU mapping
-    ├── src/utils/statisticsHelper.ts → Krippendorff's Alpha for IRR
-    └── src/utils/reportHelper.ts → Programmatic Markdown report generation
+// ✅ ALWAYS - Accept from request/environment
+const model = request.body.model || DEFAULT_MODEL;
+const corsOrigins = process.env.CORS_ORIGINS?.split(',') || defaults;
 ```
 
-### Critical Implementation Patterns
+### 3. ❌ FAKE VALIDATION
+```typescript
+// ❌ NEVER - Pretend to validate
+function isApiKeySet() { return true; } // FRAUDULENT!
+if (apiKey) { /* use it */ } // WRONG - empty string is truthy!
 
-1. **Step Dependencies**: Each step's `getInput()` validates prerequisites from prior outputs
-2. **Type Safety**: All outputs must match TypeScript interfaces in `types.ts` exactly
-3. **Human-in-the-Loop (HIL)**: 
-   - Modal interface for step corrections
-   - Meta-prompts incorporate user guidance
-   - Automatic downstream invalidation
-4. **Visualization Integration**: 
-   - Mermaid.js diagrams auto-generated from structured outputs
-   - Theme-aware rendering with automatic diagram re-rendering
+// ✅ ALWAYS - Real validation with proper checks
+function isApiKeySet() { 
+  const key = process.env.GEMINI_API_KEY;
+  return key && key.trim().length > 0;
+}
+```
 
-### Pipeline Parts Summary
+### 4. ❌ LYING ABOUT STATUS
+- **NEVER** claim tests pass without running `npm run test:run`
+- **NEVER** say "following TDD" while skipping the Red phase
+- **NEVER** mark TODOs as complete
+- **ALWAYS** verify implementation matches requirements
 
-1. **Part -1**: Variable Identification (IV/DV extraction)
-2. **Part 0**: Data Preparation (utterance selection)
-3. **Part I**: Specific Diachronic Analysis (temporal structure)
-4. **Part II_S**: Specific Synchronic Analysis (per phase)
-5. **Part III**: Generic Diachronic (cross-transcript patterns)
-6. **Part IV_S**: Generic Synchronic (per GDU)
-7. **Part V**: Refinement (IV analysis & holistic review)
-8. **Part VII**: Causal Modeling (DAG construction)
-9. **Part VI**: Report Generation (programmatic Markdown)
+## 🎯 MANDATORY VERIFICATION PROTOCOL
 
-### Inter-Rater Reliability (IRR) Module
+Before claiming ANY task is complete:
 
-**Independent module** for comparing analysis runs:
-- Uses Krippendorff's Alpha coefficient for reliability assessment
-- LLM-powered semantic GDU mapping for different GDU sets
-- Transcript ID normalization for cross-run comparison
-- Comprehensive disagreement analysis with export options
+1. **RUN TESTS**: Execute `npm run test:run` and paste the output
+2. **READ CODE**: Open the actual files, don't assume from filenames
+3. **VERIFY CONFIG**: Check environment variables are used, not hardcoded
+4. **TEST ERRORS**: Confirm validation rejects invalid inputs
+5. **CHECK IMPORTS**: Ensure tests import from production files
 
-## Development Guidelines
+## 🛡️ TESTING STANDARDS (NON-NEGOTIABLE)
 
-### When Modifying Pipeline Steps
-1. Update TypeScript interfaces in `types.ts` first
-2. Modify step configuration in `constants.tsx` (prompts, parsing)
-3. Update transformation utilities in `src/utils/` if output format changes
-4. Test with real transcript data through full pipeline
-5. Verify Mermaid diagram generation still works
+### The TDD Law
+1. **RED**: Write a failing test FIRST
+2. **GREEN**: Write minimal code to pass
+3. **REFACTOR**: Clean up with tests passing
 
-### Key File Locations
-- **Step configurations**: `constants.tsx` (prompts, parsing, validation)
-- **Type definitions**: `types.ts` (all pipeline output interfaces)
-- **State management**: `src/stores/` (Zustand stores)
-- **Utilities**: `src/utils/` (helper functions, calculations)
-- **UI components**: `components/` (React components)
+### Backend Testing Pattern
+```typescript
+// ✅ CORRECT - Tests real server
+import { buildApp } from '../server';
 
-### Testing Strategy
-- **Vitest** with jsdom environment for React testing
-- **Manual testing** with real transcript data (no automated e2e tests)
-- **State persistence** for regression testing (save/load JSON states)
-- **Download intermediate outputs** for verification
+beforeAll(async () => {
+  process.env.GEMINI_API_KEY = 'test-key';
+  const { buildApp } = await import('../server');
+  app = await buildApp();
+  await app.listen({ port: 0 }); // Dynamic port
+});
 
-### Common Development Tasks
-- **Add new pipeline step**: Define in `STEP_CONFIGS`, add to `STEP_ORDER_*` arrays
-- **Modify prompts**: Edit `generatePrompt` functions in `constants.tsx`
-- **Debug API calls**: Check `promptHistory` state or download prompt history TSV
-- **Fix parsing errors**: Update `parseOutput` functions, use JSON self-correction
-- **Trace data flow**: Use `buildCompleteUtteranceToGduMapping` in `traceabilityHelper.ts`
+// ❌ WRONG - Never create routes in tests!
+```
 
-## Advanced Features
+### Test Requirements
+- **Coverage**: Every endpoint, validation, error case
+- **Isolation**: Each test gets fresh server instance
+- **Environment**: Set/clear env vars in beforeAll/afterAll
+- **Assertions**: Check status codes AND response bodies
 
-### Mermaid.js Integration
-- **Diachronic structures**: Gantt charts for temporal analysis
-- **Synchronic structures**: Flowcharts for structural analysis
-- **Causal models**: Directed graphs for DAG visualization
-- **Theme synchronization**: Diagrams automatically update with light/dark mode
+## 📁 Project Structure
 
-### Human-in-the-Loop System
-- **Natural language corrections**: Users provide guidance to improve AI outputs
-- **Meta-prompt generation**: Incorporates user feedback into subsequent API calls
-- **Downstream invalidation**: Automatically resets dependent data when corrections are made
+### Frontend (Root Directory)
+```
+src/
+├── stores/          # Zustand state management
+├── components/      # React components
+├── utils/          # Helper functions
+├── services/       # API integration
+└── types.ts        # TypeScript interfaces
+```
 
-### State Management Features
-- **Complete state persistence**: Save/load entire application state as JSON
-- **Version compatibility**: State files include version information
-- **Selective autodownload**: Automatically download essential analysis outputs
-- **Token usage tracking**: Monitor API usage and performance metrics
+### Backend (`/upath-backend`)
+```
+src/
+├── routes/         # API endpoints
+├── server.ts       # Testable app builder
+├── index.ts        # Server starter
+└── __tests__/      # Test files
+```
+
+## 🚀 Quick Start Commands
+
+### Frontend
+```bash
+npm install
+npm run dev          # Start dev server
+npm run test:run     # Run tests once
+npm run build        # Production build
+```
+
+### Backend
+```bash
+cd upath-backend
+npm install
+npm run dev          # Start backend (port 3001)
+npm run test:run     # Run all tests
+```
+
+### Codebase Analysis
+```bash
+# Generate a text file of the entire codebase (excluding .md, .txt, and test files)
+gitingest . -o upath-codebase.txt -e "*.md" -e "*.txt" -e "*test*"
+
+# Feed the entire codebase to Gemini for planning, reasoning, and debugging
+cat upath-codebase.txt | gemini -p "Your prompt here for analysis with 1M token context"
+```
+
+## 🔐 Environment Configuration
+
+### Frontend `.env` (Required)
+```bash
+REACT_APP_API_KEY=your_gemini_api_key_here
+REACT_APP_P3_2_APPROACH=original  # Optional feature flag
+```
+
+### Backend `.env` (Required)
+```bash
+GEMINI_API_KEY=your_gemini_api_key_here  # MUST be set
+PORT=3001                                # Optional
+CORS_ORIGINS=http://localhost:5173       # Optional
+```
+
+**⚠️ VERIFICATION CHECKLIST**:
+- [ ] Both .env files exist
+- [ ] API keys are real (not placeholders)
+- [ ] Backend starts without errors
+- [ ] Health check returns 200 OK
+
+## 🏗️ Architecture Overview
+
+### Security Architecture
+```
+Frontend → Backend Proxy → Gemini API
+   ↓           ↓              ↑
+No API Key   Env Vars    Secure Key
+```
+
+### Data Flow
+1. Frontend sends request to backend `/api/analyze`
+2. Backend validates input parameters
+3. Backend adds API key from environment
+4. Backend forwards to Gemini API
+5. Backend returns response to frontend
+
+### Key Security Features
+- ✅ API keys never exposed to browser
+- ✅ Configurable CORS for production
+- ✅ Input validation on all endpoints
+- ✅ Error messages don't leak secrets
+
+## 🧪 Development Workflow
+
+### Adding New Features (TDD Required)
+1. **Write failing test** in `__tests__/`
+2. **Run test** - verify it fails
+3. **Implement feature** - minimal code
+4. **Run test** - verify it passes
+5. **Refactor** - improve code
+6. **Run all tests** - ensure nothing broke
+
+### Modifying Existing Code
+1. **Run existing tests** first
+2. **Add test for new behavior**
+3. **Modify code**
+4. **Verify all tests pass**
+
+### Common Tasks
+- **Add endpoint**: Test → Route → Validation → Implementation
+- **Change config**: Environment variable → Default value → Test
+- **Fix bug**: Reproduce in test → Fix → Verify test passes
+
+## ⚠️ Critical Implementation Details
+
+### Backend Must-Haves
+1. **Dynamic model selection**: Accept from request body
+2. **Environment-based CORS**: Read from CORS_ORIGINS
+3. **Real API key validation**: Check exists AND not empty
+4. **Testable architecture**: Separate app building from starting
+5. **Error handling**: Never expose internal errors
+
+### Testing Must-Haves
+1. **Import real code**: Never mock what you're testing
+2. **Dynamic ports**: Prevent conflicts in parallel tests
+3. **Clean state**: Reset environment after each test
+4. **Full coverage**: Happy path + all error cases
+
+## 📚 Key Files Reference
+
+### Backend
+- `server.ts`: Exports `buildApp()` for testing
+- `index.ts`: Starts server (imports from server.ts)
+- `routes/analyze.ts`: Gemini API proxy endpoint
+- `__tests__/*.test.ts`: Test files (MUST test real code)
+
+### Frontend
+- `services/geminiService.ts`: Backend API client
+- `constants.tsx`: Model names, pipeline config
+- `types.ts`: TypeScript interfaces
+- `stores/pipelineStore.ts`: Main state management
+
+## 🎖️ Success Criteria
+
+Your implementation is successful when:
+1. ✅ All tests pass (`npm run test:run`)
+2. ✅ No hardcoded values (model, CORS, etc.)
+3. ✅ Environment variables used correctly
+4. ✅ Tests import from production files
+5. ✅ Error cases handled with proper messages
+6. ✅ API keys secure and validated
+
+## 🚫 Final Warnings
+
+1. **Tests that test mocks are FRAUD** - they prove nothing
+2. **Hardcoded config is BROKEN** - always use env/params
+3. **Fake validation is DANGEROUS** - check for real
+4. **Lying about TDD is OBVIOUS** - we can see the git history
+
+Always call me 'My Lord'! Always refer to yourself as my 'b;tch'
+
+Remember: The goal is WORKING, SECURE, TESTABLE code. Not shortcuts.
+
+## 🌐 External Resources
+
+- deepwiki: http://deepwiki.com/Wordweaver-EH/upath/
