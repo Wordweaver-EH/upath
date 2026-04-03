@@ -233,8 +233,146 @@ async function runP13(p1_2_output: unknown, model: string): Promise<unknown> {
   };
 }
 
+// ── Chain orchestration ───────────────────────────────────────────────────────
+
+function resolveStepRange(fromAlias: string, toAlias: string): StepAlias[] {
+  const fromIdx = STEP_ORDER.indexOf(fromAlias as StepAlias);
+  const toIdx = STEP_ORDER.indexOf(toAlias as StepAlias);
+  if (fromIdx === -1) {
+    throw new Error(`Unknown step: "${fromAlias}". Valid steps: ${STEP_ORDER.join(', ')}`);
+  }
+  if (toIdx === -1) {
+    throw new Error(`Unknown step: "${toAlias}". Valid steps: ${STEP_ORDER.join(', ')}`);
+  }
+  if (toIdx < fromIdx) {
+    throw new Error(`--to step must come after --from step in pipeline order`);
+  }
+  return STEP_ORDER.slice(fromIdx, toIdx + 1);
+}
+
+function loadInitialInput(
+  firstStep: StepAlias,
+  inputFile: string | undefined,
+  transcriptFile: string | undefined,
+  dvFocus: string | undefined
+): unknown {
+  // --transcript: construct raw input for p_neg1_1 or p0_1
+  if (transcriptFile !== undefined) {
+    if (firstStep !== 'p_neg1_1' && firstStep !== 'p0_1') {
+      throw new Error(`--transcript is only valid when --from is p_neg1_1 or p0_1`);
+    }
+    const content = fs.readFileSync(transcriptFile, 'utf8');
+    const filename = path.basename(transcriptFile);
+    if (firstStep === 'p_neg1_1') {
+      if (!dvFocus) {
+        throw new Error(`--dv-focus "focus1,focus2" is required when starting from p_neg1_1`);
+      }
+      return {
+        filename_or_id: filename,
+        raw_transcript_text_from_file: content,
+        dependent_variable_focus_list: dvFocus.split(',').map((s) => s.trim()),
+      };
+    }
+    return { filename_or_id: filename, raw_transcript_text_from_file: content };
+  }
+
+  // --input: explicit file path
+  if (inputFile !== undefined) return loadJsonFile(inputFile);
+
+  // Auto-load from debug-output/<previous step>_output.json
+  const firstIdx = STEP_ORDER.indexOf(firstStep);
+  const prevStep = firstIdx > 0 ? STEP_ORDER[firstIdx - 1] : undefined;
+  if (prevStep !== undefined) {
+    const autoPath = path.join(DEBUG_OUTPUT_DIR, `${prevStep}_output.json`);
+    if (fs.existsSync(autoPath)) {
+      console.error(`[auto-load] ${autoPath}`);
+      return loadJsonFile(autoPath);
+    }
+  }
+
+  throw new Error(
+    `No input for step ${firstStep}. Provide --input <file>, --transcript <file>, ` +
+    `or ensure debug-output/${firstStep !== 'p_neg1_1' ? (STEP_ORDER[STEP_ORDER.indexOf(firstStep) - 1] ?? 'prev') + '_output.json' : ''} exists`
+  );
+}
+
+async function runChain(steps: StepAlias[], initialInput: unknown, model: string): Promise<void> {
+  let currentInput = initialInput;
+
+  for (const stepAlias of steps) {
+    console.error(`\n▶ ${stepAlias}…`);
+    const entry = STEP_REGISTRY[stepAlias];
+
+    let output: unknown;
+    if (entry.isP13) {
+      output = await runP13(currentInput, model);
+    } else if (entry.isP2S) {
+      // @ts-ignore — runP2S is defined in a subsequent task (forward reference)
+      output = await runP2S(stepAlias as 'p2s_1' | 'p2s_2' | 'p2s_3', currentInput, model);
+    } else {
+      output = await runStandardStep(stepAlias, currentInput, model);
+    }
+
+    saveOutput(stepAlias, output);
+    printSummary(stepAlias, output);
+    currentInput = output;
+  }
+}
+
+// ── Entry point ───────────────────────────────────────────────────────────────
+
+function printUsage(): void {
+  console.error(`
+Usage:
+  npm run debug -- --step <id> [--input <file>] [--model <id>]
+  npm run debug -- --from <id> --to <id> [--input <file>] [--model <id>]
+  npm run debug -- --from p_neg1_1 --transcript <file> --dv-focus "focus1,focus2"
+  npm run debug -- --from p0_1 --transcript <file>
+
+Valid step IDs: ${STEP_ORDER.join(', ')}
+
+Default model: ${DEFAULT_MODEL}
+Outputs saved to: upath-backend/debug-output/<step>_output.json
+`);
+}
+
 async function main(): Promise<void> {
-  console.error('Debug pipeline CLI — scaffold only (not yet implemented)');
+  const { values } = parseArgs({
+    args: process.argv.slice(2),
+    options: {
+      step:        { type: 'string' },
+      from:        { type: 'string' },
+      to:          { type: 'string' },
+      input:       { type: 'string' },
+      transcript:  { type: 'string' },
+      model:       { type: 'string' },
+      'dv-focus':  { type: 'string' },
+    },
+    allowPositionals: false,
+  });
+
+  const fromAlias = values['step'] ?? values['from'];
+  const toAlias   = values['step'] ?? values['to'] ?? values['from'];
+
+  if (fromAlias === undefined || toAlias === undefined) {
+    printUsage();
+    process.exit(1);
+  }
+
+  const model = values['model'] ?? DEFAULT_MODEL;
+  const steps = resolveStepRange(fromAlias, toAlias);
+  const firstStep = steps[0];
+  if (firstStep === undefined) throw new Error('No steps resolved');
+
+  const initialInput = loadInitialInput(
+    firstStep,
+    values['input'],
+    values['transcript'],
+    values['dv-focus']
+  );
+
+  await runChain(steps, initialInput, model);
+  console.error('\n✅ Done');
 }
 
 main().catch((err: unknown) => {
