@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /**
  * REAL TDD Test for Analyze Endpoint
@@ -132,7 +133,7 @@ describe('Analyze Endpoint - Real Production Test', () => {
     // This test would require restarting the server with different env vars
     // For now, we'll just verify the default CORS configuration works
     const origins = ['http://localhost:5173', 'http://localhost:3000'];
-    
+
     for (const origin of origins) {
       const response = await app.inject({
         method: 'OPTIONS',
@@ -146,5 +147,38 @@ describe('Analyze Endpoint - Real Production Test', () => {
       expect(response.statusCode).toBe(204);
       expect(response.headers['access-control-allow-origin']).toBe(origin);
     }
+  });
+
+  it('should pass responseSchema to generationConfig on SDK path', async () => {
+    // Use gemini-1.5-flash — NOT in THINKING_MODELS, so it takes the SDK path
+    // (gemini-2.5-flash would use the REST fetch path and bypass the SDK entirely)
+    const mockGenerateContent = vi.fn().mockResolvedValue({
+      response: { text: () => '{"result": "ok"}' }
+    });
+    const spy = vi.spyOn(GoogleGenerativeAI.prototype, 'getGenerativeModel')
+      .mockReturnValue({ generateContent: mockGenerateContent } as any);
+
+    const testSchema = {
+      type: 'object',
+      properties: { result: { type: 'string' } },
+      required: ['result']
+    };
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/analyze',
+      payload: {
+        prompt: 'test prompt',
+        model: 'gemini-1.5-flash',
+        isJsonOutput: true,
+        responseSchema: testSchema
+      }
+    });
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    const [requestConfig] = mockGenerateContent.mock.calls[0];
+    expect(requestConfig.generationConfig.responseSchema).toEqual(testSchema);
+
+    spy.mockRestore();
   });
 });
