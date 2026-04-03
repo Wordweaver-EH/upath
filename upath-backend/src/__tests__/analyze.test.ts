@@ -129,24 +129,18 @@ describe('Analyze Endpoint - Real Production Test', () => {
     expect(response.headers['access-control-allow-credentials']).toBe('true');
   });
 
-  it('should accept environment-configured CORS origins', async () => {
-    // This test would require restarting the server with different env vars
-    // For now, we'll just verify the default CORS configuration works
-    const origins = ['http://localhost:5173', 'http://localhost:3000'];
+  it('should accept the default fallback CORS origin', async () => {
+    const response = await app.inject({
+      method: 'OPTIONS',
+      url: '/api/analyze',
+      headers: {
+        'origin': 'http://localhost:5173',
+        'access-control-request-method': 'POST'
+      }
+    });
 
-    for (const origin of origins) {
-      const response = await app.inject({
-        method: 'OPTIONS',
-        url: '/api/analyze',
-        headers: {
-          'origin': origin,
-          'access-control-request-method': 'POST'
-        }
-      });
-
-      expect(response.statusCode).toBe(204);
-      expect(response.headers['access-control-allow-origin']).toBe(origin);
-    }
+    expect(response.statusCode).toBe(204);
+    expect(response.headers['access-control-allow-origin']).toBe('http://localhost:5173');
   });
 
   it('should pass responseSchema to generationConfig on SDK path', async () => {
@@ -230,6 +224,7 @@ describe('CORS with CORS_ORIGINS env var', () => {
   beforeAll(async () => {
     process.env.GEMINI_API_KEY = 'test-api-key';
     process.env.CORS_ORIGINS = 'http://example.com,http://other.com';
+    vi.resetModules();
     const { buildApp } = await import('../server');
     corsApp = await buildApp();
   });
