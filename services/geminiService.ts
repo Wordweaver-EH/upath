@@ -85,6 +85,7 @@ export function isApiKeySetSync(): boolean {
 // Helper function to estimate tokens (1 token ~ 4 chars)
 function estimateTokens(text: string): number {
     if (!text) return 0;
+    // Heuristic (~4 chars/token) — accurate enough for UI display, not billing.
     return Math.ceil(text.length / 4);
 }
 
