@@ -249,6 +249,8 @@ async function runP2S(
   if (stepAlias === 'p2s_1') {
     // input is p1_5 output. Also need p1_4 (DU→segment IDs) and p1_1 (segment text).
     const p1_5 = input as Record<string, unknown>;
+    // p2s_1 requires both p1_4_output.json (DU→segment mapping) and p1_1_output.json
+    // (segment text) to be present in debug-output/. Run --from p1_1 --to p1_5 first.
     const p1_4 = loadJsonFile(path.join(DEBUG_OUTPUT_DIR, 'p1_4_output.json')) as Record<string, unknown>;
     const p1_1 = loadJsonFile(path.join(DEBUG_OUTPUT_DIR, 'p1_1_output.json')) as Record<string, unknown>;
 
@@ -279,7 +281,7 @@ async function runP2S(
         transcript_id: String(p1_5['transcript_id']),
         analyzed_du_id: duId,
         segments_for_du_analysis: segments,
-        independent_variable_details: String(p1_4['independent_variable_details']),
+        independent_variable_details: p1_4['independent_variable_details'],
         dependent_variable_focus: p1_4['dependent_variable_focus'],
       };
 
@@ -297,7 +299,7 @@ async function runP2S(
     const agg = input as { transcript_id: string; p2s_outputs_by_du: Record<string, Record<string, unknown>> };
     for (const [duId, duData] of Object.entries(agg.p2s_outputs_by_du)) {
       const duInput = duData['p2s_1_output'];
-      if (duInput === undefined) continue;
+      if (duInput === undefined) { console.error(`  [p2s_2] WARNING: no p2s_1_output for DU ${duId} — skipping`); continue; }
       console.error(`  → DU ${duId}…`);
       const prompt = cfg.generatePrompt(duInput);
       const duOutput = await callGemini(prompt, model, cfg.isJsonOutput, cfg.responseSchema);
@@ -310,7 +312,7 @@ async function runP2S(
   const agg = input as { transcript_id: string; p2s_outputs_by_du: Record<string, Record<string, unknown>> };
   for (const [duId, duData] of Object.entries(agg.p2s_outputs_by_du)) {
     const duInput = duData['p2s_2_output'];
-    if (duInput === undefined) continue;
+    if (duInput === undefined) { console.error(`  [p2s_3] WARNING: no p2s_2_output for DU ${duId} — skipping`); continue; }
     console.error(`  → DU ${duId}…`);
     const prompt = cfg.generatePrompt(duInput);
     const duOutput = await callGemini(prompt, model, cfg.isJsonOutput, cfg.responseSchema);
