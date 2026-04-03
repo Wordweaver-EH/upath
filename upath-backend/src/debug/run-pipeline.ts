@@ -92,6 +92,147 @@ const STEP_REGISTRY: Record<StepAlias, StepEntry> = {
   p2s_3:    { config: P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE_CONFIG,   isP13: false, isP2S: true  },
 };
 
+// ── File I/O ─────────────────────────────────────────────────────────────────
+
+function loadJsonFile(filePath: string): unknown {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found: ${filePath}`);
+  }
+  return JSON.parse(fs.readFileSync(filePath, 'utf8')) as unknown;
+}
+
+function saveOutput(stepAlias: StepAlias, output: unknown): void {
+  if (!fs.existsSync(DEBUG_OUTPUT_DIR)) {
+    fs.mkdirSync(DEBUG_OUTPUT_DIR, { recursive: true });
+  }
+  const outPath = path.join(DEBUG_OUTPUT_DIR, `${stepAlias}_output.json`);
+  fs.writeFileSync(outPath, JSON.stringify(output, null, 2));
+  console.error(`  saved → ${outPath}`);
+}
+
+// ── Summary printer ───────────────────────────────────────────────────────────
+
+function printSummary(stepAlias: StepAlias, output: unknown): void {
+  if (typeof output !== 'object' || output === null) {
+    console.error(`[${stepAlias}] (text output, length ${String(output).length})`);
+    return;
+  }
+  const o = output as Record<string, unknown>;
+  switch (stepAlias) {
+    case 'p1_3': {
+      const segs = (o['sorted_segments'] as unknown[]) ?? [];
+      console.error(`[p1_3] ${segs.length} segments sorted`);
+      break;
+    }
+    case 'p1_4': {
+      const dus = (o['diachronic_units'] as Array<Record<string, unknown>>) ?? [];
+      console.error(`[p1_4] ${dus.length} DUs:`);
+      for (const du of dus) {
+        console.error(`  ${String(du['unit_id'])}: ${String(du['description'])}`);
+      }
+      break;
+    }
+    case 'p1_5': {
+      const sds = (o['specific_diachronic_structure'] as Record<string, unknown>) ?? {};
+      const phases = (sds['phases'] as Array<Record<string, unknown>>) ?? [];
+      const hinges = (sds['hinge_points'] as unknown[]) ?? [];
+      console.error(`[p1_5] ${phases.length} phases, ${hinges.length} hinge points:`);
+      for (const p of phases) {
+        const units = (p['units_involved'] as unknown[]) ?? [];
+        console.error(`  "${String(p['phase_name'])}" (${units.length} DUs)`);
+      }
+      break;
+    }
+    case 'p2s_1':
+    case 'p2s_2':
+    case 'p2s_3': {
+      const byDu = (o['p2s_outputs_by_du'] as Record<string, unknown>) ?? {};
+      console.error(`[${stepAlias}] ${Object.keys(byDu).length} DUs processed`);
+      break;
+    }
+    default:
+      console.error(`[${stepAlias}] done`);
+  }
+}
+
+// ── Standard step runner ──────────────────────────────────────────────────────
+
+async function runStandardStep(
+  stepAlias: StepAlias,
+  input: unknown,
+  model: string
+): Promise<unknown> {
+  const entry = STEP_REGISTRY[stepAlias];
+  const cfg = entry.config;
+  if (!cfg?.generatePrompt) {
+    throw new Error(`Step ${stepAlias} has no generatePrompt — cannot run via CLI`);
+  }
+  const prompt = cfg.generatePrompt(input);
+  return callGemini(prompt, model, cfg.isJsonOutput, cfg.responseSchema);
+}
+
+// ── P1.3 special runner (per-phase iteration) ─────────────────────────────────
+
+const P13_PHASES = [
+  'Initial State',
+  'Core Experience',
+  'Final Action',
+  'Post-Hoc Reflection',
+] as const;
+
+async function runP13(p1_2_output: unknown, model: string): Promise<unknown> {
+  const p = p1_2_output as Record<string, unknown>;
+  const phaseTaggedUtterances = (p['phase_tagged_utterances'] as Array<Record<string, unknown>>) ?? [];
+
+  // Group segments by coarse_phase
+  const phaseGroups: Record<string, unknown[]> = {
+    'Initial State': [], 'Core Experience': [], 'Final Action': [], 'Post-Hoc Reflection': [],
+  };
+  for (const ptu of phaseTaggedUtterances) {
+    const segments = (ptu['segments'] as Array<Record<string, unknown>>) ?? [];
+    for (const seg of segments) {
+      const phase = String(seg['coarse_phase']);
+      const bucket = phaseGroups[phase];
+      if (bucket !== undefined) bucket.push(seg);
+    }
+  }
+
+  const sortedSegments: unknown[] = [];
+
+  for (const phaseName of P13_PHASES) {
+    const segs = phaseGroups[phaseName] ?? [];
+    if (segs.length === 0) continue;
+
+    console.error(`  sorting phase "${phaseName}" (${segs.length} segments)…`);
+    // generatePhaseSpecificPrompt expects PhaseTaggedSegment[] — cast is safe because
+    // the data comes from P1.2 output which matches the shape
+    const prompt = generatePhaseSpecificPrompt(phaseName, segs as Parameters<typeof generatePhaseSpecificPrompt>[1]);
+    // P1.3 phases return JSON text (not structured JSON output mode in the original pipeline)
+    const text = await callGemini(prompt, model, false) as string;
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      const m = text.match(/\{[\s\S]*\}/);
+      if (!m || m[0] === undefined) {
+        throw new Error(`Cannot parse P1.3 response for phase "${phaseName}"`);
+      }
+      parsed = JSON.parse(m[0]) as Record<string, unknown>;
+    }
+
+    const phaseSorted = (parsed['sorted_segments'] as unknown[]) ?? [];
+    sortedSegments.push(...phaseSorted);
+  }
+
+  return {
+    transcript_id: p['transcript_id'],
+    sorted_segments: sortedSegments,
+    independent_variable_details: p['independent_variable_details'],
+    dependent_variable_focus: p['dependent_variable_focus'],
+  };
+}
+
 async function main(): Promise<void> {
   console.error('Debug pipeline CLI — scaffold only (not yet implemented)');
 }
