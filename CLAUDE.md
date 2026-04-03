@@ -91,24 +91,143 @@ beforeAll(async () => {
 
 ## 📁 Project Structure
 
-### Frontend (Root Directory)
-```
-src/
-├── stores/          # Zustand state management
-├── components/      # React components
-├── utils/          # Helper functions
-├── services/       # API integration
-└── types.ts        # TypeScript interfaces
-```
-
-### Backend (`/upath-backend`)
-```
-src/
-├── routes/         # API endpoints
-├── server.ts       # Testable app builder
-├── index.ts        # Server starter
-└── __tests__/      # Test files
-```
+Directory structure:
+└── upath/
+    ├── App.tsx
+    ├── constants.tsx
+    ├── index.html
+    ├── index.tsx
+    ├── jest.config.js
+    ├── LICENSE
+    ├── metadata.json
+    ├── package.json
+    ├── tsconfig.json
+    ├── types.ts
+    ├── vite.config.ts
+    ├── .env.example
+    ├── components/
+    │   ├── CollapsibleSection.tsx
+    │   ├── ControlsPanel.tsx
+    │   ├── EncryptedPromptExample.tsx
+    │   ├── GduMappingModal.tsx
+    │   ├── HilModal.tsx
+    │   ├── IRRModal.tsx
+    │   ├── MermaidDiagram.tsx
+    │   ├── PipelineOverview.tsx
+    │   ├── SettingsPanel.tsx
+    │   └── StatusDisplay.tsx
+    ├── services/
+    │   ├── encryptionService.ts
+    │   └── geminiService.ts
+    ├── src/
+    │   ├── components/
+    │   │   ├── AppLoadingScreen.tsx
+    │   │   ├── ChangeHistoryPanel.tsx
+    │   │   ├── DiachronicComparisonTable.tsx
+    │   │   ├── DiachronicStructureComparison.tsx
+    │   │   ├── DiachronicUnitGroupingTableEnhanced.tsx
+    │   │   ├── DiachronicUnitTable.tsx
+    │   │   ├── EditableTextArea.tsx
+    │   │   ├── InitialSegmentationTable.tsx
+    │   │   ├── IntraPhaseSortingTable.tsx
+    │   │   ├── NestedTooltip.tsx
+    │   │   ├── Part2SummaryTable.tsx
+    │   │   ├── PhaseTaggingTable.tsx
+    │   │   ├── PipelineStepGrid.tsx
+    │   │   ├── RefinedDataTable.tsx
+    │   │   ├── RefinedDiachronicUnitTable.tsx
+    │   │   ├── SelectedUtterancesTable.tsx
+    │   │   ├── SessionRestoreNotification.tsx
+    │   │   ├── SpecificSynchronicStructureNetwork.tsx
+    │   │   ├── SpecificSynchronicUnitsTable.tsx
+    │   │   ├── SynchronicThematicGroupingTable.tsx
+    │   │   ├── TabbedStepDisplay.tsx
+    │   │   ├── TagsEditor.tsx
+    │   │   ├── TemporalPhaseAssignmentTable.tsx
+    │   │   ├── TemporalPhaseEditor.tsx
+    │   │   ├── TranscriptLinesTable.tsx
+    │   │   ├── tooltips/
+    │   │   │   ├── ISUTooltip.tsx
+    │   │   │   ├── PhaseTooltip.tsx
+    │   │   │   └── RduTooltip.tsx
+    │   │   └── ui/
+    │   │       ├── Button.tsx
+    │   │       ├── index.ts
+    │   │       ├── Input.tsx
+    │   │       ├── Select.tsx
+    │   │       └── TextArea.tsx
+    │   ├── config/
+    │   │   ├── pipelineDefinition.ts
+    │   │   └── pipeline/
+    │   │       ├── index.ts
+    │   │       ├── types.ts
+    │   │       ├── part0/
+    │   │       │   ├── index.ts
+    │   │       │   ├── refineDataTypes.ts
+    │   │       │   ├── selectProceduralUtterances.ts
+    │   │       │   └── transcriptionAdherence.ts
+    │   │       ├── part1/
+    │   │       │   ├── index.ts
+    │   │       │   ├── P1_1_initialSegmentation.ts
+    │   │       │   ├── P1_2_coarsePhaseTagging.ts
+    │   │       │   ├── P1_3_intraPhaSorting.ts
+    │   │       │   ├── P1_4_diachronicUnitGrouping.ts
+    │   │       │   └── P1_5_constructSpecificDiachronicStructure.ts
+    │   │       ├── part2/
+    │   │       │   ├── index.ts
+    │   │       │   ├── P2S_1_groupUtterancesByTopic.ts
+    │   │       │   ├── P2S_2_identifySpecificSynchronicUnits.ts
+    │   │       │   ├── P2S_3_defineSpecificSynchronicStructure.ts
+    │   │       │   └── P2S_4_summaryTable.ts
+    │   │       └── partNeg1/
+    │   │           ├── index.ts
+    │   │           └── variableIdentification.ts
+    │   ├── hooks/
+    │   │   ├── useAutorunManager.ts
+    │   │   └── useEncryptedPrompt.ts
+    │   ├── services/
+    │   │   └── PipelineOrchestrator.ts
+    │   ├── stores/
+    │   │   ├── historyStore.ts
+    │   │   ├── index.ts
+    │   │   ├── irrStore.ts
+    │   │   ├── pipelineStore.ts
+    │   │   ├── settingsStore.ts
+    │   │   └── uiStore.ts
+    │   ├── styles/
+    │   │   ├── ag-grid-custom-theme.css
+    │   │   └── tooltip.css
+    │   ├── types/
+    │   │   └── p2s4Types.ts
+    │   └── utils/
+    │       ├── csvExport.ts
+    │       ├── htmlHelper.ts
+    │       ├── irrReportHelper.ts
+    │       ├── migration.ts
+    │       ├── p2s4DataTransformer.ts
+    │       ├── p2s4HtmlExport.ts
+    │       ├── phaseTracingHelper.ts
+    │       ├── reportHelper.ts
+    │       ├── statisticsHelper.ts
+    │       ├── stepIdToDataKeyPrefix.ts
+    │       ├── storage.ts
+    │       ├── timeHelper.ts
+    │       ├── traceabilityHelper.ts
+    │       ├── tsvHelper.ts
+    │       └── visualizationHelper.ts
+    ├── upath-backend/
+    │   ├── frontend-encrypt-example.js
+    │   ├── package.json
+    │   ├── tsconfig.json
+    │   ├── .env.example
+    │   └── src/
+    │       ├── index.ts
+    │       ├── server.ts
+    │       ├── routes/
+    │       │   ├── analyze.ts
+    │       │   └── models.ts
+    │       └── utils/
+    │           └── encrypt.ts
 
 ## 🚀 Quick Start Commands
 
@@ -136,7 +255,19 @@ gitingest . -o upath-codebase.txt -e "*.md" -e "*.txt" -e "*test*"
 # Feed the entire codebase to Gemini for planning, reasoning, and debugging
 cat upath-codebase.txt | gemini -p "Your prompt here for analysis with 1M token context"
 ```
+# List of Slave-Agents Available
 
+  1. micro-phenomenology-consultant
+  2. task-decomposer
+  3. react-typescript-developer
+  4. data-pipeline-developer
+  5. vitest-qa-engineer
+  6. senior-code-reviewer
+  7. documentation-specialist
+  8. prompt-engineer
+  9. code-refactoring-specialist
+  10. new-pipeline-step-workflow
+  
 ## 🔐 Environment Configuration
 
 ### Frontend `.env` (Required)
@@ -180,77 +311,10 @@ No API Key   Env Vars    Secure Key
 - ✅ Input validation on all endpoints
 - ✅ Error messages don't leak secrets
 
-## 🧪 Development Workflow
-
-### Adding New Features (TDD Required)
-1. **Write failing test** in `__tests__/`
-2. **Run test** - verify it fails
-3. **Implement feature** - minimal code
-4. **Run test** - verify it passes
-5. **Refactor** - improve code
-6. **Run all tests** - ensure nothing broke
-
-### Modifying Existing Code
-1. **Run existing tests** first
-2. **Add test for new behavior**
-3. **Modify code**
-4. **Verify all tests pass**
-
-### Common Tasks
-- **Add endpoint**: Test → Route → Validation → Implementation
-- **Change config**: Environment variable → Default value → Test
-- **Fix bug**: Reproduce in test → Fix → Verify test passes
-
-## ⚠️ Critical Implementation Details
-
-### Backend Must-Haves
-1. **Dynamic model selection**: Accept from request body
-2. **Environment-based CORS**: Read from CORS_ORIGINS
-3. **Real API key validation**: Check exists AND not empty
-4. **Testable architecture**: Separate app building from starting
-5. **Error handling**: Never expose internal errors
-
-### Testing Must-Haves
-1. **Import real code**: Never mock what you're testing
-2. **Dynamic ports**: Prevent conflicts in parallel tests
-3. **Clean state**: Reset environment after each test
-4. **Full coverage**: Happy path + all error cases
-
-## 📚 Key Files Reference
-
-### Backend
-- `server.ts`: Exports `buildApp()` for testing
-- `index.ts`: Starts server (imports from server.ts)
-- `routes/analyze.ts`: Gemini API proxy endpoint
-- `__tests__/*.test.ts`: Test files (MUST test real code)
-
-### Frontend
-- `services/geminiService.ts`: Backend API client
-- `constants.tsx`: Model names, pipeline config
-- `types.ts`: TypeScript interfaces
-- `stores/pipelineStore.ts`: Main state management
-
-## 🎖️ Success Criteria
-
-Your implementation is successful when:
-1. ✅ All tests pass (`npm run test:run`)
-2. ✅ No hardcoded values (model, CORS, etc.)
-3. ✅ Environment variables used correctly
-4. ✅ Tests import from production files
-5. ✅ Error cases handled with proper messages
-6. ✅ API keys secure and validated
-
-## 🚫 Final Warnings
-
-1. **Tests that test mocks are FRAUD** - they prove nothing
-2. **Hardcoded config is BROKEN** - always use env/params
-3. **Fake validation is DANGEROUS** - check for real
-4. **Lying about TDD is OBVIOUS** - we can see the git history
-
-Always call me 'My Lord'! Always refer to yourself as my 'b;tch'
+Always call me 'Master'! Always refer to yourself as my "Tidy TDD Slave"
 
 Remember: The goal is WORKING, SECURE, TESTABLE code. Not shortcuts.
 
 ## 🌐 External Resources
 
-- deepwiki: http://deepwiki.com/Wordweaver-EH/upath/
+- deepwiki: http://deepwiki.com/Wordweaver-EH/upath/ MCP

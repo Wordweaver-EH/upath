@@ -59,8 +59,43 @@ export class PipelineOrchestrator {
   ): NextStepInfo | null {
     const { rawTranscripts, processedData, genericAnalysisState } = dataState
 
-    // Handle initial state
+    // Handle initial state with resume support
     if (currentStepInfo.stepId === StepId.IDLE && rawTranscripts.length > 0) {
+      // Check if we have a resume checkpoint from an explicit pause
+      if (processState.resumeCheckpoint) {
+        const { partIndex, stepIndex, iterationContext } = processState.resumeCheckpoint
+        
+        const part = this.pipelineStructure[partIndex]
+        if (part && stepIndex < part.steps.length) {
+          return {
+            nextStepId: part.steps[stepIndex],
+            nextTranscriptIndex: iterationContext.transcriptIndex ?? 0,
+            iterationType: part.iteration
+          }
+        }
+      }
+      
+      // NEW LOGIC: If no checkpoint, check the main processState to find the *last completed step*
+      // and then calculate the *next* step from there. This handles resuming after a page reload.
+      if (processState.currentPartIndex > -1 && processState.currentStepIndex > -1) {
+        const lastPart = this.pipelineStructure[processState.currentPartIndex];
+        if (lastPart) {
+          const lastStepId = lastPart.steps[processState.currentStepIndex];
+          const lastPosition = {
+            partIndex: processState.currentPartIndex,
+            stepIndex: processState.currentStepIndex,
+            part: lastPart
+          };
+          
+          // Use the persisted iteration context to determine the correct transcript index to resume from.
+          const resumeTranscriptIndex = processState.iterationContext.transcriptIndex ?? activeTranscriptIndex;
+          
+          // Now, we can find the next step as if the last step just completed.
+          return this.getNextIteration(lastPosition, dataState, resumeTranscriptIndex);
+        }
+      }
+      
+      // No checkpoint and no progress in processState, start from beginning
       return this.getFirstStep(rawTranscripts)
     }
 
@@ -140,6 +175,15 @@ export class PipelineOrchestrator {
     // Check if step has output or error
     const hasOutput = this.stepHasOutput(currentStepInfo.stepId, dataState, activeTranscriptIndex)
     
+    console.log('[Orchestrator] isIterationComplete check:', {
+      stepId: currentStepInfo.stepId,
+      status: currentStepInfo.status,
+      hasOutput,
+      statusIsSuccess: currentStepInfo.status === StepStatus.Success,
+      statusIsError: currentStepInfo.status === StepStatus.Error
+    });
+    
+    // A step iteration is complete when it has succeeded, errored, or already has output
     return currentStepInfo.status === StepStatus.Success || 
            currentStepInfo.status === StepStatus.Error || 
            hasOutput
@@ -158,6 +202,11 @@ export class PipelineOrchestrator {
     activeTranscriptIndex: number
   ): boolean {
     const key = stepIdToDataKeyPrefix[stepId]
+    console.log('[Orchestrator] stepHasOutput check:', {
+      stepId,
+      key,
+      hasKey: !!key
+    });
     if (!key) return false
 
     if (isGlobalStep(stepId)) {
@@ -168,27 +217,58 @@ export class PipelineOrchestrator {
     } else {
       // Check transcript-specific state
       const transcriptId = dataState.rawTranscripts[activeTranscriptIndex]?.id
+      console.log('[Orchestrator] stepHasOutput transcript check:', {
+        activeTranscriptIndex,
+        transcriptId,
+        hasTranscript: !!transcriptId
+      });
       if (!transcriptId) return false
       
       const tData = dataState.processedData.get(transcriptId)
+      console.log('[Orchestrator] stepHasOutput data check:', {
+        hasData: !!tData,
+        dataKeys: tData ? Object.keys(tData) : []
+      });
       if (!tData) return false
 
       if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(stepId)) {
-        // Check phase-specific output
-        const currentPhase = tData.current_phase_for_p2s_processing
-        if (!currentPhase) return false
+        // Check the current DU being processed
+        const currentDu = tData.current_du_for_p2s_processing
+        const p2sOutputs = tData.p2s_outputs_by_du
         
-        const phaseData = tData.p2s_outputs_by_phase?.[currentPhase]
-        if (!phaseData) return false
+        // If no current DU or no outputs structure, no output exists
+        if (!currentDu || !p2sOutputs) return false
         
-        const outputKey = key as keyof typeof phaseData
-        const errorKey = `${key.toString().replace('_output', '_error')}` as keyof typeof phaseData
-        return !!(phaseData[outputKey] || phaseData[errorKey])
+        // Check if the current DU has output for this step
+        const duData = p2sOutputs[currentDu]
+        if (!duData) return false
+        
+        const outputKey = key as keyof typeof duData
+        const errorKey = `${key.toString().replace('_output', '_error')}` as keyof typeof duData
+        const hasOutput = !!(duData[outputKey] || duData[errorKey])
+        
+        console.log('[Orchestrator] stepHasOutput P2S result:', {
+          stepId,
+          currentDu,
+          hasOutputData: !!duData[outputKey],
+          hasErrorData: !!duData[errorKey],
+          finalResult: hasOutput
+        });
+        
+        return hasOutput
       } else {
         // Regular transcript output
         const outputKey = key as keyof TranscriptProcessedData
         const errorKey = `${key.toString().replace('_output', '_error')}` as keyof TranscriptProcessedData
-        return !!(tData[outputKey] || tData[errorKey])
+        const hasOutput = !!(tData[outputKey] || tData[errorKey])
+        console.log('[Orchestrator] stepHasOutput result:', {
+          outputKey,
+          errorKey,
+          hasOutputData: !!tData[outputKey],
+          hasErrorData: !!tData[errorKey],
+          finalResult: hasOutput
+        });
+        return hasOutput
       }
     }
   }
@@ -207,6 +287,64 @@ export class PipelineOrchestrator {
   ): NextStepInfo | null {
     const { partIndex, stepIndex, part } = currentPosition
 
+    // Special handling for P2S - check if we need to repeat for next DU
+    console.log('[Orchestrator P2S Debug] Checking P2S iteration:', {
+      currentStep: currentPosition.part.steps[stepIndex],
+      stepIndex,
+      partSteps: currentPosition.part.steps,
+      activeTranscriptIndex
+    });
+    if (STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC.includes(currentPosition.part.steps[stepIndex])) {
+      const { rawTranscripts, processedData } = dataState
+      const transcriptId = rawTranscripts[activeTranscriptIndex]?.id
+      if (transcriptId) {
+        const tData = processedData.get(transcriptId)
+        if (tData) {
+          const dus = tData.dus_for_p2s_processing || []
+          const currentDu = tData.current_du_for_p2s_processing
+          
+          // Handle undefined or invalid current DU
+          if (!currentDu || !dus.includes(currentDu)) {
+            console.warn(`[PipelineOrchestrator] Invalid current_du_for_p2s_processing: ${currentDu} for transcript ${transcriptId}`)
+            // Skip to next transcript if DU is invalid
+            if (activeTranscriptIndex < rawTranscripts.length - 1) {
+              return {
+                nextStepId: part.steps[0],
+                nextTranscriptIndex: activeTranscriptIndex + 1,
+                iterationType: 'per-transcript'
+              }
+            }
+            // No more transcripts, move to next part
+            return this.getNextPart(partIndex, dataState)
+          }
+          
+          const currentDuIndex = dus.indexOf(currentDu)
+          const currentStep = currentPosition.part.steps[stepIndex]
+          
+          // Special handling for P2S.4 - it should only run after ALL DUs are processed
+          if (currentStep === StepId.P2S_4_SUMMARY_TABLE) {
+            // P2S.4 is complete, move to next part/transcript
+            // Don't iterate over DUs for P2S.4
+          } else if (currentStep === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE && currentDuIndex < dus.length - 1) {
+            // After P2S.3, go back to P2S.1 for next DU (skip P2S.4 until all DUs are done)
+            return {
+              nextStepId: part.steps[0], // Back to P2S.1
+              nextTranscriptIndex: activeTranscriptIndex,
+              nextDuIndex: currentDuIndex + 1,
+              iterationType: 'per-du'
+            }
+          } else if (currentStep === StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE && currentDuIndex === dus.length - 1) {
+            // All DUs processed, now run P2S.4
+            return {
+              nextStepId: StepId.P2S_4_SUMMARY_TABLE,
+              nextTranscriptIndex: activeTranscriptIndex,
+              iterationType: 'global' // P2S.4 is global for the transcript
+            }
+          }
+        }
+      }
+    }
+
     // Check if we need to move to next step in same part
     if (stepIndex < part.steps.length - 1) {
       return {
@@ -222,6 +360,9 @@ export class PipelineOrchestrator {
         return this.getNextTranscriptIteration(partIndex, dataState, activeTranscriptIndex)
       
       case 'per-phase':
+        return this.getNextPhaseIteration(partIndex, dataState, activeTranscriptIndex)
+      
+      case 'per-du':
         return this.getNextPhaseIteration(partIndex, dataState, activeTranscriptIndex)
       
       case 'per-gdu':
@@ -280,33 +421,46 @@ export class PipelineOrchestrator {
     const tData = processedData.get(transcriptId)
     if (!tData) return null
 
-    const phases = tData.phases_for_p2s_processing || []
-    const currentPhaseIndex = phases.indexOf(tData.current_phase_for_p2s_processing || '')
-
-    // Check if more phases to process for current transcript
-    if (currentPhaseIndex < phases.length - 1) {
-      return {
-        nextStepId: currentPart.steps[0],
-        nextTranscriptIndex: activeTranscriptIndex,
-        nextPhaseIndex: currentPhaseIndex + 1,
-        iterationType: 'per-phase'
-      }
-    }
-
-    // All phases processed for current transcript, check next transcript
-    if (activeTranscriptIndex < rawTranscripts.length - 1) {
-      // Move to Part 1 for next transcript
-      const part1Index = this.pipelineStructure.findIndex(p => p.name.includes("Specific Diachronic"))
-      if (part1Index !== -1) {
+    const dus = tData.dus_for_p2s_processing || []
+    const currentDu = tData.current_du_for_p2s_processing
+    
+    // Handle undefined or invalid current DU
+    if (!currentDu || !dus.includes(currentDu)) {
+      console.warn(`[PipelineOrchestrator] Invalid current_du_for_p2s_processing in checkP2SDuIteration: ${currentDu} for transcript ${transcriptId}`)
+      // Move to next transcript if available
+      if (activeTranscriptIndex < rawTranscripts.length - 1) {
         return {
-          nextStepId: this.pipelineStructure[part1Index].steps[0],
+          nextStepId: currentPart.steps[0],
           nextTranscriptIndex: activeTranscriptIndex + 1,
           iterationType: 'per-transcript'
         }
       }
+      // All transcripts processed, move to next part
+      return null
+    }
+    
+    const currentDuIndex = dus.indexOf(currentDu)
+
+    // Check if more DUs to process for current transcript
+    if (currentDuIndex < dus.length - 1) {
+      return {
+        nextStepId: currentPart.steps[0],
+        nextTranscriptIndex: activeTranscriptIndex,
+        nextDuIndex: currentDuIndex + 1,
+        iterationType: 'per-du'
+      }
     }
 
-    // All transcripts and phases processed
+    // All DUs processed for current transcript, continue with Part 2 for next transcript
+    if (activeTranscriptIndex < rawTranscripts.length - 1) {
+      return {
+        nextStepId: currentPart.steps[0],  // Start P2S_1 for next transcript
+        nextTranscriptIndex: activeTranscriptIndex + 1,
+        iterationType: 'per-transcript'
+      }
+    }
+
+    // All transcripts and DUs processed
     return this.getNextPart(currentPartIndex, dataState)
   }
 
@@ -362,10 +516,23 @@ export class PipelineOrchestrator {
         return this.getNextPart(currentPartIndex + 1, dataState)
       }
 
-      return {
+      console.log('[Orchestrator Debug] Moving to next part:', {
+        currentPartName: this.pipelineStructure[currentPartIndex].name,
+        nextPartName: nextPart.name,
         nextStepId: nextPart.steps[0],
         nextTranscriptIndex: 0,
         iterationType: nextPart.iteration
+      });
+      
+      // Check if we're transitioning from Part 2 to Part 3
+      const isLeavingPart2 = this.pipelineStructure[currentPartIndex].name.includes("Part II: Specific Synchronic Analysis")
+      const isEnteringPart3 = nextPart.name.includes("Part III: Generic Diachronic Analysis")
+      
+      return {
+        nextStepId: nextPart.steps[0],
+        nextTranscriptIndex: 0,
+        iterationType: nextPart.iteration,
+        shouldPause: isLeavingPart2 && isEnteringPart3
       }
     }
 
@@ -384,6 +551,11 @@ export class PipelineOrchestrator {
     currentState: ProcessState,
     currentStepId: StepId,
     status: StepStatus,
+    iterationContext?: {
+      transcriptIndex?: number
+      phaseIndex?: number
+      gduIndex?: number
+    },
     error?: string
   ): ProcessState {
     const position = this.findCurrentPosition(currentStepId)
@@ -393,6 +565,7 @@ export class PipelineOrchestrator {
       ...currentState,
       currentPartIndex: position.partIndex,
       currentStepIndex: position.stepIndex,
+      iterationContext: iterationContext ? { ...currentState.iterationContext, ...iterationContext } : currentState.iterationContext,
       status: status === StepStatus.Loading ? 'running' : 
               status === StepStatus.Error ? 'error' :
               status === StepStatus.Success ? 'running' : 'idle'
@@ -406,19 +579,35 @@ export class PipelineOrchestrator {
       }
     }
 
+    // Clear resumeCheckpoint when starting fresh or completing
+    if (currentStepId === StepId.P_NEG1_1_VARIABLE_IDENTIFICATION && status === StepStatus.Loading) {
+      // Starting fresh from the beginning
+      newState.resumeCheckpoint = undefined
+    } else if (currentStepId === StepId.COMPLETE && status === StepStatus.Success) {
+      // Pipeline completed
+      newState.resumeCheckpoint = undefined
+      newState.status = 'complete'
+    }
+
     return newState
   }
 
   /**
    * Create a resume checkpoint
    */
-  createResumeCheckpoint(processState: ProcessState): ProcessState {
+  createResumeCheckpoint(processState: ProcessState, iterationContext?: {
+      transcriptIndex?: number
+      phaseIndex?: number
+      gduIndex?: number
+    }): ProcessState {
+    const newContext = iterationContext ? { ...processState.iterationContext, ...iterationContext } : processState.iterationContext;
     return {
       ...processState,
+      iterationContext: newContext,
       resumeCheckpoint: {
         partIndex: processState.currentPartIndex,
         stepIndex: processState.currentStepIndex,
-        iterationContext: { ...processState.iterationContext }
+        iterationContext: newContext
       }
     }
   }

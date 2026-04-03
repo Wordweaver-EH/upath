@@ -164,7 +164,8 @@ async function performGeminiCall(
     isJsonOutput: boolean,
     useGrounding: boolean,
     temperature: number, 
-    seed?: number,        
+    seed?: number,
+    model: string = GEMINI_MODEL_TEXT,        
     originalPromptForFixer?: string 
 ): Promise<{ 
     responseText: string; 
@@ -172,6 +173,8 @@ async function performGeminiCall(
     error?: string;
     estimatedInputTokens: number;
     estimatedOutputTokens: number;
+    thoughts?: string[];
+    thoughtsTokenCount?: number;
 }> {
     const effectivePrompt = originalPromptForFixer || prompt;
     const estimatedInputTokens = estimateTokens(effectivePrompt);
@@ -186,7 +189,7 @@ async function performGeminiCall(
                 effectivePrompt,
                 true, // Always encrypt prompts for network calls
                 {
-                    model: GEMINI_MODEL_TEXT,
+                    model,
                     isJsonOutput,
                     useGrounding,
                     temperature,
@@ -205,6 +208,8 @@ async function performGeminiCall(
         return { 
             responseText: data.text || "", 
             response: data, // The full response from backend
+            thoughts: data.thoughts, // Add thought summaries
+            thoughtsTokenCount: data.thoughtsTokenCount, // Add thoughts token count
             estimatedInputTokens: data.estimatedInputTokens || estimatedInputTokens,
             estimatedOutputTokens: data.estimatedOutputTokens || estimateTokens(data.text || "")
         };
@@ -226,6 +231,7 @@ export async function callGeminiAPI(
   useGrounding: boolean = false,
   temperature: number = 0.0, 
   seed?: number,
+  model: string = GEMINI_MODEL_TEXT,
   attempt: number = 1 
 ): Promise<{ 
     text?: string; 
@@ -234,8 +240,10 @@ export async function callGeminiAPI(
     groundingSources?: GroundingChunk[];
     estimatedInputTokens?: number;
     estimatedOutputTokens?: number;
+    thoughts?: string[];
+    thoughtsTokenCount?: number;
 }> {
-  const initialCallResult = await performGeminiCall(prompt, isJsonOutput, useGrounding, temperature, seed);
+  const initialCallResult = await performGeminiCall(prompt, isJsonOutput, useGrounding, temperature, seed, model);
   let totalEstimatedInputTokens = initialCallResult.estimatedInputTokens;
   let totalEstimatedOutputTokens = initialCallResult.estimatedOutputTokens;
 
@@ -249,6 +257,8 @@ export async function callGeminiAPI(
   
   const responseText = initialCallResult.responseText;
   const response = initialCallResult.response;
+  const thoughts = initialCallResult.thoughts;
+  const thoughtsTokenCount = initialCallResult.thoughtsTokenCount;
   
   let groundingSources: GroundingChunk[] | undefined = undefined;
   if (useGrounding && response?.groundingSources) {
@@ -263,7 +273,9 @@ export async function callGeminiAPI(
           parsedJson, 
           groundingSources,
           estimatedInputTokens: totalEstimatedInputTokens,
-          estimatedOutputTokens: totalEstimatedOutputTokens
+          estimatedOutputTokens: totalEstimatedOutputTokens,
+          thoughts,
+          thoughtsTokenCount
       };
     } catch (e) {
       console.warn(`Failed to parse JSON on attempt ${attempt}. Raw text:`, responseText, "Extracted to parse:", jsonStrToParse, "Error:", e);
@@ -287,7 +299,7 @@ The output MUST be ONLY the corrected, valid JSON object or array. Ensure all st
 Do not include any explanations, apologies, or surrounding text like markdown fences. Just the raw, corrected JSON.`;
         
         // Pass `prompt` as `originalPromptForFixer` to `performGeminiCall` for accurate input token counting for the fixer call itself
-        const retryResult = await performGeminiCall(fixerPrompt, true, false, 0.0, seed, fixerPrompt); 
+        const retryResult = await performGeminiCall(fixerPrompt, true, false, 0.0, seed, model, fixerPrompt); 
 
         totalEstimatedInputTokens += retryResult.estimatedInputTokens;
         totalEstimatedOutputTokens += retryResult.estimatedOutputTokens;
@@ -297,7 +309,9 @@ Do not include any explanations, apologies, or surrounding text like markdown fe
               error: `JSON parsing failed. Self-correction attempt also failed with API error: ${retryResult.error}`, 
               groundingSources,
               estimatedInputTokens: totalEstimatedInputTokens,
-              estimatedOutputTokens: totalEstimatedOutputTokens
+              estimatedOutputTokens: totalEstimatedOutputTokens,
+              thoughts,
+              thoughtsTokenCount
           };
         }
 
@@ -310,7 +324,9 @@ Do not include any explanations, apologies, or surrounding text like markdown fe
               parsedJson: correctedParsedJson, 
               groundingSources,
               estimatedInputTokens: totalEstimatedInputTokens,
-              estimatedOutputTokens: totalEstimatedOutputTokens
+              estimatedOutputTokens: totalEstimatedOutputTokens,
+              thoughts,
+              thoughtsTokenCount
           };
         } catch (retryError) {
           console.error("Failed to parse JSON even after self-correction attempt. Raw corrected text:", retryResult.responseText, "Extracted to parse:", correctedJsonToParse, "Error:", retryError);
@@ -318,7 +334,9 @@ Do not include any explanations, apologies, or surrounding text like markdown fe
             error: `Failed to parse JSON response after self-correction. Error: ${(retryError as Error).message}. Original malformed: ${responseText}. Corrected attempt: ${retryResult.responseText}`, 
             groundingSources,
             estimatedInputTokens: totalEstimatedInputTokens,
-            estimatedOutputTokens: totalEstimatedOutputTokens
+            estimatedOutputTokens: totalEstimatedOutputTokens,
+            thoughts,
+            thoughtsTokenCount
           };
         }
       }
@@ -326,7 +344,9 @@ Do not include any explanations, apologies, or surrounding text like markdown fe
           error: `Failed to parse JSON response. Error: ${(e as Error).message}. Raw: ${responseText}`, 
           groundingSources,
           estimatedInputTokens: totalEstimatedInputTokens,
-          estimatedOutputTokens: totalEstimatedOutputTokens
+          estimatedOutputTokens: totalEstimatedOutputTokens,
+          thoughts,
+          thoughtsTokenCount
       };
     }
   }
@@ -334,6 +354,8 @@ Do not include any explanations, apologies, or surrounding text like markdown fe
       text: responseText, 
       groundingSources,
       estimatedInputTokens: totalEstimatedInputTokens,
-      estimatedOutputTokens: totalEstimatedOutputTokens
+      estimatedOutputTokens: totalEstimatedOutputTokens,
+      thoughts,
+      thoughtsTokenCount
   };
 }

@@ -33,7 +33,9 @@ import IRRModal from './components/IRRModal';
 import GduMappingModal from './components/GduMappingModal';
 import { AppLoadingScreen } from './src/components/AppLoadingScreen';
 import { SessionRestoreNotification } from './src/components/SessionRestoreNotification';
+import DOMPurify from 'dompurify';
 import { PipelineStepGrid } from './src/components/PipelineStepGrid';
+import { ChangeHistoryPanel } from './src/components/ChangeHistoryPanel';
 
 // AG Grid CSS
 import 'ag-grid-community/styles/ag-grid.css';
@@ -90,7 +92,7 @@ const ReportRenderer: React.FC<ReportRendererProps> = ({ markdown, theme }) => {
 
     const options: MarkedOptions = { renderer };
     const parsed = marked.parse(markdown, options) as string;
-    setHtml(parsed);
+    setHtml(DOMPurify.sanitize(parsed));
   }, [markdown]);
 
   useEffect(() => {
@@ -122,6 +124,9 @@ const ReportRenderer: React.FC<ReportRendererProps> = ({ markdown, theme }) => {
 
 
 const App: React.FC = () => { 
+  // Local state for left panel collapse
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
+  
   // UI Store - consolidated selector for better performance
   const {
     theme,
@@ -162,7 +167,8 @@ const App: React.FC = () => {
     outputDirectory,
     temperature,
     seed,
-    apiKeyPresent
+    apiKeyPresent,
+    debugMode
   } = useSettingsStore();
   
   // IRR Store - consolidated selector
@@ -197,7 +203,7 @@ const App: React.FC = () => {
       (hilContext) => {
         if (hilContext?.needsProcessing && hilContext.metaPrompt) {
           // Process the HIL correction with settings
-          const { stepInfo, metaPrompt } = hilContext
+          const { stepInfo, metaPrompt, modelParams } = hilContext
           const settings = useSettingsStore.getState()
           
           processSingleStep({
@@ -206,9 +212,10 @@ const App: React.FC = () => {
             hilMetaPrompt: metaPrompt,
             settings: {
               apiKey: settings.apiKeyPresent ? 'test-key' : '', // In real app, use actual key
-              temperature: settings.temperature,
+              temperature: modelParams?.temperature ?? settings.temperature,
               seed: settings.seed,
-              userDvFocus: settings.userDvFocus
+              userDvFocus: settings.userDvFocus,
+              model: modelParams?.model ?? settings.model
             }
           })
           
@@ -252,7 +259,12 @@ const App: React.FC = () => {
           shouldStopAutorun: state.shouldStopAutorun,
           lastHilContext: state.lastHilContext
         };
-        console.log('🔍 [App.tsx] Pipeline state selector called:', selected);
+        console.log('🔍 [App.tsx] Pipeline state selector called:', {
+          ...selected,
+          hasLastStepInfo: !!state.lastStepInfo,
+          lastStepInfoStepId: state.lastStepInfo?.stepId,
+          lastStepInfoStatus: state.lastStepInfo?.status
+        });
         return selected;
       },
       (pipelineUpdates, prevUpdates) => {
@@ -328,6 +340,26 @@ const App: React.FC = () => {
   
   const renderOutput = () => {
     console.log('[App Debug] stepDisplay:', stepDisplay, 'currentStepInfo.stepId:', currentStepInfo.stepId);
+    
+    // Debug mode - show raw JSON for all outputs
+    if (debugMode) {
+      const debugData = {
+        stepId: currentStepInfo.stepId,
+        stepDisplay: stepDisplay,
+        processedData: processedData.size > 0 ? Object.fromEntries(processedData) : null
+      };
+      return (
+        <div className="space-y-2">
+          <div className="text-sm text-light-sidenote dark:text-dark-sidenote italic">
+            🐛 Debug Mode Active - Showing Raw JSON Output
+          </div>
+          <pre className="text-xs whitespace-pre-wrap break-all overflow-x-auto">
+            {JSON.stringify(debugData, null, 2)}
+          </pre>
+        </div>
+      );
+    }
+    
     switch (stepDisplay.type) {
       case 'loading':
         return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote animate-pulse">{stepDisplay.message}</div>;
@@ -339,25 +371,16 @@ const App: React.FC = () => {
         return <div className="text-center py-8 text-light-sidenote dark:text-dark-sidenote">{stepDisplay.message}</div>;
       
       case 'mermaid':
-        // Check if this step should use grid display instead
-        const gridStepsForMermaid = [
-          StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
-        ];
-        
-        if (gridStepsForMermaid.includes(currentStepInfo.stepId) && processedData.size > 0) {
-          console.log('[App Debug] Redirecting mermaid step to grid:', currentStepInfo.stepId);
-          return <PipelineStepGrid 
-            processedData={processedData} 
-            stepId={currentStepInfo.stepId}
-            theme={theme} 
-          />;
-        }
-        
+        // P1.4 no longer uses mermaid display - it's handled in the 'output' case
         return <MermaidDiagram chart={stepDisplay.chart} theme={theme} />;
       
       case 'report':
         return <ReportRenderer markdown={stepDisplay.markdown} theme={theme} />;
       
+      case 'data':
+        // For P2S steps that have data in any DU but not in currentStepInfo.outputData
+        return <PipelineStepGrid processedData={processedData} stepId={currentStepInfo.stepId} theme={theme} />;
+        
       case 'output':
         // Special handling for steps with grid display
         const gridSteps = [
@@ -366,8 +389,14 @@ const App: React.FC = () => {
           StepId.P0_2_REFINE_DATA_TYPES,
           StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
           StepId.P1_1_INITIAL_SEGMENTATION,
-          StepId.P1_2_DIACHRONIC_UNIT_ID,
-          StepId.P1_3_REFINE_DIACHRONIC_UNITS
+          StepId.P1_2_COARSE_PHASE_TAGGING,
+          StepId.P1_3_INTRA_PHASE_SORTING,
+          StepId.P1_4_DIACHRONIC_UNIT_GROUPING,
+          StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
+          StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC,
+          StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS,
+          StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
+          StepId.P2S_4_SUMMARY_TABLE
         ];
         
         if (gridSteps.includes(currentStepInfo.stepId) && processedData.size > 0) {
@@ -417,29 +446,52 @@ const App: React.FC = () => {
         </Button>
       </header>
 
-      <main className="md:grid md:grid-cols-3 gap-4 p-4">
-        <SettingsPanel
-          PipelineOverviewComponent={
-            <PipelineOverview
-              allPipelineParts={allPipelinePartsInOrder}
-              STEP_CONFIGS={STEP_CONFIGS}
-              currentStepInfo={currentStepInfo}
-              getStepStatusForPipelineView={getStepStatusForPipelineView}
-              handlePipelineStepClick={handlePipelineStepClick}
-              PipelineStepNodeComponent={PipelineStepNode}
+      <main className={`flex gap-4 p-4 transition-all duration-300`}>
+        <div className={`transition-all duration-300 ${isLeftPanelCollapsed ? 'w-12' : 'w-80'} relative flex-shrink-0`}>
+          {/* Toggle button */}
+          <button
+            onClick={() => setIsLeftPanelCollapsed(!isLeftPanelCollapsed)}
+            className="absolute -right-3 top-4 z-50 bg-light-bg-alt dark:bg-dark-bg-alt border border-light-border dark:border-dark-border rounded-full p-1 shadow-md hover:shadow-lg transition-shadow"
+            aria-label={isLeftPanelCollapsed ? "Expand left panel" : "Collapse left panel"}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                d={isLeftPanelCollapsed ? "M9 5l7 7-7 7" : "M15 19l-7-7 7-7"} />
+            </svg>
+          </button>
+          
+          
+          {/* Panel content */}
+          <div className={`transition-all duration-300 overflow-hidden ${isLeftPanelCollapsed ? 'w-0 opacity-0' : 'w-full opacity-100'}`}>
+            <SettingsPanel
+              PipelineOverviewComponent={
+                <PipelineOverview
+                  allPipelineParts={allPipelinePartsInOrder}
+                  STEP_CONFIGS={STEP_CONFIGS}
+                  currentStepInfo={currentStepInfo}
+                  getStepStatusForPipelineView={getStepStatusForPipelineView}
+                  handlePipelineStepClick={handlePipelineStepClick}
+                  PipelineStepNodeComponent={PipelineStepNode}
+                />
+              }
             />
-          }
-        />
+          </div>
+        </div>
 
-        <div className="md:col-span-2 space-y-4">
+        <div className="flex-1 space-y-4 min-w-0">
           <div className="space-y-2">
             <ControlsPanel />
           </div>
           
           <StatusDisplay />
 
-          <div ref={outputDisplayRef} className="output-display p-4 bg-light-bg dark:bg-dark-bg border border-light-border dark:border-dark-border rounded-lg shadow min-h-[200px] max-h-[calc(100vh-400px)] overflow-y-auto">
+          <div ref={outputDisplayRef} className="output-display p-4 bg-light-bg dark:bg-dark-bg border border-light-border dark:border-dark-border rounded-lg shadow min-h-[400px] max-h-[calc(100vh-200px)] overflow-y-auto">
             {renderOutput()} 
+          </div>
+          
+          {/* Change History Panel - always visible */}
+          <div className="mt-4">
+            <ChangeHistoryPanel />
           </div>
         </div>
       </main>

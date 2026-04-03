@@ -1,9 +1,11 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
-import { P1_2_Output, P1_1_Output, DiachronicUnitP1_2 } from '../../types';
+import { P1_2_Output, P1_1_Output, DiachronicUnitP1_2, StepId } from '../../types';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
@@ -14,6 +16,7 @@ interface DiachronicUnitTableProps {
   theme: 'light' | 'dark';
   onDiachronicChange?: (updatedData: P1_2_Output) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 // Custom cell renderer for source segment IDs
@@ -44,7 +47,8 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
   segmentationData,
   theme,
   onDiachronicChange,
-  filename
+  filename,
+  transcriptId
 }) => {
   console.log('[P1.2] diachronicData:', diachronicData);
   console.log('[P1.2] diachronic_units:', diachronicData?.diachronic_units);
@@ -58,7 +62,60 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
     );
   }
 
-  const { rowData, columnDefs } = useMemo(() => {
+  // Prepare data for the grid
+  const flattenedData = useMemo(() => {
+    return diachronicData.diachronic_units.map(unit => ({
+      unit_id: unit.unit_id,
+      description: unit.description,
+      source_segment_ids: unit.source_segment_ids,
+      segment_count: unit.source_segment_ids.length
+    }));
+  }, [diachronicData]);
+
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(flattenedData, {
+    transcriptId,
+    stepId: StepId.P1_4_DIACHRONIC_UNIT_GROUPING,
+    dataPath: 'diachronic_units',
+    onSave: (changes) => {
+      if (onDiachronicChange) {
+        // Apply changes back to the original structure
+        const updatedData = { ...diachronicData };
+        
+        changes.forEach(change => {
+          const rowData = displayData[change.rowId as number];
+          if (rowData && change.field === 'description') {
+            const unitIndex = updatedData.diachronic_units.findIndex(
+              u => u.unit_id === rowData.unit_id
+            );
+            if (unitIndex !== -1) {
+              updatedData.diachronic_units[unitIndex] = {
+                ...updatedData.diachronic_units[unitIndex],
+                description: change.newValue
+              };
+            }
+          }
+        });
+        
+        onDiachronicChange(updatedData);
+      }
+    }
+  });
+
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(flattenedData);
+  }, [flattenedData, resetData]);
+
+  const columnDefs = useMemo(() => {
     const cols: ColDef[] = [
       { 
         field: 'unit_id', 
@@ -108,33 +165,8 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
       }
     ];
 
-    const rows = diachronicData.diachronic_units.map(unit => ({
-      unit_id: unit.unit_id,
-      description: unit.description,
-      source_segment_ids: unit.source_segment_ids,
-      segment_count: unit.source_segment_ids.length
-    }));
-
-    console.log('[P1.2] rowData:', rows);
-    return { rowData: rows, columnDefs: cols };
-  }, [diachronicData]);
-
-  const handleCellValueChanged = useCallback((event: CellValueChangedEvent) => {
-    if (event.colDef.field === 'description' && onDiachronicChange) {
-      const updatedData = { ...diachronicData };
-      const unitIndex = updatedData.diachronic_units.findIndex(
-        u => u.unit_id === event.data.unit_id
-      );
-      
-      if (unitIndex !== -1) {
-        updatedData.diachronic_units[unitIndex] = {
-          ...updatedData.diachronic_units[unitIndex],
-          description: event.newValue
-        };
-        onDiachronicChange(updatedData);
-      }
-    }
-  }, [diachronicData, onDiachronicChange]);
+    return cols;
+  }, []);
 
   const handleExportCSV = () => {
     const csvData = diachronicData.diachronic_units.map(unit => ({
@@ -212,7 +244,7 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
     <>
       <div className="mb-2 flex justify-between items-center">
         <div className="text-sm text-light-sidenote dark:text-dark-sidenote">
-          💡 Click on description cells to edit them directly. Changes are saved automatically.
+          💡 Click on description cells to edit them directly. Use Save to commit changes or Cancel to discard.
         </div>
         <button
           onClick={handleExportCSV}
@@ -231,16 +263,31 @@ export const DiachronicUnitTable: React.FC<DiachronicUnitTableProps> = ({
         }}
       >
         <AgGridReact
-          rowData={rowData}
+          rowData={displayData}
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
           rowHeight={60}
           animateRows={true}
           theme="legacy"
           rowSelection={{ mode: 'singleRow', enableClickSelection: false }}
-          onCellValueChanged={handleCellValueChanged}
+          onCellValueChanged={trackChange}
         />
       </div>
+
+      {/* Save/Cancel buttons */}
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
     </>
   );
 };

@@ -13,7 +13,7 @@ import {
   RawTranscript,
   TranscriptProcessedData,
   GenericAnalysisState,
-  P2SPhaseData,
+  P2SDuData,
   CurrentStepInfo,
   SavedState,
   SettingsData
@@ -22,7 +22,7 @@ import {
 /**
  * Iteration patterns for pipeline execution
  */
-export type IterationType = 'per-transcript' | 'per-phase' | 'per-gdu' | 'global'
+export type IterationType = 'per-transcript' | 'per-du' | 'per-gdu' | 'global'
 
 /**
  * Process state for explicit pipeline execution tracking
@@ -33,7 +33,7 @@ export interface ProcessState {
   currentStepIndex: number
   iterationContext: {
     transcriptIndex?: number
-    phaseIndex?: number
+    duIndex?: number
     gduIndex?: number
   }
   resumeCheckpoint?: {
@@ -41,7 +41,7 @@ export interface ProcessState {
     stepIndex: number
     iterationContext: {
       transcriptIndex?: number
-      phaseIndex?: number
+      duIndex?: number
       gduIndex?: number
     }
   }
@@ -58,9 +58,10 @@ export interface ProcessState {
 export interface NextStepInfo {
   nextStepId: StepId
   nextTranscriptIndex?: number
-  nextPhaseIndex?: number
+  nextDuIndex?: number
   nextGduIndex?: number
   iterationType: IterationType
+  shouldPause?: boolean
 }
 
 /**
@@ -108,15 +109,17 @@ export const STEP_ORDER_PART_0 = [
 
 export const STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC = [
   StepId.P1_1_INITIAL_SEGMENTATION,
-  StepId.P1_2_DIACHRONIC_UNIT_ID,
-  StepId.P1_3_REFINE_DIACHRONIC_UNITS,
-  StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
+  StepId.P1_2_COARSE_PHASE_TAGGING,
+  StepId.P1_3_INTRA_PHASE_SORTING,
+  StepId.P1_4_DIACHRONIC_UNIT_GROUPING,
+  StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE
 ]
 
 export const STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC = [
   StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC,
   StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS,
-  StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE
+  StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
+  StepId.P2S_4_SUMMARY_TABLE
 ]
 
 export const STEP_ORDER_PART_3_GENERIC_DIACHRONIC = [
@@ -190,7 +193,7 @@ export const PIPELINE_STRUCTURE: PipelinePart[] = [
   {
     name: "Part II: Specific Synchronic Analysis",
     steps: STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC,
-    iteration: 'per-phase',
+    iteration: 'per-transcript',  // Process all DUs for each transcript
     canPause: true,
     resumeStrategy: 'from-step'
   },
@@ -245,18 +248,20 @@ export const isGlobalStep = (stepId: StepId): boolean =>
 /**
  * Map step IDs to their data key prefixes in the state
  */
-export const stepIdToDataKeyPrefix: Partial<Record<StepId, keyof GenericAnalysisState | keyof TranscriptProcessedData | keyof P2SPhaseData>> = {
+export const stepIdToDataKeyPrefix: Partial<Record<StepId, keyof GenericAnalysisState | keyof TranscriptProcessedData | keyof P2SDuData>> = {
   [StepId.P_NEG1_1_VARIABLE_IDENTIFICATION]: "p_neg1_1_output",
   [StepId.P0_1_TRANSCRIPTION_ADHERENCE]: "p0_1_output",
   [StepId.P0_2_REFINE_DATA_TYPES]: "p0_2_output",
   [StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES]: "p0_3_output",
   [StepId.P1_1_INITIAL_SEGMENTATION]: "p1_1_output",
-  [StepId.P1_2_DIACHRONIC_UNIT_ID]: "p1_2_output",
-  [StepId.P1_3_REFINE_DIACHRONIC_UNITS]: "p1_3_output",
-  [StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "p1_4_output",
+  [StepId.P1_2_COARSE_PHASE_TAGGING]: "p1_2_output",
+  [StepId.P1_3_INTRA_PHASE_SORTING]: "p1_3_output",
+  [StepId.P1_4_DIACHRONIC_UNIT_GROUPING]: "p1_4_output",
+  [StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "p1_5_output",
   [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "p2s_1_output",
   [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "p2s_2_output",
   [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "p2s_3_output",
+  [StepId.P2S_4_SUMMARY_TABLE]: "p2s_4_output", // UI-only, no data stored
   [StepId.P3_1_ALIGN_STRUCTURES]: "p3_1_output",
   [StepId.P3_2_IDENTIFY_GDUS]: "p3_2_output",
   [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "p3_3_output",
@@ -295,7 +300,7 @@ export const ESSENTIAL_STEPS_FOR_AUTODOWNLOAD: StepId[] = [
   // Part 0
   StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
   // Part I
-  StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
+  StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
   // Part II_S (Note: P2S_3 output is per phase, handled in App.tsx)
   StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE,
   // Part III
@@ -328,38 +333,40 @@ export const STEP_DISPLAY_NAMES: Record<StepId, string> = {
   
   // Part 3: Temporal Analysis
   [StepId.P1_1_INITIAL_SEGMENTATION]: "5. Initial Segmentation",
-  [StepId.P1_2_DIACHRONIC_UNIT_ID]: "6. Temporal Unit Identification", 
-  [StepId.P1_3_REFINE_DIACHRONIC_UNITS]: "7. Temporal Unit Refinement",
-  [StepId.P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "8. Temporal Structure",
+  [StepId.P1_2_COARSE_PHASE_TAGGING]: "6. Coarse Phase Tagging", 
+  [StepId.P1_3_INTRA_PHASE_SORTING]: "7. Intra-Phase Sorting",
+  [StepId.P1_4_DIACHRONIC_UNIT_GROUPING]: "8. Diachronic Unit Grouping",
+  [StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE]: "9. Temporal Structure",
   
   // Part 4: Synchronic Analysis
-  [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "9. Topic Grouping",
-  [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "10. Synchronic Units",
-  [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "11. Synchronic Structure",
+  [StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC]: "10. Topic Grouping",
+  [StepId.P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS]: "11. Synchronic Units",
+  [StepId.P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE]: "12. Synchronic Structure",
+  [StepId.P2S_4_SUMMARY_TABLE]: "13. Summary Table",
   
   // Part 5: Cross-Transcript Analysis  
-  [StepId.P3_1_ALIGN_STRUCTURES]: "12. Structure Alignment",
-  [StepId.P3_2_IDENTIFY_GDUS]: "13. Generic Unit Identification",
-  [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "14. Generic Structure",
+  [StepId.P3_1_ALIGN_STRUCTURES]: "14. Structure Alignment",
+  [StepId.P3_2_IDENTIFY_GDUS]: "15. Generic Unit Identification",
+  [StepId.P3_3_DEFINE_GENERIC_DIACHRONIC_STRUCTURE]: "16. Generic Structure",
   
   // Part 6: Generic Synchronic Analysis
-  [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES]: "15. Node Identification", 
-  [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: "16. Generic Synchronic Groups",
+  [StepId.P4S_1_A_IDENTIFY_AND_GROUP_SSS_NODES]: "17. Node Identification", 
+  [StepId.P4S_1_B_DEFINE_GSS_FROM_GROUPS]: "18. Generic Synchronic Groups",
   
   // Part 7: Refinement
-  [StepId.P5_1_IV_COMPARATIVE_ANALYSIS]: "17. Comparative Analysis",
-  [StepId.P5_2_HOLISTIC_REFINEMENT]: "18. Holistic Refinement",
+  [StepId.P5_1_IV_COMPARATIVE_ANALYSIS]: "19. Comparative Analysis",
+  [StepId.P5_2_HOLISTIC_REFINEMENT]: "20. Holistic Refinement",
   
   // Part 8: Causal Analysis
-  [StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION]: "19. Variable Formalization",
-  [StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS]: "20. Causal Links",
-  [StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS]: "21. DAG Assembly",
-  [StepId.P7_3B_VALIDATE_AND_CLEAN_DAG]: "22. DAG Validation",
-  [StepId.P7_4_ANALYZE_PATHS_AND_BIASES]: "23. Path Analysis",
-  [StepId.P7_5_GENERATE_FORMAL_HYPOTHESES]: "24. Hypothesis Generation",
+  [StepId.P7_1_CANDIDATE_VARIABLE_FORMALIZATION]: "21. Variable Formalization",
+  [StepId.P7_2_PROPOSE_PAIRWISE_CAUSAL_LINKS]: "22. Causal Links",
+  [StepId.P7_3_ASSEMBLE_DAG_AND_IDENTIFY_PATTERNS]: "23. DAG Assembly",
+  [StepId.P7_3B_VALIDATE_AND_CLEAN_DAG]: "24. DAG Validation",
+  [StepId.P7_4_ANALYZE_PATHS_AND_BIASES]: "25. Path Analysis",
+  [StepId.P7_5_GENERATE_FORMAL_HYPOTHESES]: "26. Hypothesis Generation",
   
   // Part 9: Report
-  [StepId.P6_1_GENERATE_MARKDOWN_REPORT]: "25. Generate Report",
+  [StepId.P6_1_GENERATE_MARKDOWN_REPORT]: "27. Generate Report",
   
   // Meta states  
   [StepId.IDLE]: "Idle",

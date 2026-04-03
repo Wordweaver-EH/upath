@@ -416,7 +416,13 @@ describe('generateTsvForTranscriptSynchronic', () => {
   it('should handle empty P2S outputs', () => {
     const transcriptData: Partial<TranscriptProcessedData> = {
       filename: 'test.txt',
-      p2s_outputs_by_phase: {}
+      p2s_outputs_by_du: {},
+      p1_1_output: {
+        transcript_id: 'test-id',
+        segmented_utterances: [],
+        independent_variable_details: '',
+        dependent_variable_focus: []
+      }
     }
     
     const result = generateTsvForTranscriptSynchronic(transcriptData as TranscriptProcessedData, 'test-id')

@@ -2,6 +2,7 @@ import {
   TranscriptProcessedData,
   P1_3_Output,
   P1_4_Output,
+  P1_5_Output,
   SelectedUtterance
 } from '../types';
 
@@ -37,12 +38,12 @@ export function tracePhaseToUtterances(
   phaseName: string,
   transcriptData: TranscriptProcessedData
 ): PhaseTraceData | null {
-  if (!transcriptData.p1_4_output?.specific_diachronic_structure?.phases) {
+  if (!transcriptData.p1_5_output?.specific_diachronic_structure?.phases) {
     return null;
   }
 
   // Find the phase
-  const phase = transcriptData.p1_4_output.specific_diachronic_structure.phases.find(
+  const phase = transcriptData.p1_5_output.specific_diachronic_structure.phases.find(
     p => p.phase_name === phaseName
   );
   
@@ -56,24 +57,25 @@ export function tracePhaseToUtterances(
     rdus: []
   };
 
+  // The RDUs are defined in P1.4 output. P1.5 output also contains a copy.
+  const refinedUnits = transcriptData.p1_5_output?.refined_diachronic_units || transcriptData.p1_4_output?.refined_diachronic_units;
+
   // Get RDUs for this phase
-  if (phase.units_involved && transcriptData.p1_3_output?.refined_diachronic_units) {
+  if (phase.units_involved && refinedUnits) {
     for (const rduId of phase.units_involved) {
-      const rdu = transcriptData.p1_3_output.refined_diachronic_units.find(
-        r => r.unit_id === rduId
-      );
+      const rdu = refinedUnits.find(r => r.unit_id === rduId);
       
       if (rdu) {
         const rduTrace: RDUTraceData = {
           rduId: rdu.unit_id,
           rduDescription: rdu.description || '',
-          temporalPhase: rdu.temporal_phase || '',
+          temporalPhase: rdu.phase?.phase_type || '',
           dus: []
         };
 
         // Get DUs for this RDU
-        if (rdu.source_p1_2_du_ids && transcriptData.p1_2_output?.diachronic_units) {
-          for (const duId of rdu.source_p1_2_du_ids) {
+        if (rdu.source_du_ids && transcriptData.p1_2_output?.diachronic_units) {
+          for (const duId of rdu.source_du_ids) {
             const du = transcriptData.p1_2_output.diachronic_units.find(
               d => d.unit_id === duId
             );

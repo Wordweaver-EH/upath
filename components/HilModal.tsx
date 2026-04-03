@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { STEP_CONFIGS, getStepDisplayName } from '../constants';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
+import { useSettingsStore } from '../src/stores/settingsStore';
 import CollapsibleSection from './CollapsibleSection';
-import { Button, TextArea } from '../src/components/ui';
+import { Button, TextArea, Select, Input } from '../src/components/ui';
 
 interface HilModalProps {
-  onSubmit: () => void;
+  onSubmit: (modelParams: { model: string; temperature: number }) => void;
   getHilPreviousResponseDisplay: () => string;
 }
 
@@ -22,6 +23,23 @@ const HilModal: React.FC<HilModalProps> = ({
   const closeHilModal = useUIStore(state => state.closeHilModal);
   const setHilUserGuidance = useUIStore(state => state.setHilUserGuidance);
   const processedData = usePipelineStore(state => state.processedData);
+  
+  // Get current settings
+  const currentModel = useSettingsStore(state => state.model);
+  const currentTemperature = useSettingsStore(state => state.temperature);
+  const availableModels = useSettingsStore(state => state.availableModels);
+  
+  // Local state for model parameters
+  const [selectedModel, setSelectedModel] = useState(currentModel);
+  const [selectedTemperature, setSelectedTemperature] = useState(currentTemperature);
+  
+  // Reset local state when modal opens
+  useEffect(() => {
+    if (isHilModalOpen) {
+      setSelectedModel(currentModel);
+      setSelectedTemperature(currentTemperature);
+    }
+  }, [isHilModalOpen, currentModel, currentTemperature]);
 
   if (!isHilModalOpen || !hilContext) return null;
 
@@ -61,12 +79,44 @@ const HilModal: React.FC<HilModalProps> = ({
             rows={6} 
             placeholder="Describe what was wrong or how to improve the output."
           />
+          
+          <div className="space-y-4 pt-4 border-t border-light-border dark:border-dark-border">
+            <h3 className="text-sm font-semibold text-light-text dark:text-dark-text">Model Parameters for Re-run</h3>
+            
+            <Select
+              label="Model"
+              id="hilModel"
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              options={availableModels}
+              helperText="Select a more powerful model if needed for complex corrections"
+            />
+            
+            <div>
+              <label htmlFor="hilTemperature" className="block text-sm font-medium text-light-text dark:text-dark-text mb-1">
+                Temperature
+              </label>
+              <Input
+                type="number"
+                id="hilTemperature"
+                value={selectedTemperature}
+                onChange={(e) => setSelectedTemperature(parseFloat(e.target.value) || 0)}
+                min="0"
+                max="2"
+                step="0.1"
+                placeholder="0.0 - 2.0"
+              />
+              <p className="mt-1 text-sm text-light-sidenote dark:text-dark-sidenote">
+                Lower values are more focused, higher values are more creative
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="mt-6 flex justify-end space-x-3 pt-4 border-t border-light-border dark:border-dark-border">
           <Button onClick={closeHilModal} variant="secondary">Cancel</Button>
           <Button 
-            onClick={onSubmit} 
+            onClick={() => onSubmit({ model: selectedModel, temperature: selectedTemperature })} 
             disabled={!hilUserGuidance.trim()} 
             variant="primary"
           >

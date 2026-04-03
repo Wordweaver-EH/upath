@@ -5,7 +5,7 @@ import { UploadIcon, FileTextIcon, SaveIcon, LoadIcon, InfoIcon } from '../const
 import { useSettingsStore } from '../src/stores/settingsStore';
 import { useUIStore } from '../src/stores/uiStore';
 import { usePipelineStore } from '../src/stores/pipelineStore';
-import { Button, Input } from '../src/components/ui';
+import { Button, Input, Select } from '../src/components/ui';
 
 // No props needed - component gets all data from stores
 interface SettingsPanelProps {
@@ -22,19 +22,26 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const apiKeyPresent = useSettingsStore(state => state.apiKeyPresent)
   const dvFocusInput = useSettingsStore(state => state.dvFocusInput)
   const dvFocusError = useSettingsStore(state => state.dvFocusError)
+  const model = useSettingsStore(state => state.model)
+  const availableModels = useSettingsStore(state => state.availableModels)
+  const isLoadingModels = useSettingsStore(state => state.isLoadingModels)
   const temperature = useSettingsStore(state => state.temperature)
   const seedInput = useSettingsStore(state => state.seedInput)
   const outputDirectory = useSettingsStore(state => state.outputDirectory)
   const autoDownloadResults = useSettingsStore(state => state.autoDownloadResults)
   const userDvFocus = useSettingsStore(state => state.userDvFocus)
   const seed = useSettingsStore(state => state.seed)
+  const debugMode = useSettingsStore(state => state.debugMode)
   
   const validateAndSetDvFocus = useSettingsStore(state => state.validateAndSetDvFocus)
   const validateAndSetSeed = useSettingsStore(state => state.validateAndSetSeed)
+  const setModel = useSettingsStore(state => state.setModel)
   const setTemperature = useSettingsStore(state => state.setTemperature)
   const setOutputDirectory = useSettingsStore(state => state.setOutputDirectory)
   const updateSettings = useSettingsStore(state => state.updateSettings)
   const checkApiKey = useSettingsStore(state => state.checkApiKey)
+  const fetchAvailableModels = useSettingsStore(state => state.fetchAvailableModels)
+  const setDebugMode = useSettingsStore(state => state.setDebugMode)
 
   // UI store - state and actions
   const currentStepInfo = useUIStore(state => state.currentStepInfo)
@@ -53,10 +60,11 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const getTranscriptStatusDisplay = usePipelineStore(state => state.getTranscriptStatusDisplay)
   const isGlobalStep = usePipelineStore(state => state.isGlobalStep)
 
-  // Check API key on component mount
+  // Check API key and fetch models on component mount
   useEffect(() => {
     checkApiKey()
-  }, [checkApiKey])
+    fetchAvailableModels()
+  }, [checkApiKey, fetchAvailableModels])
 
   return (
     <aside className="md:col-span-1 space-y-4 p-4 bg-light-bg-alt dark:bg-dark-bg-alt rounded-lg shadow overflow-y-auto max-h-[calc(100vh-140px)]">
@@ -81,6 +89,17 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             </span>
           </div>
         </div>
+      </div>
+      <div>
+        <Select
+          id="model"
+          label="Model"
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          options={availableModels}
+          helperText={isLoadingModels ? "Loading available models..." : "Select the Gemini model to use for analysis"}
+          disabled={isLoadingModels}
+        />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -128,6 +147,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
         />
       </div>
       <div className="flex items-center"> <input id="autoDownload" type="checkbox" checked={autoDownloadResults} onChange={(e) => updateSettings({ autoDownloadResults: e.target.checked })} className="h-4 w-4 rounded border-light-border dark:border-dark-border text-light-accent dark:text-dark-accent focus:ring-light-accent dark:focus:ring-dark-accent bg-light-input-bg dark:bg-dark-input-bg" /> <label htmlFor="autoDownload" className="ml-2 block text-sm text-light-text dark:text-dark-text">Autodownload essential results</label> </div>
+      <div className="flex items-center"> <input id="debugMode" type="checkbox" checked={debugMode} onChange={(e) => setDebugMode(e.target.checked)} className="h-4 w-4 rounded border-light-border dark:border-dark-border text-light-accent dark:text-dark-accent focus:ring-light-accent dark:focus:ring-dark-accent bg-light-input-bg dark:bg-dark-input-bg" /> <label htmlFor="debugMode" className="ml-2 block text-sm text-light-text dark:text-dark-text">Debug Mode (show raw JSON)</label> </div>
       <div className="grid grid-cols-2 gap-2">
           <Button
             onClick={() => saveStateToFile(activeTranscriptIndex, currentStepInfo, {
@@ -143,14 +163,21 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           >
             {SaveIcon} <span>Export State to File</span>
           </Button>
-          <div>
-            <label htmlFor="loadStateFile">
-              <Button as="span" variant="secondary" className="w-full cursor-pointer">
-                {LoadIcon} <span>Load State</span>
-              </Button>
-            </label>
-            <input id="loadStateFile" type="file" accept=".json" onChange={loadStateFromFile} className="hidden" ref={loadStateInputRef} />
-          </div>
+          <Button
+            onClick={() => loadStateInputRef.current?.click()}
+            variant="secondary"
+            className="w-full"
+            title="Load a previously saved analysis state from a JSON file"
+          >
+            {LoadIcon} <span>Load State from File</span>
+          </Button>
+          <input 
+            type="file" 
+            accept=".json" 
+            onChange={(e) => { loadStateFromFile(e); e.target.value = ''; }} 
+            className="hidden" 
+            ref={loadStateInputRef} 
+          />
       </div>
        <div
           onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}

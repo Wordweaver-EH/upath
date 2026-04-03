@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import analyzeRoute from './routes/analyze';
+import modelsRoute from './routes/models';
 export async function buildApp() {
   // Create Fastify instance
   const app = Fastify({
@@ -15,6 +16,7 @@ export async function buildApp() {
 
   // Register routes
   await app.register(analyzeRoute, { prefix: '/api' });
+  await app.register(modelsRoute, { prefix: '/api' });
 
   // Health check endpoint
   app.get('/health', async () => {

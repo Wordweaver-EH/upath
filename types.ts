@@ -29,6 +29,8 @@ export interface PromptHistoryEntry {
   groundingSources?: GroundingChunk[];
   estimatedInputTokens?: number;
   estimatedOutputTokens?: number;
+  thoughts?: string[];
+  thoughtsTokenCount?: number;
 }
 
 // Part -1: Variable Identification Output
@@ -90,46 +92,69 @@ export interface P1_1_Output {
   dependent_variable_focus: string[];
 }
 
-export interface DiachronicUnitP1_2 {
-  unit_id: string;
-  description: string;
-  source_segment_ids: string[]; // Replaces related_utterances_or_segments_text
+// P1.2 Coarse Phase Tagging types
+export interface PhaseTaggedSegment extends SegmentedUtteranceSegment {
+  coarse_phase: 'Initial State' | 'Core Experience' | 'Final Action' | 'Post-Hoc Reflection';
 }
+
+export interface PhaseTaggedUtterance {
+  original_utterance: SelectedUtterance;
+  segments: PhaseTaggedSegment[];
+}
+
 export interface P1_2_Output {
   transcript_id: string;
-  diachronic_units: DiachronicUnitP1_2[];
+  phase_tagged_utterances: PhaseTaggedUtterance[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
 }
 
-export interface RefinedDiachronicUnitP1_3 {
-  unit_id: string; // Can be same as P1.2 ID or new if merged/split
-  description: string;
-  confidence: number;
-  temporal_phase: string;
-  source_p1_2_du_ids: string[]; // IDs from P1.2 DiachronicUnitP1_2.unit_id
+// P1.3: Intra-Phase Sorting
+export interface SortedSegment extends PhaseTaggedSegment {
+  chronological_index: number;
+  placement_justification: string;
+  original_utterance: SelectedUtterance;
 }
+
 export interface P1_3_Output {
   transcript_id: string;
-  refined_diachronic_units: RefinedDiachronicUnitP1_3[];
+  sorted_segments: SortedSegment[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
 }
 
+// P1.4: Diachronic Unit Grouping
+export interface DiachronicUnit {
+  unit_id: string;
+  description: string;
+  source_segment_ids: string[];
+}
+
+export interface P1_4_Output {
+  transcript_id: string;
+  diachronic_units: DiachronicUnit[];
+  excluded_segment_ids?: string[]; // Segments not assigned to any DU
+  independent_variable_details: string;
+  dependent_variable_focus: string[];
+}
+
+// Updated P1.5: Construct Specific Diachronic Structure (was P1.4)
 export interface SpecificDiachronicPhase {
     phase_name: string;
     description: string;
-    units_involved: string[]; // refined_du_ids from P1_3_Output.refined_diachronic_units[].unit_id
+    units_involved: string[]; // refined_du_ids from P1_4_Output.refined_diachronic_units[].unit_id
 }
 export interface SpecificDiachronicStructureType {
     summary: string;
     phases: SpecificDiachronicPhase[];
+    validation_errors?: string[];
     visualization_hint?: string;
     iv_preliminary_observation?: string;
 }
-export interface P1_4_Output {
+export interface P1_5_Output {
   transcript_id: string;
   specific_diachronic_structure: SpecificDiachronicStructureType;
+  diachronic_units: DiachronicUnit[]; // From P1_4
   independent_variable_details: string;
   dependent_variable_focus: string[];
   mermaid_syntax_specific_diachronic?: string;
@@ -139,11 +164,11 @@ export interface P1_4_Output {
 export interface P2S_1_ThematicGroup {
   group_label: string;
   justification: string;
-  utterances: Array<{ original_line_num: string; utterance_text: string }>; // These are from P0.3 SelectedUtterance
+  segments: SegmentedUtteranceSegment[]; // Changed from utterances to maintain precision
 }
 export interface P2S_1_Output {
   transcript_id: string;
-  analyzed_diachronic_unit: string; // This is the phase_name from P1.4
+  analyzed_du_id: string; // This is the DU ID from P1.4
   synchronic_thematic_groups: P2S_1_ThematicGroup[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
@@ -154,12 +179,12 @@ export interface P2S_2_SynchronicUnit {
   level: number;
   abstraction_op: string;
   intensional_definition: string;
-  utterances?: Array<{ original_line_num: string; utterance_text: string }>; // From P0.3 SelectedUtterance
+  segments?: SegmentedUtteranceSegment[]; // Changed from utterances to maintain precision
   constituent_lower_units?: string[]; // unit_names of other ISUs
 }
 export interface P2S_2_Output {
   transcript_id: string;
-  analyzed_diachronic_unit: string; // phase_name
+  analyzed_du_id: string; // DU ID from P1.4
   specific_synchronic_units_hierarchy: P2S_2_SynchronicUnit[];
   independent_variable_details: string;
   dependent_variable_focus: string[];
@@ -177,7 +202,7 @@ export interface P2S_3_NetworkLink {
 }
 export interface P2S_3_Output {
   transcript_id: string;
-  analyzed_diachronic_unit: string; // phase_name
+  analyzed_du_id: string; // DU ID from P1.4
   specific_synchronic_structure: {
     representation_type: "Semantic Network";
     description: string;
@@ -186,7 +211,14 @@ export interface P2S_3_Output {
   };
   independent_variable_details: string;
   dependent_variable_focus: string[];
-  // mermaid_syntax_specific_synchronic is stored per-phase in TranscriptProcessedData.P2SPhaseData
+  // mermaid_syntax_specific_synchronic is stored per-DU in TranscriptProcessedData.P2SDuData
+}
+
+// P2S.4 Summary Table - this is a UI-only step, no output data stored
+export interface P2S_4_Output {
+  // This step aggregates P2S.1, P2S.2, and P2S.3 outputs
+  // No new data is generated, only displayed in a summary table
+  // The table data is computed dynamically from existing P2S outputs
 }
 
 
@@ -525,7 +557,7 @@ export interface P7_3b_Output {
 export type P6_1_Output = string;
 
 
-export interface P2SPhaseData {
+export interface P2SDuData {
     p2s_1_output?: P2S_1_Output;
     p2s_1_error?: string;
     p2s_2_output?: P2S_2_Output;
@@ -557,13 +589,14 @@ export interface TranscriptProcessedData {
   p1_3_error?: string;
   p1_4_output?: P1_4_Output;
   p1_4_error?: string;
-  p1_4_mermaid_syntax?: string;
+  p1_5_output?: P1_5_Output;
+  p1_5_error?: string;
   isFullyProcessedSpecificDiachronic: boolean;
 
-  p2s_outputs_by_phase?: Record<string, P2SPhaseData>; // Key is phase_name
-  phases_for_p2s_processing?: string[]; // phase_names
-  current_phase_for_p2s_processing?: string; // phase_name
-  processed_phases_for_p2s?: string[]; // phase_names
+  p2s_outputs_by_du?: Record<string, P2SDuData>; // Key is du_id
+  dus_for_p2s_processing?: string[]; // du_ids
+  current_du_for_p2s_processing?: string; // du_id
+  processed_dus_for_p2s?: string[]; // du_ids
   isFullyProcessedSpecificSynchronic: boolean;
 }
 
@@ -626,7 +659,9 @@ export interface CurrentStepInfo {
   error?: string;
   groundingSources?: GroundingChunk[];
   currentGduForP4S?: string; // GDU_ID
-  currentPhaseForP2S?: string; // phase_name
+  currentDuForP2S?: string; // du_id
+  duId?: string; // For navigation
+  gduId?: string; // For navigation
 }
 
 export interface HilContext {
@@ -635,6 +670,10 @@ export interface HilContext {
   previousResponse: string;
   metaPrompt?: string;
   needsProcessing?: boolean;
+  modelParams?: {
+    model: string;
+    temperature: number;
+  };
 }
 
 export interface GroundingChunkWeb {
@@ -656,14 +695,16 @@ export enum StepId {
 
   // Part I: Specific Diachronic Analysis
   P1_1_INITIAL_SEGMENTATION = "P1_1_INITIAL_SEGMENTATION",
-  P1_2_DIACHRONIC_UNIT_ID = "P1_2_DIACHRONIC_UNIT_ID",
-  P1_3_REFINE_DIACHRONIC_UNITS = "P1_3_REFINE_DIACHRONIC_UNITS",
-  P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE = "P1_4_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE",
+  P1_2_COARSE_PHASE_TAGGING = "P1_2_COARSE_PHASE_TAGGING",
+  P1_3_INTRA_PHASE_SORTING = "P1_3_INTRA_PHASE_SORTING",
+  P1_4_DIACHRONIC_UNIT_GROUPING = "P1_4_DIACHRONIC_UNIT_GROUPING",
+  P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE = "P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE",
 
   // Part II: Specific Synchronic Analysis
   P2S_1_GROUP_UTTERANCES_BY_TOPIC = "P2S_1_GROUP_UTTERANCES_BY_TOPIC",
   P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS = "P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS",
   P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE = "P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE",
+  P2S_4_SUMMARY_TABLE = "P2S_4_SUMMARY_TABLE",
 
   // Part III: Generic Diachronic Analysis
   P3_1_ALIGN_STRUCTURES = "P3_1_ALIGN_STRUCTURES",
@@ -798,6 +839,36 @@ export interface IrrWorkflowState {
   kappaResults?: any; // Full Kappa results including contingency table
   loadingState: 'idle' | 'loading-files' | 'calling-llm' | 'calculating' | 'complete' | 'error';
   errorMessage?: string;
+}
+
+// Change tracking types
+export enum ChangeType {
+  SETTING_CHANGE = 'Setting Change',
+  DATA_EDIT = 'Manual Data Edit',
+  PIPELINE_ACTION = 'Pipeline Action',
+  HIL_CORRECTION = 'HIL Correction',
+  MODEL_SELECTION = 'Model Selection',
+  FILE_UPLOAD = 'File Upload',
+}
+
+export interface ChangeDetails {
+  stepId?: StepId;
+  transcriptId?: string;
+  source?: string; // Component or action that triggered the change
+  path?: string; // JSON path for data edits
+  oldValue?: any;
+  newValue?: any;
+  metadata?: Record<string, any>; // Additional context
+}
+
+export interface ChangeRecord {
+  id: string; // UUID
+  timestamp: string; // ISO 8601
+  type: ChangeType;
+  description: string; // Human-readable summary
+  details: ChangeDetails;
+  userId?: string; // For future multi-user support
+  sessionId?: string; // To group changes by session
 }
 
 /**

@@ -3,6 +3,7 @@ import React from 'react';
 import { StepId, StepStatus, CurrentStepInfo } from '../types';
 import { STEP_CONFIGS as StepConfigsType, CheckCircleIcon, InfoIcon, getStepDisplayName } from '../constants';
 import CollapsibleSection from './CollapsibleSection';
+import { usePipelineStore } from '../src/stores/pipelineStore';
 
 interface PipelineStepNodeProps {
   stepId: StepId;
@@ -83,12 +84,29 @@ const PipelineOverview: React.FC<PipelineOverviewProps> = ({
   getStepStatusForPipelineView, handlePipelineStepClick,
   PipelineStepNodeComponent: NodeComponent // Use the passed component
 }) => {
+  const invalidateFromPart = usePipelineStore(state => state.invalidateFromPart);
+  
+  const handleInvalidateFromPart = (partName: string) => {
+    if (window.confirm(`Are you sure you want to invalidate all steps from ${partName} onward? This will clear all computed data for these steps across all transcripts.`)) {
+      invalidateFromPart(partName);
+    }
+  };
+  
   return (
     <CollapsibleSection title="Analysis Pipeline Overview" defaultOpen={false} contentMaxHeight="60vh">
       <div className="flex flex-col space-y-3 p-1">
         {allPipelineParts.map(part => (
           <div key={part.name} className="p-2 border border-light-border dark:border-dark-border rounded-md bg-light-bg-alt dark:bg-dark-bg-alt shadow-sm">
-            <h4 className="text-sm font-semibold mb-2 text-light-accent dark:text-dark-accent">{part.name}</h4>
+            <div className="flex justify-between items-center mb-2">
+              <h4 className="text-sm font-semibold text-light-accent dark:text-dark-accent">{part.name}</h4>
+              <button
+                onClick={() => handleInvalidateFromPart(part.name)}
+                className="text-xs px-2 py-1 rounded bg-red-100 hover:bg-red-200 dark:bg-red-900 dark:hover:bg-red-800 text-red-700 dark:text-red-300 transition-colors"
+                title={`Invalidate all steps from ${part.name} onward`}
+              >
+                ↻ Reset from here
+              </button>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-2 lg:grid-cols-3 gap-2">
               {part.steps.map(stepId => {
                 const config = STEP_CONFIGS[stepId];

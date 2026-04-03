@@ -2,8 +2,9 @@ import { create } from 'zustand'
 import { STEP_CONFIGS } from '../constants'
 import { subscribeWithSelector } from 'zustand/middleware'
 import { StepId, StepStatus, CurrentStepInfo, HilContext } from '../../types'
-import { ALL_PIPELINE_STEP_IDS_IN_ORDER, STEP_CONFIGS, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC } from '../../constants'
+import { ALL_PIPELINE_STEP_IDS_IN_ORDER, STEP_CONFIGS, STEP_ORDER_PART_4_GENERIC_SYNCHRONIC, STEP_ORDER_PART_NEG1, STEP_ORDER_PART_0, STEP_ORDER_PART_1_SPECIFIC_DIACHRONIC, STEP_ORDER_PART_2_SPECIFIC_SYNCHRONIC } from '../../constants'
 import { stepIdToDataKeyPrefix, isGlobalStep } from '../utils/stepIdToDataKeyPrefix'
+import { trackingHelpers } from './historyStore'
 
 interface UIState {
   // Navigation
@@ -14,6 +15,7 @@ interface UIState {
   isAutorunning: boolean
   processStartTime: number | null
   elapsedTime: number
+  accumulatedTime: number  // Total time accumulated from previous sessions
   
   // HIL Modal
   isHilModalOpen: boolean
@@ -60,7 +62,7 @@ interface UIActions {
   openHilModalWithContext: () => void
   closeHilModal: () => void
   setHilUserGuidance: (guidance: string) => void
-  handleHilSubmit: () => Promise<void>
+  handleHilSubmit: (modelParams?: { model: string; temperature: number }) => Promise<void>
   
   // Retry UI
   setRetrySeedInput: (value: string) => void
@@ -109,6 +111,7 @@ export const useUIStore = create<UIStore>()(
     isAutorunning: false,
     processStartTime: null,
     elapsedTime: 0,
+    accumulatedTime: 0,
     isHilModalOpen: false,
     hilContext: null,
     hilUserGuidance: '',
@@ -122,10 +125,16 @@ export const useUIStore = create<UIStore>()(
     navigateToStep: (stepId: StepId) => {
       const stepIndex = ALL_PIPELINE_STEP_IDS_IN_ORDER.indexOf(stepId)
       if (stepIndex >= 0) {
+        const { currentStepInfo } = get()
         set({ 
           currentStepInfo: { 
+            ...currentStepInfo, // Preserve existing fields like transcriptId
             stepId, 
-            status: StepStatus.Idle 
+            status: StepStatus.Idle,
+            outputData: undefined, // Clear output data for the new step
+            error: undefined, // Clear any errors
+            inputData: undefined, // Clear input data
+            groundingSources: undefined // Clear grounding sources
           },
           isAutorunning: false // Stop autorun when manually navigating
         })
@@ -140,8 +149,13 @@ export const useUIStore = create<UIStore>()(
       if (nextIndex < ALL_PIPELINE_STEP_IDS_IN_ORDER.length) {
         set({
           currentStepInfo: {
+            ...currentStepInfo, // Preserve existing fields like transcriptId
             stepId: ALL_PIPELINE_STEP_IDS_IN_ORDER[nextIndex] as StepId,
-            status: StepStatus.Idle
+            status: StepStatus.Idle,
+            outputData: undefined, // Clear output data for the new step
+            error: undefined, // Clear any errors
+            inputData: undefined, // Clear input data
+            groundingSources: undefined // Clear grounding sources
           }
         })
       }
@@ -155,8 +169,13 @@ export const useUIStore = create<UIStore>()(
       if (prevIndex >= 0) {
         set({
           currentStepInfo: {
+            ...currentStepInfo, // Preserve existing fields like transcriptId
             stepId: ALL_PIPELINE_STEP_IDS_IN_ORDER[prevIndex] as StepId,
-            status: StepStatus.Idle
+            status: StepStatus.Idle,
+            outputData: undefined, // Clear output data for the new step
+            error: undefined, // Clear any errors
+            inputData: undefined, // Clear input data
+            groundingSources: undefined // Clear grounding sources
           }
         })
       }
@@ -184,16 +203,31 @@ export const useUIStore = create<UIStore>()(
     
     setAutorunning: (value: boolean) => {
       if (value) {
-        // Starting
-        set({ isAutorunning: true, processStartTime: Date.now(), elapsedTime: 0 });
+        // Starting/Resuming - continue from accumulated time
+        const { accumulatedTime } = get();
+        set({ 
+          isAutorunning: true, 
+          processStartTime: Date.now(), 
+          elapsedTime: accumulatedTime 
+        });
       } else {
-        // Stopping/Pausing
-        const { processStartTime } = get();
+        // Stopping/Pausing - accumulate the time
+        const { processStartTime, accumulatedTime } = get();
         if (processStartTime) {
-          set({ isAutorunning: false, elapsedTime: Math.floor((Date.now() - processStartTime) / 1000), processStartTime: null });
+          const sessionTime = Math.floor((Date.now() - processStartTime) / 1000);
+          const totalTime = accumulatedTime + sessionTime;
+          set({ 
+            isAutorunning: false, 
+            elapsedTime: totalTime,
+            accumulatedTime: totalTime,
+            processStartTime: null 
+          });
         } else {
           set({ isAutorunning: false });
         }
+        
+        // Save resume checkpoint when pausing
+        // This will be handled by the useAutorunManager effect watching isAutorunning changes
       }
     },
     
@@ -202,9 +236,10 @@ export const useUIStore = create<UIStore>()(
     },
     
     updateElapsedTime: () => {
-      const { processStartTime } = get()
+      const { processStartTime, accumulatedTime } = get()
       if (processStartTime) {
-        set({ elapsedTime: Math.floor((Date.now() - processStartTime) / 1000) })
+        const sessionTime = Math.floor((Date.now() - processStartTime) / 1000)
+        set({ elapsedTime: accumulatedTime + sessionTime })
       }
     },
     
@@ -331,13 +366,25 @@ export const useUIStore = create<UIStore>()(
           }
         },
     
-    handleHilSubmit: async () => {
+    handleHilSubmit: async (modelParams?: { model: string; temperature: number }) => {
       const { hilContext, hilUserGuidance } = get()
       if (!hilContext || !hilUserGuidance.trim()) return
       
       const { stepInfo, originalPrompt } = hilContext
       const config = STEP_CONFIGS[stepInfo.stepId]
       if (config) {
+        // Track the HIL correction
+        trackingHelpers.trackHilCorrection(
+          hilUserGuidance,
+          stepInfo.transcriptId,
+          stepInfo.stepId,
+          {
+            originalPrompt: originalPrompt.substring(0, 100) + '...',
+            modelParams,
+            previousResponse: hilContext.previousResponse?.substring(0, 100) + '...'
+          }
+        )
+        
         const metaPrompt = `The original prompt was:
 --- ORIGINAL PROMPT START ---
 ${originalPrompt}
@@ -356,7 +403,8 @@ Please provide a corrected response addressing the user's feedback.`
           hilContext: {
             ...hilContext,
             metaPrompt,
-            needsProcessing: true
+            needsProcessing: true,
+            modelParams // Add model parameters to context
           }
         })
         
@@ -371,6 +419,7 @@ Please provide a corrected response addressing the user's feedback.`
         isAutorunning: false,
         processStartTime: null,
         elapsedTime: 0,
+        accumulatedTime: 0,
         isHilModalOpen: false,
         hilContext: null,
         hilUserGuidance: '',

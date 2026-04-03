@@ -1,15 +1,19 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { ColDef, ModuleRegistry, ICellRendererParams, CellValueChangedEvent } from 'ag-grid-community';
 import { AllCommunityModule } from 'ag-grid-community';
 import { convertToCSV, downloadCSV } from '../utils/csvExport';
+import { useGridChangeTracker } from '../hooks/useGridChangeTracker';
+import { Button } from './ui';
+import { StepId } from '../../types';
 
 // Register AG Grid modules
 ModuleRegistry.registerModules([AllCommunityModule]);
 
 interface SelectedUtterance {
   original_line_num: string;
-  utterance_text: string;
+  text: string;
+  utterance_text?: string; // Keep for backwards compatibility
   included: boolean;
   selection_justification: string;
 }
@@ -19,14 +23,43 @@ interface SelectedUtterancesTableProps {
   theme: 'light' | 'dark';
   onUtterancesChange?: (updatedUtterances: SelectedUtterance[]) => void;
   filename?: string;
+  transcriptId?: string;
 }
 
 export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = ({ 
   utterances, 
   theme,
   onUtterancesChange,
-  filename
+  filename,
+  transcriptId
 }) => {
+  const gridRef = React.useRef<AgGridReact>(null);
+  
+  // Use the grid change tracker hook
+  const {
+    displayData,
+    onCellValueChanged: trackChange,
+    handleSave,
+    handleCancel,
+    hasPendingChanges,
+    pendingChangesCount,
+    resetData
+  } = useGridChangeTracker(utterances, {
+    transcriptId,
+    stepId: StepId.P0_3_SELECT_PROCEDURAL_UTTERANCES,
+    dataPath: 'selected_procedural_utterances',
+    onSave: (changes) => {
+      if (onUtterancesChange) {
+        onUtterancesChange(displayData);
+      }
+    }
+  });
+  
+  // Reset data when input changes
+  useEffect(() => {
+    resetData(utterances);
+  }, [utterances, resetData]);
+  
   const { rowData, columnDefs } = useMemo(() => {
     const cols: ColDef[] = [
       { 
@@ -88,7 +121,7 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
         cellClass: (params) => params.data.included ? '' : 'opacity-60'
       },
       { 
-        field: 'utterance_text', 
+        field: 'text', 
         headerName: 'Utterance Text',
         flex: 2,
         wrapText: true,
@@ -96,7 +129,8 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
         sortable: false,
         resizable: true,
         editable: false,
-        cellClass: (params) => params.data.included ? 'py-2' : 'py-2 opacity-60'
+        cellClass: (params) => params.data.included ? 'py-2' : 'py-2 opacity-60',
+        valueGetter: (params) => params.data.text || params.data.utterance_text || ''
       },
       { 
         field: 'selection_justification', 
@@ -123,8 +157,8 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
       }
     ];
     
-    return { rowData: utterances, columnDefs: cols };
-  }, [utterances]);
+    return { rowData: displayData, columnDefs: cols };
+  }, [displayData]);
 
   // Define custom styles based on theme
   const gridStyles = theme === 'dark' ? {
@@ -183,7 +217,7 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
       { field: 'original_line_num', headerName: 'Line #' },
       { field: 'included', headerName: 'Included' },
       { field: 'speaker', headerName: 'Speaker' },
-      { field: 'utterance_text', headerName: 'Utterance Text' },
+      { field: 'text', headerName: 'Utterance Text' },
       { field: 'selection_justification', headerName: 'Selection Justification' }
     ];
     const csvContent = convertToCSV(rowData, columns);
@@ -219,6 +253,7 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
         }}
       >
         <AgGridReact
+          ref={gridRef}
           rowData={rowData}
           columnDefs={columnDefs}
           defaultColDef={{
@@ -231,38 +266,43 @@ export const SelectedUtterancesTable: React.FC<SelectedUtterancesTableProps> = (
           rowHeight={undefined}
           getRowHeight={(params) => {
             // Dynamic row height based on content
-            const textLength = params.data.utterance_text?.length || 0;
+            const textLength = (params.data.text || params.data.utterance_text)?.length || 0;
             const justificationLength = params.data.selection_justification?.length || 0;
             const baseHeight = 50;
             const extraHeight = Math.floor((textLength + justificationLength) / 100) * 20;
             return Math.min(baseHeight + extraHeight, 200);
           }}
-          onCellValueChanged={(event: CellValueChangedEvent) => {
-            if (onUtterancesChange) {
-              // Create a new array with the updated utterance
-              const updatedUtterances = [...utterances];
-              const index = utterances.findIndex(u => u.original_line_num === event.data.original_line_num);
-              if (index !== -1) {
-                updatedUtterances[index] = { ...event.data };
-                onUtterancesChange(updatedUtterances);
-              }
-            }
-          }}
+          onCellValueChanged={trackChange}
           onCellClicked={(event) => {
-            if (event.column.getColId() === 'included' && onUtterancesChange) {
-              const updatedUtterances = [...utterances];
-              const index = utterances.findIndex(u => u.original_line_num === event.data.original_line_num);
-              if (index !== -1) {
-                updatedUtterances[index] = { 
-                  ...updatedUtterances[index], 
-                  included: !updatedUtterances[index].included 
-                };
-                onUtterancesChange(updatedUtterances);
-              }
+            if (event.column.getColId() === 'included') {
+              // Simulate a cell value change for checkbox clicks
+              const oldValue = event.data.included;
+              const newValue = !oldValue;
+              trackChange({
+                ...event,
+                oldValue,
+                newValue,
+                colDef: { field: 'included' }
+              } as any);
             }
           }}
+          suppressScrollOnNewData={true}
+          maintainColumnOrder={true}
         />
       </div>
+      {hasPendingChanges && (
+        <div className="flex justify-end gap-2 mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+          <span className="text-sm text-yellow-800 dark:text-yellow-200 mr-auto">
+            {pendingChangesCount} unsaved change{pendingChangesCount > 1 ? 's' : ''}
+          </span>
+          <Button onClick={handleCancel} variant="secondary" size="sm">
+            Cancel
+          </Button>
+          <Button onClick={handleSave} size="sm">
+            Save Changes
+          </Button>
+        </div>
+      )}
     </>
   );
 };
