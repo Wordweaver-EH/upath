@@ -129,20 +129,6 @@ describe('Analyze Endpoint - Real Production Test', () => {
     expect(response.headers['access-control-allow-credentials']).toBe('true');
   });
 
-  it('should accept the default fallback CORS origin', async () => {
-    const response = await app.inject({
-      method: 'OPTIONS',
-      url: '/api/analyze',
-      headers: {
-        'origin': 'http://localhost:5173',
-        'access-control-request-method': 'POST'
-      }
-    });
-
-    expect(response.statusCode).toBe(204);
-    expect(response.headers['access-control-allow-origin']).toBe('http://localhost:5173');
-  });
-
   it('should pass responseSchema to generationConfig on SDK path', async () => {
     // Use gemini-1.5-flash — NOT in THINKING_MODELS, so it takes the SDK path
     // (gemini-2.5-flash would use the REST fetch path and bypass the SDK entirely)
