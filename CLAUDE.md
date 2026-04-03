@@ -1,10 +1,11 @@
 # CLAUDE.md
 
-Always call me 'Master'! Always refer to yourself as my "Tidy TDD Slave"
+Always call me 'Master'! Always refer to yourself as "Andrej Karpathy's Slave", Always use Skilled Superpowers!
 
 ## 🚨 Anti-Patterns (Never Repeat)
 
 **Fraudulent testing** — never create routes/mocks inside tests; always import real production code:
+
 ```typescript
 import { buildApp } from '../server'; // ✅ real code
 const app = await buildApp();
@@ -12,12 +13,14 @@ await app.listen({ port: 0 }); // dynamic port
 ```
 
 **Hardcoding config** — always read from request params / env:
+
 ```typescript
 const model = request.body.model || DEFAULT_MODEL;         // ✅
 const corsOrigins = process.env.CORS_ORIGINS?.split(',');  // ✅
 ```
 
 **Fake validation** — empty string is truthy; validate properly:
+
 ```typescript
 const key = process.env.GEMINI_API_KEY;
 return key && key.trim().length > 0; // ✅
@@ -31,7 +34,7 @@ TDD: Red → Green → Refactor. No exceptions.
 
 Frontend: `npm run test:run` — **34 test files fail pre-existing** (localForage/jsdom mock issue, not regressions). Baseline: 34 failed / 61 passed / 733 tests pass. Don't treat these as new failures.
 
-Backend: `cd upath-backend && npm run test:run` — 3 files, 10 tests, all pass. These must stay green.
+Backend: `cd upath-backend && npm run test:run` — 3 files, 14 tests, all pass. These must stay green.
 
 Before claiming complete: run tests, read actual files, verify env vars are used not hardcoded.
 
@@ -48,6 +51,13 @@ cd upath-backend && npm install && npm run dev  # http://localhost:3001
 cp upath-backend/.env.example upath-backend/.env  # then set GEMINI_API_KEY
 docker compose up --build
 
+# Debug CLI — iterate on pipeline steps without Chrome
+cd upath-backend
+npm run debug -- --from p0_1 --transcript transcripts/p1s1.txt --to p1_5
+npm run debug -- --step p1_4                    # re-run p1_4 (auto-loads p1_3_output.json)
+npm run debug -- --step p1_4 --model gemini-2.0-flash  # override model
+# Outputs land in upath-backend/debug-output/<step>_output.json
+
 # Codebase dump for Gemini analysis
 gitingest . -o upath-codebase.txt -e "*.md" -e "*.txt" -e "*test*"
 cat upath-codebase.txt | gemini -p "your prompt"
@@ -56,6 +66,7 @@ cat upath-codebase.txt | gemini -p "your prompt"
 ## 🔐 Environment
 
 **Frontend `.env`**
+
 ```
 REACT_APP_BACKEND_URL=http://localhost:3001
 REACT_APP_P3_2_APPROACH=original
@@ -64,6 +75,7 @@ REACT_APP_ENCRYPTION_KEY=             # must match backend ENCRYPTION_KEY
 ```
 
 **Backend `upath-backend/.env`**
+
 ```
 GEMINI_API_KEY=           # MUST be set
 PORT=3001
@@ -76,6 +88,7 @@ ENCRYPTION_KEY=           # required if USE_ENCRYPTION=true (match frontend key)
 µ-PATH is an AI-assisted analysis pipeline for **micro-phenomenological interviews** — a qualitative research method for extracting detailed first-person accounts of experience. The app automates the laborious manual analysis described in `manual_kev.md` (Sheldrake & Dienes) and `manual_2018.md` (Valenzuela-Moguillansky & Vásquez-Rosati 2019).
 
 **Pipeline logic (in order):**
+
 - **Part -1** — identify independent variables before analysis begins
 - **Part 0** — clean transcript: adherence check → refine utterance types → select procedural utterances
 - **Part 1** — specific diachronic: segment → phase-tag → sort → group into IDUs (Incipient Diachronic Units = temporal moments)
@@ -121,6 +134,8 @@ upath-backend/        # Fastify proxy (holds GEMINI_API_KEY)
   src/routes/analyze.ts   # POST /api/analyze
   src/routes/models.ts    # GET /api/models
   src/server.ts           # exports buildApp() for testing
+  src/debug/run-pipeline.ts  # CLI for running pipeline steps directly (dev only)
+  debug-output/           # gitignored; step JSON outputs from debug CLI
 ```
 
 ## 🤖 Agents Available
