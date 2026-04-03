@@ -6,7 +6,8 @@ export interface StepConfig {
   part: string;
   isJsonOutput: boolean;
   getInput: (...args: any[]) => { data: any; error?: string } | { data: null; error: string };
-  generatePrompt: (input: any) => string;
+  generatePrompt?: (input: any) => string;
+  responseSchema?: object;
   validateAndClean?: (output: any, ...args: any[]) => any;
 }
 
