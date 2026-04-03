@@ -273,6 +273,9 @@ function loadInitialInput(
         dependent_variable_focus_list: dvFocus.split(',').map((s) => s.trim()),
       };
     }
+    if (dvFocus !== undefined) {
+      console.error(`Warning: --dv-focus is ignored when --from is p0_1`);
+    }
     return { filename_or_id: filename, raw_transcript_text_from_file: content };
   }
 
@@ -290,9 +293,12 @@ function loadInitialInput(
     }
   }
 
+  const prevStepFile = firstStep !== 'p_neg1_1'
+    ? `debug-output/${(STEP_ORDER[STEP_ORDER.indexOf(firstStep) - 1] ?? 'prev')}_output.json`
+    : undefined;
   throw new Error(
-    `No input for step ${firstStep}. Provide --input <file>, --transcript <file>, ` +
-    `or ensure debug-output/${firstStep !== 'p_neg1_1' ? (STEP_ORDER[STEP_ORDER.indexOf(firstStep) - 1] ?? 'prev') + '_output.json' : ''} exists`
+    `No input for step ${firstStep}. Provide --input <file> or --transcript <file>` +
+    (prevStepFile !== undefined ? `, or ensure ${prevStepFile} exists` : '')
   );
 }
 
@@ -307,8 +313,7 @@ async function runChain(steps: StepAlias[], initialInput: unknown, model: string
     if (entry.isP13) {
       output = await runP13(currentInput, model);
     } else if (entry.isP2S) {
-      // @ts-ignore — runP2S is defined in a subsequent task (forward reference)
-      output = await runP2S(stepAlias as 'p2s_1' | 'p2s_2' | 'p2s_3', currentInput, model);
+      throw new Error(`P2S steps (${stepAlias}) are not yet implemented — run Task 5 first`);
     } else {
       output = await runStandardStep(stepAlias, currentInput, model);
     }
