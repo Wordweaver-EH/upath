@@ -12,6 +12,27 @@ export const P1_4_DIACHRONIC_UNIT_GROUPING_CONFIG: StepConfig = {
     if (!p1_3_data) return { data: null, error: `Missing P1.3 output for transcript ${currentTranscript.id}` };
     return { data: p1_3_data };
   },
+  responseSchema: {
+    type: "object",
+    properties: {
+      transcript_id: { type: "string" },
+      diachronic_units: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            unit_id: { type: "string" },
+            description: { type: "string" },
+            source_segment_ids: { type: "array", items: { type: "string" } }
+          },
+          required: ["unit_id", "description", "source_segment_ids"]
+        }
+      },
+      independent_variable_details: { type: "string" },
+      dependent_variable_focus: { type: "array", items: { type: "string" } }
+    },
+    required: ["transcript_id", "diachronic_units", "independent_variable_details", "dependent_variable_focus"]
+  },
   generatePrompt: (input: P1_3_Output) => `You are a micro-phenomenological analyst. You will be given a chronologically ordered list of segments from an interview. Your task is to group consecutive segments into Diachronic Units (DUs). A DU represents a coherent, meaningful phase or 'moment' within the participant's stream of experience. It is a single 'beat' or 'scene' in their experiential narrative. All segments within one DU should be thematically unified or explicitly or implicitly reported as simultaneous. The transition between DUs marks a shift in the nature of the experience. This shift may be explicit with temporal and causal cues or be an implicit shift that indicates a new momentary experience arising due to an experiential shift, e.g. shift in focus, sensation, intention, cognition. The DU and segments are in chronological order of phenomenology, i.e. they are sorted according to how they happened in the original experience as opposed to the order they were reported in in the interview.
 
 Input:

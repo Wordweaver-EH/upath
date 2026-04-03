@@ -22,6 +22,15 @@ export const P_NEG1_1_VARIABLE_IDENTIFICATION_CONFIG: StepConfig = {
       },
     };
   },
+  responseSchema: {
+    type: "object",
+    properties: {
+      transcript_id: { type: "string" },
+      independent_variable_details: { type: "string" },
+      dependent_variable_focus: { type: "array", items: { type: "string" } }
+    },
+    required: ["transcript_id", "independent_variable_details", "dependent_variable_focus"]
+  },
   generatePrompt: (input) => `You are a data extraction assistant for micro-phenomenological research. Your task is to process the beginning of a raw interview transcript to identify a potential independent variable (or condition/grouping factor) and use the user-provided dependent variable focuses for this analysis.
 
 Input:

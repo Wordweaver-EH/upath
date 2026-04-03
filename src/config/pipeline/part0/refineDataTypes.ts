@@ -42,6 +42,27 @@ export const P0_2_REFINE_DATA_TYPES_CONFIG: StepConfig = {
       }
     };
   },
+  responseSchema: {
+    type: "object",
+    properties: {
+      transcript_id: { type: "string" },
+      refined_data_transcript: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            line_num: { type: "integer" },
+            speaker: { type: "string" },
+            text: { type: "string" },
+            information_tags: { type: "array", items: { type: "string" } },
+            decision_notes: { type: "string" }
+          },
+          required: ["line_num", "text", "information_tags"]
+        }
+      }
+    },
+    required: ["transcript_id", "refined_data_transcript"]
+  },
   generatePrompt: (input: P0_1_Output & { parsed_lines: Array<{ lineNumber: string; speaker: string; text: string }> }) => `You are a micro-phenomenological data preparation analyst. Your task is to refine the line-numbered transcript by identifying different types of information.
 Input:
 The parsed transcript lines for transcript ID ${input.transcript_id}.

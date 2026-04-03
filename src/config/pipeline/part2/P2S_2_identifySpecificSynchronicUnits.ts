@@ -88,6 +88,41 @@ A JSON object adhering EXACTLY to the following structure (NO extra text):
   "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
 }
 `,
+  responseSchema: {
+    type: "object",
+    properties: {
+      transcript_id: { type: "string" },
+      analyzed_du_id: { type: "string" },
+      specific_synchronic_units_hierarchy: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            unit_name: { type: "string" },
+            level: { type: "integer" },
+            abstraction_op: { type: "string" },
+            intensional_definition: { type: "string" },
+            segments: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  segment_id: { type: "string" },
+                  segment_text: { type: "string" }
+                },
+                required: ["segment_id", "segment_text"]
+              }
+            },
+            constituent_lower_units: { type: "array", items: { type: "string" } }
+          },
+          required: ["unit_name", "level", "abstraction_op", "intensional_definition"]
+        }
+      },
+      independent_variable_details: { type: "string" },
+      dependent_variable_focus: { type: "array", items: { type: "string" } }
+    },
+    required: ["transcript_id", "analyzed_du_id", "specific_synchronic_units_hierarchy", "independent_variable_details", "dependent_variable_focus"]
+  },
   saveToTranscript: (transcript, output, duId) => {
     if (!duId) {
       console.error('[P2S.2] No DU ID provided to saveToTranscript');

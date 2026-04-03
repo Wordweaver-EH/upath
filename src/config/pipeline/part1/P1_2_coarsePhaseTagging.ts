@@ -12,6 +12,48 @@ export const P1_2_COARSE_PHASE_TAGGING_CONFIG: StepConfig = {
     if (!p1_1_data) return { data: null, error: `Missing P1.1 output for transcript ${currentTranscript.id}` };
     return { data: p1_1_data };
   },
+  responseSchema: {
+    type: "object",
+    properties: {
+      transcript_id: { type: "string" },
+      phase_tagged_utterances: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            original_utterance: {
+              type: "object",
+              properties: {
+                original_line_num: { type: "string" },
+                utterance_text: { type: "string" }
+              },
+              required: ["original_line_num", "utterance_text"]
+            },
+            segments: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  segment_id: { type: "string" },
+                  segment_text: { type: "string" },
+                  temporal_cues: { type: "array", items: { type: "string" } },
+                  coarse_phase: {
+                    type: "string",
+                    enum: ["Initial State", "Core Experience", "Final Action", "Post-Hoc Reflection"]
+                  }
+                },
+                required: ["segment_id", "segment_text", "coarse_phase"]
+              }
+            }
+          },
+          required: ["original_utterance", "segments"]
+        }
+      },
+      independent_variable_details: { type: "string" },
+      dependent_variable_focus: { type: "array", items: { type: "string" } }
+    },
+    required: ["transcript_id", "phase_tagged_utterances", "independent_variable_details", "dependent_variable_focus"]
+  },
   generatePrompt: (input: P1_1_Output) => `You are a micro-phenomenological data analyst classifying interview segments into four distinct temporal phases. Your task is to determine if the speaker is describing an event **from within** the chronological timeline of the actual experience [Initial State, Core Experience, Final Action] or **is analyzing the experience as a whole** from the interview chair [Post-Hoc Reflection].
 
 CRITICAL: Before classifying a segment, read the full original_utterance.text to understand its complete context. For very short, affirmative, or negative segments (e.g., 'Yeah,' 'No,' 'I don't think so'), the coarse_phase should be inherited from the temporal context established by the interviewer's preceding question or the surrounding context.

@@ -12,6 +12,45 @@ export const P1_1_INITIAL_SEGMENTATION_CONFIG: StepConfig = {
     if (!p0_3_data) return { data: null, error: `Missing P0.3 output for transcript ${currentTranscript.id}` };
     return { data: p0_3_data };
   },
+  responseSchema: {
+    type: "object",
+    properties: {
+      transcript_id: { type: "string" },
+      segmented_utterances: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            original_utterance: {
+              type: "object",
+              properties: {
+                original_line_num: { type: "string" },
+                utterance_text: { type: "string" },
+                selection_justification: { type: "string" }
+              },
+              required: ["original_line_num", "utterance_text"]
+            },
+            segments: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  segment_id: { type: "string" },
+                  segment_text: { type: "string" },
+                  temporal_cues: { type: "array", items: { type: "string" } }
+                },
+                required: ["segment_id", "segment_text"]
+              }
+            }
+          },
+          required: ["original_utterance", "segments"]
+        }
+      },
+      independent_variable_details: { type: "string" },
+      dependent_variable_focus: { type: "array", items: { type: "string" } }
+    },
+    required: ["transcript_id", "segmented_utterances", "independent_variable_details", "dependent_variable_focus"]
+  },
   generatePrompt: (input: P0_3_Output) => {
     // Filter to only include utterances where included === true
     const includedUtterances = input.selected_procedural_utterances.filter(u => u.included);

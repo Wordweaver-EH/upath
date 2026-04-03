@@ -13,6 +13,29 @@ export const P0_3_SELECT_PROCEDURAL_UTTERANCES_CONFIG: StepConfig = {
     if (!p0_2_data || !p_neg1_1_data) return { data: null, error: `Missing P0.2 or P-1.1 output for transcript ${currentTranscript.id}` };
     return { data: { ...p0_2_data, p_neg1_1_output: p_neg1_1_data } };
   },
+  responseSchema: {
+    type: "object",
+    properties: {
+      transcript_id: { type: "string" },
+      selected_procedural_utterances: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            original_line_num: { type: "string" },
+            speaker: { type: "string" },
+            utterance_text: { type: "string" },
+            selection_justification: { type: "string" },
+            included: { type: "boolean" }
+          },
+          required: ["original_line_num", "utterance_text", "selection_justification", "included"]
+        }
+      },
+      independent_variable_details: { type: "string" },
+      dependent_variable_focus: { type: "array", items: { type: "string" } }
+    },
+    required: ["transcript_id", "selected_procedural_utterances", "independent_variable_details", "dependent_variable_focus"]
+  },
   generatePrompt: (input: P0_2_Output & { p_neg1_1_output: P_neg1_1_Output }) => `You are a micro-phenomenological analyst. Your task is to evaluate ALL utterances from the refined data transcript and determine which are crucial for understanding the diachronic (temporal) structure of the *experience itself*. The sequence and content of the described experience is of importance rather than the order it was reported in in the interview. 
 Input:
 The JSON output from P0.2 (refined data transcript) and P-1.1 (IV/DV info) for transcript ID ${input.transcript_id}.

@@ -15,6 +15,16 @@ export const P0_1_TRANSCRIPTION_ADHERENCE_CONFIG: StepConfig = {
       },
     };
   },
+  responseSchema: {
+    type: "object",
+    properties: {
+      transcript_id: { type: "string" },
+      line_numbered_transcript: { type: "array", items: { type: "string" } },
+      transcription_convention_notes: { type: "string" },
+      initial_impressions_log: { type: "string" }
+    },
+    required: ["transcript_id", "line_numbered_transcript", "transcription_convention_notes", "initial_impressions_log"]
+  },
   generatePrompt: (input) => `You are a micro-phenomenological data preparation assistant. Your first task is to process a raw interview transcript file.
 Input:
 Raw text content of a single interview transcript file.
