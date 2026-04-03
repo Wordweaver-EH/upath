@@ -70,7 +70,7 @@ export function isEncrypted(text: string): boolean {
  * @returns Request body for the API
  */
 export function createApiRequestBody(
-  prompt: string, 
+  prompt: string,
   useEncryption: boolean = false,
   options: {
     model?: string;
@@ -78,6 +78,7 @@ export function createApiRequestBody(
     useGrounding?: boolean;
     temperature?: number;
     seed?: number;
+    responseSchema?: object;
   } = {}
 ): Record<string, any> {
   // Encrypt the prompt if encryption is enabled
