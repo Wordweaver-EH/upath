@@ -21,15 +21,30 @@ const modelsRoute: FastifyPluginAsync = async (fastify) => {
       
       const data = await response.json() as { models: any[] };
       
+      // Exclude non-general-purpose or noise models
+      const EXCLUDE_PATTERNS = [
+        /^gemma-(?!4)/,          // Gemma family except Gemma 4
+        /^deep-research-/,       // Research tool, not text generation
+        /^nano-banana/,          // Internal codename
+        /computer-use/,          // Specialised computer-use variant
+        /robotics/,              // Robotics specialised model
+        /-image-/,               // Image generation models
+        /-latest$/,              // Mutable aliases — use pinned versions
+        /customtools/,           // Custom-tools variant
+        /^gemini-3-pro-preview$/ // Deprecated March 9 2026
+      ];
+
       // Filter and format models for text generation
       const availableModels = [];
-      
+
       if (data.models && Array.isArray(data.models)) {
         for (const model of data.models) {
-          // Only include thinking models that support generateContent
-          if (model.supportedGenerationMethods?.includes('generateContent') && model.thinking === true) {
+          const id = model.name.replace('models/', '');
+          const excluded = EXCLUDE_PATTERNS.some(p => p.test(id));
+          // Only include thinking models that support generateContent and aren't excluded
+          if (!excluded && model.supportedGenerationMethods?.includes('generateContent') && model.thinking === true) {
             availableModels.push({
-              value: model.name.replace('models/', ''), // Remove 'models/' prefix
+              value: id,
               label: model.displayName || model.name,
               description: model.description,
               inputTokenLimit: model.inputTokenLimit,
@@ -60,12 +75,15 @@ const modelsRoute: FastifyPluginAsync = async (fastify) => {
     } catch (error) {
       fastify.log.error('Failed to fetch Gemini models:', error);
       
-      // Return fallback thinking models on error
-      return reply.send({ 
+      // Return fallback thinking models on error (kept in sync with live model list)
+      return reply.send({
         models: [
-          { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Stable version with thinking capabilities', thinking: true },
-          { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro', description: 'Advanced reasoning with thinking mode', thinking: true },
-          { value: 'gemini-2.0-flash-thinking-exp', label: 'Gemini 2.0 Flash Thinking Experimental', description: 'Experimental thinking model', thinking: true }
+          { value: 'gemini-3.1-pro-preview',      label: 'Gemini 3.1 Pro Preview',      description: 'Latest generation — advanced agentic reasoning', thinking: true },
+          { value: 'gemini-3-flash-preview',       label: 'Gemini 3 Flash Preview',       description: 'Gemini 3 — high performance at reduced cost',  thinking: true },
+          { value: 'gemini-3.1-flash-lite-preview',label: 'Gemini 3.1 Flash-Lite Preview',description: 'Gemini 3.1 — frontier-class, budget-efficient',  thinking: true },
+          { value: 'gemini-2.5-pro',               label: 'Gemini 2.5 Pro',               description: 'Stable — deep reasoning, complex tasks',         thinking: true },
+          { value: 'gemini-2.5-flash',             label: 'Gemini 2.5 Flash',             description: 'Stable — fast, cost-effective reasoning',        thinking: true },
+          { value: 'gemini-2.5-flash-lite',        label: 'Gemini 2.5 Flash-Lite',        description: 'Stable — budget-efficient with thinking',        thinking: true },
         ],
         defaultModel: 'gemini-2.5-flash',
         error: 'Failed to fetch models from API, using defaults'
