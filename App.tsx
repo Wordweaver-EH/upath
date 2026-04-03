@@ -33,6 +33,7 @@ import IRRModal from './components/IRRModal';
 import GduMappingModal from './components/GduMappingModal';
 import { AppLoadingScreen } from './src/components/AppLoadingScreen';
 import { SessionRestoreNotification } from './src/components/SessionRestoreNotification';
+import DOMPurify from 'dompurify';
 import { PipelineStepGrid } from './src/components/PipelineStepGrid';
 import { ChangeHistoryPanel } from './src/components/ChangeHistoryPanel';
 
@@ -91,7 +92,7 @@ const ReportRenderer: React.FC<ReportRendererProps> = ({ markdown, theme }) => {
 
     const options: MarkedOptions = { renderer };
     const parsed = marked.parse(markdown, options) as string;
-    setHtml(parsed);
+    setHtml(DOMPurify.sanitize(parsed));
   }, [markdown]);
 
   useEffect(() => {
