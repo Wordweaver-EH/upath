@@ -258,113 +258,61 @@ describe('transformSynchronicToMermaid', () => {
   })
 })
 
+// transformDiachronicToMermaid is intentionally stubbed to return ''
+// (a comparison table is used instead of individual Gantt charts).
 describe('transformDiachronicToMermaid', () => {
-  it('should return empty phase gantt when no structure provided', () => {
-    const result = transformDiachronicToMermaid()
-    
-    expect(result).toContain('gantt')
-    expect(result).toContain('Specific Diachronic Structure (No Phases)')
-    expect(result).toContain('Empty Phase')
+  it('should return empty string when no structure provided', () => {
+    expect(transformDiachronicToMermaid()).toBe('')
   })
 
-  it('should return empty phase gantt when no phases provided', () => {
-    const structure: SpecificDiachronicStructureType = {
-      summary: 'Test Structure',
-      phases: []
-    }
-    
-    const result = transformDiachronicToMermaid(structure)
-    
-    expect(result).toContain('Empty Phase')
+  it('should return empty string when no phases provided', () => {
+    const structure: SpecificDiachronicStructureType = { summary: 'Test Structure', phases: [] }
+    expect(transformDiachronicToMermaid(structure)).toBe('')
   })
 
-  it('should transform valid diachronic structure to Gantt', () => {
+  it('should return empty string for valid diachronic structure', () => {
     const structure: SpecificDiachronicStructureType = {
       summary: 'Test Experience Journey',
       phases: [
-        { 
-          phase_name: 'Preparation Phase', 
-          units_involved: ['unit1', 'unit2'] 
-        },
-        { 
-          phase_name: 'Action Phase', 
-          units_involved: ['unit3'] 
-        }
-      ]
+        { phase_name: 'Preparation Phase', units_involved: ['unit1', 'unit2'] },
+        { phase_name: 'Action Phase', units_involved: ['unit3'] },
+      ],
     }
-    
-    const result = transformDiachronicToMermaid(structure)
-    
-    expect(result).toContain('gantt')
-    expect(result).toContain('SDS: Test Experience Journey')
-    expect(result).toContain('Preparation Phase')
-    expect(result).toContain('Action Phase')
-    expect(result).toContain('section Phases')
+    expect(transformDiachronicToMermaid(structure)).toBe('')
   })
 
-  it('should handle phases without names', () => {
+  it('should return empty string for phases without names', () => {
     const structure: SpecificDiachronicStructureType = {
       summary: 'Unnamed Phases',
-      phases: [
-        { units_involved: ['unit1'] },
-        { units_involved: ['unit2'] }
-      ] as any
+      phases: [{ units_involved: ['unit1'] }, { units_involved: ['unit2'] }] as any,
     }
-    
-    const result = transformDiachronicToMermaid(structure)
-    
-    expect(result).toContain('Phase 1')
-    expect(result).toContain('Phase 2')
+    expect(transformDiachronicToMermaid(structure)).toBe('')
   })
 
-  it('should calculate duration based on units involved', () => {
+  it('should return empty string regardless of unit count', () => {
     const structure: SpecificDiachronicStructureType = {
       summary: 'Duration Test',
       phases: [
-        { 
-          phase_name: 'Short Phase', 
-          units_involved: [] 
-        },
-        { 
-          phase_name: 'Long Phase', 
-          units_involved: ['u1', 'u2', 'u3', 'u4', 'u5'] 
-        }
-      ]
+        { phase_name: 'Short Phase', units_involved: [] },
+        { phase_name: 'Long Phase', units_involved: ['u1', 'u2', 'u3', 'u4', 'u5'] },
+      ],
     }
-    
-    const result = transformDiachronicToMermaid(structure)
-    
-    expect(result).toContain('Short Phase :Short_Phase, 0, 1d')
-    expect(result).toContain('Long Phase :Long_Phase, 1, 5d')
+    expect(transformDiachronicToMermaid(structure)).toBe('')
   })
 
-  it('should sanitize phase names for Gantt syntax', () => {
+  it('should return empty string regardless of special characters in phase names', () => {
     const structure: SpecificDiachronicStructureType = {
       summary: 'Special Characters',
-      phases: [
-        { 
-          phase_name: 'Phase: with, special chars', 
-          units_involved: ['unit1'] 
-        }
-      ]
+      phases: [{ phase_name: 'Phase: with, special chars', units_involved: ['unit1'] }],
     }
-    
-    const result = transformDiachronicToMermaid(structure)
-    
-    expect(result).toContain('Phase- with special chars')
-    expect(result).not.toContain('Phase: with, special chars')
+    expect(transformDiachronicToMermaid(structure)).toBe('')
   })
 
-  it('should use default title when no summary provided', () => {
+  it('should return empty string when no summary provided', () => {
     const structure: SpecificDiachronicStructureType = {
-      phases: [
-        { phase_name: 'Test Phase', units_involved: ['unit1'] }
-      ]
+      phases: [{ phase_name: 'Test Phase', units_involved: ['unit1'] }],
     }
-    
-    const result = transformDiachronicToMermaid(structure)
-    
-    expect(result).toContain('Specific Diachronic Experience')
+    expect(transformDiachronicToMermaid(structure)).toBe('')
   })
 })
 

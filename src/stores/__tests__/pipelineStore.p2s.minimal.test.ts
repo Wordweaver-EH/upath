@@ -18,14 +18,16 @@ describe('PipelineStore - Minimal P2S Test', () => {
 
   it('should call handleSuccessfulStep directly', () => {
     const transcriptId = 'test-1'
-    
-    // Create initial processedData
+
+    // Create initial processedData and load it into the store
+    // (handleSuccessfulStep reads from state.processedData, not the passed argument)
     const processedDataMap = new Map<string, TranscriptProcessedData>()
     processedDataMap.set(transcriptId, {
       id: transcriptId,
       p2s_outputs_by_du: {}
     } as TranscriptProcessedData)
-    
+    usePipelineStore.setState({ processedData: processedDataMap })
+
     // Call handleSuccessfulStep directly
     usePipelineStore.getState().handleSuccessfulStep(
       StepId.P2S_1_GROUP_UTTERANCES_BY_TOPIC,

@@ -1,18 +1,28 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { usePipelineStore } from '../stores/pipelineStore'
+import { usePipelineStore, _storeRefs } from '../stores/pipelineStore'
 import { useUIStore } from '../stores/uiStore'
 import { localForageStorage } from '../utils/storage'
 import type { RawTranscript } from '../../types'
 import { StepId } from '../../types'
 
 // Mock the storage adapter
-vi.mock('../utils/storage', () => ({
-  localForageStorage: {
+vi.mock('../utils/storage', () => {
+  const localForageStorage = {
     getItem: vi.fn(),
     setItem: vi.fn(),
     removeItem: vi.fn(),
-  },
-}))
+  }
+  return {
+    localForageStorage,
+    // queuedLocalForageStorage wraps localForageStorage in production;
+    // delegate to the same spies so existing assertions still pass.
+    queuedLocalForageStorage: {
+      getItem: (name: string) => localForageStorage.getItem(name),
+      setItem: (name: string, value: string) => localForageStorage.setItem(name, value),
+      removeItem: (name: string) => localForageStorage.removeItem(name),
+    },
+  }
+})
 
 // Mock the migration to prevent it from running during tests
 vi.mock('../utils/migration', () => ({
@@ -21,6 +31,9 @@ vi.mock('../utils/migration', () => ({
 
 describe('Autosave Integration Tests', () => {
   beforeEach(async () => {
+    // Inject store refs so pipelineStore can call uiStore without a circular import
+    _storeRefs.uiStore = useUIStore
+
     // Reset all mocks
     vi.clearAllMocks()
     vi.useFakeTimers()

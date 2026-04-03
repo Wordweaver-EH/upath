@@ -6,6 +6,12 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/stores/__tests__/setup.ts'],
+    exclude: [
+      '**/node_modules/**',
+      '**/.worktrees/**',
+      '**/dist/**',
+      '**/archived-tests/analyze.improved.test.ts',
+    ],
   },
   resolve: {
     alias: {

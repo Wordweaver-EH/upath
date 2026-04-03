@@ -22,12 +22,19 @@ vi.mock('localforage', () => ({
 // Mock the storage adapter - must be defined before the mock
 vi.mock('../../utils/storage', () => {
   const mockStorage = {
-    getItem: vi.fn(async (name) => null),
-    setItem: vi.fn(async (name, value) => undefined),
-    removeItem: vi.fn(async (name) => undefined),
+    getItem: vi.fn(async (name: string) => null),
+    setItem: vi.fn(async (name: string, value: string) => undefined),
+    removeItem: vi.fn(async (name: string) => undefined),
   }
   return {
-    localForageStorage: mockStorage
+    localForageStorage: mockStorage,
+    // queuedLocalForageStorage wraps localForageStorage in production;
+    // delegate to the same spies so existing assertions still pass.
+    queuedLocalForageStorage: {
+      getItem: (name: string) => mockStorage.getItem(name),
+      setItem: (name: string, value: string) => mockStorage.setItem(name, value),
+      removeItem: (name: string) => mockStorage.removeItem(name),
+    },
   }
 })
 
@@ -38,6 +45,7 @@ vi.mock('../../utils/migration', () => ({
 
 // Import after mocks are set up
 import { localForageStorage } from '../../utils/storage'
+import { _storeRefs } from '../pipelineStore'
 
 // Type the mock
 const mockLocalForageStorage = localForageStorage as {
@@ -48,6 +56,9 @@ const mockLocalForageStorage = localForageStorage as {
 
 describe('PipelineStore Persist Integration', () => {
   beforeEach(async () => {
+    // Inject store refs so pipelineStore can call uiStore without a circular import
+    _storeRefs.uiStore = useUIStore
+
     vi.clearAllMocks()
     vi.useFakeTimers()
     // Reset stores

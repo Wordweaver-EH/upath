@@ -3,12 +3,18 @@
 
 import { enableMapSet } from 'immer'
 import { useUIStore } from './uiStore'
-import { usePipelineStore } from './pipelineStore'
+import { usePipelineStore, _storeRefs } from './pipelineStore'
 import { useSettingsStore } from './settingsStore'
 import { useIRRStore } from './irrStore'
 
 // Enable Immer's Map support
 enableMapSet()
+
+// Wire cross-store refs so pipelineStore can call uiStore/settingsStore
+// without a direct circular import. Runs at module-load time (before any
+// async persist hydration), so the refs are always available in callbacks.
+_storeRefs.uiStore = useUIStore
+_storeRefs.settingsStore = useSettingsStore
 
 // Initialize stores in proper dependency order
 // UI Store is independent, Pipeline Store will get UI Store injected

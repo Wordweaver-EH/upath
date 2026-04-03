@@ -3,8 +3,17 @@ import { immer } from 'zustand/middleware/immer'
 import { persist, subscribeWithSelector } from 'zustand/middleware'
 import { queuedLocalForageStorage, localForageStorage } from '../utils/storage'
 import { performDataMigration } from '../utils/migration'
-import { useUIStore } from './uiStore'
-import { useSettingsStore } from './settingsStore'
+
+// Minimal interfaces for cross-store refs injected by stores/index.ts.
+// Direct imports of uiStore/settingsStore are avoided to prevent circular dependencies.
+interface UIStoreRef {
+  getState(): { setHasRehydrated(v: boolean): void; setSessionWasRestored(v: boolean): void; accumulatedTime: number }
+  setState(partial: { accumulatedTime: number }): void
+}
+interface SettingsStoreRef {
+  getState(): { apiKeyPresent: boolean; temperature: number; seed?: number; userDvFocus?: string; model: string }
+}
+export const _storeRefs: { uiStore?: UIStoreRef; settingsStore?: SettingsStoreRef } = {}
 import { 
   RawTranscript, 
   TranscriptProcessedData, 
@@ -1993,8 +2002,9 @@ export const usePipelineStore = create<PipelineStore>()(
         if (currentStepInfo.status === StepStatus.Error && retrySeedInput.trim()) {
           const seedValue = parseInt(retrySeedInput.trim(), 10)
           if (!isNaN(seedValue) && seedValue > 0) {
-            // Get settings from settingsStore
-            const settingsState = useSettingsStore.getState()
+            // Get settings from injected settingsStore ref
+            const settingsState = _storeRefs.settingsStore?.getState()
+            if (!settingsState) return
             const settings = {
               apiKey: settingsState.apiKeyPresent ? 'present' : '',
               temperature: settingsState.temperature,
@@ -2314,40 +2324,40 @@ export const usePipelineStore = create<PipelineStore>()(
         
         if (error) {
           console.error('❌ [Rehydration] Failed to rehydrate state from localForage:', error)
-          useUIStore.getState().setHasRehydrated(true)
-          useUIStore.getState().setSessionWasRestored(false)
+          _storeRefs.uiStore?.getState().setHasRehydrated(true)
+          _storeRefs.uiStore?.getState().setSessionWasRestored(false)
         } else {
           // Set UI flags based on whether data was restored
           const hasData = state && (
-            state.rawTranscripts?.length > 0 || 
+            state.rawTranscripts?.length > 0 ||
             state.processedData?.size > 0 ||
             state.promptHistory?.length > 0
           )
           console.log('✅ [Rehydration] hasData check:', hasData)
           console.log('✅ [Rehydration] rawTranscripts length:', state?.rawTranscripts?.length || 0)
           console.log('✅ [Rehydration] processedData size:', state?.processedData?.size || 0)
-          
-          useUIStore.getState().setHasRehydrated(true)
-          useUIStore.getState().setSessionWasRestored(!!hasData)
-          
+
+          _storeRefs.uiStore?.getState().setHasRehydrated(true)
+          _storeRefs.uiStore?.getState().setSessionWasRestored(!!hasData)
+
           // Restore accumulated time if available
           if (state && 'accumulatedTime' in state && typeof state.accumulatedTime === 'number') {
-            useUIStore.setState({ accumulatedTime: state.accumulatedTime })
+            _storeRefs.uiStore?.setState({ accumulatedTime: state.accumulatedTime })
             console.log('⏱️ [Rehydration] Restored accumulated time:', state.accumulatedTime)
           }
-          
+
           console.log('🔄 [Rehydration] UI flags set - hasRehydrated: true, sessionWasRestored:', !!hasData)
         }
       },
       partialize: (state) => {
         // Only persist if there's actually data to save
-        const uiState = useUIStore.getState()
-        const hasData = state.rawTranscripts.length > 0 || 
-                       state.processedData.size > 0 || 
+        const uiState = _storeRefs.uiStore?.getState()
+        const hasData = state.rawTranscripts.length > 0 ||
+                       state.processedData.size > 0 ||
                        state.promptHistory.length > 0 ||
                        state.totalInputTokens > 0 ||
                        state.totalOutputTokens > 0 ||
-                       uiState.accumulatedTime > 0
+                       (uiState?.accumulatedTime ?? 0) > 0
         
         if (!hasData) {
           console.log('🚫 [Storage] Skipping persist - no meaningful data to save')
@@ -2370,7 +2380,7 @@ export const usePipelineStore = create<PipelineStore>()(
           totalOutputTokens: state.totalOutputTokens,
           processState: state.processState,
           // Timer persistence
-          accumulatedTime: uiState.accumulatedTime
+          accumulatedTime: uiState?.accumulatedTime ?? 0
         }
       }
     }
