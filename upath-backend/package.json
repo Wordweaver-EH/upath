@@ -8,7 +8,8 @@
     "start": "node dist/index.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "debug": "tsx src/debug/run-pipeline.ts"
   },
   "keywords": [],
   "author": "",
