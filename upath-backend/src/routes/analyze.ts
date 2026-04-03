@@ -11,6 +11,7 @@ interface AnalyzeRequest {
     isJsonOutput?: boolean;
     seed?: number;
     useGrounding?: boolean;
+    responseSchema?: object;
   };
 }
 
@@ -91,7 +92,7 @@ const THINKING_MODELS = [
 
 export default async function analyzeRoute(fastify: FastifyInstance) {
   fastify.post<AnalyzeRequest>('/analyze', async (request: FastifyRequest<AnalyzeRequest>, reply: FastifyReply) => {
-    const { prompt, encrypted = false, model = DEFAULT_MODEL, isJsonOutput = false, temperature = 0.0, seed, useGrounding = false } = request.body;
+    const { prompt, encrypted = false, model = DEFAULT_MODEL, isJsonOutput = false, temperature = 0.0, seed, useGrounding = false, responseSchema } = request.body;
     
     // Basic validation
     if (!prompt || typeof prompt !== 'string') {
@@ -130,6 +131,9 @@ export default async function analyzeRoute(fastify: FastifyInstance) {
       if (isJsonOutput) {
         generationConfig.responseMimeType = 'application/json';
       }
+      if (responseSchema) {
+        generationConfig.responseSchema = responseSchema;
+      }
 
       // Check if this is a thinking model
       const isThinkingModel = THINKING_MODELS.includes(modelToUse);
@@ -167,6 +171,7 @@ export default async function analyzeRoute(fastify: FastifyInstance) {
             maxOutputTokens: 65536,
             ...(seed !== undefined && { seed }),
             ...(isJsonOutput && { responseMimeType: 'application/json' }),
+            ...(responseSchema && { responseSchema }),
             // Enable thinking with dynamic budget (-1 lets model decide)
             thinkingConfig: {
               thinkingBudget: -1,  // Let model decide thinking budget (0-24576 or -1 for dynamic)
