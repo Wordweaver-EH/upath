@@ -19,7 +19,7 @@ const modelsRoute: FastifyPluginAsync = async (fastify) => {
         throw new Error(`API request failed: ${response.status} ${response.statusText}`);
       }
       
-      const data = await response.json();
+      const data = await response.json() as { models: any[] };
       
       // Filter and format models for text generation
       const availableModels = [];

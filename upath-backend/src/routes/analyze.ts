@@ -30,14 +30,14 @@ export function decryptPrompt(encryptedText: string): string {
     }
     
     // Extract IV and encrypted data
-    const ivHex = textParts[0];
+    const ivHex = textParts[0]!;
     const encryptedData = textParts.slice(1).join(':');
-    
+
     // Validate IV (must be 16 bytes / 32 hex chars)
     if (ivHex.length !== 32 || !/^[0-9a-f]+$/i.test(ivHex)) {
       throw new Error('Invalid IV format: Must be 32 hex characters');
     }
-    
+
     // Convert IV to Buffer
     const iv = Buffer.from(ivHex, 'hex');
     
