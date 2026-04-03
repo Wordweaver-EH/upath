@@ -21,6 +21,9 @@ run_log
 .env
 upath-backend/.env
 
+# Code digests (local LLM analysis snapshots)
+digests/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -97,6 +97,10 @@ Browser → Fastify backend (:3001) → Gemini API
 
 Frontend proxies all Gemini calls via `POST /api/analyze`. API key never reaches the browser. `REACT_APP_BACKEND_URL` is baked into browser-side JS at dev-server start — `http://localhost:3001` is correct even inside Docker (browser hits host port, not container network).
 
+## 🗂️ Key Reference Files
+
+- **`constants_backup_23b0993_full_generic.tsx`** — Backup of the original monolithic `constants.tsx` from commit `23b0993` ("runs all the way through"). Contains **working implementations of Parts 3–7** (generic diachronic, generic synchronic, comparative refinement, causal modelling, report generation) that were lost when Parts -1, 0, 1, and 2 were modularised into `src/config/pipeline/`. Parts 3–7 were never extracted to their own modules. Use this as the authoritative reference when implementing `src/config/pipeline/part3/` through `part7/`.
+
 ## ⚠️ Gotchas
 
 - **Windows + Rollup**: after `npm install` in a new environment, `@rollup/rollup-win32-x64-msvc` may go missing. Fix: `npm install @rollup/rollup-win32-x64-msvc`
