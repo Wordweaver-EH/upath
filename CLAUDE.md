@@ -71,6 +71,23 @@ CORS_ORIGINS=http://localhost:5173
 ENCRYPTION_KEY=           # required if USE_ENCRYPTION=true (match frontend key)
 ```
 
+## 🧠 Domain: What This App Does
+
+µ-PATH is an AI-assisted analysis pipeline for **micro-phenomenological interviews** — a qualitative research method for extracting detailed first-person accounts of experience. The app automates the laborious manual analysis described in `manual_kev.md` (Sheldrake & Dienes) and `manual_2018.md` (Valenzuela-Moguillansky & Vásquez-Rosati 2019).
+
+**Pipeline logic (in order):**
+- **Part -1** — identify independent variables before analysis begins
+- **Part 0** — clean transcript: adherence check → refine utterance types → select procedural utterances
+- **Part 1** — specific diachronic: segment → phase-tag → sort → group into IDUs (Incipient Diachronic Units = temporal moments)
+- **Part 2** — specific synchronic: group IDUs by theme → identify ISUs (Incipient Synchronic Units) → structure
+- **Part 3** — generic diachronic: align structures across participants → identify GDUs (Generic Diachronic Units)
+- **Part 4** — generic synchronic: group SSS nodes → define Generic Synchronic Structure
+- **Part 5** — comparative refinement by independent variable
+- **Part 7** — causal modelling: formalise variables → pairwise links → DAG → testable hypotheses
+- **Part 6** — generate markdown report
+
+Each Part runs on a **single participant's transcript**. Generic analysis (Parts 3–4) requires all specific analyses (Parts 1–2) complete across participants first. Input unit is a **transcript** (utterances numbered line by line). Gemini processes one step at a time via `POST /api/analyze`.
+
 ## 🏗️ Architecture
 
 ```
