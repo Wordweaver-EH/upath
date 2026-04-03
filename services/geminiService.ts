@@ -163,10 +163,11 @@ async function performGeminiCall(
     prompt: string,
     isJsonOutput: boolean,
     useGrounding: boolean,
-    temperature: number, 
+    temperature: number,
     seed?: number,
-    model: string = GEMINI_MODEL_TEXT,        
-    originalPromptForFixer?: string 
+    model: string = GEMINI_MODEL_TEXT,
+    originalPromptForFixer?: string,
+    responseSchema?: object
 ): Promise<{ 
     responseText: string; 
     response?: any; 
@@ -193,7 +194,8 @@ async function performGeminiCall(
                     isJsonOutput,
                     useGrounding,
                     temperature,
-                    seed
+                    seed,
+                    responseSchema
                 }
             )),
         });
@@ -229,10 +231,11 @@ export async function callGeminiAPI(
   prompt: string,
   isJsonOutput: boolean,
   useGrounding: boolean = false,
-  temperature: number = 0.0, 
+  temperature: number = 0.0,
   seed?: number,
   model: string = GEMINI_MODEL_TEXT,
-  attempt: number = 1 
+  attempt: number = 1,
+  responseSchema?: object
 ): Promise<{ 
     text?: string; 
     parsedJson?: any; 
@@ -243,7 +246,7 @@ export async function callGeminiAPI(
     thoughts?: string[];
     thoughtsTokenCount?: number;
 }> {
-  const initialCallResult = await performGeminiCall(prompt, isJsonOutput, useGrounding, temperature, seed, model);
+  const initialCallResult = await performGeminiCall(prompt, isJsonOutput, useGrounding, temperature, seed, model, undefined, responseSchema);
   let totalEstimatedInputTokens = initialCallResult.estimatedInputTokens;
   let totalEstimatedOutputTokens = initialCallResult.estimatedOutputTokens;
 
@@ -299,7 +302,7 @@ The output MUST be ONLY the corrected, valid JSON object or array. Ensure all st
 Do not include any explanations, apologies, or surrounding text like markdown fences. Just the raw, corrected JSON.`;
         
         // Pass `prompt` as `originalPromptForFixer` to `performGeminiCall` for accurate input token counting for the fixer call itself
-        const retryResult = await performGeminiCall(fixerPrompt, true, false, 0.0, seed, model, fixerPrompt); 
+        const retryResult = await performGeminiCall(fixerPrompt, true, false, 0.0, seed, model, fixerPrompt); // responseSchema intentionally omitted — fixer prompt is a reformatting call, not a fresh generation 
 
         totalEstimatedInputTokens += retryResult.estimatedInputTokens;
         totalEstimatedOutputTokens += retryResult.estimatedOutputTokens;
