@@ -1,116 +1,128 @@
-import { StepId, P1_4_Output, P1_5_Output, DiachronicUnit, SpecificDiachronicPhase } from '../../../../types';
+import { StepId, P1_4_Output } from '../../../../types';
 import { StepConfig } from '../types';
-
-const MAX_DESCRIPTION_LENGTH = 500;
-
-/**
- * Programmatically constructs the Specific Diachronic Structure from P1.4 output
- * Since P1_4 now provides chronologically ordered DUs without phases,
- * this step will identify natural phase transitions in the DU sequence
- */
-function programmaticallyConstructSds(p1_4_data: P1_4_Output): P1_5_Output {
-  const { diachronic_units, transcript_id, independent_variable_details, dependent_variable_focus } = p1_4_data;
-
-  // Since DUs are already chronologically ordered, we can identify natural phases
-  // by looking for significant transitions or groupings in the narrative
-  
-  // For now, we'll create a simple structure that preserves the chronological flow
-  // Future enhancement: Could use more sophisticated phase detection
-  
-  const phases: SpecificDiachronicPhase[] = [];
-  
-  // Group DUs into natural phases based on their position in the sequence
-  // This is a simplified approach - in practice, you might want to analyze
-  // the content of descriptions to find natural breakpoints
-  
-  if (diachronic_units.length === 0) {
-    // No units to process
-  } else if (diachronic_units.length <= 3) {
-    // For very short sequences, treat as a single phase
-    phases.push({
-      phase_name: 'Main Experience',
-      description: diachronic_units.map(du => du.description).join('. ').substring(0, MAX_DESCRIPTION_LENGTH),
-      units_involved: diachronic_units.map(du => du.unit_id)
-    });
-  } else {
-    // For longer sequences, divide into Beginning, Middle, End
-    const firstThird = Math.ceil(diachronic_units.length / 3);
-    const secondThird = Math.ceil(2 * diachronic_units.length / 3);
-    
-    phases.push({
-      phase_name: 'Initial Phase',
-      description: diachronic_units.slice(0, firstThird).map(du => du.description).join('. ').substring(0, MAX_DESCRIPTION_LENGTH),
-      units_involved: diachronic_units.slice(0, firstThird).map(du => du.unit_id)
-    });
-    
-    phases.push({
-      phase_name: 'Development Phase',
-      description: diachronic_units.slice(firstThird, secondThird).map(du => du.description).join('. ').substring(0, MAX_DESCRIPTION_LENGTH),
-      units_involved: diachronic_units.slice(firstThird, secondThird).map(du => du.unit_id)
-    });
-    
-    phases.push({
-      phase_name: 'Concluding Phase',
-      description: diachronic_units.slice(secondThird).map(du => du.description).join('. ').substring(0, MAX_DESCRIPTION_LENGTH),
-      units_involved: diachronic_units.slice(secondThird).map(du => du.unit_id)
-    });
-  }
-
-  // 3. Perform validation checks
-  const validationErrors: string[] = [];
-  
-  // Basic validation - ensure we have units and phases
-  if (diachronic_units.length === 0) {
-    validationErrors.push("No diachronic units found in input");
-  }
-  
-  if (phases.length === 0 && diachronic_units.length > 0) {
-    validationErrors.push("Failed to create phase structure from diachronic units");
-  }
-  
-  // Ensure all units are assigned to phases
-  const assignedUnits = new Set(phases.flatMap(p => p.units_involved));
-  const missingUnits = diachronic_units.filter(du => !assignedUnits.has(du.unit_id));
-  if (missingUnits.length > 0) {
-    validationErrors.push(`Some units not assigned to phases: ${missingUnits.map(u => u.unit_id).join(', ')}`);
-  }
-
-  // 4. Programmatically generate the summary
-  const summary = `The experience is structured into ${phases.length} distinct phase(s), comprising a total of ${diachronic_units.length} diachronic unit(s).`;
-
-  // 5. Assemble the final P1_5_Output object
-  return {
-    transcript_id,
-    specific_diachronic_structure: {
-      summary,
-      phases,
-      validation_errors: validationErrors,
-      visualization_hint: "Linear progression with clear phase transitions",
-      iv_preliminary_observation: "No immediate IV connection apparent at this programmatic stage."
-    },
-    diachronic_units, // Pass through the DUs for reference
-    independent_variable_details,
-    dependent_variable_focus,
-  };
-}
 
 export const P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG: StepConfig = {
   id: StepId.P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE,
   title: "P1.5: Construct Specific Diachronic Structure (SDS)",
   part: "PartI_Dia",
-  isJsonOutput: false, // This is no longer a JSON output from an LLM
+  isJsonOutput: true,
   getInput: (currentTranscript, allProcessedData) => {
     if (!currentTranscript?.id) return { data: null, error: "Missing current transcript ID for P1.5." };
-    
+
     const transcriptData = allProcessedData?.get(currentTranscript.id);
     const p1_4_data = transcriptData?.p1_4_output;
-    
+
     if (!p1_4_data) return { data: null, error: `Missing P1.4 output for transcript ${currentTranscript.id}` };
-    
-    // The entire step's logic is now here - programmatic construction
-    const p1_5_output = programmaticallyConstructSds(p1_4_data);
-    
-    return { data: p1_5_output }; // Return the fully formed output
+
+    return { data: p1_4_data };
   },
-  // generatePrompt function is now REMOVED - this is a programmatic step
+  generatePrompt: (input: P1_4_Output) => `You are a micro-phenomenological analyst. Your task is to construct the Specific Diachronic Structure (SDS) for this transcript by grouping Diachronic Units into meaningful phases and identifying hinge points between phases.
+
+Input:
+Diachronic Units from P1.4 for transcript ID ${input.transcript_id}:
+${JSON.stringify(input.diachronic_units, null, 2)}
+Independent Variable: ${input.independent_variable_details}
+Dependent Variable Focus: ${JSON.stringify(input.dependent_variable_focus)}
+
+Instructions:
+
+1. GROUP DUs INTO PHASES:
+   Read all DUs in order. Identify natural phase boundaries where the overall character of the experience changes. Phase names must be descriptive and grounded in the content (e.g., "Feeling hands pulling together", "Questioning whether the behaviour is voluntary"), not generic labels like "Beginning" or "Middle". A phase may contain one or several DUs. Every DU must belong to exactly one phase.
+
+2. IDENTIFY HINGE POINTS:
+   For each boundary between adjacent phases, identify the hinge point — the experiential shift that marks the transition. Describe what changes and, if apparent from the data, what precipitates the change.
+
+3. SUMMARY:
+   Provide an overall summary of the experience's temporal arc.
+
+4. IV OBSERVATION:
+   If any connection between the independent variable and the diachronic structure seems apparent, note it briefly. Otherwise state "No immediate IV connection apparent."
+
+5. PASS THROUGH DUs:
+   Copy the diachronic_units array from the input into the output unchanged.
+
+Output:
+A JSON object:
+{
+  "transcript_id": "${input.transcript_id}",
+  "specific_diachronic_structure": {
+    "summary": "Overall narrative arc of the experience",
+    "phases": [
+      {
+        "phase_name": "Descriptive phase name",
+        "description": "What the participant experiences during this phase",
+        "units_involved": ["du_1", "du_2"]
+      }
+    ],
+    "hinge_points": [
+      {
+        "from_phase": "Phase A name",
+        "to_phase": "Phase B name",
+        "transition_description": "What shifts experientially",
+        "trigger": "What precipitates the shift"
+      }
+    ],
+    "visualization_hint": "e.g., Linear progression",
+    "iv_preliminary_observation": "Brief note or N/A"
+  },
+  "diachronic_units": ${JSON.stringify(input.diachronic_units)},
+  "independent_variable_details": "${input.independent_variable_details}",
+  "dependent_variable_focus": ${JSON.stringify(input.dependent_variable_focus)}
+}
+`,
+  responseSchema: {
+    type: "object",
+    properties: {
+      transcript_id: { type: "string" },
+      specific_diachronic_structure: {
+        type: "object",
+        properties: {
+          summary: { type: "string" },
+          phases: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                phase_name: { type: "string" },
+                description: { type: "string" },
+                units_involved: { type: "array", items: { type: "string" } }
+              },
+              required: ["phase_name", "description", "units_involved"]
+            }
+          },
+          hinge_points: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                from_phase: { type: "string" },
+                to_phase: { type: "string" },
+                transition_description: { type: "string" },
+                trigger: { type: "string" }
+              },
+              required: ["from_phase", "to_phase", "transition_description"]
+            }
+          },
+          visualization_hint: { type: "string" },
+          iv_preliminary_observation: { type: "string" }
+        },
+        required: ["summary", "phases", "hinge_points"]
+      },
+      diachronic_units: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            unit_id: { type: "string" },
+            description: { type: "string" },
+            source_segment_ids: { type: "array", items: { type: "string" } }
+          },
+          required: ["unit_id", "description", "source_segment_ids"]
+        }
+      },
+      independent_variable_details: { type: "string" },
+      dependent_variable_focus: { type: "array", items: { type: "string" } }
+    },
+    required: ["transcript_id", "specific_diachronic_structure", "diachronic_units", "independent_variable_details", "dependent_variable_focus"]
+  }
 };
