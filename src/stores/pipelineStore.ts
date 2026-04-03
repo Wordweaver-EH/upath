@@ -765,17 +765,19 @@ export const usePipelineStore = create<PipelineStore>()(
           console.log('- Temperature:', temperature);
           console.log('- Seed:', overrideSeed !== undefined ? overrideSeed : seed);
           console.log('- Is JSON Output:', config.isJsonOutput);
-          
+
           // Call Gemini API
           const effectiveSeed = overrideSeed !== undefined ? overrideSeed : seed
+          const responseSchema = config.responseSchema
           const apiResult = await callGeminiAPI(
-            promptForHistory, 
-            config.isJsonOutput, 
+            promptForHistory,
+            config.isJsonOutput,
             false, // useGrounding
-            temperature, 
+            temperature,
             effectiveSeed,
             model || GEMINI_MODEL_TEXT, // Use model from settings or default
-            1 // maxRetries/attempt
+            1, // attempt
+            responseSchema
           )
           output = config.isJsonOutput ? apiResult.parsedJson : apiResult.text
           apiError = apiResult.error
