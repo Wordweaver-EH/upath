@@ -3,8 +3,6 @@ import { parseArgs } from 'util';
 import fs from 'fs';
 import path from 'path';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { fileURLToPath } from 'url';
-
 // Step config imports (frontend step configs — pure TS, no React runtime deps)
 import { P_NEG1_1_VARIABLE_IDENTIFICATION_CONFIG } from '../../../src/config/pipeline/partNeg1/variableIdentification';
 import { P0_1_TRANSCRIPTION_ADHERENCE_CONFIG } from '../../../src/config/pipeline/part0/transcriptionAdherence';
@@ -22,11 +20,8 @@ import { P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE_CONFIG } from '../../../src/
 
 const DEFAULT_MODEL = 'gemini-3.1-flash-lite-preview';
 
-// Resolve debug-output relative to this file's location
-const DEBUG_OUTPUT_DIR = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../../debug-output'
-);
+// Resolve debug-output relative to this file's location (CJS __dirname is available via tsx)
+const DEBUG_OUTPUT_DIR = path.resolve(__dirname, '../../debug-output');
 
 async function main(): Promise<void> {
   console.error('Debug pipeline CLI — scaffold only (not yet implemented)');
