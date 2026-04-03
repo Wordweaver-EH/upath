@@ -6,6 +6,7 @@ import { P0_3_SELECT_PROCEDURAL_UTTERANCES_CONFIG } from '../part0/selectProcedu
 import { P1_1_INITIAL_SEGMENTATION_CONFIG } from '../part1/P1_1_initialSegmentation';
 import { P1_2_COARSE_PHASE_TAGGING_CONFIG } from '../part1/P1_2_coarsePhaseTagging';
 import { P1_4_DIACHRONIC_UNIT_GROUPING_CONFIG } from '../part1/P1_4_diachronicUnitGrouping';
+import { P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG } from '../part1/P1_5_constructSpecificDiachronicStructure';
 import { P2S_1_GROUP_UTTERANCES_BY_TOPIC_CONFIG } from '../part2/P2S_1_groupUtterancesByTopic';
 import { P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS_CONFIG } from '../part2/P2S_2_identifySpecificSynchronicUnits';
 import { P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE_CONFIG } from '../part2/P2S_3_defineSpecificSynchronicStructure';
@@ -18,6 +19,7 @@ const configs = [
   { id: 'P1_1', config: P1_1_INITIAL_SEGMENTATION_CONFIG },
   { id: 'P1_2', config: P1_2_COARSE_PHASE_TAGGING_CONFIG },
   { id: 'P1_4', config: P1_4_DIACHRONIC_UNIT_GROUPING_CONFIG },
+  { id: 'P1_5', config: P1_5_CONSTRUCT_SPECIFIC_DIACHRONIC_STRUCTURE_CONFIG },
   { id: 'P2S_1', config: P2S_1_GROUP_UTTERANCES_BY_TOPIC_CONFIG },
   { id: 'P2S_2', config: P2S_2_IDENTIFY_SPECIFIC_SYNCHRONIC_UNITS_CONFIG },
   { id: 'P2S_3', config: P2S_3_DEFINE_SPECIFIC_SYNCHRONIC_STRUCTURE_CONFIG },
