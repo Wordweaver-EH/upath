@@ -92,6 +92,24 @@ Note: analyst counts are a *reference*, not absolute truth — LLM may make defe
 
 ---
 
+## Experiment 8 — End-to-end variance vs cached-input variance
+
+**Date:** 2026-04-03  
+**Setup:** Two sets of runs on p1s1. One using `--step p1_4` (cached P1.3 output = P1.4 isolated). One using `--from p_neg1_1 --to p1_4` (full pipeline, all steps vary).
+
+| Mode | thinking | Run 1 | Run 2 | Run 3 | Analyst |
+|------|----------|-------|-------|-------|---------|
+| Cached P1.3 | low | 9 | 9 | 10 | 9 |
+| End-to-end | low | 7 | 8 | 11 | 9 |
+| End-to-end | low | 11 | 12 | — | 9 |
+| End-to-end | medium | 9 | 10 | — | 9 |
+
+**Conclusion:** Upstream step variance (P1.1 segmentation → P1.2 phase tagging → P1.3 sorting) is the dominant source of variance in P1.4 output. When P1.3 output is held constant, P1.4 at "low" thinking is consistently close to analyst (±1). Full-pipeline runs introduce ±3–4 variance.
+
+**Implication:** Improving P1.1/P1.2/P1.3 prompt stability is more impactful than tuning P1.4 further. P1.2 phase tagging in particular is a known source of contamination (Exp 2). P1.1 segmentation granularity directly controls how many segments P1.4 has to work with.
+
+---
+
 ## Current Best Config
 
 ```bash
@@ -161,7 +179,7 @@ npm run debug -- --from p_neg1_1 \
 
 1. ~~**p1s3 baseline**~~ Done (Exp 6): 8 DUs vs analyst 6 (+2), likely acceptable given low-responder sparsity.
 2. **Cross-participant (p2-p7)** — run full pipeline on Phase 1 transcripts for all participants. Do analyst counts generalise?
-3. **P1.4 prompt: variance reduction** — can the "low" thinking variance on p1s1 (9, 9, 10, 9, 12, 7 with prompt v2) be tightened? Negative examples ("what NOT to split") make things worse. Try increasing thinkingLevel to "medium" if a future model version is more calibrated.
+3. **P1.1/P1.2 prompt stability** — (Exp 8) upstream variance dominates. Audit P1.1 segmentation and P1.2 phase tagging consistency across multiple runs. More impactful than tuning P1.4 further.
 4. **P1.2 accuracy audit** — check if phase tagging is consistently correct on p1s2/p1s3 after the discourse marker fix.
 5. **Multiple runs → best-of** — for production, consider running P1.4 3× and taking the run with median count.
 
