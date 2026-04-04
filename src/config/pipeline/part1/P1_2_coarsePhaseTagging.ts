@@ -66,24 +66,30 @@ For each segment, assign a 'coarse_phase' tag from this FIXED list: [Initial Sta
 
 ## Classification Guide
 
-*   **Initial State:** Describes the participant's state or actions at the very beginning of the event.
+*   **Initial State:** The participant's state BEFORE the main phenomenon described in the DV begins. This phase ends the moment the participant first notices any direct effect of the suggestion or stimulus. If a segment describes setting up, preparing, having expectations, or managing thoughts *prior to* any perceptual/physical change, it is Initial State.
 
-*   **Core Experience:** Describes the main, ongoing part of the experience. This includes any thoughts, feelings, or emotional reactions that happened *during* this central phase.
+*   **Core Experience:** The main, ongoing part of the experience — from the first onset of the phenomenon until the concluding event. Includes thoughts, feelings, and reactions that arose *during* this central phase.
 
-*   **Final Action:** Describes the concluding phase and any specific action of the experience. This includes any thoughts, feelings, or emotional reactions that happened *concurrently with or immediately resulted from* that final action.
+*   **Final Action:** The concluding event itself — the moment the main phenomenon reaches its end state or culmination (e.g., hands actually touching, sound clearly heard or confirmed absent, a decisive action taken). Includes any thoughts or feelings that arose *concurrently with or immediately from* that specific culminating event.
 
-*   **Post-Hoc Reflection:** The participant has stepped outside the timeline of the experience and is speaking from the present moment of the interview. They are no longer narrating the event, but are **analyzing, summarizing, or explaining it as a whole.** These are utterances that cannot be used to reconstruct the timeline. This is the case ONLY if the utterance does not fit any concrete temporal bucket [initial, core, final]. This maybe because they are:
-    *   Comparing it to a *different* experience.
-    *   Giving a summary judgment of the *entire* event.
+*   **Post-Hoc Reflection:** The participant has stepped outside the timeline and is speaking from the present interview moment — analyzing, summarizing, or comparing the *entire* experience. Use this ONLY if the utterance cannot be placed in any concrete temporal bucket. Signs: comparing to a *different* experience, giving a summary judgment of the whole event, speaking in present tense about their general traits.
+
+## Critical: Temporal Discourse Markers Are NOT Phase Cues
+
+Words like "firstly", "initially", "at first", "first thing" describe **sequence within whatever phase the segment belongs to** — they do NOT automatically indicate Initial State. Always ask: *Is this segment describing something that happened before the main phenomenon started, or is it describing the participant's first reaction TO the phenomenon once it had already begun?* If it is the latter, it belongs in Core Experience or Final Action depending on when that reaction occurred.
+
+Example: "firstly I was like, oh this is fine" said about feeling hands pulling together → **Final Action**, not Initial State.
 
 ## The Deciding Question
 
-To distinguish the phases, ask: **"Is the participant *narrating* a moment from the timeline, or are they *analyzing* the experience from the outside?"**
+Ask: **"Has the main phenomenon described in the DV started yet?"**
 
--   **Narration belongs** in \`Initial State\`, \`Core Experience\`, or \`Final Action\`. A description of a feeling (e.g., "it was surprising because...") or even in the moment analysis that happened during the experience is part of the narration.
--   **Analysis belongs** in \`Post-Hoc Reflection\`if it doesn't refer to sense-making that happened during the experience and is happening after it.
+- If NO → Initial State
+- If YES, and the culminating event hasn't happened yet → Core Experience
+- If YES, and this describes the culminating event itself → Final Action
+- If the participant is no longer narrating the experience at all → Post-Hoc Reflection
 
-Note: Prior filtering may have likely removed most post-hoc reflections before you recieve this, you may have no or very few utterances that fit this category. This tag is for any remaining commentary that does not fit the experiential timeline.
+Note: Prior filtering may have likely removed most post-hoc reflections before you receive this. You may have no or very few utterances that fit this category.
 
 IMPORTANT: Each segment MUST be assigned exactly ONE phase.
 

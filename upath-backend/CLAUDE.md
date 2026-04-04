@@ -53,6 +53,20 @@ upath-backend/
    - `.env.example` documents required variables
    - No hardcoded values in code
 
+### Debug CLI (dev only):
+
+```bash
+cd upath-backend
+npm run debug -- --from p_neg1_1 --transcript <path> --to p1_4 --dv-focus "focus1,focus2"
+npm run debug -- --step p1_4   # re-run single step (auto-loads previous output)
+npm run debug -- --step p1_4 --thinking-level medium  # more reasoning depth
+```
+
+- Requires `GEMINI_API_KEY` in `.env`
+- Uses `thinkingConfig: { thinkingBudget: 0 }` (Gemini 3 low thinking) for structured output stability
+- `debug-output/` is gitignored; step JSON lands there
+- Source: `src/debug/run-pipeline.ts`
+
 ### API Endpoints:
 
 #### GET /health

@@ -38,13 +38,15 @@ export const P1_4_DIACHRONIC_UNIT_GROUPING_CONFIG: StepConfig = {
 A DU represents a single coherent experiential state — one 'beat' in the participant's stream of experience. Segments are in chronological order of the original experience (not interview order).
 
 IMPORTANT — When to create a new DU:
-Create a new DU whenever the participant's WAY OF ENGAGING with the experience shifts, even if the topic has not changed. Types of shifts that require a new DU:
-- Agency shift: the participant moves from actively doing something to passively receiving (or vice versa)
-- A new sensory or perceptual quality emerges
-- Something spontaneous or involuntary occurs
-- The participant pauses to reflect or evaluate mid-experience
+Create a new DU when the participant's WAY OF ENGAGING with the experience clearly and meaningfully shifts. The shift must be unmistakeable — a natural break in the flow of experience, not a micro-variation within a sustained state. Types of shifts that warrant a new DU:
+- Agency shift: active doing → passive receiving (or vice versa), when this shift is the main event
+- A qualitatively new sensory or perceptual quality emerges that is distinct, not just intensification
+- Something spontaneous or involuntary occurs that changes the character of the experience
+- A sustained reflective pause that interrupts the experiential flow
 
-When in doubt about whether two segments belong in the same DU, prefer to split them into separate DUs.
+When in doubt about whether two consecutive segments belong in the same DU, prefer to MERGE them into one. Only split when the boundary between two distinct experiential states is clear.
+
+However, do NOT merge segments that represent a new QUALITY entering the experience — even if the transition feels gradual. The arrival of a new sensation, a shift in agency, or a new cognitive stance (e.g., from noticing to actively trying to go with it) warrants a new DU. "More of the same" is not a new DU; "a new thing entering" is.
 
 Input:
 The fully sorted list of all segments from step P1.3 for transcript ID ${input.transcript_id}.
@@ -54,7 +56,7 @@ Instructions:
 1. Read the segments in the order provided. They have already been sorted by experience chronology.
 2. For each segment, ask: does this describe the same experiential state as the previous segment, or has the participant's mode of engagement shifted?
 3. Create a new DU whenever a shift occurs.
-4. No DU should contain segments from only the interviewer.
+4. No DU should contain segments from only the interviewer. Short affirmative or negative responses ("Yeah", "Yes", "No", "I think so") carry no experiential content on their own — absorb them into an adjacent DU that provides the context they confirm.
 5. Provide a concise \`description\` for each DU that captures what the participant is experiencing in that moment. Avoid abstract theoretical labels.
 6. Each DU should have a unique \`unit_id\` (e.g., "du_1", "du_2", etc.).
 7. List the \`source_segment_ids\` that constitute each DU.

@@ -53,9 +53,15 @@ docker compose up --build
 
 # Debug CLI — iterate on pipeline steps without Chrome
 cd upath-backend
-npm run debug -- --from p0_1 --transcript transcripts/p1s1.txt --to p1_5
-npm run debug -- --step p1_4                    # re-run p1_4 (auto-loads p1_3_output.json)
-npm run debug -- --step p1_4 --model gemini-2.0-flash  # override model
+# One-time: run full chain to get stable p1_3 output (p_neg1_1 is REQUIRED start, not p0_1)
+npm run debug -- --from p_neg1_1 \
+  --transcript "../reproduction/microphenomenology_osfstorage-archive/Phase 1/transcripts/p1s1.txt" \
+  --to p1_3 \
+  --dv-focus "dv_focus_1,dv_focus_2"
+# Re-run a single step (auto-loads previous step's output from debug-output/)
+npm run debug -- --step p1_4
+npm run debug -- --step p1_4 --model gemini-2.0-flash    # override model
+npm run debug -- --step p1_4 --thinking-level medium      # more reasoning depth
 # Outputs land in upath-backend/debug-output/<step>_output.json
 
 # Codebase dump for Gemini analysis
@@ -120,6 +126,9 @@ Frontend proxies all Gemini calls via `POST /api/analyze`. API key never reaches
 - **Backend TypeScript**: strict mode — add non-null assertions (`!`) or type guards before using potentially-undefined values
 - **Encryption fallback**: `encryptionService.ts` and `analyze.ts` both have hardcoded fallback keys if env vars are unset. Always set real keys in production.
 - **Docker**: `upath-backend/.env` must exist before `docker compose up`. `depends_on` does not wait for backend readiness — manual retry on first run if frontend can't reach backend.
+- **Debug CLI — always start from `p_neg1_1`**: `--from p0_1` silently produces empty pipelines because `p0_3` requires `p_neg1_1_output.json` on disk. Always start chains from `p_neg1_1`.
+- **Debug CLI — getInput pre-processing gaps**: The CLI's linear chaining deviates from the frontend's `getInput` in three places: (1) `p0_2` requires `parsed_lines` pre-computed from `line_numbered_transcript`; (2) `p0_3` side-loads `p_neg1_1_output.json`; (3) `p0_1` resets to the raw transcript after `p_neg1_1` rather than using its output. All handled in `run-pipeline.ts:runStandardStep` and `runChain`.
+- **Debug CLI — Gemini 3 temperature**: Keep `temperature: 1.0` (Google optimised default). Use `--thinking-level minimal/low/medium/high` for output consistency — lowering temperature degrades Gemini 3 behaviour. Gemini 3 uses `thinkingConfig.thinkingLevel` (string); Gemini 2.5 uses `thinkingConfig.thinkingBudget` (number) — mixing them returns HTTP 400.
 
 ## 📁 Structure
 

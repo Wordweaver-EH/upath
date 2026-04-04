@@ -25,11 +25,18 @@ const DEBUG_OUTPUT_DIR = path.resolve(__dirname, '../../debug-output');
 
 // ── Gemini caller ────────────────────────────────────────────────────────────
 
+// Valid thinking levels for Gemini 3.x (thinkingConfig.thinkingLevel)
+// Gemini 2.5.x uses thinkingBudget (number) instead — different API
+// Gemini 3 thinking levels — use thinkingLevel string (NOT thinkingBudget number, which is Gemini 2.5)
+// Using thinkingBudget with Gemini 3 returns 400.
+const VALID_THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'] as const;
+
 async function callGemini(
   prompt: string,
   model: string,
   isJsonOutput: boolean,
-  responseSchema?: object
+  responseSchema?: object,
+  thinkingLevel: string = 'low'
 ): Promise<unknown> {
   const apiKey = process.env['GEMINI_API_KEY'];
   if (!apiKey || apiKey.trim().length === 0) {
@@ -39,7 +46,8 @@ async function callGemini(
   const geminiModel = genAI.getGenerativeModel({ model });
 
   const generationConfig: Record<string, unknown> = {
-    temperature: 0.0,
+    temperature: 1.0,
+    thinkingConfig: { thinkingLevel },
     ...(isJsonOutput && { responseMimeType: 'application/json' }),
     ...(responseSchema !== undefined && { responseSchema }),
   };
@@ -160,15 +168,45 @@ function printSummary(stepAlias: StepAlias, output: unknown): void {
 async function runStandardStep(
   stepAlias: StepAlias,
   input: unknown,
-  model: string
+  model: string,
+  thinkingLevel: string = 'low'
 ): Promise<unknown> {
   const entry = STEP_REGISTRY[stepAlias];
   const cfg = entry.config;
   if (!cfg?.generatePrompt) {
     throw new Error(`Step ${stepAlias} has no generatePrompt — cannot run via CLI`);
   }
-  const prompt = cfg.generatePrompt(input);
-  return callGemini(prompt, model, cfg.isJsonOutput, cfg.responseSchema);
+
+  // p0_2 needs parsed_lines pre-computed from line_numbered_transcript — mirrors frontend getInput logic
+  let resolvedInput = input;
+  if (stepAlias === 'p0_2') {
+    const p0_1 = input as Record<string, unknown>;
+    const lineNumberedTranscript = (p0_1['line_numbered_transcript'] as string[]) ?? [];
+    const parsedLines = lineNumberedTranscript.map((line) => {
+      const lineMatch = line.match(/^(\d+):\s*(.*)$/);
+      if (!lineMatch) return { lineNumber: '', speaker: '', text: line };
+      const [, lineNumber, rest] = lineMatch;
+      const speakerMatch = rest.match(/^([^:]+):\s*(.*)$/);
+      if (speakerMatch) {
+        const [, speaker, text] = speakerMatch;
+        if (speaker.match(/^[A-Z]\d+$/) || speaker.match(/^[A-Z][a-z]+ [A-Z][a-z]+$/) || speaker.length < 30) {
+          return { lineNumber, speaker: speaker.trim(), text: text.trim() };
+        }
+      }
+      return { lineNumber, speaker: '', text: rest };
+    });
+    resolvedInput = { ...p0_1, parsed_lines: parsedLines };
+  }
+
+  // p0_3 needs P-1.1 output merged in — mirrors frontend getInput logic
+  if (stepAlias === 'p0_3') {
+    const pNeg1Path = path.join(DEBUG_OUTPUT_DIR, 'p_neg1_1_output.json');
+    const pNeg1Output = loadJsonFile(pNeg1Path);
+    resolvedInput = { ...(input as object), p_neg1_1_output: pNeg1Output };
+  }
+
+  const prompt = cfg.generatePrompt(resolvedInput);
+  return callGemini(prompt, model, cfg.isJsonOutput, cfg.responseSchema, thinkingLevel);
 }
 
 // ── P1.3 special runner (per-phase iteration) ─────────────────────────────────
@@ -180,7 +218,7 @@ const P13_PHASES = [
   'Post-Hoc Reflection',
 ] as const;
 
-async function runP13(p1_2_output: unknown, model: string): Promise<unknown> {
+async function runP13(p1_2_output: unknown, model: string, thinkingLevel: string = 'low'): Promise<unknown> {
   const p = p1_2_output as Record<string, unknown>;
   const phaseTaggedUtterances = (p['phase_tagged_utterances'] as Array<Record<string, unknown>>) ?? [];
 
@@ -208,7 +246,7 @@ async function runP13(p1_2_output: unknown, model: string): Promise<unknown> {
     // the data comes from P1.2 output which matches the shape
     const prompt = generatePhaseSpecificPrompt(phaseName, segs as Parameters<typeof generatePhaseSpecificPrompt>[1]);
     // P1.3 phases return JSON text (not structured JSON output mode in the original pipeline)
-    const text = await callGemini(prompt, model, false) as string;
+    const text = await callGemini(prompt, model, false, undefined, thinkingLevel) as string;
 
     let parsed: Record<string, unknown>;
     try {
@@ -238,7 +276,8 @@ async function runP13(p1_2_output: unknown, model: string): Promise<unknown> {
 async function runP2S(
   stepAlias: 'p2s_1' | 'p2s_2' | 'p2s_3',
   input: unknown,
-  model: string
+  model: string,
+  thinkingLevel: string = 'low'
 ): Promise<{ transcript_id: string; p2s_outputs_by_du: Record<string, unknown> }> {
   const entry = STEP_REGISTRY[stepAlias];
   const cfg = entry.config;
@@ -287,7 +326,7 @@ async function runP2S(
 
       console.error(`  → DU ${duId} (${segments.length} segments)…`);
       const prompt = cfg.generatePrompt(duInput);
-      const duOutput = await callGemini(prompt, model, cfg.isJsonOutput, cfg.responseSchema);
+      const duOutput = await callGemini(prompt, model, cfg.isJsonOutput, cfg.responseSchema, thinkingLevel);
       p2sByDu[duId] = { p2s_1_output: duOutput };
     }
 
@@ -302,7 +341,7 @@ async function runP2S(
       if (duInput === undefined) { console.error(`  [p2s_2] WARNING: no p2s_1_output for DU ${duId} — skipping`); continue; }
       console.error(`  → DU ${duId}…`);
       const prompt = cfg.generatePrompt(duInput);
-      const duOutput = await callGemini(prompt, model, cfg.isJsonOutput, cfg.responseSchema);
+      const duOutput = await callGemini(prompt, model, cfg.isJsonOutput, cfg.responseSchema, thinkingLevel);
       p2sByDu[duId] = { ...duData, p2s_2_output: duOutput };
     }
     return { transcript_id: agg.transcript_id, p2s_outputs_by_du: p2sByDu };
@@ -390,20 +429,27 @@ function loadInitialInput(
   );
 }
 
-async function runChain(steps: StepAlias[], initialInput: unknown, model: string): Promise<void> {
+async function runChain(steps: StepAlias[], initialInput: unknown, model: string, thinkingLevel: string = 'low'): Promise<void> {
   let currentInput = initialInput;
 
-  for (const stepAlias of steps) {
+  for (let i = 0; i < steps.length; i++) {
+    const stepAlias = steps[i];
     console.error(`\n▶ ${stepAlias}…`);
     const entry = STEP_REGISTRY[stepAlias];
 
+    // p0_1 needs the raw transcript, not p_neg1_1's output.
+    // In the frontend, both steps independently read from the transcript store.
+    if (stepAlias === 'p0_1' && i > 0 && steps[i - 1] === 'p_neg1_1') {
+      currentInput = initialInput;
+    }
+
     let output: unknown;
     if (entry.isP13) {
-      output = await runP13(currentInput, model);
+      output = await runP13(currentInput, model, thinkingLevel);
     } else if (entry.isP2S) {
-      output = await runP2S(stepAlias as 'p2s_1' | 'p2s_2' | 'p2s_3', currentInput, model);
+      output = await runP2S(stepAlias as 'p2s_1' | 'p2s_2' | 'p2s_3', currentInput, model, thinkingLevel);
     } else {
-      output = await runStandardStep(stepAlias, currentInput, model);
+      output = await runStandardStep(stepAlias, currentInput, model, thinkingLevel);
     }
 
     saveOutput(stepAlias, output);
@@ -417,7 +463,7 @@ async function runChain(steps: StepAlias[], initialInput: unknown, model: string
 function printUsage(): void {
   console.error(`
 Usage:
-  npm run debug -- --step <id> [--input <file>] [--model <id>]
+  npm run debug -- --step <id> [--input <file>] [--model <id>] [--thinking-level low|medium|high]
   npm run debug -- --from <id> --to <id> [--input <file>] [--model <id>]
   npm run debug -- --from p_neg1_1 --transcript <file> --dv-focus "focus1,focus2"
   npm run debug -- --from p0_1 --transcript <file>
@@ -425,6 +471,7 @@ Usage:
 Valid step IDs: ${STEP_ORDER.join(', ')}
 
 Default model: ${DEFAULT_MODEL}
+Default thinking level: low (Gemini 3 thinkingLevel string: minimal|low|medium|high)
 Outputs saved to: upath-backend/debug-output/<step>_output.json
 `);
 }
@@ -438,8 +485,9 @@ async function main(): Promise<void> {
       to:          { type: 'string' },
       input:       { type: 'string' },
       transcript:  { type: 'string' },
-      model:       { type: 'string' },
-      'dv-focus':  { type: 'string' },
+      model:           { type: 'string' },
+      'dv-focus':      { type: 'string' },
+      'thinking-level': { type: 'string' },
     },
     allowPositionals: false,
   });
@@ -453,6 +501,11 @@ async function main(): Promise<void> {
   }
 
   const model = values['model'] ?? DEFAULT_MODEL;
+  const thinkingLevel = values['thinking-level'] ?? 'low';
+  if (!(['minimal', 'low', 'medium', 'high'] as string[]).includes(thinkingLevel)) {
+    console.error(`Invalid --thinking-level "${thinkingLevel}". Use: minimal, low, medium, high`);
+    process.exit(1);
+  }
   const steps = resolveStepRange(fromAlias, toAlias);
   const firstStep = steps[0];
   if (firstStep === undefined) throw new Error('No steps resolved');
@@ -464,7 +517,7 @@ async function main(): Promise<void> {
     values['dv-focus']
   );
 
-  await runChain(steps, initialInput, model);
+  await runChain(steps, initialInput, model, thinkingLevel);
   console.error('\n✅ Done');
 }
 
