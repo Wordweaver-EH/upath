@@ -185,6 +185,113 @@ npm run debug -- --from p_neg1_1 \
 
 ---
 
+## Experiment 9 — P1.1 prompt: conservative segmentation
+
+**Date:** 2026-04-03  
+**Problem:** P1.1 segment count variance: 45–64 across 5 runs on fixed input. Run with 64 segments directly caused the 12-DU outlier in P1.4 (Exp 8).  
+**Root cause:** Original P1.1 prompt's "implicit temporal markers" included causal language ("because of this", "so I", "which made me") — any cause-effect sentence triggered a split, even when cause and effect were experienced as a single moment.
+
+**Change:** Replaced P1.1 segmentation instructions with a conservative default:
+- "Default: one utterance = one segment"
+- Split ONLY when temporally separate, experientially distinct, AND clearly demarcated
+- Explicitly excluded causal language as a split criterion alone
+- Removed the multi-criterion implicit marker list; kept only explicit temporal markers as strong signals
+
+**Results (5 runs on fixed p0_3 input):**
+| Run | Segments | Multi-split utts |
+|-----|----------|-----------------|
+| 1 | 43 | 1 |
+| 2 | 43 | 1 |
+| 3 | 45 | 3 |
+| 4 | 45 | 2 |
+| 5 | 43 | 1 |
+
+Range: 43–45 (vs 45–64 before). No more outliers. ✓
+
+---
+
+## Experiment 10 — P1.2 fix: Post-Hoc boundary (sharper criteria)
+
+**Date:** 2026-04-03  
+**Problem:** P1.2 Final Action count: 5–7 across runs, Post-Hoc: 2–5. Some segments describing the hands-touching moment ("it's hard to explain", "I don't know how to put it") were being classified as Post-Hoc because they sounded reflective.
+
+**First attempt (reverted):** Added "IMPORTANT — these are NOT Post-Hoc: struggling to describe..." guidance. Result: Final Action jumped to 6–10 (worse range), model was now over-classifying Core Experience segments as Final Action.
+
+**Second attempt (current):** Added sharper Post-Hoc criteria: "ONLY if explicitly comparing to a DIFFERENT experience, stating general traits beyond this event, OR summarizing the whole experience as a completed thing."
+
+**Results (5 runs on fixed P1.1 input):**
+
+| | Initial State | Core | Final Action | Post-Hoc |
+|--|---|---|---|---|
+| Run 1 | 5 | 27 | 7 | 4 |
+| Run 2 | 4 | 31 | 7 | 1 |
+| Run 3 | 4 | 31 | 7 | 1 |
+| Run 4 | 4 | 29 | 8 | 2 |
+| Run 5 | 4 | 30 | 7 | 2 |
+
+Final Action now stable at 7 (4/5 runs). Post-Hoc reduced. Run 1 outlier (5 Initial State, 4 Post-Hoc) is still concerning — pending P1.2→P1.4 impact test (Exp 11).
+
+---
+
+## Experiment 11 — Full P1.2→P1.4 chain variance after Exp 10 P1.2 fix
+
+Results (5 runs on fixed P1.1=43 segs): **10, 11, 7, 10, 12** (analyst=9, range=5)
+
+WORSE than before Exp 10. Despite more stable phase distributions in P1.2, P1.4 variance increased dramatically.
+
+**Why:** The "struggling to describe" utterances that P1.2 was previously classifying as Post-Hoc were being harmlessly sequestered at the end of the sort order. When the Exp 10 fix kept them in Core Experience / Final Action, they appeared INTERSPERSED in the main timeline, adding noise that confused P1.4 DU boundaries. Paradoxically, the Post-Hoc "mis-tagging" was functionally helpful.
+
+**Decision: REVERTED Exp 10.** The Post-Hoc boundary variance (~2–5 Post-Hoc segs per run) is acceptable functional behavior — it acts as a filter for hard-to-classify utterances.
+
+**Lesson:** Don't try to "fix" P1.2 Post-Hoc variance in isolation. The intermediate-step errors can be load-bearing for downstream step quality.
+
+---
+
+## Experiment 12 — Full variance anatomy
+
+**Date:** 2026-04-03  
+**Goal:** Understand where end-to-end variance comes from.
+
+### Findings
+
+| Step | What varies | Typical range (p1s1) | Impact |
+|------|-------------|---------------------|--------|
+| P0.2 | Total utterance count in output | 42–71 | High: drives P1.1 segment count |
+| P0.3 | Included count on fixed P0.2 | ±3 (e.g. 47–50 of 71) | Medium |
+| P1.1 | Segment count per utterance | ±2 (mostly 1:1) | Low on fixed P0.3 |
+| P1.2 | Phase distribution (CE/FA/PHR) | FA: 5–10, PHR: 1–5 | Medium: changes sort order |
+| P1.3 | Within-phase sort order | Difficult to quantify | High: P1.4 input order |
+| P1.4 | DU grouping on fixed P1.3 | ±1 | Low on fixed input |
+
+**Key insight:** P0.2 is the dominant variance source. When P0.2 outputs ~71 total utterances, P0.3 selects ~49 participant utterances (correctly excluding all Kevin Sheldrake utterances). When P0.2 outputs ~42 total, P1.4 lands on exactly 9 DUs. The "good" runs correspond to a P0.2 that aggressively pre-filters non-participant content.
+
+**P0.3 breakdown (fixed P0.2=71 utts):**
+- Included Kevin utterances: 0 ✓
+- Included participant utterances: 49
+- Excluded (header + interviewer): 22
+- Analyst used: ~42 — difference of 7 "extra" participant utterances that are likely generalizations/theories
+
+### Impact of P1.1 fix on outlier reduction
+
+End-to-end (p1s1) before P1.1 fix: range 7–12 DUs (with occasional 15+ outliers)  
+End-to-end (p1s1) after P1.1 fix: sample results 10, 11 DUs (needs more data — background run in progress)
+
+**Single clean fresh run (after all fixes):** p0_3=45, p1_1=46, p1_4=10 DUs (±1 from analyst)
+
+---
+
+## Current State of Prompts
+
+| Prompt | Status | Key change |
+|--------|--------|-----------|
+| P1.1 | ✓ Fixed | Conservative segmentation: default 1-seg per utterance; no causal splits |
+| P1.2 | ✓ Fixed | Temporal discourse marker fix ("firstly" ≠ Initial State); sharper Post-Hoc criteria |
+| P1.4 | ✓ Fixed | Merge bias (replaces split bias); filler absorption |
+| P0.3 | Unmodified | Selects ~49 of 71 utterances; slightly over-inclusive vs analyst's 42 |
+| P0.2 | Unmodified | Main variance source: sometimes outputs 42, sometimes 71 total utterances |
+
+---
+
 ## Known Issues
 
 - **P1.4 filler DUs** (Exp 1): Fixed by filler absorption instruction (Exp 3).

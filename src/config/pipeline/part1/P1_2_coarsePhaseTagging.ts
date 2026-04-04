@@ -74,6 +74,7 @@ For each segment, assign a 'coarse_phase' tag from this FIXED list: [Initial Sta
 
 *   **Post-Hoc Reflection:** The participant has stepped outside the timeline and is speaking from the present interview moment — analyzing, summarizing, or comparing the *entire* experience. Use this ONLY if the utterance cannot be placed in any concrete temporal bucket. Signs: comparing to a *different* experience, giving a summary judgment of the whole event, speaking in present tense about their general traits.
 
+
 ## Critical: Temporal Discourse Markers Are NOT Phase Cues
 
 Words like "firstly", "initially", "at first", "first thing" describe **sequence within whatever phase the segment belongs to** — they do NOT automatically indicate Initial State. Always ask: *Is this segment describing something that happened before the main phenomenon started, or is it describing the participant's first reaction TO the phenomenon once it had already begun?* If it is the latter, it belongs in Core Experience or Final Action depending on when that reaction occurred.

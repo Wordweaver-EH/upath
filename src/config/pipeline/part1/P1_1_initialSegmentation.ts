@@ -59,37 +59,45 @@ export const P1_1_INITIAL_SEGMENTATION_CONFIG: StepConfig = {
       selected_procedural_utterances: includedUtterances
     };
     
-    return `You are a micro-phenomenological analyst. Your task is to segment the selected procedural utterances based on temporal cues, focusing on the described experience's unfolding.
+    return `You are a micro-phenomenological analyst. Your task is to segment selected procedural utterances into minimal experiential units.
+
 Input:
 JSON output from P0.3 for transcript ID ${input.transcript_id} (showing only INCLUDED utterances).
 P0.3 Output: ${JSON.stringify(filteredInput, null, 2)}
 
-Instructions:
-1. Focus on "Action Units": Read each selected procedural utterance. Identify "minimal action units" or "elementary acts" within them. An utterance might contain one or multiple such segments.
+## Default Rule: One utterance = one segment
 
-2. Temporal Cues: Look for explicit or implicit temporal markers that delineate these segments.
-   
-   EXPLICIT temporal markers include:
-   - Time words: "then", "after", "before", "suddenly", "meanwhile", "finally"
-   - Beginning markers: "at the start", "initially", "first"
-   - Sequence markers: "next", "subsequently", "afterwards"
-   
-   IMPLICIT temporal markers include:
-   - Sequence of distinct verbs: "I noticed... I felt... I realized..."
-   - Progression indicators: "The sensation grew stronger", "It gradually faded", "It was building"
-   - Transition markers: "My attention shifted", "The quality changed", "It transformed into"
-   - Causal language (causation implies temporal sequence):
-     * "Because of this, I..." (cause precedes effect)
-     * "This led to..." (one thing follows another)
-     * "As a result..." (consequence follows cause)
-     * "Which made me..." (causal chain shows temporal flow)
-     * "So I..." (therefore, subsequently)
-3.  Segment Creation:
-    *   For each original utterance, create an array of \`segments\`.
-    *   Each segment should have a unique \`segment_id\` (e.g., "utt_ORIGINAL_LINE_NUM_seg_INDEX", like "utt_5.1_seg_0", "utt_5.1_seg_1"). Ensure ORIGINAL_LINE_NUM is safe for an ID (replace '.' with '_').
-    *   \`segment_text\` should be the text of that minimal action unit.
-    *   \`temporal_cues\` should be an array of strings listing any temporal words/phrases identified *within or at the beginning of* that specific segment that justify its distinctness or position.
-4.  Preserve IV/DV: The \`independent_variable_details\` and \`dependent_variable_focus\` from the input P0.3 MUST be copied verbatim into the output.
+Most utterances describe a single experiential moment and should remain as one segment. Only split when you are certain an utterance contains two or more clearly distinct sequential moments.
+
+## When to split an utterance (STRICT criteria — ALL must apply):
+
+Split ONLY when the utterance describes events that are:
+1. **Temporally separate** — one thing finishes, then another begins (not simultaneous or continuous)
+2. **Experientially distinct** — a different quality of experience, not just more detail about the same moment
+3. **Clearly demarcated** — there is an explicit temporal marker ("then", "after that", "suddenly", "and then") OR the shift is so obvious it would be jarring to keep them together
+
+## What does NOT warrant a split:
+
+- Causal language alone ("because of this", "so I", "which made me", "this led to") — cause and effect are often experienced as a single moment
+- A sequence of verbs describing the same sustained activity ("I was focusing and listening and trying to...")
+- A speaker re-describing or elaborating on the same moment
+- Short affirmative/negative additions ("yeah", "I think so") that accompany the main description
+- Any doubt — if uncertain whether to split, keep as one segment
+
+## Temporal cue types (only use these as split justification):
+
+EXPLICIT (strong signal): "then", "after", "before", "suddenly", "meanwhile", "finally", "at that point", "at the start", "next"
+
+IMPLICIT (weak signal — only use when the experiential shift is also clear):
+- A participant explicitly noting an attention shift: "My focus moved to...", "I became aware of something different"
+- A clearly new sensation or state beginning: "Then I felt..." after a clearly completed prior phase
+
+Instructions:
+1. For each utterance, default to one segment. Ask: "Does this utterance clearly describe two or more sequential, distinct experiential moments?" If not, keep as one segment.
+2. If splitting, each segment should have a unique \`segment_id\` (e.g., "utt_ORIGINAL_LINE_NUM_seg_INDEX", like "utt_5_1_seg_0"). Replace '.' with '_' in line numbers.
+3. \`segment_text\` = the text of that minimal experiential unit.
+4. \`temporal_cues\` = explicit temporal words/phrases that justify the split (or empty array if no split).
+5. Preserve IV/DV verbatim from input.
 
 Output:
 A JSON object adhering EXACTLY to the following structure, with NO additional explanations or markdown:
