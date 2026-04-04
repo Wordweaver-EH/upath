@@ -178,10 +178,10 @@ npm run debug -- --from p_neg1_1 \
 ## Open Questions / Next Experiments
 
 1. ~~**p1s3 baseline**~~ Done (Exp 6): 8 DUs vs analyst 6 (+2), likely acceptable given low-responder sparsity.
-2. **Cross-participant (p2-p7)** — run full pipeline on Phase 1 transcripts for all participants. Do analyst counts generalise?
-3. **P1.1/P1.2 prompt stability** — (Exp 8) upstream variance dominates. Audit P1.1 segmentation and P1.2 phase tagging consistency across multiple runs. More impactful than tuning P1.4 further.
-4. **P1.2 accuracy audit** — check if phase tagging is consistently correct on p1s2/p1s3 after the discourse marker fix.
-5. **Multiple runs → best-of** — for production, consider running P1.4 3× and taking the run with median count.
+2. **Cross-participant baseline** — run full pipeline on p1s2, p1s3, p2s1–p2s3 to see how the pipeline generalises beyond p1s1.
+3. **P1.3 structural fix** — core remaining variance source. "Questioning agency" utterances appear early in interview but belong late in experience; without explicit temporal cues P1.3 sorts them early. Possible fix: skip sorting IS segments entirely (leave in interview order) since IS relative order doesn't affect IDU count.
+4. **Production approach** — given 9–16 DU range with mode ~9–10, consider "best of 3" (take median-count run) for higher confidence outputs. The DU descriptions in high-count runs are still coherent (just more granular).
+5. **DU quality vs count** — investigate whether downstream steps (P1.5, P2) work well with 12–16 DUs vs 9 DUs. Higher granularity may not reduce quality.
 
 ---
 
@@ -309,7 +309,17 @@ End-to-end (p1s1) after P1.1 fix: sample results 10, 11 DUs (needs more data —
 
 **Results (5 runs on fixed P0.2=71):** included=51 on ALL 5 runs. 0 variance. ✓
 
-Full chain impact (p0_3→p1_4, 5 runs): PENDING (background task bdm4j28m3)
+**Full chain impact (p0_3→p1_4, 5 runs — bdm4j28m3):** 9, 9, 14, 10, 13
+
+Two runs match analyst exactly (9). Two are severe outliers (13, 14). Remaining variance is from P1.3 sort failures.
+
+**Root cause of 13-16 DU outliers:** "Questioning agency" utterances (e.g., "Am I doing this consciously?") appear early in interview order but belong AFTER the hands-moving phase experientially. Without temporal cues, P1.3 sorts them to the start → P1.4 sees rapid context switches → over-segments.
+
+**Attempted P1.2 fix (interview-order warning) — REVERTED:** Adding "interview order ≠ experience order" guidance to P1.2 made IS distribution swing 4–18 (worse variance). Lesson: trying to fix the ordering problem at P1.2 level is too indirect.
+
+**Medium thinking test:** 11, 8, 12 (3 runs) — no significant improvement over low.
+
+**Current distribution (bdm4j28m3 + additional runs):** 9, 9, 10, 13, 14 + 16 — mode ≈ 9-10, but outliers exist.
 
 ---
 
