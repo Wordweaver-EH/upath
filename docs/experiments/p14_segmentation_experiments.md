@@ -263,7 +263,11 @@ WORSE than before Exp 10. Despite more stable phase distributions in P1.2, P1.4 
 | P1.3 | Within-phase sort order | Difficult to quantify | High: P1.4 input order |
 | P1.4 | DU grouping on fixed P1.3 | ±1 | Low on fixed input |
 
-**Key insight:** P0.2 is the dominant variance source. When P0.2 outputs ~71 total utterances, P0.3 selects ~49 participant utterances (correctly excluding all Kevin Sheldrake utterances). When P0.2 outputs ~42 total, P1.4 lands on exactly 9 DUs. The "good" runs correspond to a P0.2 that aggressively pre-filters non-participant content.
+**Key insight (CORRECTED):** Earlier "42-line P0.2" runs were artefacts of the `--step p0_1` CLI bug — running P0.1 in isolation feeds it p_neg1_1 JSON instead of the raw transcript, producing empty output. When P0.1 is run correctly (via `--from p_neg1_1`), both P0.1 and P0.2 consistently output 71 lines.
+
+**True baseline:** P0.1=71 lines → P0.2=71 lines → P0.3 selects 47–50 participant utterances (correctly excludes all Kevin Sheldrake utterances) → P1.1 ~50–51 segs → P1.4 ~10–11 DUs.
+
+The "9 DU" results seen earlier were from a corrupted (42-line) P0.1 cache that made the pipeline work with fewer utterances. Those results cannot be reproduced from correct inputs.
 
 **P0.3 breakdown (fixed P0.2=71 utts):**
 - Included Kevin utterances: 0 ✓
@@ -276,7 +280,9 @@ WORSE than before Exp 10. Despite more stable phase distributions in P1.2, P1.4 
 End-to-end (p1s1) before P1.1 fix: range 7–12 DUs (with occasional 15+ outliers)  
 End-to-end (p1s1) after P1.1 fix: sample results 10, 11 DUs (needs more data — background run in progress)
 
-**Single clean fresh run (after all fixes):** p0_3=45, p1_1=46, p1_4=10 DUs (±1 from analyst)
+**Corrected baseline (p0_3→p1_4 on fixed P0.2=71):** p0_3=49u, p1_1=51s, p1_4=10-11 DUs (analyst=9, ±1-2)
+
+**Note:** The p0_3=45 run was from a corrupted P0.1 cache (--step p0_1 bug). The true P0.3 output is ~47-50 included utterances. 5-run distribution results pending (background task byddant02).
 
 ---
 
@@ -288,7 +294,7 @@ End-to-end (p1s1) after P1.1 fix: sample results 10, 11 DUs (needs more data —
 | P1.2 | ✓ Fixed | Temporal discourse marker fix ("firstly" ≠ Initial State); sharper Post-Hoc criteria |
 | P1.4 | ✓ Fixed | Merge bias (replaces split bias); filler absorption |
 | P0.3 | Unmodified | Selects ~49 of 71 utterances; slightly over-inclusive vs analyst's 42 |
-| P0.2 | Unmodified | Main variance source: sometimes outputs 42, sometimes 71 total utterances |
+| P0.2 | Unmodified | Stable at 71 lines on correct input. Earlier variance was CLI bug. |
 
 ---
 
