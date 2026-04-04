@@ -46,9 +46,11 @@ Instructions:
 1.  Procedural Content: Interviewer questions and meta-comments by the participant should be **excluded**. Any talk about ratings, other events outside the current focus should be excluded.
 2.  Evaluation Criteria for EACH utterance: Ask yourself: "Is this a **direct, concrete description** of the experience, or is it a generalization, theory, or conversational filler that should be excluded?"
     *   **INCLUDE** every direct descriptions of actions, sensations, or cognitions within the specific event, i.e. "included":true.
+    *   **INCLUDE** short participant confirmations ("Yeah", "No") that affirm or deny an interviewer's characterisation of their experience — they carry experiential content in context.
     *   **EXCLUDE** participant's theories about *why* something happened, i.e. "included":false.
     *   **EXCLUDE** participant's generalizations about what they *usually* do or feel, i.e. "included":false.
-    *   An utterance must contribute to the temporal map and phenomenological content of the experience to be included.
+    *   **EXCLUDE** purely procedural meta-comments ("That's all I can think of", "How do I describe that?") that contain no experiential content.
+    *   **DEFAULT: when in doubt, INCLUDE.** Downstream steps can handle marginally relevant utterances. Only exclude when you are certain an utterance adds no experiential content about this specific event.
 6.  Preserve DATA: The \`independent_variable_details\` and \`dependent_variable_focus\` MUST be copied verbatim into the output. PRESERVE all the text from each utterance's 'text' field in the above into 'utterance_text' in your output with "included":true/false accordingly.
 
 Output:

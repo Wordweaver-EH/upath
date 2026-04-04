@@ -286,6 +286,33 @@ End-to-end (p1s1) after P1.1 fix: sample results 10, 11 DUs (needs more data —
 
 ---
 
+## Experiment 13 — P0.3 stabilization: inclusion bias
+
+**Date:** 2026-04-03  
+**Problem:** P0.3 included 35–51 utterances across runs on fixed P0.2=71 input. The 35-utterance outlier drove 8 DUs (under-count); 48u runs sometimes drove 12 DUs (P1.3 sorting failure).
+
+**Variable utterances identified:**
+- Line 29/36: "Yeah." — short confirmations (now: INCLUDE per new rule)
+- Line 19: "So I was like. Well, then, that in turn, like there's no point in that." — (now: INCLUDE)
+- Line 43: "But even like with my hands now..." — current vs past comparison (now: INCLUDE)
+- Line 69: "I normally don't tend to have a very like strong mental image." — was inconsistently included
+
+**Always excluded (correct):**
+- Line 1: header/title
+- Line 67: "So I'm like, how do I describe that?" — metacommentary
+- Line 71: "I think that's all I can think of" — procedural close
+
+**Change:** Added to P0.3:
+- INCLUDE short confirmations that affirm experiential characterisations
+- EXCLUDE purely procedural meta-comments with no experiential content
+- DEFAULT: when in doubt, INCLUDE
+
+**Results (5 runs on fixed P0.2=71):** included=51 on ALL 5 runs. 0 variance. ✓
+
+Full chain impact (p0_3→p1_4, 5 runs): PENDING (background task bdm4j28m3)
+
+---
+
 ## Current State of Prompts
 
 | Prompt | Status | Key change |
@@ -293,7 +320,7 @@ End-to-end (p1s1) after P1.1 fix: sample results 10, 11 DUs (needs more data —
 | P1.1 | ✓ Fixed | Conservative segmentation: default 1-seg per utterance; no causal splits |
 | P1.2 | ✓ Fixed | Temporal discourse marker fix ("firstly" ≠ Initial State); sharper Post-Hoc criteria |
 | P1.4 | ✓ Fixed | Merge bias (replaces split bias); filler absorption |
-| P0.3 | Unmodified | Selects ~49 of 71 utterances; slightly over-inclusive vs analyst's 42 |
+| P0.3 | ✓ Fixed | Added inclusion bias + "when in doubt, include"; now consistently 51/71 |
 | P0.2 | Unmodified | Stable at 71 lines on correct input. Earlier variance was CLI bug. |
 
 ---
